@@ -5,16 +5,24 @@ interface WindowControls {
 	endDrag: () => void;
 }
 
+interface FileSystem {
+	saveTempVideo: (blob: Blob) => Promise<string>;
+	getTempVideoPath: () => Promise<string>;
+	cleanupTempVideo: () => void;
+}
+
 interface ElectronAPI {
+	desktopCapturer: {
+		getSources: (opts: any) => Promise<any>;
+	};
+	windowControls: WindowControls;
+	fileSystem: FileSystem;
 	ipcRenderer: {
 		send: (channel: string, ...args: any[]) => void;
 		on: (channel: string, func: Function) => void;
 		once: (channel: string, func: Function) => void;
 		removeAllListeners: (channel: string) => void;
 	};
-	windowControls: WindowControls;
-	getTempVideoPath: () => Promise<string>;
-	saveTempVideo: (blob: Blob) => Promise<string>;
 }
 
 declare global {

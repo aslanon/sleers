@@ -110,10 +110,12 @@ onMounted(async () => {
 
 	try {
 		// Geçici video dosyasının yolunu al
-		const tmpVideoPath = await window.electron?.getTempVideoPath();
+		const tmpVideoPath = await window.electron?.fileSystem.getTempVideoPath();
 		if (tmpVideoPath) {
-			videoPath.value = `file://${tmpVideoPath}`;
+			videoPath.value = `file:///${tmpVideoPath}`;
 			console.log("Video yolu:", videoPath.value);
+		} else {
+			console.error("Video yolu bulunamadı");
 		}
 	} catch (error) {
 		console.error("Video yolu alınırken hata:", error);
