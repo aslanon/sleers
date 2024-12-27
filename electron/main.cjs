@@ -243,13 +243,17 @@ async function createWindow() {
 	// Kamera penceresini oluştur
 	cameraWindow = new BrowserWindow({
 		width: 320,
-		height: 240,
+		height: 320,
 		frame: false,
 		transparent: true,
 		hasShadow: true,
 		alwaysOnTop: true,
 		resizable: false,
 		skipTaskbar: true,
+		closable: false,
+		minimizable: false,
+		maximizable: false,
+		fullscreenable: false,
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
@@ -261,7 +265,11 @@ async function createWindow() {
 	const { screen } = require("electron");
 	const primaryDisplay = screen.getPrimaryDisplay();
 	const { width, height } = primaryDisplay.workAreaSize;
-	cameraWindow.setPosition(width - 340, height - 260);
+	cameraWindow.setPosition(width - 340, height - 340);
+
+	// Her zaman en üstte kalmasını sağla
+	cameraWindow.setAlwaysOnTop(true, "screen-saver");
+	cameraWindow.setVisibleOnAllWorkspaces(true);
 
 	if (isDev) {
 		cameraWindow.loadURL("http://127.0.0.1:3000/camera");
