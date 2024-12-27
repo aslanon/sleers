@@ -126,9 +126,10 @@ ipcMain.on("START_AREA_SELECTION", () => {
 		y: minY,
 		transparent: true,
 		frame: false,
-		fullscreen: true,
+		fullscreen: false,
 		alwaysOnTop: true,
 		skipTaskbar: true,
+		resizable: false,
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
@@ -137,9 +138,7 @@ ipcMain.on("START_AREA_SELECTION", () => {
 	});
 
 	// Tüm ekranlarda görünür olsun
-	selectionWindow.setVisibleOnAllWorkspaces(true, {
-		visibleOnFullScreen: true,
-	});
+	selectionWindow.setVisibleOnAllWorkspaces(true);
 	selectionWindow.setAlwaysOnTop(true, "screen-saver");
 
 	if (isDev) {

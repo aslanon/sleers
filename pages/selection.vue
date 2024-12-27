@@ -17,18 +17,28 @@
 					top: `${selection.y}px`,
 					width: `${selection.width}px`,
 					height: `${selection.height}px`,
+					cursor: isMoving ? 'grabbing' : 'grab',
 				}"
+				@mousedown.stop="startMove"
+				@mousemove.stop="moveSelection"
+				@mouseup.stop="endMove"
 			>
 				<div
-					class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md"
+					class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md flex items-center space-x-2"
 				>
-					{{ selection.width }} x {{ selection.height }}
+					<span>{{ selection.width }} x {{ selection.height }}</span>
+					<button
+						@click="confirmSelection"
+						class="bg-green-500 hover:bg-green-600 px-2 py-0.5 rounded text-xs"
+					>
+						Onayla
+					</button>
 				</div>
 			</div>
 
 			<!-- Talimatlar -->
 			<div
-				v-if="!isSelecting"
+				v-if="!isSelecting && !selection"
 				class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-center"
 			>
 				<p class="text-lg mb-2">Kaydetmek istediğiniz alanı seçin</p>
@@ -41,9 +51,20 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 
+declare global {
+	interface Window {
+		electron: {
+			ipcRenderer: {
+				send: (channel: string, ...args: any[]) => void;
+			};
+		};
+	}
+}
+
 const { ipcRenderer } = window.electron;
 const container = ref<HTMLElement | null>(null);
 const isSelecting = ref(false);
+const isMoving = ref(false);
 const selection = ref<{
 	x: number;
 	y: number;
@@ -51,6 +72,7 @@ const selection = ref<{
 	height: number;
 } | null>(null);
 const startPos = ref({ x: 0, y: 0 });
+const moveOffset = ref({ x: 0, y: 0 });
 
 onMounted(() => {
 	if (container.value) {
@@ -59,6 +81,7 @@ onMounted(() => {
 });
 
 const startSelection = (e: MouseEvent) => {
+	if (selection.value) return; // Eğer zaten bir seçim varsa yeni seçime izin verme
 	isSelecting.value = true;
 	startPos.value = { x: e.clientX, y: e.clientY };
 	selection.value = {
@@ -86,9 +109,38 @@ const updateSelection = (e: MouseEvent) => {
 
 const endSelection = () => {
 	if (!isSelecting.value || !selection.value) return;
-
 	isSelecting.value = false;
+};
 
+const startMove = (e: MouseEvent) => {
+	if (!selection.value) return;
+	isMoving.value = true;
+	moveOffset.value = {
+		x: e.clientX - selection.value.x,
+		y: e.clientY - selection.value.y,
+	};
+};
+
+const moveSelection = (e: MouseEvent) => {
+	if (!isMoving.value || !selection.value) return;
+
+	const newX = e.clientX - moveOffset.value.x;
+	const newY = e.clientY - moveOffset.value.y;
+
+	// Sınırlar içinde tutma
+	const maxX = window.innerWidth - selection.value.width;
+	const maxY = window.innerHeight - selection.value.height;
+
+	selection.value.x = Math.max(0, Math.min(maxX, newX));
+	selection.value.y = Math.max(0, Math.min(maxY, newY));
+};
+
+const endMove = () => {
+	isMoving.value = false;
+};
+
+const confirmSelection = () => {
+	if (!selection.value) return;
 	// Seçilen alanı ana pencereye gönder
 	ipcRenderer.send("AREA_SELECTED", selection.value);
 };
