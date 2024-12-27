@@ -17,6 +17,7 @@ let cameraWindow = null;
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 let tempVideoPath = null;
+let lastCameraPosition = { x: 0, y: 0 };
 
 // Geçici video dosyası işlemleri
 ipcMain.handle("SAVE_TEMP_VIDEO", async (event, blob) => {
@@ -282,8 +283,10 @@ async function createWindow() {
 	// Pencere sürükleme için IPC handlers
 	ipcMain.on("CAMERA_WINDOW_DRAG", (event, { mouseX, mouseY }) => {
 		if (cameraWindow) {
-			const [x, y] = cameraWindow.getPosition();
-			cameraWindow.setPosition(mouseX - 160, mouseY - 120);
+			const newX = mouseX - 160;
+			const newY = mouseY - 120;
+			cameraWindow.setPosition(newX, newY);
+			lastCameraPosition = { x: newX, y: newY };
 		}
 	});
 
@@ -334,4 +337,9 @@ app.on("activate", () => {
 	if (mainWindow === null) {
 		createWindow();
 	}
+});
+
+// Kamera pozisyonunu almak için yeni handler
+ipcMain.handle("GET_CAMERA_POSITION", () => {
+	return lastCameraPosition;
 });

@@ -31,135 +31,155 @@
 		<div
 			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-sm p-4 border-b border-gray-700"
 		>
-			<div class="flex items-center space-x-4">
-				<button @click="closeWindow" class="p-2 hover:bg-gray-700 rounded-lg">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
-						<path
-							fill-rule="evenodd"
-							d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-							clip-rule="evenodd"
-						/>
-					</svg>
-				</button>
+			<div class="flex items-center justify-between">
+				<div class="flex items-center space-x-4">
+					<button @click="closeWindow" class="p-2 hover:bg-gray-700 rounded-lg">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-5 w-5"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+					</button>
 
-				<!-- Kayıt Kontrolleri -->
-				<div class="flex items-center space-x-2">
-					<button
-						class="p-2 hover:bg-gray-700 rounded-lg"
-						:class="{ 'bg-gray-700': selectedSource === 'display' }"
-						@click="selectSource('display')"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
+					<!-- Kayıt Kontrolleri -->
+					<div class="flex items-center space-x-2">
+						<button
+							class="p-2 hover:bg-gray-700 rounded-lg"
+							:class="{ 'bg-gray-700': selectedSource === 'display' }"
+							@click="selectSource('display')"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-							/>
-						</svg>
-					</button>
-					<button
-						class="p-2 hover:bg-gray-700 rounded-lg"
-						:class="{ 'bg-gray-700': selectedSource === 'window' }"
-						@click="selectSource('window')"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+								/>
+							</svg>
+						</button>
+						<button
+							class="p-2 hover:bg-gray-700 rounded-lg"
+							:class="{ 'bg-gray-700': selectedSource === 'window' }"
+							@click="selectSource('window')"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M4 6h16M4 10h16M4 14h16M4 18h16"
-							/>
-						</svg>
-					</button>
-					<button
-						class="p-2 hover:bg-gray-700 rounded-lg"
-						:class="{ 'bg-gray-700': selectedSource === 'area' }"
-						@click="selectSource('area')"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M4 6h16M4 10h16M4 14h16M4 18h16"
+								/>
+							</svg>
+						</button>
+						<button
+							class="p-2 hover:bg-gray-700 rounded-lg"
+							:class="{ 'bg-gray-700': selectedSource === 'area' }"
+							@click="selectSource('area')"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-							/>
-						</svg>
-					</button>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+								/>
+							</svg>
+						</button>
+					</div>
+
+					<!-- Kamera ve Mikrofon Seçimi -->
+					<div class="flex items-center space-x-2">
+						<select
+							v-model="selectedVideoDevice"
+							class="bg-gray-700 text-white rounded-lg px-3 py-1 text-sm"
+						>
+							<option
+								v-for="device in videoDevices"
+								:key="device.deviceId"
+								:value="device.deviceId"
+							>
+								{{ device.label || `Kamera ${device.deviceId}` }}
+							</option>
+						</select>
+
+						<select
+							v-model="selectedAudioDevice"
+							class="bg-gray-700 text-white rounded-lg px-3 py-1 text-sm"
+						>
+							<option
+								v-for="device in audioDevices"
+								:key="device.deviceId"
+								:value="device.deviceId"
+							>
+								{{ device.label || `Mikrofon ${device.deviceId}` }}
+							</option>
+						</select>
+
+						<!-- Sistem Sesi Toggle -->
+						<button
+							class="p-2 hover:bg-gray-700 rounded-lg"
+							:class="{ 'bg-gray-700': systemAudioEnabled }"
+							@click="toggleSystemAudio"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-5 w-5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+								/>
+							</svg>
+						</button>
+
+						<!-- Kayıt Toggle Butonu -->
+						<button
+							@click="isRecording ? stopRecording() : startRecording()"
+							class="flex items-center space-x-2 px-4 py-2 rounded-lg"
+							:class="
+								isRecording
+									? 'bg-red-600 hover:bg-red-700'
+									: 'bg-gray-700 hover:bg-gray-600'
+							"
+						>
+							<span
+								class="w-2 h-2 rounded-full bg-white"
+								v-if="isRecording"
+							></span>
+							<span>{{ isRecording ? "Durdur" : "Kaydet" }}</span>
+						</button>
+					</div>
 				</div>
-
-				<!-- Kamera Seçimi -->
-				<select
-					v-model="selectedVideoDevice"
-					class="bg-gray-700 text-white rounded-lg px-3 py-1 text-sm"
-				>
-					<option
-						v-for="device in videoDevices"
-						:key="device.deviceId"
-						:value="device.deviceId"
-					>
-						{{ device.label || `Kamera ${device.deviceId}` }}
-					</option>
-				</select>
-
-				<!-- Mikrofon Seçimi -->
-				<select
-					v-model="selectedAudioDevice"
-					class="bg-gray-700 text-white rounded-lg px-3 py-1 text-sm"
-				>
-					<option
-						v-for="device in audioDevices"
-						:key="device.deviceId"
-						:value="device.deviceId"
-					>
-						{{ device.label || `Mikrofon ${device.deviceId}` }}
-					</option>
-				</select>
-
-				<!-- Sistem Sesi -->
-				<button
-					class="p-2 hover:bg-gray-700 rounded-lg"
-					:class="{ 'bg-gray-700': systemAudioEnabled }"
-					@click="toggleSystemAudio"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-						/>
-					</svg>
-				</button>
 			</div>
 		</div>
 
@@ -191,10 +211,7 @@
 					<Icon name="material-symbols:crop-free" size="20" />
 				</button>
 			</div>
-			<button
-				class="p-1 hover:bg-gray-700 rounded"
-				@click="window.electron?.close()"
-			>
+			<button class="p-1 hover:bg-gray-700 rounded" @click="closeWindow">
 				<Icon name="material-symbols:close" size="20" />
 			</button>
 		</div>
@@ -202,45 +219,29 @@
 		<!-- Ana İçerik -->
 		<div class="pt-20 p-4">
 			<div class="grid grid-cols-1 gap-4">
-				<!-- Ekran Önizleme -->
-				<div
-					class="aspect-video bg-gray-800 rounded-lg overflow-hidden max-h-[1067px] relative"
-				>
-					<video
-						ref="preview"
-						autoplay
-						muted
-						class="w-full h-full object-contain"
-					></video>
-					<!-- Sürüklenebilir Kamera -->
+				<!-- Alan seçimi için gerekli olan overlay -->
+				<div v-if="isSelectingArea" class="fixed inset-0 z-50">
 					<div
-						v-if="currentCameraStream"
-						class="absolute cursor-move"
-						:style="{
-							left: `${cameraPosition.x}px`,
-							top: `${cameraPosition.y}px`,
-						}"
-						@mousedown.stop="startCameraDrag"
-						@mousemove.stop="dragCamera"
-						@mouseup.stop="endCameraDrag"
-						@mouseleave.stop="endCameraDrag"
+						class="absolute inset-0 cursor-crosshair"
+						@mousedown="startAreaSelection"
+						@mousemove="updateAreaSelection"
+						@mouseup="endAreaSelection"
 					>
 						<div
-							class="w-[200px] h-[200px] rounded-full overflow-hidden shadow-lg"
+							v-if="selectedArea"
+							class="absolute border-2 border-blue-500 bg-blue-500/20"
+							:style="{
+								left: `${selectedArea.x}px`,
+								top: `${selectedArea.y}px`,
+								width: `${selectedArea.width}px`,
+								height: `${selectedArea.height}px`,
+							}"
 						>
-							<video
-								id="cameraPreview"
-								autoplay
-								muted
-								class="w-full h-full object-cover"
-								style="
-									-webkit-mask-image: -webkit-radial-gradient(
-										circle,
-										white 100%,
-										black 100%
-									);
-								"
-							></video>
+							<div
+								class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md"
+							>
+								{{ selectedArea.width }} x {{ selectedArea.height }}
+							</div>
 						</div>
 					</div>
 				</div>
