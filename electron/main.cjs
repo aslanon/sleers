@@ -25,10 +25,22 @@ ipcMain.handle(
 	"CROP_VIDEO",
 	async (event, { inputPath, outputPath, x, y, width, height }) => {
 		return new Promise((resolve, reject) => {
+			// Input dosyasını kontrol et
+			if (!fs.existsSync(inputPath)) {
+				reject(new Error(`Input dosyası bulunamadı: ${inputPath}`));
+				return;
+			}
+
+			// Input dosyasının boyutunu kontrol et
+			const stats = fs.statSync(inputPath);
+			if (stats.size === 0) {
+				reject(new Error("Input dosyası boş"));
+				return;
+			}
+
 			console.log("1. Kırpma işlemi başlatılıyor");
 			console.log("Kırpma parametreleri:", { x, y, width, height });
-			console.log("Input path:", inputPath);
-			console.log("Output path:", outputPath);
+			console.log("Input dosya boyutu:", stats.size, "bytes");
 
 			// Önce video bilgilerini al
 			ffmpeg.ffprobe(inputPath, (err, metadata) => {
@@ -53,6 +65,7 @@ ipcMain.handle(
 					duration: videoStream.duration,
 					codec: videoStream.codec_name,
 					bitrate: videoStream.bit_rate,
+					format: metadata.format ? metadata.format.format_name : "unknown",
 				});
 
 				// Kırpma alanını video boyutlarına göre kontrol et
@@ -60,6 +73,13 @@ ipcMain.handle(
 				const cropHeight = Math.min(height, videoStream.height - y);
 				const cropX = Math.max(0, Math.min(x, videoStream.width - cropWidth));
 				const cropY = Math.max(0, Math.min(y, videoStream.height - cropHeight));
+
+				if (cropWidth <= 0 || cropHeight <= 0) {
+					reject(
+						new Error(`Geçersiz kırpma boyutları: ${cropWidth}x${cropHeight}`)
+					);
+					return;
+				}
 
 				console.log("Düzeltilmiş kırpma parametreleri:", {
 					x: cropX,
@@ -71,52 +91,48 @@ ipcMain.handle(
 				// FFmpeg komutu oluştur
 				console.log("2. FFmpeg komutu hazırlanıyor");
 				const ffmpegCommand = ffmpeg(inputPath)
-					.videoFilters([
-						{
-							filter: "crop",
-							options: {
-								w: String(cropWidth),
-								h: String(cropHeight),
-								x: String(cropX),
-								y: String(cropY),
-							},
-						},
-					])
+					.videoFilters(`crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`)
 					.outputOptions([
-						"-c:v libvpx-vp9", // VP9 codec
+						"-c:v libvpx-vp9", // Video codec
 						"-c:a copy", // Ses codec'ini kopyala
-						"-b:v 2M", // Video bitrate
-						"-maxrate 2M", // Maximum bitrate
-						"-bufsize 4M", // Buffer size
-						"-deadline realtime", // Encoding hızı
-						"-cpu-used 4", // CPU kullanımı (0-5, 5 en hızlı)
-						"-row-mt 1", // Multi-thread encoding
-						"-frame-parallel 1", // Paralel frame işleme
-						"-tile-columns 2", // VP9 tile columns
-						"-tile-rows 1", // VP9 tile rows
-						"-threads 4", // Thread sayısı
-						"-g 240", // Keyframe aralığı
-						"-qmin 4", // Minimum quantizer
-						"-qmax 48", // Maximum quantizer
-						"-quality realtime", // Kalite ayarı
+						"-b:v 1M", // Video bitrate
+						"-deadline realtime", // Hızlı encoding
+						"-cpu-used 8", // En hızlı encoding
 						"-y", // Varolan dosyanın üzerine yaz
 					]);
 
 				// Progress durumunu logla
 				ffmpegCommand.on("progress", (progress) => {
-					console.log("3. İşlem durumu:", progress.percent, "%");
+					console.log("3. İşlem durumu:", {
+						frames: progress.frames,
+						fps: progress.currentFps,
+						percent: progress.percent,
+						time: progress.timemark,
+					});
 				});
 
 				// Çıktıyı kaydet
 				console.log("4. Kırpma işlemi başlıyor");
 				ffmpegCommand
-					.save(outputPath)
+					.toFormat("webm")
 					.on("start", (commandLine) => {
 						console.log("FFmpeg Komutu:", commandLine);
 					})
+					.on("stderr", (stderrLine) => {
+						console.log("FFmpeg stderr:", stderrLine);
+					})
+					.save(outputPath)
 					.on("end", () => {
 						console.log("5. Video kırpma tamamlandı");
-						// Kırpılan videoyu orijinal video ile değiştir
+						// Çıktı dosyasını kontrol et
+						if (
+							!fs.existsSync(outputPath) ||
+							fs.statSync(outputPath).size === 0
+						) {
+							reject(new Error("Çıktı dosyası oluşturulamadı veya boş"));
+							return;
+						}
+
 						try {
 							console.log("6. Dosya değiştirme işlemi başlıyor");
 							if (fs.existsSync(inputPath)) {
@@ -454,7 +470,7 @@ async function createWindow() {
 		);
 	}
 
-	// Pencere sürükleme için IPC handlers
+	// Pencere sür��kleme için IPC handlers
 	ipcMain.on("START_WINDOW_DRAG", (event, mousePosition) => {
 		isDragging = true;
 		const winPosition = mainWindow.getPosition();

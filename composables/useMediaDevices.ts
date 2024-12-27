@@ -172,14 +172,33 @@ export const useMediaDevices = () => {
 					console.log("Ekran ölçeği:", screenScale);
 
 					// Kırpma koordinatlarını video boyutuna göre ölçekle
-					const scaleX = video.videoWidth / (window.innerWidth * screenScale);
-					const scaleY = video.videoHeight / (window.innerHeight * screenScale);
+					const scaleX = video.videoWidth / window.innerWidth;
+					const scaleY = video.videoHeight / window.innerHeight;
 
+					// Koordinatları pozitif sayılara çevir ve sınırları kontrol et
+					const x = Math.max(
+						0,
+						Math.min(cropArea.x, window.innerWidth - cropArea.width)
+					);
+					const y = Math.max(
+						0,
+						Math.min(cropArea.y, window.innerHeight - cropArea.height)
+					);
+					const width = Math.max(
+						100,
+						Math.min(cropArea.width, window.innerWidth - x)
+					);
+					const height = Math.max(
+						100,
+						Math.min(cropArea.height, window.innerHeight - y)
+					);
+
+					// Video koordinatlarına ölçekle
 					const scaledCropArea = {
-						x: Math.round(cropArea.x * scaleX),
-						y: Math.round(cropArea.y * scaleY),
-						width: Math.round(cropArea.width * scaleX),
-						height: Math.round(cropArea.height * scaleY),
+						x: Math.round(x * scaleX),
+						y: Math.round(y * scaleY),
+						width: Math.round(width * scaleX),
+						height: Math.round(height * scaleY),
 					};
 
 					console.log("Video ve kırpma bilgileri:", {
@@ -191,8 +210,23 @@ export const useMediaDevices = () => {
 						scaleX,
 						scaleY,
 						originalCropArea: cropArea,
+						adjustedCropArea: { x, y, width, height },
 						scaledCropArea,
 					});
+
+					// Kırpma alanının minimum boyutlarını ve video sınırlarını kontrol et
+					if (scaledCropArea.width < 100 || scaledCropArea.height < 100) {
+						throw new Error(
+							`Kırpma alanı çok küçük: ${scaledCropArea.width}x${scaledCropArea.height} (minimum 100x100)`
+						);
+					}
+
+					if (
+						scaledCropArea.x + scaledCropArea.width > video.videoWidth ||
+						scaledCropArea.y + scaledCropArea.height > video.videoHeight
+					) {
+						throw new Error("Kırpma alanı video boyutlarını aşıyor");
+					}
 
 					const outputPath = tempPath.replace(".webm", "_cropped.webm");
 					console.log("5. Kırpma için dosya yolları:", {
