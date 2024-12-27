@@ -65,18 +65,48 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, onMounted, onActivated, onDeactivated } from "vue";
 
 const videoPlayer = ref<HTMLVideoElement | null>(null);
 const videoPath = ref<string>("");
 let isDragging = false;
 
+const getVideoPath = async () => {
+	try {
+		// Geçici video dosyasının yolunu al
+		const tmpVideoPath = await window.electron?.fileSystem.getTempVideoPath();
+		if (tmpVideoPath) {
+			// Video yolunu güncelle
+			videoPath.value = `file://${tmpVideoPath}`;
+			console.log("Video yolu:", videoPath.value);
+
+			// Video elementini yükle
+			if (videoPlayer.value) {
+				videoPlayer.value.load();
+			}
+		} else {
+			console.error("Video yolu bulunamadı");
+		}
+	} catch (error) {
+		console.error("Video yolu alınırken hata:", error);
+	}
+};
+
 const closeWindow = () => {
 	window.electron?.windowControls.close();
 };
 
-const startNewRecording = () => {
-	navigateTo("/");
+const startNewRecording = async () => {
+	try {
+		// Önce geçici videoyu temizle
+		await window.electron?.ipcRenderer.send("CLEANUP_TEMP_VIDEO");
+		// Video yolunu temizle
+		videoPath.value = "";
+		// Ana sayfaya yönlendir
+		navigateTo("/");
+	} catch (error) {
+		console.error("Yeni kayıt başlatılırken hata:", error);
+	}
 };
 
 // Pencere sürükleme işlemleri
@@ -107,18 +137,21 @@ const endWindowDrag = () => {
 onMounted(async () => {
 	// Pencere yüksekliğini artır
 	window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
+	// Video yolunu al
+	await getVideoPath();
+});
 
-	try {
-		// Geçici video dosyasının yolunu al
-		const tmpVideoPath = await window.electron?.fileSystem.getTempVideoPath();
-		if (tmpVideoPath) {
-			videoPath.value = `file:///${tmpVideoPath}`;
-			console.log("Video yolu:", videoPath.value);
-		} else {
-			console.error("Video yolu bulunamadı");
-		}
-	} catch (error) {
-		console.error("Video yolu alınırken hata:", error);
+// Sayfa her aktif olduğunda video yolunu güncelle
+onActivated(async () => {
+	await getVideoPath();
+});
+
+// Sayfa deaktive olduğunda video yolunu temizle
+onDeactivated(() => {
+	if (videoPlayer.value) {
+		videoPlayer.value.pause();
+		videoPlayer.value.currentTime = 0;
 	}
+	videoPath.value = "";
 });
 </script>

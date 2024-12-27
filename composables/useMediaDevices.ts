@@ -52,10 +52,15 @@ export const useMediaDevices = () => {
 					mandatory: {
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: sources[0].id,
-						minWidth: 1280,
-						maxWidth: 1920,
-						minHeight: 720,
-						maxHeight: 1080,
+						minWidth: streamOptions?.width || 1280,
+						maxWidth: streamOptions?.width || 1920,
+						minHeight: streamOptions?.height || 720,
+						maxHeight: streamOptions?.height || 1080,
+						...(streamOptions?.x &&
+							streamOptions?.y && {
+								x: streamOptions.x,
+								y: streamOptions.y,
+							}),
 					},
 				},
 			});
@@ -114,7 +119,10 @@ export const useMediaDevices = () => {
 
 	const stopRecording = () => {
 		if (mediaStream.value) {
-			mediaStream.value.getTracks().forEach((track) => track.stop());
+			// Tüm track'leri durdur
+			mediaStream.value.getTracks().forEach((track) => {
+				track.stop();
+			});
 			mediaStream.value = null;
 			isRecording.value = false;
 		}
@@ -133,7 +141,7 @@ export const useMediaDevices = () => {
 			const dataUrl = `data:video/webm;base64,${base64Data}`;
 
 			// Geçici dosyayı kaydet
-			const tempPath = await window.electron?.saveTempVideo(dataUrl);
+			const tempPath = await window.electron?.fileSystem.saveTempVideo(dataUrl);
 			console.log("Geçici video kaydedildi:", tempPath);
 
 			// Editor sayfasına yönlendir

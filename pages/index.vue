@@ -178,6 +178,7 @@ const {
 	getDevices,
 	isRecording,
 	recordedChunks,
+	mediaStream,
 	startRecording: startMediaStream,
 	stopRecording: stopMediaStream,
 	saveRecording,
@@ -248,22 +249,11 @@ onUnmounted(() => {
 
 const startRecording = async () => {
 	try {
-		const streamOptions = {
-			video: {
-				mandatory: {
-					chromeMediaSource: "desktop",
-					minWidth: 1280,
-					maxWidth: 1920,
-					minHeight: 720,
-					maxHeight: 1080,
-				},
-			},
-		};
+		let streamOptions = {};
 
-		// Alan seçimi varsa koordinatları ekle
+		// Seçilen alana göre stream seçeneklerini ayarla
 		if (selectedSource.value === "area" && selectedArea.value) {
-			streamOptions.video.mandatory = {
-				...streamOptions.video.mandatory,
+			streamOptions = {
 				x: selectedArea.value.x,
 				y: selectedArea.value.y,
 				width: selectedArea.value.width,
@@ -271,68 +261,44 @@ const startRecording = async () => {
 			};
 		}
 
+		// Kayıt başlat
 		const { screenStream, cameraStream } = await startMediaStream(
 			streamOptions
 		);
 
-		// Önizleme için stream'i ayarla
-		if (preview.value) {
-			preview.value.srcObject = screenStream;
-			await preview.value
-				.play()
-				.catch((e) => console.error("Ekran önizleme hatası:", e));
+		// MediaRecorder'ı başlat
+		if (mediaStream.value) {
+			mediaRecorder = new MediaRecorder(mediaStream.value, {
+				mimeType: "video/webm;codecs=vp9",
+			});
+
+			mediaRecorder.ondataavailable = (event) => {
+				if (event.data.size > 0) {
+					recordedChunks.value.push(event.data);
+				}
+			};
+
+			mediaRecorder.onstop = async () => {
+				await saveRecording(recordedChunks.value);
+				recordedChunks.value = [];
+			};
+
+			mediaRecorder.start(1000); // Her saniyede bir veri al
 		}
-
-		// Kamera önizlemesi için stream'i ayarla
-		if (cameraPreview.value && cameraStream) {
-			cameraPreview.value.srcObject = cameraStream;
-			await cameraPreview.value
-				.play()
-				.catch((e) => console.error("Kamera önizleme hatası:", e));
-		}
-
-		// MediaRecorder ayarları
-		const options = {
-			mimeType: "video/webm;codecs=h264",
-			videoBitsPerSecond: 2500000,
-			audioBitsPerSecond: 128000,
-		};
-
-		if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-			console.warn("H264 codec desteklenmiyor, varsayılan codec kullanılacak");
-			options.mimeType = "video/webm";
-		}
-
-		mediaRecorder = new MediaRecorder(screenStream, options);
-		mediaRecorder.ondataavailable = (e) => {
-			if (e.data && e.data.size > 0) {
-				recordedChunks.value.push(e.data);
-			}
-		};
-		mediaRecorder.onstop = () => {
-			saveRecording(recordedChunks.value);
-			recordedChunks.value = [];
-		};
-		mediaRecorder.onerror = (error) => {
-			console.error("MediaRecorder hatası:", error);
-			stopRecording();
-		};
-
-		mediaRecorder.start(1000);
-		isRecording.value = true;
 	} catch (error) {
-		console.error("Kayıt başlatılırken hata oluştu:", error);
-		alert("Kayıt başlatılırken bir hata oluştu. Lütfen tekrar deneyin.");
-		stopRecording();
+		console.error("Kayıt başlatılırken hata:", error);
 	}
 };
 
 const stopRecording = async () => {
-	if (mediaRecorder && mediaRecorder.state !== "inactive") {
-		mediaRecorder.stop();
+	try {
+		if (mediaRecorder && mediaRecorder.state !== "inactive") {
+			mediaRecorder.stop();
+			mediaRecorder = null;
+		}
 		await stopMediaStream();
-		// Editör sayfasına yönlendir
-		navigateTo("/editor");
+	} catch (error) {
+		console.error("Kayıt durdurulurken hata:", error);
 	}
 };
 
@@ -428,7 +394,7 @@ watch(selectedAudioDevice, async (newDeviceId) => {
 				},
 			});
 
-			// Yeni ses stream'ini kay��t için sakla
+			// Yeni ses stream'ini kayıt için sakla
 			currentAudioStream.value = stream;
 		} catch (error) {
 			console.error("Mikrofon değiştirme hatası:", error);
