@@ -1,14 +1,17 @@
 <template>
-	<div class="fixed inset-0 bg-black/50 backdrop-blur-sm">
+	<div class="fixed inset-0 bg-black/30 backdrop-blur-sm">
 		<div
 			class="absolute inset-0 cursor-crosshair"
 			@mousedown="startSelection"
 			@mousemove="updateSelection"
 			@mouseup="endSelection"
+			@keydown.esc="cancelSelection"
+			tabindex="0"
+			ref="container"
 		>
 			<div
 				v-if="selection"
-				class="absolute border-2 border-blue-500 bg-blue-500/20"
+				class="absolute border-2 border-blue-500 bg-transparent"
 				:style="{
 					left: `${selection.x}px`,
 					top: `${selection.y}px`,
@@ -22,21 +25,38 @@
 					{{ selection.width }} x {{ selection.height }}
 				</div>
 			</div>
+
+			<!-- Talimatlar -->
+			<div
+				v-if="!isSelecting"
+				class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-center"
+			>
+				<p class="text-lg mb-2">Kaydetmek istediğiniz alanı seçin</p>
+				<p class="text-sm opacity-75">ESC tuşu ile iptal edebilirsiniz</p>
+			</div>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 
+const { ipcRenderer } = window.electron;
+const container = ref<HTMLElement | null>(null);
 const isSelecting = ref(false);
-const startPos = ref({ x: 0, y: 0 });
 const selection = ref<{
 	x: number;
 	y: number;
 	width: number;
 	height: number;
 } | null>(null);
+const startPos = ref({ x: 0, y: 0 });
+
+onMounted(() => {
+	if (container.value) {
+		container.value.focus();
+	}
+});
 
 const startSelection = (e: MouseEvent) => {
 	isSelecting.value = true;
@@ -50,36 +70,38 @@ const startSelection = (e: MouseEvent) => {
 };
 
 const updateSelection = (e: MouseEvent) => {
-	if (!isSelecting.value) return;
+	if (!isSelecting.value || !selection.value) return;
 
-	const x = Math.min(startPos.value.x, e.clientX);
-	const y = Math.min(startPos.value.y, e.clientY);
-	const width = Math.abs(e.clientX - startPos.value.x);
-	const height = Math.abs(e.clientY - startPos.value.y);
+	const currentX = e.clientX;
+	const currentY = e.clientY;
+
+	// Seçim alanını hesapla
+	const x = Math.min(startPos.value.x, currentX);
+	const y = Math.min(startPos.value.y, currentY);
+	const width = Math.abs(currentX - startPos.value.x);
+	const height = Math.abs(currentY - startPos.value.y);
 
 	selection.value = { x, y, width, height };
 };
 
 const endSelection = () => {
 	if (!isSelecting.value || !selection.value) return;
+
 	isSelecting.value = false;
 
-	if (selection.value.width > 0 && selection.value.height > 0) {
-		// @ts-ignore
-		window.electron?.completeAreaSelection({
-			...selection.value,
-			// Ekran koordinatlarına çevir
-			x: Math.round(selection.value.x),
-			y: Math.round(selection.value.y),
-			width: Math.round(selection.value.width),
-			height: Math.round(selection.value.height),
-		});
-	}
+	// Seçilen alanı ana pencereye gönder
+	ipcRenderer.send("AREA_SELECTED", selection.value);
+};
+
+const cancelSelection = () => {
+	ipcRenderer.send("CANCEL_AREA_SELECTION");
 };
 </script>
 
-<style scoped>
-.backdrop-blur-sm {
-	backdrop-filter: blur(4px);
+<style>
+html,
+body {
+	overflow: hidden;
+	user-select: none;
 }
 </style>

@@ -111,12 +111,19 @@ ipcMain.on("START_AREA_SELECTION", () => {
 		transparent: true,
 		frame: false,
 		fullscreen: true,
+		alwaysOnTop: true,
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.cjs"),
 		},
 	});
+
+	// Tüm çalışma alanlarında görünür olsun
+	selectionWindow.setVisibleOnAllWorkspaces(true, {
+		visibleOnFullScreen: true,
+	});
+	selectionWindow.setAlwaysOnTop(true, "screen-saver");
 
 	if (isDev) {
 		selectionWindow.loadURL("http://127.0.0.1:3000/selection");
@@ -126,11 +133,27 @@ ipcMain.on("START_AREA_SELECTION", () => {
 		);
 	}
 
-	selectionWindow.setAlwaysOnTop(true, "screen-saver");
-	selectionWindow.setVisibleOnAllWorkspaces(true);
+	// Alan seçimi tamamlandığında
+	ipcMain.once("AREA_SELECTED", (event, area) => {
+		if (mainWindow) {
+			mainWindow.webContents.send("AREA_SELECTED", area);
+		}
+		if (selectionWindow) {
+			selectionWindow.close();
+		}
+	});
+
+	// Alan seçimi iptal edildiğinde
+	ipcMain.once("CANCEL_AREA_SELECTION", () => {
+		if (selectionWindow) {
+			selectionWindow.close();
+		}
+	});
 
 	selectionWindow.on("closed", () => {
 		selectionWindow = null;
+		ipcMain.removeAllListeners("AREA_SELECTED");
+		ipcMain.removeAllListeners("CANCEL_AREA_SELECTION");
 	});
 });
 
@@ -189,8 +212,11 @@ async function createWindow() {
 
 	// Ana kontrol penceresi
 	mainWindow = new BrowserWindow({
-		width: 800,
-		height: 200,
+		width: 1000,
+		height: 72,
+		alwaysOnTop: true,
+		resizable: false,
+		skipTaskbar: false,
 		frame: false,
 		transparent: true,
 		hasShadow: true,
@@ -228,7 +254,6 @@ async function createWindow() {
 
 	if (isDev) {
 		mainWindow.loadURL("http://127.0.0.1:3000");
-		mainWindow.webContents.openDevTools();
 	} else {
 		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));
 	}
@@ -281,27 +306,6 @@ async function createWindow() {
 	}
 
 	// Pencere sürükleme için IPC handlers
-	ipcMain.on("CAMERA_WINDOW_DRAG", (event, { mouseX, mouseY }) => {
-		if (cameraWindow) {
-			const newX = mouseX - 160;
-			const newY = mouseY - 120;
-			cameraWindow.setPosition(newX, newY);
-			lastCameraPosition = { x: newX, y: newY };
-		}
-	});
-
-	cameraWindow.on("closed", () => {
-		cameraWindow = null;
-		ipcMain.removeAllListeners("CAMERA_WINDOW_DRAG");
-	});
-
-	// Pencere sürükleme için mouse olaylarını dinle
-	mainWindow.on("will-move", (event) => {
-		if (!isDragging) {
-			event.preventDefault();
-		}
-	});
-
 	ipcMain.on("START_WINDOW_DRAG", (event, mousePosition) => {
 		isDragging = true;
 		const winPosition = mainWindow.getPosition();
@@ -312,10 +316,10 @@ async function createWindow() {
 	});
 
 	ipcMain.on("WINDOW_DRAGGING", (event, mousePosition) => {
-		if (isDragging) {
+		if (isDragging && mainWindow) {
 			mainWindow.setPosition(
-				mousePosition.x - dragOffset.x,
-				mousePosition.y - dragOffset.y
+				Math.round(mousePosition.x - dragOffset.x),
+				Math.round(mousePosition.y - dragOffset.y)
 			);
 		}
 	});
@@ -342,4 +346,27 @@ app.on("activate", () => {
 // Kamera pozisyonunu almak için yeni handler
 ipcMain.handle("GET_CAMERA_POSITION", () => {
 	return lastCameraPosition;
+});
+
+// Editör penceresi yükseklik ayarı için IPC handler
+ipcMain.on("RESIZE_EDITOR_WINDOW", () => {
+	if (mainWindow) {
+		const [width, height] = mainWindow.getSize();
+		mainWindow.setSize(width, 600); // Yüksekliği 600px yap
+	}
+});
+
+// Yeni kayıt için pencereyi sıfırla
+ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
+	if (mainWindow) {
+		mainWindow.setSize(800, 200); // Orijinal boyuta döndür
+
+		// Kamera penceresini sağ alt köşeye yerleştir
+		const { screen } = require("electron");
+		const primaryDisplay = screen.getPrimaryDisplay();
+		const { width, height } = primaryDisplay.workAreaSize;
+		if (cameraWindow) {
+			cameraWindow.setPosition(width - 340, height - 340);
+		}
+	}
 });

@@ -1,5 +1,5 @@
 <template>
-	<div class="min-h-screen bg-[#1a1b26]/10 text-white">
+	<div class="bg-[#1a1b26]/10 backdrop-blur-3xl text-white">
 		<!-- Alan Seçimi Overlay -->
 		<div v-if="isSelectingArea" class="fixed inset-0 z-50">
 			<div
@@ -29,11 +29,18 @@
 
 		<!-- Üst Kontrol Çubuğu -->
 		<div
-			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-sm p-4 border-b border-gray-700"
+			class="bg-[#1a1b26]/80 backdrop-blur-3xl p-4 border border-gray-700 cursor-move"
+			@mousedown="startDrag"
+			@mousemove="drag"
+			@mouseup="endDrag"
+			@mouseleave="endDrag"
 		>
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-4">
-					<button @click="closeWindow" class="p-2 hover:bg-gray-700 rounded-lg">
+					<button
+						@click="closeWindow"
+						class="p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
+					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							class="h-5 w-5"
@@ -184,92 +191,6 @@
 		</div>
 
 		<!-- Başlık çubuğu -->
-		<div
-			class="h-8 bg-[#1a1b26] flex items-center justify-between px-4 cursor-move"
-			@mousedown="startDrag"
-			@mousemove="drag"
-			@mouseup="endDrag"
-			@mouseleave="endDrag"
-		>
-			<div class="flex items-center space-x-2">
-				<button
-					class="p-1 hover:bg-gray-700 rounded"
-					@click="selectSource('display')"
-				>
-					<Icon name="material-symbols:desktop-windows-outline" size="20" />
-				</button>
-				<button
-					class="p-1 hover:bg-gray-700 rounded"
-					@click="selectSource('window')"
-				>
-					<Icon name="material-symbols:window-outline" size="20" />
-				</button>
-				<button
-					class="p-1 hover:bg-gray-700 rounded"
-					@click="selectSource('area')"
-				>
-					<Icon name="material-symbols:crop-free" size="20" />
-				</button>
-			</div>
-			<button class="p-1 hover:bg-gray-700 rounded" @click="closeWindow">
-				<Icon name="material-symbols:close" size="20" />
-			</button>
-		</div>
-
-		<!-- Ana İçerik -->
-		<div class="pt-20 p-4">
-			<div class="grid grid-cols-1 gap-4">
-				<!-- Alan seçimi için gerekli olan overlay -->
-				<div v-if="isSelectingArea" class="fixed inset-0 z-50">
-					<div
-						class="absolute inset-0 cursor-crosshair"
-						@mousedown="startAreaSelection"
-						@mousemove="updateAreaSelection"
-						@mouseup="endAreaSelection"
-					>
-						<div
-							v-if="selectedArea"
-							class="absolute border-2 border-blue-500 bg-blue-500/20"
-							:style="{
-								left: `${selectedArea.x}px`,
-								top: `${selectedArea.y}px`,
-								width: `${selectedArea.width}px`,
-								height: `${selectedArea.height}px`,
-							}"
-						>
-							<div
-								class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md"
-							>
-								{{ selectedArea.width }} x {{ selectedArea.height }}
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- Kayıt Kontrolleri -->
-		<div class="fixed bottom-4 left-1/2 transform -translate-x-1/2">
-			<div
-				class="flex items-center space-x-4 bg-gray-800/80 backdrop-blur-sm rounded-full px-6 py-3"
-			>
-				<button
-					@click="startRecording"
-					:disabled="isRecording"
-					class="flex items-center space-x-2 px-4 py-2 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-50"
-				>
-					<span class="w-2 h-2 rounded-full bg-white" v-if="isRecording"></span>
-					<span>{{ isRecording ? "Kaydediliyor..." : "Kaydı Başlat" }}</span>
-				</button>
-				<button
-					v-if="isRecording"
-					@click="stopRecording"
-					class="px-4 py-2 rounded-full bg-gray-700 hover:bg-gray-600"
-				>
-					Kaydı Durdur
-				</button>
-			</div>
-		</div>
 	</div>
 </template>
 
@@ -334,6 +255,8 @@ const selectSource = (source: "display" | "window" | "area") => {
 
 onMounted(async () => {
 	await getDevices();
+	// Yeni kayıt için sıfırlama
+	window.electron?.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 });
 
 onUnmounted(() => {
@@ -424,16 +347,12 @@ const startRecording = async () => {
 	}
 };
 
-const stopRecording = () => {
+const stopRecording = async () => {
 	if (mediaRecorder && mediaRecorder.state !== "inactive") {
 		mediaRecorder.stop();
-		stopMediaStream();
-		if (preview.value) {
-			preview.value.srcObject = null;
-		}
-		if (cameraPreview.value) {
-			cameraPreview.value.srcObject = null;
-		}
+		await stopMediaStream();
+		// Editör sayfasına yönlendir
+		navigateTo("/editor");
 	}
 };
 
@@ -486,22 +405,22 @@ watch(selectedSource, (newSource) => {
 	}
 });
 
-const startDrag = (event) => {
-	window.electron?.startDrag({
+const startDrag = (event: MouseEvent) => {
+	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
-const drag = (event) => {
-	window.electron?.drag({
+const drag = (event: MouseEvent) => {
+	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
 const endDrag = () => {
-	window.electron?.endDrag();
+	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
 
 // Kamera sürükleme işleyicileri
@@ -552,4 +471,42 @@ watch(currentCameraStream, (stream) => {
 const openCameraWindow = () => {
 	window.electron?.ipcRenderer.send("OPEN_CAMERA_WINDOW");
 };
+
+// Kamera değişikliğini izle
+watch(selectedVideoDevice, async (newDeviceId) => {
+	if (newDeviceId) {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				video: {
+					deviceId: { exact: newDeviceId },
+					width: 320,
+					height: 320,
+				},
+			});
+
+			// Kamera penceresine yeni stream'i gönder
+			window.electron?.ipcRenderer.send("UPDATE_CAMERA_STREAM", stream.id);
+		} catch (error) {
+			console.error("Kamera değiştirme hatası:", error);
+		}
+	}
+});
+
+// Mikrofon değişikliğini izle
+watch(selectedAudioDevice, async (newDeviceId) => {
+	if (newDeviceId) {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					deviceId: { exact: newDeviceId },
+				},
+			});
+
+			// Yeni ses stream'ini kayıt için sakla
+			currentAudioStream.value = stream;
+		} catch (error) {
+			console.error("Mikrofon değiştirme hatası:", error);
+		}
+	}
+});
 </script>
