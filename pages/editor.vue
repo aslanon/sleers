@@ -48,23 +48,40 @@
 
 		<!-- Editör İçeriği -->
 		<div class="pt-20 p-4">
-			<!-- Buraya editör içeriği gelecek -->
+			<div v-if="videoPath" class="max-w-4xl mx-auto">
+				<video
+					ref="videoPlayer"
+					class="w-full rounded-lg"
+					controls
+					:src="videoPath"
+				></video>
+			</div>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from "vue";
+
+const videoPlayer = ref<HTMLVideoElement | null>(null);
+const videoPath = ref<string>("");
+
 const closeWindow = () => {
-	window.electron?.windowControls.close();
+	window.electron?.ipcRenderer.send("CLOSE_WINDOW");
 };
 
 const startNewRecording = () => {
-	// Ana sayfaya yönlendir
 	navigateTo("/");
 };
 
-onMounted(() => {
+onMounted(async () => {
 	// Pencere yüksekliğini artır
 	window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
+
+	// Geçici video dosyasının yolunu al
+	const tmpPath = localStorage.getItem("tmpVideoPath");
+	if (tmpPath) {
+		videoPath.value = `file://${tmpPath}`;
+	}
 });
 </script>

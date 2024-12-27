@@ -238,7 +238,7 @@ async function createWindow() {
 	// Ana kontrol penceresi
 	mainWindow = new BrowserWindow({
 		width: 1000,
-		height: 72,
+		height: 70,
 		alwaysOnTop: true,
 		resizable: false,
 		skipTaskbar: false,
