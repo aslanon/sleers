@@ -3,6 +3,10 @@
 		<!-- Üst Kontrol Çubuğu -->
 		<div
 			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-sm p-4 border-b border-gray-700"
+			@mousedown="startWindowDrag"
+			@mousemove="windowDragging"
+			@mouseup="endWindowDrag"
+			@mouseleave="endWindowDrag"
 		>
 			<div class="flex items-center justify-between">
 				<div class="flex items-center space-x-4">
@@ -65,23 +69,54 @@ import { ref, onMounted } from "vue";
 
 const videoPlayer = ref<HTMLVideoElement | null>(null);
 const videoPath = ref<string>("");
+let isDragging = false;
 
 const closeWindow = () => {
-	window.electron?.ipcRenderer.send("CLOSE_WINDOW");
+	window.electron?.windowControls.close();
 };
 
 const startNewRecording = () => {
 	navigateTo("/");
 };
 
+// Pencere sürükleme işlemleri
+const startWindowDrag = (event: MouseEvent) => {
+	isDragging = true;
+	window.electron?.windowControls.startDrag({
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const windowDragging = (event: MouseEvent) => {
+	if (isDragging) {
+		window.electron?.windowControls.dragging({
+			x: event.screenX,
+			y: event.screenY,
+		});
+	}
+};
+
+const endWindowDrag = () => {
+	if (isDragging) {
+		isDragging = false;
+		window.electron?.windowControls.endDrag();
+	}
+};
+
 onMounted(async () => {
 	// Pencere yüksekliğini artır
 	window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
 
-	// Geçici video dosyasının yolunu al
-	const tmpPath = localStorage.getItem("tmpVideoPath");
-	if (tmpPath) {
-		videoPath.value = `file://${tmpPath}`;
+	try {
+		// Geçici video dosyasının yolunu al
+		const tmpVideoPath = await window.electron?.getTempVideoPath();
+		if (tmpVideoPath) {
+			videoPath.value = `file://${tmpVideoPath}`;
+			console.log("Video yolu:", videoPath.value);
+		}
+	} catch (error) {
+		console.error("Video yolu alınırken hata:", error);
 	}
 });
 </script>
