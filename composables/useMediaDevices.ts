@@ -119,30 +119,28 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const saveRecording = (chunks: Blob[]) => {
-		if (chunks.length === 0) {
-			console.error("Kaydedilecek veri bulunamadı");
-			return;
+	const saveRecording = async (chunks: Blob[]) => {
+		try {
+			const blob = new Blob(chunks, { type: "video/webm" });
+			const buffer = await blob.arrayBuffer();
+			const base64Data = btoa(
+				new Uint8Array(buffer).reduce(
+					(data, byte) => data + String.fromCharCode(byte),
+					""
+				)
+			);
+			const dataUrl = `data:video/webm;base64,${base64Data}`;
+
+			// Geçici dosyayı kaydet
+			const tempPath = await window.electron?.saveTempVideo(dataUrl);
+			console.log("Geçici video kaydedildi:", tempPath);
+
+			// Editor sayfasına yönlendir
+			navigateTo("/editor");
+		} catch (error) {
+			console.error("Video kaydedilirken hata oluştu:", error);
+			alert("Video kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
 		}
-
-		const blob = new Blob(chunks, {
-			type: "video/webm",
-		});
-
-		// Dosyayı indir
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		document.body.appendChild(a);
-		a.style.display = "none";
-		a.href = url;
-		a.download = `kayit-${Date.now()}.webm`;
-		a.click();
-
-		// URL'i temizle
-		setTimeout(() => {
-			URL.revokeObjectURL(url);
-			document.body.removeChild(a);
-		}, 100);
 	};
 
 	return {

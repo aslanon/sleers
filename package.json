@@ -24,7 +24,8 @@
 		"concurrently": "^8.2.2",
 		"cross-env": "^7.0.3",
 		"electron-builder": "^24.9.1",
-		"nuxt": "^3.9.1"
+		"nuxt": "^3.9.1",
+		"@rollup/rollup-darwin-arm64": "^4.29.1"
 	},
 	"resolutions": {
 		"@rollup/rollup-darwin-arm64": "4.6.1",

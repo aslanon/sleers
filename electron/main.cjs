@@ -6,6 +6,8 @@ const {
 	ipcMain,
 } = require("electron");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
 
@@ -13,6 +15,48 @@ let mainWindow = null;
 let selectionWindow = null;
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
+let tempVideoPath = null;
+
+// Geçici video dosyası işlemleri
+ipcMain.handle("SAVE_TEMP_VIDEO", async (event, blob) => {
+	try {
+		// Kullanıcının Downloads klasörü altında uygulama klasörü
+		const downloadsPath = app.getPath("downloads");
+		const appDir = path.join(downloadsPath, ".sleer");
+
+		if (!fs.existsSync(appDir)) {
+			fs.mkdirSync(appDir, { recursive: true });
+		}
+
+		// Eski geçici dosyayı temizle
+		if (tempVideoPath && fs.existsSync(tempVideoPath)) {
+			fs.unlinkSync(tempVideoPath);
+		}
+
+		// Yeni geçici dosya yolu
+		tempVideoPath = path.join(appDir, `temp-${Date.now()}.webm`);
+
+		// Base64 verisini dosyaya kaydet
+		const base64Data = blob.replace(/^data:video\/\w+;base64,/, "");
+		fs.writeFileSync(tempVideoPath, base64Data, "base64");
+
+		return tempVideoPath;
+	} catch (error) {
+		console.error("Geçici video kaydedilirken hata:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("GET_TEMP_VIDEO_PATH", () => {
+	return tempVideoPath;
+});
+
+ipcMain.on("CLEANUP_TEMP_VIDEO", () => {
+	if (tempVideoPath && fs.existsSync(tempVideoPath)) {
+		fs.unlinkSync(tempVideoPath);
+		tempVideoPath = null;
+	}
+});
 
 // IPC handler for desktop capturer
 ipcMain.handle("DESKTOP_CAPTURER_GET_SOURCES", async (event, opts) => {
@@ -98,6 +142,35 @@ ipcMain.on("AREA_SELECTED", (event, area) => {
 	}
 });
 
+// Dosya kaydetme dialog'u için IPC handler
+ipcMain.handle("SHOW_SAVE_DIALOG", async (event, options) => {
+	const { dialog } = require("electron");
+	const result = await dialog.showSaveDialog(mainWindow, options);
+	return result.filePath;
+});
+
+// Dosya kopyalama için IPC handler
+ipcMain.handle("COPY_FILE", async (event, src, dest) => {
+	try {
+		await fs.promises.copyFile(src, dest);
+		return true;
+	} catch (error) {
+		console.error("Dosya kopyalanırken hata:", error);
+		throw error;
+	}
+});
+
+// Video içeriğini okumak için IPC handler
+ipcMain.handle("READ_VIDEO_FILE", async (event, filePath) => {
+	try {
+		const data = await fs.promises.readFile(filePath);
+		return data.toString("base64");
+	} catch (error) {
+		console.error("Video dosyası okunurken hata:", error);
+		throw error;
+	}
+});
+
 async function createWindow() {
 	if (isDev) {
 		try {
@@ -112,22 +185,6 @@ async function createWindow() {
 		}
 	}
 
-	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-		callback({
-			responseHeaders: {
-				...details.responseHeaders,
-				"Content-Security-Policy": [
-					"default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* blob: mediastream: data:;",
-					"script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:*;",
-					"connect-src 'self' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:* blob: mediastream:;",
-					"img-src 'self' data: http://localhost:* http://127.0.0.1:* blob:;",
-					"style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*;",
-					"media-src 'self' mediastream: blob: data: *;",
-				].join(" "),
-			},
-		});
-	});
-
 	mainWindow = new BrowserWindow({
 		width: 1200,
 		height: 800,
@@ -140,29 +197,30 @@ async function createWindow() {
 			nodeIntegration: true,
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.cjs"),
-			webSecurity: true,
-			allowRunningInsecureContent: false,
-			enableRemoteModule: false,
-			webgl: true,
-			sandbox: false,
+			webSecurity: false,
 		},
 	});
 
-	mainWindow.webContents.session.setPermissionRequestHandler(
-		(webContents, permission, callback) => {
-			const allowedPermissions = ["media", "display-capture", "mediaKeySystem"];
-			if (allowedPermissions.includes(permission)) {
-				callback(true);
-			} else {
-				callback(false);
-			}
+	// CSP ayarlarını güncelle
+	mainWindow.webContents.session.webRequest.onHeadersReceived(
+		(details, callback) => {
+			callback({
+				responseHeaders: {
+					...details.responseHeaders,
+					"Content-Security-Policy": [
+						"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file:; media-src 'self' file: blob: data:;",
+					],
+				},
+			});
 		}
 	);
 
-	mainWindow.webContents.session.setPermissionCheckHandler(
-		(webContents, permission) => {
-			const allowedPermissions = ["media", "display-capture", "mediaKeySystem"];
-			return allowedPermissions.includes(permission);
+	// Protokol kısıtlamalarını kaldır
+	mainWindow.webContents.session.protocol.registerFileProtocol(
+		"file",
+		(request, callback) => {
+			const filePath = request.url.replace("file://", "");
+			callback({ path: filePath });
 		}
 	);
 

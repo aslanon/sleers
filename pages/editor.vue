@@ -1,162 +1,63 @@
 <template>
-	<div class="min-h-screen bg-[#1a1b26] text-white">
-		<!-- Üst Kontrol Çubuğu -->
-		<div
-			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-sm p-4 border-b border-gray-700"
-		>
-			<div class="flex items-center justify-between">
-				<div class="flex items-center space-x-4">
-					<button @click="closeWindow" class="p-2 hover:bg-gray-700 rounded-lg">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-						>
-							<path
-								fill-rule="evenodd"
-								d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-								clip-rule="evenodd"
-							/>
-						</svg>
-					</button>
-					<span class="text-lg font-semibold">Video Düzenleyici</span>
-				</div>
-				<div class="flex items-center space-x-2">
-					<button
-						class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
-						@click="saveVideo"
-					>
-						Kaydet
-					</button>
-				</div>
-			</div>
-		</div>
-
-		<!-- Video Önizleme -->
-		<div class="pt-20 p-4">
+	<div class="min-h-screen bg-[#1a1b26] text-white p-4">
+		<div class="max-w-6xl mx-auto">
+			<!-- Video Önizleme -->
 			<div
-				class="aspect-video bg-gray-800 rounded-lg overflow-hidden mx-auto max-w-4xl"
+				class="aspect-video bg-gray-800 rounded-lg overflow-hidden mb-4 relative"
 			>
-				<video ref="videoPlayer" class="w-full h-full" controls>
-					<source :src="videoUrl" type="video/webm" />
-				</video>
-			</div>
-		</div>
+				<canvas ref="videoCanvas" class="w-full h-full"></canvas>
+				<video ref="videoPreview" class="hidden"></video>
 
-		<!-- Timeline -->
-		<div
-			class="fixed bottom-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-sm p-4 border-t border-gray-700"
-		>
-			<div class="max-w-4xl mx-auto">
-				<!-- Zaman Çizelgesi -->
-				<div class="relative h-24 bg-gray-800 rounded-lg overflow-hidden">
-					<!-- Video Küçük Resimler -->
-					<div class="absolute inset-0 flex">
-						<div
-							v-for="i in 10"
-							:key="i"
-							class="flex-1 border-r border-gray-700"
+				<!-- Video Kontrolleri -->
+				<div
+					class="absolute bottom-0 left-0 right-0 p-4 bg-black/50 backdrop-blur-sm"
+				>
+					<div class="flex items-center space-x-4">
+						<button
+							@click="togglePlay"
+							class="p-2 hover:bg-white/20 rounded-lg"
 						>
-							<!-- Küçük resimler buraya gelecek -->
+							<Icon
+								:name="
+									isPlaying
+										? 'material-symbols:pause'
+										: 'material-symbols:play-arrow'
+								"
+								size="24"
+							/>
+						</button>
+
+						<!-- İlerleme Çubuğu -->
+						<div
+							class="flex-1 h-1 bg-gray-600 rounded-full cursor-pointer"
+							@click="seek"
+						>
+							<div
+								class="h-full bg-blue-500 rounded-full"
+								:style="{ width: `${progress}%` }"
+							></div>
 						</div>
-					</div>
 
-					<!-- Zaman İşaretçisi -->
-					<div
-						class="absolute top-0 bottom-0 w-0.5 bg-red-500"
-						:style="{ left: timelinePosition + '%' }"
-					></div>
-
-					<!-- Kırpma Kontrolleri -->
-					<div class="absolute bottom-0 left-0 right-0 h-8 bg-gray-700/50">
-						<div
-							class="absolute inset-y-0 bg-blue-500/30"
-							:style="{ left: trimStart + '%', right: 100 - trimEnd + '%' }"
-						>
-							<!-- Sol Tutamaç -->
-							<div
-								class="absolute inset-y-0 -left-1 w-2 bg-blue-500 cursor-ew-resize"
-								@mousedown="startTrimDrag('start', $event)"
-							></div>
-							<!-- Sağ Tutamaç -->
-							<div
-								class="absolute inset-y-0 -right-1 w-2 bg-blue-500 cursor-ew-resize"
-								@mousedown="startTrimDrag('end', $event)"
-							></div>
+						<!-- Süre -->
+						<div class="text-sm">
+							{{ formatTime(currentTime) }} / {{ formatTime(duration) }}
 						</div>
 					</div>
 				</div>
+			</div>
 
-				<!-- Kontrol Butonları -->
-				<div class="flex items-center justify-center space-x-4 mt-4">
-					<button
-						class="p-2 hover:bg-gray-700 rounded-lg"
-						@click="seekBackward"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-6 w-6"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
+			<!-- Zaman Çizelgesi -->
+			<div class="bg-gray-800 rounded-lg p-4">
+				<div class="flex items-center justify-between mb-4">
+					<h2 class="text-lg font-semibold">Zaman Çizelgesi</h2>
+					<div class="flex space-x-2">
+						<button
+							@click="exportVideo"
+							class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"
-							/>
-						</svg>
-					</button>
-					<button class="p-2 hover:bg-gray-700 rounded-lg" @click="togglePlay">
-						<svg
-							v-if="!isPlaying"
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-8 w-8"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-							/>
-						</svg>
-						<svg
-							v-else
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-8 w-8"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
-							/>
-						</svg>
-					</button>
-					<button class="p-2 hover:bg-gray-700 rounded-lg" @click="seekForward">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-6 w-6"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M11.933 12.8a1 1 0 000-1.6L6.6 7.2A1 1 0 005 8v8a1 1 0 001.6.8l5.333-4zM19.933 12.8a1 1 0 000-1.6l-5.333-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.333-4z"
-							/>
-						</svg>
-					</button>
+							Dışa Aktar
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -166,110 +67,147 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 
-const videoPlayer = ref<HTMLVideoElement | null>(null);
-const videoUrl = ref("");
+const videoPreview = ref<HTMLVideoElement | null>(null);
+const videoCanvas = ref<HTMLCanvasElement | null>(null);
+let videoPath: string | null = null;
+let animationFrame: number | null = null;
+
 const isPlaying = ref(false);
-const timelinePosition = ref(0);
-const trimStart = ref(0);
-const trimEnd = ref(100);
-let isDragging = false;
-let currentTrim: "start" | "end" | null = null;
+const currentTime = ref(0);
+const duration = ref(0);
+const progress = ref(0);
 
-// Pencere kontrolü
-const closeWindow = () => {
-	// @ts-ignore
-	window.electron?.close();
-};
+// Video yükleme
+onMounted(async () => {
+	try {
+		videoPath = await window.electron?.getTempVideoPath();
+		console.log("Video yolu:", videoPath);
 
-// Video kontrolü
-const togglePlay = () => {
-	if (!videoPlayer.value) return;
-	if (isPlaying.value) {
-		videoPlayer.value.pause();
-	} else {
-		videoPlayer.value.play();
-	}
-	isPlaying.value = !isPlaying.value;
-};
+		if (videoPath && videoPreview.value && videoCanvas.value) {
+			// Video dosyasını base64 olarak oku
+			const base64Data = await window.electron?.readVideoFile(videoPath);
+			if (base64Data) {
+				const videoUrl = `data:video/webm;base64,${base64Data}`;
+				videoPreview.value.src = videoUrl;
 
-const seekForward = () => {
-	if (!videoPlayer.value) return;
-	videoPlayer.value.currentTime += 5;
-};
+				// Video olaylarını dinle
+				videoPreview.value.addEventListener("loadedmetadata", () => {
+					duration.value = videoPreview.value?.duration || 0;
+					updateCanvasSize();
+				});
 
-const seekBackward = () => {
-	if (!videoPlayer.value) return;
-	videoPlayer.value.currentTime -= 5;
-};
+				videoPreview.value.addEventListener("timeupdate", () => {
+					currentTime.value = videoPreview.value?.currentTime || 0;
+					progress.value = (currentTime.value / duration.value) * 100;
+				});
 
-// Timeline kontrolü
-const updateTimelinePosition = () => {
-	if (!videoPlayer.value) return;
-	const position =
-		(videoPlayer.value.currentTime / videoPlayer.value.duration) * 100;
-	timelinePosition.value = position;
-};
+				videoPreview.value.addEventListener("ended", () => {
+					isPlaying.value = false;
+					cancelAnimationFrame(animationFrame!);
+				});
 
-// Kırpma kontrolü
-const startTrimDrag = (type: "start" | "end", event: MouseEvent) => {
-	isDragging = true;
-	currentTrim = type;
-	document.addEventListener("mousemove", handleTrimDrag);
-	document.addEventListener("mouseup", stopTrimDrag);
-};
-
-const handleTrimDrag = (event: MouseEvent) => {
-	if (!isDragging || !currentTrim) return;
-
-	const timeline = event.currentTarget as HTMLElement;
-	const rect = timeline.getBoundingClientRect();
-	const position = ((event.clientX - rect.left) / rect.width) * 100;
-
-	if (currentTrim === "start") {
-		trimStart.value = Math.max(0, Math.min(trimEnd.value - 1, position));
-	} else {
-		trimEnd.value = Math.max(trimStart.value + 1, Math.min(100, position));
-	}
-};
-
-const stopTrimDrag = () => {
-	isDragging = false;
-	currentTrim = null;
-	document.removeEventListener("mousemove", handleTrimDrag);
-	document.removeEventListener("mouseup", stopTrimDrag);
-};
-
-// Video kaydetme
-const saveVideo = () => {
-	// FFmpeg ile video kırpma ve kaydetme işlemi burada yapılacak
-	console.log("Video kaydediliyor...");
-};
-
-onMounted(() => {
-	// Video URL'ini localStorage'dan al
-	const savedVideoUrl = localStorage.getItem("editingVideo");
-	if (savedVideoUrl) {
-		videoUrl.value = savedVideoUrl;
-	}
-
-	if (videoPlayer.value) {
-		videoPlayer.value.addEventListener("timeupdate", updateTimelinePosition);
-		videoPlayer.value.addEventListener("play", () => (isPlaying.value = true));
-		videoPlayer.value.addEventListener(
-			"pause",
-			() => (isPlaying.value = false)
-		);
+				videoPreview.value.load();
+			}
+		}
+	} catch (error) {
+		console.error("Video yüklenirken hata oluştu:", error);
 	}
 });
 
-onUnmounted(() => {
-	if (videoPlayer.value) {
-		videoPlayer.value.removeEventListener("timeupdate", updateTimelinePosition);
+// Canvas boyutunu güncelle
+const updateCanvasSize = () => {
+	if (!videoCanvas.value || !videoPreview.value) return;
+
+	const canvas = videoCanvas.value;
+	const container = canvas.parentElement;
+	if (!container) return;
+
+	// Container boyutlarını al
+	const rect = container.getBoundingClientRect();
+
+	// Canvas boyutlarını ayarla
+	canvas.width = rect.width;
+	canvas.height = rect.height;
+};
+
+// Video frame'ini canvas'a çiz
+const drawFrame = () => {
+	if (!videoCanvas.value || !videoPreview.value) return;
+
+	const ctx = videoCanvas.value.getContext("2d");
+	if (!ctx) return;
+
+	ctx.drawImage(
+		videoPreview.value,
+		0,
+		0,
+		videoCanvas.value.width,
+		videoCanvas.value.height
+	);
+
+	if (isPlaying.value) {
+		animationFrame = requestAnimationFrame(drawFrame);
 	}
-	// Video URL'ini temizle
-	if (videoUrl.value) {
-		URL.revokeObjectURL(videoUrl.value);
-		localStorage.removeItem("editingVideo");
+};
+
+// Oynatma kontrolü
+const togglePlay = () => {
+	if (!videoPreview.value) return;
+
+	if (isPlaying.value) {
+		videoPreview.value.pause();
+		isPlaying.value = false;
+		cancelAnimationFrame(animationFrame!);
+	} else {
+		videoPreview.value.play();
+		isPlaying.value = true;
+		drawFrame();
+	}
+};
+
+// İlerleme çubuğunda tıklama
+const seek = (event: MouseEvent) => {
+	if (!videoPreview.value) return;
+
+	const rect = (event.target as HTMLElement).getBoundingClientRect();
+	const x = event.clientX - rect.left;
+	const percentage = x / rect.width;
+
+	videoPreview.value.currentTime = percentage * duration.value;
+};
+
+// Süre formatı
+const formatTime = (seconds: number) => {
+	const minutes = Math.floor(seconds / 60);
+	const remainingSeconds = Math.floor(seconds % 60);
+	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+};
+
+// Dışa aktarma
+const exportVideo = async () => {
+	if (!videoPath) return;
+
+	try {
+		const timestamp = Date.now();
+		const savePath = await window.electron?.showSaveDialog({
+			defaultPath: `kayit-${timestamp}.webm`,
+			filters: [{ name: "WebM Video", extensions: ["webm"] }],
+		});
+
+		if (savePath) {
+			await window.electron?.copyFile(videoPath, savePath);
+			alert("Video başarıyla dışa aktarıldı!");
+		}
+	} catch (error) {
+		console.error("Video dışa aktarılırken hata oluştu:", error);
+		alert("Video dışa aktarılırken bir hata oluştu. Lütfen tekrar deneyin.");
+	}
+};
+
+// Temizlik
+onUnmounted(() => {
+	if (animationFrame !== null) {
+		cancelAnimationFrame(animationFrame);
 	}
 });
 </script>

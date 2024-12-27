@@ -201,24 +201,48 @@
 
 		<!-- Ana İçerik -->
 		<div class="pt-20 p-4">
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+			<div class="grid grid-cols-1 gap-4">
 				<!-- Ekran Önizleme -->
-				<div class="aspect-video bg-gray-800 rounded-lg overflow-hidden">
+				<div
+					class="aspect-video bg-gray-800 rounded-lg overflow-hidden max-h-[1067px] relative"
+				>
 					<video
 						ref="preview"
 						autoplay
 						muted
 						class="w-full h-full object-contain"
 					></video>
-				</div>
-				<!-- Kamera Önizleme -->
-				<div class="aspect-video bg-gray-800 rounded-lg overflow-hidden">
-					<video
-						ref="cameraPreview"
-						autoplay
-						muted
-						class="w-full h-full object-contain"
-					></video>
+					<!-- Sürüklenebilir Kamera -->
+					<div
+						v-if="currentCameraStream"
+						class="absolute cursor-move"
+						:style="{
+							left: `${cameraPosition.x}px`,
+							top: `${cameraPosition.y}px`,
+						}"
+						@mousedown.stop="startCameraDrag"
+						@mousemove.stop="dragCamera"
+						@mouseup.stop="endCameraDrag"
+						@mouseleave.stop="endCameraDrag"
+					>
+						<div
+							class="w-[200px] h-[200px] rounded-full overflow-hidden shadow-lg"
+						>
+							<video
+								ref="cameraPreview"
+								autoplay
+								muted
+								class="w-full h-full object-cover"
+								style="
+									-webkit-mask-image: -webkit-radial-gradient(
+										circle,
+										white 100%,
+										black 100%
+									);
+								"
+							></video>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -287,9 +311,13 @@ const selectedArea = ref<{
 	height: number;
 } | null>(null);
 
+// Kamera pozisyonu için değişkenler
+const cameraPosition = ref({ x: 20, y: 20 });
+const isCameraDragging = ref(false);
+const cameraDragOffset = ref({ x: 0, y: 0 });
+
 const closeWindow = () => {
-	// @ts-ignore
-	window.electron?.close();
+	window.electron?.windowControls.close();
 };
 
 const toggleSystemAudio = () => {
@@ -313,8 +341,8 @@ watch(selectedVideoDevice, async (newDeviceId) => {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				video: {
 					deviceId: { exact: newDeviceId },
-					width: { ideal: 1280 },
-					height: { ideal: 720 },
+					width: { ideal: 200 },
+					height: { ideal: 200 },
 				},
 				audio: false,
 			});
@@ -337,13 +365,16 @@ onMounted(async () => {
 				deviceId: selectedVideoDevice.value
 					? { exact: selectedVideoDevice.value }
 					: undefined,
-				width: { ideal: 1280 },
-				height: { ideal: 720 },
+				width: { ideal: 200 },
+				height: { ideal: 200 },
 			},
 			audio: false,
 		});
 		if (cameraPreview.value) {
 			cameraPreview.value.srcObject = stream;
+			await cameraPreview.value
+				.play()
+				.catch((e) => console.error("Kamera play hatası:", e));
 		}
 		currentCameraStream = stream;
 	} catch (error) {
@@ -392,24 +423,32 @@ const startRecording = async () => {
 			streamOptions
 		);
 
-		if (preview.value && screenStream) {
+		// Önizleme için stream'i ayarla
+		if (preview.value) {
 			preview.value.srcObject = screenStream;
-		}
-		if (cameraPreview.value && cameraStream) {
-			cameraPreview.value.srcObject = cameraStream;
+			await preview.value
+				.play()
+				.catch((e) => console.error("Ekran önizleme hatası:", e));
 		}
 
+		// Kamera önizlemesi için stream'i ayarla
+		if (cameraPreview.value && cameraStream) {
+			cameraPreview.value.srcObject = cameraStream;
+			await cameraPreview.value
+				.play()
+				.catch((e) => console.error("Kamera önizleme hatası:", e));
+		}
+
+		// MediaRecorder ayarları
 		const options = {
-			mimeType: "video/webm",
+			mimeType: "video/webm;codecs=h264",
 			videoBitsPerSecond: 2500000,
 			audioBitsPerSecond: 128000,
 		};
 
 		if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-			console.warn(
-				"WebM formatı desteklenmiyor, varsayılan format kullanılacak"
-			);
-			delete options.mimeType;
+			console.warn("H264 codec desteklenmiyor, varsayılan codec kullanılacak");
+			options.mimeType = "video/webm";
 		}
 
 		mediaRecorder = new MediaRecorder(screenStream, options);
@@ -451,31 +490,15 @@ const stopRecording = () => {
 
 // Pencere sürükleme işleyicileri
 const handleMouseDown = (e: MouseEvent) => {
-	// Sadece üst çubuktan sürüklemeye izin ver
-	const target = e.target as HTMLElement;
-	if (
-		target.closest(".window-controls") ||
-		target.closest("button") ||
-		target.closest("select")
-	) {
-		return;
-	}
-	isDragging.value = true;
-	// @ts-ignore
-	window.electron?.startDrag({ x: e.screenX, y: e.screenY });
+	window.electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
 };
 
 const handleMouseMove = (e: MouseEvent) => {
-	if (!isDragging.value) return;
-	// @ts-ignore
-	window.electron?.drag({ x: e.screenX, y: e.screenY });
+	window.electron?.windowControls.dragging({ x: e.screenX, y: e.screenY });
 };
 
 const handleMouseUp = () => {
-	if (!isDragging.value) return;
-	isDragging.value = false;
-	// @ts-ignore
-	window.electron?.endDrag();
+	window.electron?.windowControls.endDrag();
 };
 
 // Alan seçimi işleyicileri
@@ -530,5 +553,42 @@ const drag = (event) => {
 
 const endDrag = () => {
 	window.electron?.endDrag();
+};
+
+// Kamera sürükleme işleyicileri
+const startCameraDrag = (e: MouseEvent) => {
+	e.stopPropagation();
+	isCameraDragging.value = true;
+	const rect = (e.target as HTMLElement).getBoundingClientRect();
+	cameraDragOffset.value = {
+		x: e.clientX - rect.left,
+		y: e.clientY - rect.top,
+	};
+};
+
+const dragCamera = (e: MouseEvent) => {
+	e.stopPropagation();
+	if (!isCameraDragging.value) return;
+
+	const container = preview.value?.parentElement;
+	if (!container) return;
+
+	const rect = container.getBoundingClientRect();
+	const newX = e.clientX - rect.left - cameraDragOffset.value.x;
+	const newY = e.clientY - rect.top - cameraDragOffset.value.y;
+
+	// Sınırlar içinde tutma
+	const maxX = rect.width - 200;
+	const maxY = rect.height - 200;
+
+	cameraPosition.value = {
+		x: Math.max(0, Math.min(maxX, newX)),
+		y: Math.max(0, Math.min(maxY, newY)),
+	};
+};
+
+const endCameraDrag = (e: MouseEvent) => {
+	e.stopPropagation();
+	isCameraDragging.value = false;
 };
 </script>
