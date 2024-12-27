@@ -34,7 +34,7 @@ export const useMediaDevices = () => {
 	const startRecording = async (streamOptions: any) => {
 		try {
 			// Ekran seçimi için kaynakları al
-			const sources = await window.electron?.desktopCapturer?.getSources({
+			const sources = await window.electron?.desktopCapturer.getSources({
 				types: ["window", "screen"],
 				thumbnailSize: { width: 1280, height: 720 },
 			});
@@ -47,6 +47,7 @@ export const useMediaDevices = () => {
 			const screenStream = await navigator.mediaDevices.getUserMedia({
 				audio: false,
 				video: {
+					// @ts-ignore
 					mandatory: {
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: sources[0].id,

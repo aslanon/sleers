@@ -365,18 +365,10 @@ onUnmounted(() => {
 
 const startRecording = async () => {
 	try {
-		let streamOptions = {
-			audio: {
-				// @ts-ignore
-				mandatory: {
-					chromeMediaSource: "desktop",
-				},
-			},
+		const streamOptions = {
 			video: {
-				// @ts-ignore
 				mandatory: {
 					chromeMediaSource: "desktop",
-					chromeMediaSourceId: "",
 					minWidth: 1280,
 					maxWidth: 1920,
 					minHeight: 720,
@@ -407,23 +399,22 @@ const startRecording = async () => {
 			cameraPreview.value.srcObject = cameraStream;
 		}
 
-		// MediaRecorder için desteklenen MIME türlerini kontrol et
-		const mimeType = "video/webm;codecs=vp8,opus";
-		if (!MediaRecorder.isTypeSupported(mimeType)) {
-			throw new Error(
-				"Bu kayıt formatı tarayıcınız tarafından desteklenmiyor."
-			);
-		}
-
 		const options = {
-			mimeType,
-			videoBitsPerSecond: 2500000, // 2.5 Mbps
-			audioBitsPerSecond: 128000, // 128 kbps
+			mimeType: "video/webm",
+			videoBitsPerSecond: 2500000,
+			audioBitsPerSecond: 128000,
 		};
+
+		if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+			console.warn(
+				"WebM formatı desteklenmiyor, varsayılan format kullanılacak"
+			);
+			delete options.mimeType;
+		}
 
 		mediaRecorder = new MediaRecorder(screenStream, options);
 		mediaRecorder.ondataavailable = (e) => {
-			if (e.data.size > 0) {
+			if (e.data && e.data.size > 0) {
 				recordedChunks.value.push(e.data);
 			}
 		};
@@ -431,11 +422,17 @@ const startRecording = async () => {
 			saveRecording(recordedChunks.value);
 			recordedChunks.value = [];
 		};
-		mediaRecorder.start(1000); // Her saniye veri al
+		mediaRecorder.onerror = (error) => {
+			console.error("MediaRecorder hatası:", error);
+			stopRecording();
+		};
+
+		mediaRecorder.start(1000);
 		isRecording.value = true;
 	} catch (error) {
 		console.error("Kayıt başlatılırken hata oluştu:", error);
-		alert("Kayıt başlatılırken bir hata oluştu: " + error.message);
+		alert("Kayıt başlatılırken bir hata oluştu. Lütfen tekrar deneyin.");
+		stopRecording();
 	}
 };
 
