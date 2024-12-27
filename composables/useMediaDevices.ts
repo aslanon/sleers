@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { navigateTo } from "#app";
 
 export const useMediaDevices = () => {
@@ -9,6 +9,7 @@ export const useMediaDevices = () => {
 	const mediaStream = ref<MediaStream | null>(null);
 	const isRecording = ref(false);
 	const recordedChunks = ref<Blob[]>([]);
+	const currentCameraStream = ref<MediaStream | null>(null);
 
 	const getDevices = async () => {
 		try {
@@ -143,6 +144,34 @@ export const useMediaDevices = () => {
 		}
 	};
 
+	// Kamera değiştiğinde otomatik güncelleme
+	watch(selectedVideoDevice, async (newDeviceId) => {
+		if (newDeviceId) {
+			try {
+				// Önceki stream'i kapat
+				if (currentCameraStream.value) {
+					currentCameraStream.value
+						.getTracks()
+						.forEach((track) => track.stop());
+				}
+
+				// Yeni kamera stream'ini başlat
+				const stream = await navigator.mediaDevices.getUserMedia({
+					video: {
+						deviceId: { exact: newDeviceId },
+						width: { ideal: 1280 },
+						height: { ideal: 720 },
+					},
+					audio: false,
+				});
+				currentCameraStream.value = stream;
+			} catch (err) {
+				console.error("Kamera stream'i başlatılamadı:", err);
+				currentCameraStream.value = null;
+			}
+		}
+	});
+
 	return {
 		videoDevices,
 		audioDevices,
@@ -151,6 +180,7 @@ export const useMediaDevices = () => {
 		mediaStream,
 		isRecording,
 		recordedChunks,
+		currentCameraStream,
 		getDevices,
 		startRecording,
 		stopRecording,

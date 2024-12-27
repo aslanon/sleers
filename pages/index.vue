@@ -1,5 +1,5 @@
 <template>
-	<div class="min-h-screen bg-[#1a1b26] text-white">
+	<div class="min-h-screen bg-[#1a1b26]/10 text-white">
 		<!-- Alan Seçimi Overlay -->
 		<div v-if="isSelectingArea" class="fixed inset-0 z-50">
 			<div
@@ -229,7 +229,7 @@
 							class="w-[200px] h-[200px] rounded-full overflow-hidden shadow-lg"
 						>
 							<video
-								ref="cameraPreview"
+								id="cameraPreview"
 								autoplay
 								muted
 								class="w-full h-full object-cover"
@@ -279,7 +279,6 @@ import { useMediaDevices } from "~/composables/useMediaDevices";
 const preview = ref<HTMLVideoElement | null>(null);
 const cameraPreview = ref<HTMLVideoElement | null>(null);
 let mediaRecorder: MediaRecorder | null = null;
-let currentCameraStream: MediaStream | null = null;
 
 const selectedSource = ref<"display" | "window" | "area">("display");
 const systemAudioEnabled = ref(true);
@@ -289,9 +288,10 @@ const {
 	audioDevices,
 	selectedVideoDevice,
 	selectedAudioDevice,
+	currentCameraStream,
+	getDevices,
 	isRecording,
 	recordedChunks,
-	getDevices,
 	startRecording: startMediaStream,
 	stopRecording: stopMediaStream,
 	saveRecording,
@@ -331,60 +331,8 @@ const selectSource = (source: "display" | "window" | "area") => {
 	}
 };
 
-// Kamera değişikliğini izle
-watch(selectedVideoDevice, async (newDeviceId) => {
-	if (!isRecording.value && newDeviceId) {
-		if (currentCameraStream) {
-			currentCameraStream.getTracks().forEach((track) => track.stop());
-		}
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({
-				video: {
-					deviceId: { exact: newDeviceId },
-					width: { ideal: 200 },
-					height: { ideal: 200 },
-				},
-				audio: false,
-			});
-			if (cameraPreview.value) {
-				cameraPreview.value.srcObject = stream;
-			}
-			currentCameraStream = stream;
-		} catch (error) {
-			console.error("Kamera değiştirilirken hata oluştu:", error);
-		}
-	}
-});
-
 onMounted(async () => {
 	await getDevices();
-	// İlk yüklemede kamera önizlemesini başlat
-	try {
-		const stream = await navigator.mediaDevices.getUserMedia({
-			video: {
-				deviceId: selectedVideoDevice.value
-					? { exact: selectedVideoDevice.value }
-					: undefined,
-				width: { ideal: 200 },
-				height: { ideal: 200 },
-			},
-			audio: false,
-		});
-		if (cameraPreview.value) {
-			cameraPreview.value.srcObject = stream;
-			await cameraPreview.value
-				.play()
-				.catch((e) => console.error("Kamera play hatası:", e));
-		}
-		currentCameraStream = stream;
-	} catch (error) {
-		console.error("Kamera önizlemesi başlatılamadı:", error);
-	}
-
-	// Pencere sürükleme olaylarını dinle
-	document.addEventListener("mousedown", handleMouseDown);
-	document.addEventListener("mousemove", handleMouseMove);
-	document.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
@@ -591,4 +539,12 @@ const endCameraDrag = (e: MouseEvent) => {
 	e.stopPropagation();
 	isCameraDragging.value = false;
 };
+
+watch(currentCameraStream, (stream) => {
+	const cameraPreview =
+		document.querySelector<HTMLVideoElement>("#cameraPreview");
+	if (cameraPreview && stream) {
+		cameraPreview.srcObject = stream;
+	}
+});
 </script>

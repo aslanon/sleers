@@ -190,7 +190,6 @@ async function createWindow() {
 		height: 800,
 		frame: false,
 		transparent: true,
-		backgroundColor: "#1a1b26",
 		hasShadow: true,
 		movable: true,
 		webPreferences: {
