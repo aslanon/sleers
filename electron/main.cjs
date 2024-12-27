@@ -22,6 +22,21 @@ ipcMain.handle("DESKTOP_CAPTURER_GET_SOURCES", async (event, opts) => {
 	}
 });
 
+// IPC handler for window close
+ipcMain.on("WINDOW_CLOSE", () => {
+	if (mainWindow) {
+		mainWindow.close();
+	}
+});
+
+// IPC handler for window move
+ipcMain.on("WINDOW_MOVE", (event, { deltaX, deltaY }) => {
+	if (mainWindow) {
+		const [x, y] = mainWindow.getPosition();
+		mainWindow.setPosition(x + deltaX, y + deltaY);
+	}
+});
+
 async function createWindow() {
 	if (isDev) {
 		try {
@@ -55,6 +70,10 @@ async function createWindow() {
 	mainWindow = new BrowserWindow({
 		width: 1200,
 		height: 800,
+		frame: false,
+		transparent: true,
+		backgroundColor: "#1a1b26",
+		hasShadow: true,
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,

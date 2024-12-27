@@ -109,8 +109,10 @@ export const useMediaDevices = () => {
 
 	const saveRecording = (chunks: Blob[]) => {
 		const blob = new Blob(chunks, {
-			type: "video/mp4",
+			type: "video/mp4;codecs=h264,aac",
 		});
+
+		// Dosyayı kaydet
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		document.body.appendChild(a);
@@ -119,6 +121,7 @@ export const useMediaDevices = () => {
 		a.download = `kayit-${Date.now()}.mp4`;
 		a.click();
 		window.URL.revokeObjectURL(url);
+		document.body.removeChild(a);
 	};
 
 	return {
