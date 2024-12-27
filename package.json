@@ -1,0 +1,50 @@
+{
+	"name": "sleer",
+	"version": "1.0.0",
+	"description": "MacOS ekran, kamera ve ses kayıt uygulaması",
+	"private": true,
+	"scripts": {
+		"build": "nuxt build",
+		"dev": "nuxt dev",
+		"generate": "nuxt generate",
+		"preview": "nuxt preview",
+		"postinstall": "nuxt prepare",
+		"electron:dev": "concurrently -k \"BROWSER=none npm run dev\" \"wait-on tcp:3000 && cross-env NODE_ENV=development electron electron/main.cjs\"",
+		"electron:build": "nuxt generate && electron-builder"
+	},
+	"dependencies": {
+		"@ffmpeg-installer/ffmpeg": "^1.1.0",
+		"@nuxtjs/tailwindcss": "^6.10.1",
+		"electron": "^28.1.0",
+		"fluent-ffmpeg": "^2.1.3",
+		"wait-on": "^7.2.0"
+	},
+	"devDependencies": {
+		"@nuxt/devtools": "latest",
+		"concurrently": "^8.2.2",
+		"cross-env": "^7.0.3",
+		"electron-builder": "^24.9.1",
+		"nuxt": "^3.9.1"
+	},
+	"resolutions": {
+		"@rollup/rollup-darwin-arm64": "4.6.1",
+		"rollup": "4.6.1"
+	},
+	"build": {
+		"appId": "com.sleer.app",
+		"mac": {
+			"category": "public.app-category.video",
+			"target": [
+				"dmg",
+				"zip"
+			],
+			"arch": [
+				"arm64"
+			]
+		},
+		"files": [
+			".output/public/**/*",
+			"electron/**/*"
+		]
+	}
+}
