@@ -163,6 +163,42 @@
 			</div>
 		</div>
 
+		<!-- Başlık çubuğu -->
+		<div
+			class="h-8 bg-[#1a1b26] flex items-center justify-between px-4 cursor-move"
+			@mousedown="startDrag"
+			@mousemove="drag"
+			@mouseup="endDrag"
+			@mouseleave="endDrag"
+		>
+			<div class="flex items-center space-x-2">
+				<button
+					class="p-1 hover:bg-gray-700 rounded"
+					@click="selectSource('display')"
+				>
+					<Icon name="material-symbols:desktop-windows-outline" size="20" />
+				</button>
+				<button
+					class="p-1 hover:bg-gray-700 rounded"
+					@click="selectSource('window')"
+				>
+					<Icon name="material-symbols:window-outline" size="20" />
+				</button>
+				<button
+					class="p-1 hover:bg-gray-700 rounded"
+					@click="selectSource('area')"
+				>
+					<Icon name="material-symbols:crop-free" size="20" />
+				</button>
+			</div>
+			<button
+				class="p-1 hover:bg-gray-700 rounded"
+				@click="window.electron?.close()"
+			>
+				<Icon name="material-symbols:close" size="20" />
+			</button>
+		</div>
+
 		<!-- Ana İçerik -->
 		<div class="pt-20 p-4">
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -341,6 +377,10 @@ const startRecording = async () => {
 				mandatory: {
 					chromeMediaSource: "desktop",
 					chromeMediaSourceId: "",
+					minWidth: 1280,
+					maxWidth: 1920,
+					minHeight: 720,
+					maxHeight: 1080,
 				},
 			},
 		};
@@ -359,45 +399,40 @@ const startRecording = async () => {
 		const { screenStream, cameraStream } = await startMediaStream(
 			streamOptions
 		);
+
 		if (preview.value && screenStream) {
 			preview.value.srcObject = screenStream;
 		}
 		if (cameraPreview.value && cameraStream) {
 			cameraPreview.value.srcObject = cameraStream;
 		}
-		if (screenStream && cameraStream) {
-			const combinedStream = new MediaStream([
-				...screenStream.getTracks(),
-				...cameraStream.getTracks(),
-			]);
 
-			// MediaRecorder için desteklenen MIME türlerini kontrol et
-			const mimeType = "video/webm;codecs=vp8,opus";
-			if (!MediaRecorder.isTypeSupported(mimeType)) {
-				throw new Error(
-					"Bu kayıt formatı tarayıcınız tarafından desteklenmiyor."
-				);
-			}
-
-			const options = {
-				mimeType,
-				videoBitsPerSecond: 2500000, // 2.5 Mbps
-				audioBitsPerSecond: 128000, // 128 kbps
-			};
-
-			mediaRecorder = new MediaRecorder(combinedStream, options);
-			mediaRecorder.ondataavailable = (e) => {
-				if (e.data.size > 0) {
-					recordedChunks.value.push(e.data);
-				}
-			};
-			mediaRecorder.onstop = () => {
-				saveRecording(recordedChunks.value);
-				recordedChunks.value = [];
-			};
-			mediaRecorder.start(1000); // Her saniye veri al
-			isRecording.value = true;
+		// MediaRecorder için desteklenen MIME türlerini kontrol et
+		const mimeType = "video/webm;codecs=vp8,opus";
+		if (!MediaRecorder.isTypeSupported(mimeType)) {
+			throw new Error(
+				"Bu kayıt formatı tarayıcınız tarafından desteklenmiyor."
+			);
 		}
+
+		const options = {
+			mimeType,
+			videoBitsPerSecond: 2500000, // 2.5 Mbps
+			audioBitsPerSecond: 128000, // 128 kbps
+		};
+
+		mediaRecorder = new MediaRecorder(screenStream, options);
+		mediaRecorder.ondataavailable = (e) => {
+			if (e.data.size > 0) {
+				recordedChunks.value.push(e.data);
+			}
+		};
+		mediaRecorder.onstop = () => {
+			saveRecording(recordedChunks.value);
+			recordedChunks.value = [];
+		};
+		mediaRecorder.start(1000); // Her saniye veri al
+		isRecording.value = true;
 	} catch (error) {
 		console.error("Kayıt başlatılırken hata oluştu:", error);
 		alert("Kayıt başlatılırken bir hata oluştu: " + error.message);
@@ -481,4 +516,22 @@ watch(selectedSource, (newSource) => {
 		selectedArea.value = null;
 	}
 });
+
+const startDrag = (event) => {
+	window.electron?.startDrag({
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const drag = (event) => {
+	window.electron?.drag({
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const endDrag = () => {
+	window.electron?.endDrag();
+};
 </script>

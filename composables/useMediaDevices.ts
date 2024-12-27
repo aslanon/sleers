@@ -1,4 +1,5 @@
 import { ref } from "vue";
+import { navigateTo } from "#app";
 
 export const useMediaDevices = () => {
 	const videoDevices = ref<MediaDeviceInfo[]>([]);
@@ -11,14 +12,6 @@ export const useMediaDevices = () => {
 
 	const getDevices = async () => {
 		try {
-			// Önce cihazlara erişim izni al
-			const stream = await navigator.mediaDevices.getUserMedia({
-				video: true,
-				audio: true,
-			});
-			// İzin alındıktan sonra stream'i kapat
-			stream.getTracks().forEach((track) => track.stop());
-
 			const devices = await navigator.mediaDevices.enumerateDevices();
 			videoDevices.value = devices.filter(
 				(device) => device.kind === "videoinput"
@@ -38,14 +31,12 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const startRecording = async () => {
+	const startRecording = async (streamOptions: any) => {
 		try {
 			// Ekran seçimi için kaynakları al
-			// @ts-ignore
 			const sources = await window.electron?.desktopCapturer?.getSources({
 				types: ["window", "screen"],
 				thumbnailSize: { width: 1280, height: 720 },
-				fetchWindowIcons: true,
 			});
 
 			if (!sources || sources.length === 0) {
@@ -54,14 +45,8 @@ export const useMediaDevices = () => {
 
 			// Ekran yakalama
 			const screenStream = await navigator.mediaDevices.getUserMedia({
-				audio: {
-					// @ts-ignore
-					mandatory: {
-						chromeMediaSource: "desktop",
-					},
-				},
+				audio: false,
 				video: {
-					// @ts-ignore
 					mandatory: {
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: sources[0].id,
@@ -73,25 +58,51 @@ export const useMediaDevices = () => {
 				},
 			});
 
-			// Kamera yakalama
-			const cameraStream = await navigator.mediaDevices.getUserMedia({
-				video: {
-					deviceId: selectedVideoDevice.value
-						? { exact: selectedVideoDevice.value }
-						: undefined,
-					width: { ideal: 1280 },
-					height: { ideal: 720 },
-				},
-				audio: {
-					deviceId: selectedAudioDevice.value
-						? { exact: selectedAudioDevice.value }
-						: undefined,
-					echoCancellation: true,
-					noiseSuppression: true,
-				},
-			});
+			// Kamera yakalama (isteğe bağlı)
+			let cameraStream = null;
+			if (selectedVideoDevice.value) {
+				try {
+					cameraStream = await navigator.mediaDevices.getUserMedia({
+						video: {
+							deviceId: { exact: selectedVideoDevice.value },
+							width: { ideal: 1280 },
+							height: { ideal: 720 },
+						},
+						audio: false,
+					});
+				} catch (err) {
+					console.warn("Kamera akışı alınamadı:", err);
+				}
+			}
 
+			// Ses yakalama (isteğe bağlı)
+			let audioStream = null;
+			if (selectedAudioDevice.value) {
+				try {
+					audioStream = await navigator.mediaDevices.getUserMedia({
+						audio: {
+							deviceId: { exact: selectedAudioDevice.value },
+							echoCancellation: true,
+							noiseSuppression: true,
+						},
+						video: false,
+					});
+				} catch (err) {
+					console.warn("Mikrofon akışı alınamadı:", err);
+				}
+			}
+
+			// Tüm akışları birleştir
+			const tracks = [
+				...screenStream.getVideoTracks(),
+				...(audioStream?.getAudioTracks() || []),
+				...(cameraStream?.getVideoTracks() || []),
+			];
+
+			const combinedStream = new MediaStream(tracks);
+			mediaStream.value = combinedStream;
 			isRecording.value = true;
+
 			return { screenStream, cameraStream };
 		} catch (error) {
 			console.error("Kayıt başlatılırken hata oluştu:", error);
@@ -108,20 +119,29 @@ export const useMediaDevices = () => {
 	};
 
 	const saveRecording = (chunks: Blob[]) => {
+		if (chunks.length === 0) {
+			console.error("Kaydedilecek veri bulunamadı");
+			return;
+		}
+
 		const blob = new Blob(chunks, {
-			type: "video/mp4;codecs=h264,aac",
+			type: "video/webm",
 		});
 
-		// Dosyayı kaydet
+		// Dosyayı indir
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		document.body.appendChild(a);
 		a.style.display = "none";
 		a.href = url;
-		a.download = `kayit-${Date.now()}.mp4`;
+		a.download = `kayit-${Date.now()}.webm`;
 		a.click();
-		window.URL.revokeObjectURL(url);
-		document.body.removeChild(a);
+
+		// URL'i temizle
+		setTimeout(() => {
+			URL.revokeObjectURL(url);
+			document.body.removeChild(a);
+		}, 100);
 	};
 
 	return {

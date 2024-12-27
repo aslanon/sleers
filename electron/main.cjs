@@ -11,6 +11,8 @@ const waitOn = require("wait-on");
 
 let mainWindow = null;
 let selectionWindow = null;
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
 
 // IPC handler for desktop capturer
 ipcMain.handle("DESKTOP_CAPTURER_GET_SOURCES", async (event, opts) => {
@@ -115,12 +117,12 @@ async function createWindow() {
 			responseHeaders: {
 				...details.responseHeaders,
 				"Content-Security-Policy": [
-					"default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;",
+					"default-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* blob: mediastream: data:;",
 					"script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:*;",
-					"connect-src 'self' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*;",
-					"img-src 'self' data: http://localhost:* http://127.0.0.1:*;",
+					"connect-src 'self' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:* blob: mediastream:;",
+					"img-src 'self' data: http://localhost:* http://127.0.0.1:* blob:;",
 					"style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*;",
-					"media-src 'self' mediastream: blob: *;",
+					"media-src 'self' mediastream: blob: data: *;",
 				].join(" "),
 			},
 		});
@@ -135,12 +137,14 @@ async function createWindow() {
 		hasShadow: true,
 		movable: true,
 		webPreferences: {
-			nodeIntegration: false,
+			nodeIntegration: true,
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.cjs"),
 			webSecurity: true,
 			allowRunningInsecureContent: false,
 			enableRemoteModule: false,
+			webgl: true,
+			sandbox: false,
 		},
 	});
 
@@ -174,10 +178,6 @@ async function createWindow() {
 	});
 
 	// Pencere sürükleme için mouse olaylarını dinle
-	let isDragging = false;
-	let dragStartPosition = { x: 0, y: 0 };
-	let windowStartPosition = { x: 0, y: 0 };
-
 	mainWindow.on("will-move", (event) => {
 		if (!isDragging) {
 			event.preventDefault();
@@ -186,24 +186,24 @@ async function createWindow() {
 
 	ipcMain.on("START_WINDOW_DRAG", (event, mousePosition) => {
 		isDragging = true;
-		dragStartPosition = mousePosition;
-		windowStartPosition = mainWindow.getPosition();
+		const winPosition = mainWindow.getPosition();
+		dragOffset = {
+			x: mousePosition.x - winPosition[0],
+			y: mousePosition.y - winPosition[1],
+		};
+	});
+
+	ipcMain.on("WINDOW_DRAGGING", (event, mousePosition) => {
+		if (isDragging) {
+			mainWindow.setPosition(
+				mousePosition.x - dragOffset.x,
+				mousePosition.y - dragOffset.y
+			);
+		}
 	});
 
 	ipcMain.on("END_WINDOW_DRAG", () => {
 		isDragging = false;
-	});
-
-	ipcMain.on("WINDOW_DRAGGING", (event, mousePosition) => {
-		if (!isDragging) return;
-
-		const deltaX = mousePosition.x - dragStartPosition.x;
-		const deltaY = mousePosition.y - dragStartPosition.y;
-
-		const newX = windowStartPosition[0] + deltaX;
-		const newY = windowStartPosition[1] + deltaY;
-
-		mainWindow.setPosition(Math.round(newX), Math.round(newY), true);
 	});
 }
 

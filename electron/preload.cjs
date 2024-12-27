@@ -1,10 +1,16 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, desktopCapturer } = require("electron");
 
 // Electron API'lerini expose et
 contextBridge.exposeInMainWorld("electron", {
 	desktopCapturer: {
-		getSources: (opts) =>
-			ipcRenderer.invoke("DESKTOP_CAPTURER_GET_SOURCES", opts),
+		getSources: async (opts) => {
+			try {
+				return await desktopCapturer.getSources(opts);
+			} catch (error) {
+				console.error("Ekran kaynakları alınırken hata:", error);
+				throw error;
+			}
+		},
 	},
 	close: () => ipcRenderer.send("WINDOW_CLOSE"),
 	startDrag: (mousePosition) =>
