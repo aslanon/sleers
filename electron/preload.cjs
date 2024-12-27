@@ -24,4 +24,18 @@ contextBridge.exposeInMainWorld("electron", {
 	showSaveDialog: (options) => ipcRenderer.invoke("SHOW_SAVE_DIALOG", options),
 	copyFile: (src, dest) => ipcRenderer.invoke("COPY_FILE", src, dest),
 	readVideoFile: (filePath) => ipcRenderer.invoke("READ_VIDEO_FILE", filePath),
+	ipcRenderer: {
+		on: (channel, func) => {
+			ipcRenderer.on(channel, (event, ...args) => func(event, ...args));
+		},
+		once: (channel, func) => {
+			ipcRenderer.once(channel, (event, ...args) => func(event, ...args));
+		},
+		send: (channel, ...args) => {
+			ipcRenderer.send(channel, ...args);
+		},
+		removeAllListeners: (channel) => {
+			ipcRenderer.removeAllListeners(channel);
+		},
+	},
 });

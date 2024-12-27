@@ -1,32 +1,5 @@
 <template>
 	<div class="bg-[#1a1b26]/10 backdrop-blur-3xl text-white">
-		<!-- Alan Seçimi Overlay -->
-		<div v-if="isSelectingArea" class="fixed inset-0 z-50">
-			<div
-				class="absolute inset-0 cursor-crosshair"
-				@mousedown="startAreaSelection"
-				@mousemove="updateAreaSelection"
-				@mouseup="endAreaSelection"
-			>
-				<div
-					v-if="selectedArea"
-					class="absolute border-2 border-blue-500 bg-blue-500/20"
-					:style="{
-						left: `${selectedArea.x}px`,
-						top: `${selectedArea.y}px`,
-						width: `${selectedArea.width}px`,
-						height: `${selectedArea.height}px`,
-					}"
-				>
-					<div
-						class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md"
-					>
-						{{ selectedArea.width }} x {{ selectedArea.height }}
-					</div>
-				</div>
-			</div>
-		</div>
-
 		<!-- Üst Kontrol Çubuğu -->
 		<div
 			class="bg-[#1a1b26]/80 backdrop-blur-3xl p-4 border border-gray-700 cursor-move"
@@ -195,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch, onUnmounted } from "vue";
+import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 
 const preview = ref<HTMLVideoElement | null>(null);
@@ -224,8 +197,6 @@ const isDragging = ref(false);
 const startPosition = ref({ x: 0, y: 0 });
 
 // Alan seçimi için değişkenler
-const isSelectingArea = ref(false);
-const selectionStart = ref({ x: 0, y: 0 });
 const selectedArea = ref<{
 	x: number;
 	y: number;
@@ -249,14 +220,32 @@ const toggleSystemAudio = () => {
 const selectSource = (source: "display" | "window" | "area") => {
 	selectedSource.value = source;
 	if (source === "area") {
-		isSelectingArea.value = true;
+		window.electron?.ipcRenderer.send("START_AREA_SELECTION");
 	}
 };
 
 onMounted(async () => {
+	// Cihazları yükle
 	await getDevices();
-	// Yeni kayıt için sıfırlama
-	window.electron?.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
+
+	// Electron API'si yüklendiyse event listener'ları ekle
+	if (window.electron?.ipcRenderer) {
+		// Alan seçimi event listener'ı
+		window.electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
+			selectedArea.value = area;
+		});
+
+		// Yeni kayıt için sıfırlama
+		window.electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
+	}
+});
+
+// Temizlik işlemleri
+onBeforeUnmount(() => {
+	// Event listener'ları temizle
+	if (window.electron?.ipcRenderer) {
+		window.electron.ipcRenderer.removeAllListeners("AREA_SELECTED");
+	}
 });
 
 onUnmounted(() => {
@@ -369,60 +358,6 @@ const handleMouseUp = () => {
 	window.electron?.windowControls.endDrag();
 };
 
-// Alan seçimi işleyicileri
-const startAreaSelection = (e: MouseEvent) => {
-	if (selectedSource.value !== "area") return;
-	selectionStart.value = { x: e.clientX, y: e.clientY };
-	selectedArea.value = {
-		x: e.clientX,
-		y: e.clientY,
-		width: 0,
-		height: 0,
-	};
-};
-
-const updateAreaSelection = (e: MouseEvent) => {
-	if (!isSelectingArea.value) return;
-
-	const x = Math.min(selectionStart.value.x, e.clientX);
-	const y = Math.min(selectionStart.value.y, e.clientY);
-	const width = Math.abs(e.clientX - selectionStart.value.x);
-	const height = Math.abs(e.clientY - selectionStart.value.y);
-
-	selectedArea.value = { x, y, width, height };
-};
-
-const endAreaSelection = () => {
-	if (!isSelectingArea.value) return;
-	isSelectingArea.value = false;
-};
-
-// Alan seçimi sıfırlama
-watch(selectedSource, (newSource) => {
-	if (newSource !== "area") {
-		isSelectingArea.value = false;
-		selectedArea.value = null;
-	}
-});
-
-const startDrag = (event: MouseEvent) => {
-	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
-		x: event.screenX,
-		y: event.screenY,
-	});
-};
-
-const drag = (event: MouseEvent) => {
-	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
-		x: event.screenX,
-		y: event.screenY,
-	});
-};
-
-const endDrag = () => {
-	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
-};
-
 // Kamera sürükleme işleyicileri
 const startCameraDrag = (e: MouseEvent) => {
 	e.stopPropagation();
@@ -502,11 +437,30 @@ watch(selectedAudioDevice, async (newDeviceId) => {
 				},
 			});
 
-			// Yeni ses stream'ini kayıt için sakla
+			// Yeni ses stream'ini kay��t için sakla
 			currentAudioStream.value = stream;
 		} catch (error) {
 			console.error("Mikrofon değiştirme hatası:", error);
 		}
 	}
 });
+
+// Pencere sürükleme fonksiyonları
+const startDrag = (event: MouseEvent) => {
+	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const drag = (event: MouseEvent) => {
+	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const endDrag = () => {
+	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
+};
 </script>

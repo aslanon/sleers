@@ -95,23 +95,40 @@ ipcMain.on("SET_WINDOW_POSITION", (event, { x, y }) => {
 
 // IPC handler for starting area selection
 ipcMain.on("START_AREA_SELECTION", () => {
+	const { screen } = require("electron");
+	const displays = screen.getAllDisplays();
+	const primaryDisplay = screen.getPrimaryDisplay();
+
+	// Tüm ekranları kapsayacak bir pencere oluştur
+	let totalWidth = 0;
+	let totalHeight = 0;
+	let minX = 0;
+	let minY = 0;
+
+	displays.forEach((display) => {
+		const { bounds } = display;
+		minX = Math.min(minX, bounds.x);
+		minY = Math.min(minY, bounds.y);
+		totalWidth = Math.max(totalWidth, bounds.x + bounds.width);
+		totalHeight = Math.max(totalHeight, bounds.y + bounds.height);
+	});
+
+	// Eğer varolan bir seçim penceresi varsa kapat
 	if (selectionWindow) {
 		selectionWindow.close();
+		selectionWindow = null;
 	}
 
-	const { screen } = require("electron");
-	const primaryDisplay = screen.getPrimaryDisplay();
-	const { width, height } = primaryDisplay.size;
-
 	selectionWindow = new BrowserWindow({
-		width: width,
-		height: height,
-		x: 0,
-		y: 0,
+		width: totalWidth - minX,
+		height: totalHeight - minY,
+		x: minX,
+		y: minY,
 		transparent: true,
 		frame: false,
 		fullscreen: true,
 		alwaysOnTop: true,
+		skipTaskbar: true,
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
@@ -119,7 +136,7 @@ ipcMain.on("START_AREA_SELECTION", () => {
 		},
 	});
 
-	// Tüm çalışma alanlarında görünür olsun
+	// Tüm ekranlarda görünür olsun
 	selectionWindow.setVisibleOnAllWorkspaces(true, {
 		visibleOnFullScreen: true,
 	});
@@ -135,21 +152,30 @@ ipcMain.on("START_AREA_SELECTION", () => {
 
 	// Alan seçimi tamamlandığında
 	ipcMain.once("AREA_SELECTED", (event, area) => {
+		// Seçilen alanı ana pencereye gönder
 		if (mainWindow) {
-			mainWindow.webContents.send("AREA_SELECTED", area);
+			mainWindow.webContents.send("AREA_SELECTED", {
+				...area,
+				x: Math.round(area.x),
+				y: Math.round(area.y),
+				width: Math.round(area.width),
+				height: Math.round(area.height),
+			});
 		}
+		// Seçim penceresini kapat
 		if (selectionWindow) {
 			selectionWindow.close();
 		}
 	});
 
-	// Alan seçimi iptal edildiğinde
+	// ESC tuşuna basıldığında veya iptal edildiğinde
 	ipcMain.once("CANCEL_AREA_SELECTION", () => {
 		if (selectionWindow) {
 			selectionWindow.close();
 		}
 	});
 
+	// Pencere kapandığında event listener'ları temizle
 	selectionWindow.on("closed", () => {
 		selectionWindow = null;
 		ipcMain.removeAllListeners("AREA_SELECTED");
