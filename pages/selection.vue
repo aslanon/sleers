@@ -141,12 +141,29 @@ const endMove = () => {
 
 const confirmSelection = () => {
 	if (!selection.value) return;
+
+	// Ekran ölçeklemesini hesapla
+	const scale = window.devicePixelRatio || 1;
+
+	// Seçilen alanı ölçekle ve yuvarlama işlemi uygula
+	const scaledSelection = {
+		x: Math.round(selection.value.x * scale),
+		y: Math.round(selection.value.y * scale),
+		width: Math.round(selection.value.width * scale),
+		height: Math.round(selection.value.height * scale),
+	};
+
 	// Seçilen alanı ana pencereye gönder
-	ipcRenderer.send("AREA_SELECTED", selection.value);
+	ipcRenderer.send("AREA_SELECTED", scaledSelection);
+
+	// Pencereyi kapat
+	ipcRenderer.send("CLOSE_SELECTION_WINDOW");
 };
 
 const cancelSelection = () => {
 	ipcRenderer.send("CANCEL_AREA_SELECTION");
+	// İptal durumunda da pencereyi kapat
+	ipcRenderer.send("CLOSE_SELECTION_WINDOW");
 };
 </script>
 
