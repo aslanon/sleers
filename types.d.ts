@@ -1,26 +1,23 @@
-interface WindowControls {
-	close: () => void;
-	startDrag: (mousePosition: { x: number; y: number }) => void;
-	dragging: (mousePosition: { x: number; y: number }) => void;
-	endDrag: () => void;
-}
-
-interface FileSystem {
-	saveTempVideo: (blob: Blob) => Promise<string>;
-	getTempVideoPath: () => Promise<string>;
-	cleanupTempVideo: () => void;
-}
-
 interface ElectronAPI {
 	desktopCapturer: {
 		getSources: (opts: any) => Promise<any>;
 	};
-	windowControls: WindowControls;
-	fileSystem: FileSystem;
+	windowControls: {
+		close: () => void;
+		startDrag: (mousePosition: { x: number; y: number }) => void;
+		dragging: (mousePosition: { x: number; y: number }) => void;
+		endDrag: () => void;
+	};
+	fileSystem: {
+		saveTempVideo: (blob: string) => Promise<string>;
+		getTempVideoPath: () => Promise<string>;
+		cleanupTempVideo: () => void;
+	};
 	ipcRenderer: {
+		on: (channel: string, func: (...args: any[]) => void) => void;
+		once: (channel: string, func: (...args: any[]) => void) => void;
 		send: (channel: string, ...args: any[]) => void;
-		on: (channel: string, func: Function) => void;
-		once: (channel: string, func: Function) => void;
+		invoke: (channel: string, ...args: any[]) => Promise<any>;
 		removeAllListeners: (channel: string) => void;
 	};
 }

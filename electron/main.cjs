@@ -10,6 +10,7 @@ const fs = require("fs");
 const os = require("os");
 const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
+const ffmpeg = require("fluent-ffmpeg");
 
 let mainWindow = null;
 let selectionWindow = null;
@@ -18,6 +19,128 @@ let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 let tempVideoPath = null;
 let lastCameraPosition = { x: 0, y: 0 };
+
+// Video kırpma işlemi için IPC handler
+ipcMain.handle(
+	"CROP_VIDEO",
+	async (event, { inputPath, outputPath, x, y, width, height }) => {
+		return new Promise((resolve, reject) => {
+			console.log("1. Kırpma işlemi başlatılıyor");
+			console.log("Kırpma parametreleri:", { x, y, width, height });
+			console.log("Input path:", inputPath);
+			console.log("Output path:", outputPath);
+
+			// Önce video bilgilerini al
+			ffmpeg.ffprobe(inputPath, (err, metadata) => {
+				if (err) {
+					console.error("Video bilgileri alınamadı:", err);
+					reject(err);
+					return;
+				}
+
+				const videoStream = metadata.streams.find(
+					(s) => s.codec_type === "video"
+				);
+				if (!videoStream) {
+					console.error("Video stream bulunamadı");
+					reject(new Error("Video stream bulunamadı"));
+					return;
+				}
+
+				console.log("Video bilgileri:", {
+					width: videoStream.width,
+					height: videoStream.height,
+					duration: videoStream.duration,
+					codec: videoStream.codec_name,
+					bitrate: videoStream.bit_rate,
+				});
+
+				// Kırpma alanını video boyutlarına göre kontrol et
+				const cropWidth = Math.min(width, videoStream.width - x);
+				const cropHeight = Math.min(height, videoStream.height - y);
+				const cropX = Math.max(0, Math.min(x, videoStream.width - cropWidth));
+				const cropY = Math.max(0, Math.min(y, videoStream.height - cropHeight));
+
+				console.log("Düzeltilmiş kırpma parametreleri:", {
+					x: cropX,
+					y: cropY,
+					width: cropWidth,
+					height: cropHeight,
+				});
+
+				// FFmpeg komutu oluştur
+				console.log("2. FFmpeg komutu hazırlanıyor");
+				const ffmpegCommand = ffmpeg(inputPath)
+					.videoFilters([
+						{
+							filter: "crop",
+							options: {
+								w: String(cropWidth),
+								h: String(cropHeight),
+								x: String(cropX),
+								y: String(cropY),
+							},
+						},
+					])
+					.outputOptions([
+						"-c:v libvpx-vp9", // VP9 codec
+						"-c:a copy", // Ses codec'ini kopyala
+						"-b:v 2M", // Video bitrate
+						"-maxrate 2M", // Maximum bitrate
+						"-bufsize 4M", // Buffer size
+						"-deadline realtime", // Encoding hızı
+						"-cpu-used 4", // CPU kullanımı (0-5, 5 en hızlı)
+						"-row-mt 1", // Multi-thread encoding
+						"-frame-parallel 1", // Paralel frame işleme
+						"-tile-columns 2", // VP9 tile columns
+						"-tile-rows 1", // VP9 tile rows
+						"-threads 4", // Thread sayısı
+						"-g 240", // Keyframe aralığı
+						"-qmin 4", // Minimum quantizer
+						"-qmax 48", // Maximum quantizer
+						"-quality realtime", // Kalite ayarı
+						"-y", // Varolan dosyanın üzerine yaz
+					]);
+
+				// Progress durumunu logla
+				ffmpegCommand.on("progress", (progress) => {
+					console.log("3. İşlem durumu:", progress.percent, "%");
+				});
+
+				// Çıktıyı kaydet
+				console.log("4. Kırpma işlemi başlıyor");
+				ffmpegCommand
+					.save(outputPath)
+					.on("start", (commandLine) => {
+						console.log("FFmpeg Komutu:", commandLine);
+					})
+					.on("end", () => {
+						console.log("5. Video kırpma tamamlandı");
+						// Kırpılan videoyu orijinal video ile değiştir
+						try {
+							console.log("6. Dosya değiştirme işlemi başlıyor");
+							if (fs.existsSync(inputPath)) {
+								fs.unlinkSync(inputPath);
+								console.log("7. Eski dosya silindi");
+							}
+							fs.renameSync(outputPath, inputPath);
+							console.log("8. Yeni dosya eski dosyanın yerine taşındı");
+							resolve(inputPath);
+						} catch (err) {
+							console.error("9. Dosya değiştirme hatası:", err);
+							reject(err);
+						}
+					})
+					.on("error", (err, stdout, stderr) => {
+						console.error("FFmpeg hatası:", err);
+						console.error("FFmpeg stdout:", stdout);
+						console.error("FFmpeg stderr:", stderr);
+						reject(err);
+					});
+			});
+		});
+	}
+);
 
 // Geçici video dosyası işlemleri
 ipcMain.handle("SAVE_TEMP_VIDEO", async (event, blob) => {
@@ -42,6 +165,7 @@ ipcMain.handle("SAVE_TEMP_VIDEO", async (event, blob) => {
 		const base64Data = blob.replace(/^data:video\/\w+;base64,/, "");
 		fs.writeFileSync(tempVideoPath, base64Data, "base64");
 
+		console.log("Geçici video kaydedildi:", tempVideoPath);
 		return tempVideoPath;
 	} catch (error) {
 		console.error("Geçici video kaydedilirken hata:", error);

@@ -224,7 +224,13 @@ onMounted(async () => {
 	if (window.electron?.ipcRenderer) {
 		// Alan seçimi event listener'ı
 		window.electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
-			selectedArea.value = area;
+			console.log("Alan seçildi:", area);
+			selectedArea.value = {
+				x: Math.round(area.x),
+				y: Math.round(area.y),
+				width: Math.round(area.width),
+				height: Math.round(area.height),
+			};
 		});
 
 		// Yeni kayıt için sıfırlama
@@ -253,6 +259,7 @@ const startRecording = async () => {
 
 		// Seçilen alana göre stream seçeneklerini ayarla
 		if (selectedSource.value === "area" && selectedArea.value) {
+			console.log("1. Seçili alan ile kayıt başlatılıyor:", selectedArea.value);
 			streamOptions = {
 				x: selectedArea.value.x,
 				y: selectedArea.value.y,
@@ -262,12 +269,15 @@ const startRecording = async () => {
 		}
 
 		// Kayıt başlat
+		console.log("2. Stream başlatılıyor...");
 		const { screenStream, cameraStream } = await startMediaStream(
 			streamOptions
 		);
+		console.log("3. Stream başlatıldı");
 
 		// MediaRecorder'ı başlat
 		if (mediaStream.value) {
+			console.log("4. MediaRecorder oluşturuluyor");
 			mediaRecorder = new MediaRecorder(mediaStream.value, {
 				mimeType: "video/webm;codecs=vp9",
 			});
@@ -275,15 +285,29 @@ const startRecording = async () => {
 			mediaRecorder.ondataavailable = (event) => {
 				if (event.data.size > 0) {
 					recordedChunks.value.push(event.data);
+					console.log(
+						"5. Yeni chunk eklendi, toplam:",
+						recordedChunks.value.length
+					);
 				}
 			};
 
 			mediaRecorder.onstop = async () => {
-				await saveRecording(recordedChunks.value);
+				console.log("6. MediaRecorder durduruldu, kayıt işlemi başlıyor");
+				// Seçili alan varsa kırpma bilgilerini gönder
+				if (selectedSource.value === "area" && selectedArea.value) {
+					console.log("7. Alan seçimli kayıt kaydediliyor");
+					await saveRecording(recordedChunks.value, selectedArea.value);
+				} else {
+					console.log("7. Normal kayıt kaydediliyor");
+					await saveRecording(recordedChunks.value);
+				}
 				recordedChunks.value = [];
 			};
 
 			mediaRecorder.start(1000); // Her saniyede bir veri al
+			console.log("8. MediaRecorder başlatıldı");
+			isRecording.value = true;
 		}
 	} catch (error) {
 		console.error("Kayıt başlatılırken hata:", error);
@@ -292,11 +316,16 @@ const startRecording = async () => {
 
 const stopRecording = async () => {
 	try {
+		console.log("1. Kayıt durdurma başlatıldı");
 		if (mediaRecorder && mediaRecorder.state !== "inactive") {
+			console.log("2. MediaRecorder durduruluyor");
 			mediaRecorder.stop();
 			mediaRecorder = null;
 		}
+		console.log("3. Stream durduruluyor");
 		await stopMediaStream();
+		console.log("4. Kayıt durdurma tamamlandı");
+		isRecording.value = false;
 	} catch (error) {
 		console.error("Kayıt durdurulurken hata:", error);
 	}

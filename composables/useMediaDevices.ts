@@ -128,8 +128,15 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const saveRecording = async (chunks: Blob[]) => {
+	const saveRecording = async (
+		chunks: Blob[],
+		cropArea?: { x: number; y: number; width: number; height: number }
+	) => {
 		try {
+			console.log("1. Kayıt kaydediliyor...", {
+				chunks: chunks.length,
+				cropArea,
+			});
 			const blob = new Blob(chunks, { type: "video/webm" });
 			const buffer = await blob.arrayBuffer();
 			const base64Data = btoa(
@@ -139,13 +146,82 @@ export const useMediaDevices = () => {
 				)
 			);
 			const dataUrl = `data:video/webm;base64,${base64Data}`;
+			console.log("2. Base64 dönüşümü tamamlandı");
 
 			// Geçici dosyayı kaydet
 			const tempPath = await window.electron?.fileSystem.saveTempVideo(dataUrl);
-			console.log("Geçici video kaydedildi:", tempPath);
+			console.log("3. Geçici video kaydedildi:", tempPath);
 
-			// Editor sayfasına yönlendir
-			navigateTo("/editor");
+			// Eğer kırpma alanı varsa, videoyu kırp
+			if (cropArea && tempPath) {
+				console.log("4. Video kırpma başlıyor...", cropArea);
+				try {
+					// Video boyutlarını al
+					const video = document.createElement("video");
+					video.src = URL.createObjectURL(blob);
+					await new Promise((resolve) => {
+						video.onloadedmetadata = () => resolve(null);
+						video.onerror = () => {
+							console.error("Video yüklenirken hata oluştu");
+							resolve(null);
+						};
+					});
+
+					// Ekran ölçeğini hesapla
+					const screenScale = window.devicePixelRatio || 1;
+					console.log("Ekran ölçeği:", screenScale);
+
+					// Kırpma koordinatlarını video boyutuna göre ölçekle
+					const scaleX = video.videoWidth / (window.innerWidth * screenScale);
+					const scaleY = video.videoHeight / (window.innerHeight * screenScale);
+
+					const scaledCropArea = {
+						x: Math.round(cropArea.x * scaleX),
+						y: Math.round(cropArea.y * scaleY),
+						width: Math.round(cropArea.width * scaleX),
+						height: Math.round(cropArea.height * scaleY),
+					};
+
+					console.log("Video ve kırpma bilgileri:", {
+						videoWidth: video.videoWidth,
+						videoHeight: video.videoHeight,
+						windowWidth: window.innerWidth,
+						windowHeight: window.innerHeight,
+						screenScale,
+						scaleX,
+						scaleY,
+						originalCropArea: cropArea,
+						scaledCropArea,
+					});
+
+					const outputPath = tempPath.replace(".webm", "_cropped.webm");
+					console.log("5. Kırpma için dosya yolları:", {
+						tempPath,
+						outputPath,
+					});
+
+					const result = await window.electron?.ipcRenderer.invoke(
+						"CROP_VIDEO",
+						{
+							inputPath: tempPath,
+							outputPath,
+							...scaledCropArea,
+						}
+					);
+					console.log("6. Video kırpma tamamlandı, sonuç:", result);
+
+					// Temizlik
+					URL.revokeObjectURL(video.src);
+				} catch (error) {
+					console.error("Video kırpma hatası:", error);
+					// Hata olsa bile devam et
+					console.log("7. Kırpma hatası oldu ama devam ediliyor");
+				}
+			}
+
+			console.log("8. Editor sayfasına yönlendiriliyor");
+			await navigateTo("/editor");
+			console.log("9. Yönlendirme tamamlandı");
 		} catch (error) {
 			console.error("Video kaydedilirken hata oluştu:", error);
 			alert("Video kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
