@@ -13,6 +13,7 @@ const waitOn = require("wait-on");
 
 let mainWindow = null;
 let selectionWindow = null;
+let cameraWindow = null;
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 let tempVideoPath = null;
@@ -185,9 +186,10 @@ async function createWindow() {
 		}
 	}
 
+	// Ana kontrol penceresi
 	mainWindow = new BrowserWindow({
-		width: 1200,
-		height: 800,
+		width: 800,
+		height: 200,
 		frame: false,
 		transparent: true,
 		hasShadow: true,
@@ -232,6 +234,54 @@ async function createWindow() {
 
 	mainWindow.on("closed", () => {
 		mainWindow = null;
+		// Ana pencere kapandığında kamera penceresini de kapat
+		if (cameraWindow) {
+			cameraWindow.close();
+		}
+	});
+
+	// Kamera penceresini oluştur
+	cameraWindow = new BrowserWindow({
+		width: 320,
+		height: 240,
+		frame: false,
+		transparent: true,
+		hasShadow: true,
+		alwaysOnTop: true,
+		resizable: false,
+		skipTaskbar: true,
+		webPreferences: {
+			nodeIntegration: false,
+			contextIsolation: true,
+			preload: path.join(__dirname, "preload.cjs"),
+		},
+	});
+
+	// Kamera penceresini sağ alt köşeye yerleştir
+	const { screen } = require("electron");
+	const primaryDisplay = screen.getPrimaryDisplay();
+	const { width, height } = primaryDisplay.workAreaSize;
+	cameraWindow.setPosition(width - 340, height - 260);
+
+	if (isDev) {
+		cameraWindow.loadURL("http://127.0.0.1:3000/camera");
+	} else {
+		cameraWindow.loadFile(
+			path.join(__dirname, "../.output/public/camera/index.html")
+		);
+	}
+
+	// Pencere sürükleme için IPC handlers
+	ipcMain.on("CAMERA_WINDOW_DRAG", (event, { mouseX, mouseY }) => {
+		if (cameraWindow) {
+			const [x, y] = cameraWindow.getPosition();
+			cameraWindow.setPosition(mouseX - 160, mouseY - 120);
+		}
+	});
+
+	cameraWindow.on("closed", () => {
+		cameraWindow = null;
+		ipcMain.removeAllListeners("CAMERA_WINDOW_DRAG");
 	});
 
 	// Pencere sürükleme için mouse olaylarını dinle

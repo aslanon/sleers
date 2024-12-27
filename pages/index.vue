@@ -547,4 +547,8 @@ watch(currentCameraStream, (stream) => {
 		cameraPreview.srcObject = stream;
 	}
 });
+
+const openCameraWindow = () => {
+	window.electron?.ipcRenderer.send("OPEN_CAMERA_WINDOW");
+};
 </script>
