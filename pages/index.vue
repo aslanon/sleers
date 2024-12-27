@@ -1,5 +1,32 @@
 <template>
 	<div class="min-h-screen bg-[#1a1b26] text-white">
+		<!-- Alan Seçimi Overlay -->
+		<div v-if="isSelectingArea" class="fixed inset-0 z-50">
+			<div
+				class="absolute inset-0 cursor-crosshair"
+				@mousedown="startAreaSelection"
+				@mousemove="updateAreaSelection"
+				@mouseup="endAreaSelection"
+			>
+				<div
+					v-if="selectedArea"
+					class="absolute border-2 border-blue-500 bg-blue-500/20"
+					:style="{
+						left: `${selectedArea.x}px`,
+						top: `${selectedArea.y}px`,
+						width: `${selectedArea.width}px`,
+						height: `${selectedArea.height}px`,
+					}"
+				>
+					<div
+						class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md"
+					>
+						{{ selectedArea.width }} x {{ selectedArea.height }}
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Üst Kontrol Çubuğu -->
 		<div
 			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-sm p-4 border-b border-gray-700"
@@ -217,7 +244,6 @@ const startPosition = ref({ x: 0, y: 0 });
 // Alan seçimi için değişkenler
 const isSelectingArea = ref(false);
 const selectionStart = ref({ x: 0, y: 0 });
-const selectionEnd = ref({ x: 0, y: 0 });
 const selectedArea = ref<{
 	x: number;
 	y: number;
@@ -236,6 +262,9 @@ const toggleSystemAudio = () => {
 
 const selectSource = (source: "display" | "window" | "area") => {
 	selectedSource.value = source;
+	if (source === "area") {
+		isSelectingArea.value = true;
+	}
 };
 
 // Kamera değişikliğini izle
@@ -289,11 +318,6 @@ onMounted(async () => {
 	document.addEventListener("mousedown", handleMouseDown);
 	document.addEventListener("mousemove", handleMouseMove);
 	document.addEventListener("mouseup", handleMouseUp);
-
-	// Alan seçimi olaylarını dinle
-	document.addEventListener("mousedown", startAreaSelection);
-	document.addEventListener("mousemove", updateAreaSelection);
-	document.addEventListener("mouseup", endAreaSelection);
 });
 
 onUnmounted(() => {
@@ -301,10 +325,6 @@ onUnmounted(() => {
 	document.removeEventListener("mousedown", handleMouseDown);
 	document.removeEventListener("mousemove", handleMouseMove);
 	document.removeEventListener("mouseup", handleMouseUp);
-
-	document.removeEventListener("mousedown", startAreaSelection);
-	document.removeEventListener("mousemove", updateAreaSelection);
-	document.removeEventListener("mouseup", endAreaSelection);
 });
 
 const startRecording = async () => {
@@ -379,7 +399,7 @@ const startRecording = async () => {
 			isRecording.value = true;
 		}
 	} catch (error) {
-		console.error("Kayıt başlat��lırken hata oluştu:", error);
+		console.error("Kayıt başlatılırken hata oluştu:", error);
 		alert("Kayıt başlatılırken bir hata oluştu: " + error.message);
 	}
 };
@@ -409,44 +429,56 @@ const handleMouseDown = (e: MouseEvent) => {
 		return;
 	}
 	isDragging.value = true;
-	startPosition.value = { x: e.clientX, y: e.clientY };
+	// @ts-ignore
+	window.electron?.startDrag({ x: e.screenX, y: e.screenY });
 };
 
 const handleMouseMove = (e: MouseEvent) => {
 	if (!isDragging.value) return;
 	// @ts-ignore
-	window.electron?.moveWindow(
-		e.screenX - startPosition.value.x,
-		e.screenY - startPosition.value.y
-	);
+	window.electron?.drag({ x: e.screenX, y: e.screenY });
 };
 
 const handleMouseUp = () => {
+	if (!isDragging.value) return;
 	isDragging.value = false;
+	// @ts-ignore
+	window.electron?.endDrag();
 };
 
 // Alan seçimi işleyicileri
 const startAreaSelection = (e: MouseEvent) => {
 	if (selectedSource.value !== "area") return;
-	isSelectingArea.value = true;
 	selectionStart.value = { x: e.clientX, y: e.clientY };
-	selectionEnd.value = { x: e.clientX, y: e.clientY };
+	selectedArea.value = {
+		x: e.clientX,
+		y: e.clientY,
+		width: 0,
+		height: 0,
+	};
 };
 
 const updateAreaSelection = (e: MouseEvent) => {
 	if (!isSelectingArea.value) return;
-	selectionEnd.value = { x: e.clientX, y: e.clientY };
 
-	// Seçilen alanı hesapla
-	const x = Math.min(selectionStart.value.x, selectionEnd.value.x);
-	const y = Math.min(selectionStart.value.y, selectionEnd.value.y);
-	const width = Math.abs(selectionEnd.value.x - selectionStart.value.x);
-	const height = Math.abs(selectionEnd.value.y - selectionStart.value.y);
+	const x = Math.min(selectionStart.value.x, e.clientX);
+	const y = Math.min(selectionStart.value.y, e.clientY);
+	const width = Math.abs(e.clientX - selectionStart.value.x);
+	const height = Math.abs(e.clientY - selectionStart.value.y);
 
 	selectedArea.value = { x, y, width, height };
 };
 
 const endAreaSelection = () => {
+	if (!isSelectingArea.value) return;
 	isSelectingArea.value = false;
 };
+
+// Alan seçimi sıfırlama
+watch(selectedSource, (newSource) => {
+	if (newSource !== "area") {
+		isSelectingArea.value = false;
+		selectedArea.value = null;
+	}
+});
 </script>

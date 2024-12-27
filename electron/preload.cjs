@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld("electron", {
 			ipcRenderer.invoke("DESKTOP_CAPTURER_GET_SOURCES", opts),
 	},
 	close: () => ipcRenderer.send("WINDOW_CLOSE"),
-	moveWindow: (deltaX, deltaY) =>
-		ipcRenderer.send("WINDOW_MOVE", { deltaX, deltaY }),
+	startDrag: (mousePosition) =>
+		ipcRenderer.send("START_WINDOW_DRAG", mousePosition),
+	endDrag: () => ipcRenderer.send("END_WINDOW_DRAG"),
+	drag: (mousePosition) => ipcRenderer.send("WINDOW_DRAGGING", mousePosition),
 });
