@@ -183,9 +183,19 @@ ipcMain.handle(
 					.outputOptions([
 						"-c:v libvpx-vp9", // Video codec
 						"-c:a copy", // Ses codec'ini kopyala
-						"-b:v 1M", // Video bitrate
-						"-deadline realtime", // Hızlı encoding
-						"-cpu-used 8", // En hızlı encoding
+						"-b:v 50M", // Video bitrate 50Mbps
+						"-crf 0", // En yüksek kalite (0 = kayıpsız)
+						"-deadline best", // En yüksek kalite için
+						"-cpu-used 0", // En yüksek kalite encoding
+						"-auto-alt-ref 1", // Gelişmiş referans karesi kullanımı
+						"-lag-in-frames 25", // Maksimum referans karesi
+						"-quality best", // En iyi kalite
+						"-speed 0", // En yavaş/en kaliteli encoding
+						"-tile-columns 2", // Paralel işleme için
+						"-frame-parallel 1", // Paralel frame encoding
+						"-threads 16", // Maksimum thread kullanımı
+						"-static-thresh 0", // Statik threshold kapalı
+						"-max-intra-rate 300", // Yüksek intra-frame kalitesi
 						"-y", // Varolan dosyanın üzerine yaz
 					]);
 

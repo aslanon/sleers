@@ -310,6 +310,8 @@ const startRecording = async () => {
 			console.log("4. MediaRecorder oluşturuluyor");
 			mediaRecorder = new MediaRecorder(mediaStream.value, {
 				mimeType: "video/webm;codecs=vp9",
+				videoBitsPerSecond: 50000000, // 50 Mbps video bit hızı
+				audioBitsPerSecond: 320000, // 320 kbps ses bit hızı
 			});
 
 			mediaRecorder.ondataavailable = (event) => {
