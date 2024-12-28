@@ -90,22 +90,22 @@ onMounted(() => {
 	// Event listener'ı ekle
 	window.electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
 
-	// Cleanup için fonksiyonu sakla
-	onUnmounted(() => {
-		console.log("Kamera penceresi unmount ediliyor");
-		// Stream'i temizle
-		if (currentStream) {
-			currentStream.getTracks().forEach((track) => track.stop());
-		}
-
-		// Event listener'ı temizle
-		window.electron?.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
-		console.log("Event listener'lar temizlendi");
-	});
-
 	// Test mesajı gönder
 	console.log("IPC bağlantısı test ediliyor...");
 	window.electron?.ipcRenderer.send("CAMERA_WINDOW_READY");
+});
+
+// Cleanup için fonksiyonu sakla
+onUnmounted(() => {
+	console.log("Kamera penceresi unmount ediliyor");
+	// Stream'i temizle
+	if (currentStream) {
+		currentStream.getTracks().forEach((track) => track.stop());
+	}
+
+	// Event listener'ı temizle
+	window.electron?.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
+	console.log("Event listener'lar temizlendi");
 });
 </script>
 
