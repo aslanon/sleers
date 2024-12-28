@@ -65,11 +65,14 @@ function createTrayMenu() {
 
 // Tray ikonunu güncelle
 function updateTrayIcon() {
+	if (!tray) return;
+
 	const iconName = isRecording ? "recording.png" : "default.png";
 	const iconPath = path.join(__dirname, `../public/icons/${iconName}`);
 	const trayIcon = nativeImage
 		.createFromPath(iconPath)
 		.resize({ width: 16, height: 16 });
+
 	tray.setImage(trayIcon);
 	tray.setContextMenu(createTrayMenu());
 }
@@ -80,9 +83,14 @@ function createTray() {
 	const trayIcon = nativeImage
 		.createFromPath(iconPath)
 		.resize({ width: 16, height: 16 });
-	tray = new Tray(trayIcon);
-	tray.setToolTip("Sleer Screen Recorder");
-	tray.setContextMenu(createTrayMenu());
+
+	if (!tray) {
+		tray = new Tray(trayIcon);
+		tray.setToolTip("Sleer Screen Recorder");
+		tray.setContextMenu(createTrayMenu());
+	} else {
+		tray.setImage(trayIcon);
+	}
 }
 
 // IPC handler for recording status
@@ -151,7 +159,7 @@ ipcMain.handle(
 				const cropWidth = Math.abs(width);
 				const cropHeight = Math.abs(height);
 
-				// Video sınırlarını kontrol et
+				// Video sın��rlarını kontrol et
 				const finalX = Math.min(cropX, videoStream.width - 100);
 				const finalY = Math.min(cropY, videoStream.height - 100);
 				const finalWidth = Math.min(cropWidth, videoStream.width - finalX);
@@ -552,7 +560,7 @@ ipcMain.handle(
 				}
 
 				if (cameraPath && !fs.existsSync(cameraPath)) {
-					throw new Error(`Kamera kaydı dosyası bulunamadı: ${cameraPath}`);
+					throw new Error(`Kamera kaydı dosyası bulunamad��: ${cameraPath}`);
 				}
 				if (audioPath && !fs.existsSync(audioPath)) {
 					throw new Error(`Ses kaydı dosyası bulunamadı: ${audioPath}`);
@@ -624,7 +632,7 @@ ipcMain.handle(
 					command = command.complexFilter(filterComplex, outputs);
 				}
 
-				// Ç��ktı ayarlarını ekle
+				// Çıktı ayarlarını ekle
 				command
 					.outputOptions([
 						"-c:v libvpx-vp9",
