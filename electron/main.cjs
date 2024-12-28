@@ -25,6 +25,9 @@ let lastCameraPosition = { x: 0, y: 0 };
 let tray = null;
 let isRecording = false;
 
+// Geçici dosyaları saklamak için bir Map
+const tempFiles = new Map();
+
 // Tray menüsünü oluştur
 function createTrayMenu() {
 	const contextMenu = Menu.buildFromTemplate([
@@ -257,7 +260,7 @@ ipcMain.handle(
 );
 
 // Geçici video dosyası işlemleri
-ipcMain.handle("SAVE_TEMP_VIDEO", async (event, blob) => {
+ipcMain.handle("SAVE_TEMP_VIDEO", async (event, data, type) => {
 	try {
 		// Kullanıcının Downloads klasörü altında uygulama klasörü
 		const downloadsPath = app.getPath("downloads");
@@ -267,24 +270,68 @@ ipcMain.handle("SAVE_TEMP_VIDEO", async (event, blob) => {
 			fs.mkdirSync(appDir, { recursive: true });
 		}
 
-		// Eski geçici dosyayı temizle
-		if (tempVideoPath && fs.existsSync(tempVideoPath)) {
-			fs.unlinkSync(tempVideoPath);
+		// Eski dosyayı temizle
+		const oldPath = tempFiles.get(type);
+		if (oldPath && fs.existsSync(oldPath)) {
+			fs.unlinkSync(oldPath);
 		}
 
 		// Yeni geçici dosya yolu
-		tempVideoPath = path.join(appDir, `temp-${Date.now()}.webm`);
+		const tempPath = path.join(appDir, `temp-${type}-${Date.now()}.webm`);
 
 		// Base64 verisini dosyaya kaydet
-		const base64Data = blob.replace(/^data:video\/\w+;base64,/, "");
-		fs.writeFileSync(tempVideoPath, base64Data, "base64");
+		const base64Data = data.replace(/^data:video\/\w+;base64,/, "");
+		fs.writeFileSync(tempPath, base64Data, "base64");
 
-		console.log("Geçici video kaydedildi:", tempVideoPath);
-		return tempVideoPath;
+		// Dosya varlığını kontrol et
+		if (!fs.existsSync(tempPath)) {
+			throw new Error(`Geçici dosya oluşturulamadı: ${tempPath}`);
+		}
+
+		// Map'e kaydet
+		tempFiles.set(type, tempPath);
+
+		console.log(`${type} için geçici dosya kaydedildi:`, tempPath);
+		return tempPath;
 	} catch (error) {
 		console.error("Geçici video kaydedilirken hata:", error);
 		throw error;
 	}
+});
+
+// Dosya varlığı kontrolü için IPC handler
+ipcMain.handle("CHECK_FILE_EXISTS", async (event, filePath) => {
+	try {
+		return fs.existsSync(filePath);
+	} catch (error) {
+		console.error("Dosya varlığı kontrol edilirken hata:", error);
+		return false;
+	}
+});
+
+// Geçici dosyaları temizle
+const cleanupTempFiles = () => {
+	for (const [type, filePath] of tempFiles.entries()) {
+		if (fs.existsSync(filePath)) {
+			try {
+				fs.unlinkSync(filePath);
+				console.log(`${type} için geçici dosya silindi:`, filePath);
+			} catch (err) {
+				console.error(`${type} için geçici dosya silinirken hata:`, err);
+			}
+		}
+	}
+	tempFiles.clear();
+};
+
+// Uygulama kapatılmadan önce temizlik yap
+app.on("before-quit", () => {
+	cleanupTempFiles();
+});
+
+// Yeni kayıt için temizlik
+ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
+	cleanupTempFiles();
 });
 
 ipcMain.handle("GET_TEMP_VIDEO_PATH", () => {
@@ -301,10 +348,12 @@ ipcMain.on("CLEANUP_TEMP_VIDEO", () => {
 // IPC handler for desktop capturer
 ipcMain.handle("DESKTOP_CAPTURER_GET_SOURCES", async (event, opts) => {
 	try {
+		console.log("Ekran kaynakları alınıyor:", opts);
 		const sources = await desktopCapturer.getSources(opts);
+		console.log("Bulunan kaynaklar:", sources.length);
 		return sources;
 	} catch (error) {
-		console.error("Error getting screen sources:", error);
+		console.error("Ekran kaynakları alınırken hata:", error);
 		throw error;
 	}
 });
@@ -466,6 +515,153 @@ ipcMain.handle("READ_VIDEO_FILE", async (event, filePath) => {
 		throw error;
 	}
 });
+
+// Video birleştirme işlemi için IPC handler
+ipcMain.handle(
+	"MERGE_VIDEOS",
+	async (
+		event,
+		{ screenPath, cameraPath, audioPath, outputPath, cropArea }
+	) => {
+		return new Promise((resolve, reject) => {
+			try {
+				// Dosya varlığını kontrol et
+				if (!fs.existsSync(screenPath)) {
+					throw new Error(`Ekran kaydı dosyası bulunamadı: ${screenPath}`);
+				}
+
+				// Dosya boyutunu kontrol et
+				const stats = fs.statSync(screenPath);
+				if (stats.size === 0) {
+					throw new Error("Ekran kaydı dosyası boş");
+				}
+
+				if (cameraPath && !fs.existsSync(cameraPath)) {
+					throw new Error(`Kamera kaydı dosyası bulunamadı: ${cameraPath}`);
+				}
+				if (audioPath && !fs.existsSync(audioPath)) {
+					throw new Error(`Ses kaydı dosyası bulunamadı: ${audioPath}`);
+				}
+
+				console.log("Video birleştirme başlıyor:", {
+					screenPath,
+					cameraPath,
+					audioPath,
+					outputPath,
+					cropArea,
+				});
+
+				// FFmpeg komutu oluştur
+				let command = ffmpeg();
+
+				// Ekran kaydını ekle
+				command = command.input(screenPath);
+
+				// Kamera kaydını ekle (varsa)
+				if (cameraPath) {
+					command = command.input(cameraPath);
+				}
+
+				// Ses kaydını ekle (varsa)
+				if (audioPath) {
+					command = command.input(audioPath);
+				}
+
+				// Filtre kompleksi oluştur
+				let filterComplex = [];
+				let outputs = [];
+
+				// Ekran kaydı her zaman var
+				if (cropArea) {
+					filterComplex.push(
+						`[0:v]crop=${cropArea.width}:${cropArea.height}:${cropArea.x}:${cropArea.y}[main]`
+					);
+				} else {
+					filterComplex.push(`[0:v]null[main]`);
+				}
+
+				// Kamera varsa PiP (Picture in Picture) olarak ekle
+				if (cameraPath) {
+					filterComplex.push(`[1:v]scale=320:-1[cam]`);
+					filterComplex.push(
+						`[main][cam]overlay=main_w-overlay_w-10:main_h-overlay_h-10[v]`
+					);
+					outputs.push(`[v]`);
+				} else {
+					outputs.push(`[main]`);
+				}
+
+				// Ses kanallarını birleştir
+				if (audioPath) {
+					// Hem ekran hem mikrofon sesi varsa mixle
+					if (screenPath.includes("audio")) {
+						filterComplex.push(`[0:a][2:a]amix=inputs=2[a]`);
+					} else {
+						filterComplex.push(`[2:a]aformat=sample_fmts=fltp[a]`);
+					}
+					outputs.push(`[a]`);
+				} else if (screenPath.includes("audio")) {
+					outputs.push(`[0:a]`);
+				}
+
+				// Filtre kompleksini komuta ekle
+				if (filterComplex.length > 0) {
+					command = command.complexFilter(filterComplex, outputs);
+				}
+
+				// Çıktı ayarlarını ekle
+				command
+					.outputOptions([
+						"-c:v libvpx-vp9", // Video codec
+						"-c:a libopus", // Ses codec
+						"-b:v 50M", // Video bitrate
+						"-crf 0", // En yüksek kalite
+						"-deadline best", // En iyi kalite için
+						"-cpu-used 0", // En yüksek kalite encoding
+						"-auto-alt-ref 1",
+						"-lag-in-frames 25",
+						"-quality best",
+						"-speed 0",
+					])
+					.toFormat("webm");
+
+				// Progress durumunu logla
+				command.on("progress", (progress) => {
+					console.log("Birleştirme durumu:", {
+						frames: progress.frames,
+						fps: progress.currentFps,
+						percent: progress.percent,
+						time: progress.timemark,
+					});
+					// İlerleme durumunu ana pencereye gönder
+					if (mainWindow) {
+						mainWindow.webContents.send("MERGE_PROGRESS", progress);
+					}
+				});
+
+				// Çıktıyı kaydet
+				command
+					.save(outputPath)
+					.on("start", (commandLine) => {
+						console.log("FFmpeg komutu:", commandLine);
+					})
+					.on("end", () => {
+						console.log("Video birleştirme tamamlandı");
+						resolve(outputPath);
+					})
+					.on("error", (err, stdout, stderr) => {
+						console.error("FFmpeg hatası:", err);
+						console.error("FFmpeg stdout:", stdout);
+						console.error("FFmpeg stderr:", stderr);
+						reject(new Error(`FFmpeg hatası: ${err.message}`));
+					});
+			} catch (error) {
+				console.error("Video birleştirme hatası:", error);
+				reject(error);
+			}
+		});
+	}
+);
 
 async function createWindow() {
 	if (isDev) {

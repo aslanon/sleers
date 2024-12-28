@@ -1,44 +1,23 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
-// Electron API'lerini expose et
 contextBridge.exposeInMainWorld("electron", {
+	ipcRenderer: {
+		send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+		on: (channel, func) => {
+			ipcRenderer.on(channel, (event, ...args) => func(...args));
+		},
+		invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+		removeAllListeners: (channel) => {
+			ipcRenderer.removeAllListeners(channel);
+		},
+	},
 	desktopCapturer: {
 		getSources: (opts) =>
 			ipcRenderer.invoke("DESKTOP_CAPTURER_GET_SOURCES", opts),
 	},
-	windowControls: {
-		close: () => ipcRenderer.send("WINDOW_CLOSE"),
-		startDrag: (mousePosition) =>
-			ipcRenderer.send("START_WINDOW_DRAG", mousePosition),
-		dragging: (mousePosition) =>
-			ipcRenderer.send("WINDOW_DRAGGING", mousePosition),
-		endDrag: () => ipcRenderer.send("END_WINDOW_DRAG"),
-	},
 	fileSystem: {
-		saveTempVideo: (blob) => ipcRenderer.invoke("SAVE_TEMP_VIDEO", blob),
+		saveTempVideo: (data, type) =>
+			ipcRenderer.invoke("SAVE_TEMP_VIDEO", data, type),
 		getTempVideoPath: () => ipcRenderer.invoke("GET_TEMP_VIDEO_PATH"),
-		cleanupTempVideo: () => ipcRenderer.send("CLEANUP_TEMP_VIDEO"),
-	},
-	saveTempVideo: (blob) => ipcRenderer.invoke("SAVE_TEMP_VIDEO", blob),
-	getTempVideoPath: () => ipcRenderer.invoke("GET_TEMP_VIDEO_PATH"),
-	showSaveDialog: (options) => ipcRenderer.invoke("SHOW_SAVE_DIALOG", options),
-	copyFile: (src, dest) => ipcRenderer.invoke("COPY_FILE", src, dest),
-	readVideoFile: (filePath) => ipcRenderer.invoke("READ_VIDEO_FILE", filePath),
-	ipcRenderer: {
-		on: (channel, func) => {
-			ipcRenderer.on(channel, (event, ...args) => func(event, ...args));
-		},
-		once: (channel, func) => {
-			ipcRenderer.once(channel, (event, ...args) => func(event, ...args));
-		},
-		send: (channel, ...args) => {
-			ipcRenderer.send(channel, ...args);
-		},
-		invoke: (channel, ...args) => {
-			return ipcRenderer.invoke(channel, ...args);
-		},
-		removeAllListeners: (channel) => {
-			ipcRenderer.removeAllListeners(channel);
-		},
 	},
 });

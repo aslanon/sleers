@@ -305,40 +305,91 @@ const startRecording = async () => {
 		);
 		console.log("3. Stream başlatıldı");
 
-		// MediaRecorder'ı başlat
+		// Her stream için ayrı MediaRecorder oluştur
 		if (mediaStream.value) {
-			console.log("4. MediaRecorder oluşturuluyor");
-			mediaRecorder = new MediaRecorder(mediaStream.value, {
+			console.log("4. MediaRecorder'lar oluşturuluyor");
+
+			// Ekran kaydı için recorder
+			const screenRecorder = new MediaRecorder(screenStream, {
 				mimeType: "video/webm;codecs=vp9",
-				videoBitsPerSecond: 50000000, // 50 Mbps video bit hızı
-				audioBitsPerSecond: 320000, // 320 kbps ses bit hızı
+				videoBitsPerSecond: 50000000,
 			});
 
-			mediaRecorder.ondataavailable = (event) => {
+			// Kamera kaydı için recorder (eğer varsa)
+			let cameraRecorder = null;
+			if (cameraStream) {
+				cameraRecorder = new MediaRecorder(cameraStream, {
+					mimeType: "video/webm;codecs=vp9",
+					videoBitsPerSecond: 8000000,
+				});
+			}
+
+			// Ses kaydı için recorder
+			let audioRecorder = null;
+			if (mediaStream.value.getAudioTracks().length > 0) {
+				const audioStream = new MediaStream(mediaStream.value.getAudioTracks());
+				audioRecorder = new MediaRecorder(audioStream, {
+					mimeType: "audio/webm;codecs=opus",
+					audioBitsPerSecond: 320000,
+				});
+			}
+
+			// Ekran kaydı chunks
+			const screenChunks = [];
+			screenRecorder.ondataavailable = (event) => {
 				if (event.data.size > 0) {
-					recordedChunks.value.push(event.data);
-					console.log(
-						"5. Yeni chunk eklendi, toplam:",
-						recordedChunks.value.length
+					screenChunks.push(event.data);
+				}
+			};
+
+			// Kamera kaydı chunks
+			const cameraChunks = [];
+			if (cameraRecorder) {
+				cameraRecorder.ondataavailable = (event) => {
+					if (event.data.size > 0) {
+						cameraChunks.push(event.data);
+					}
+				};
+			}
+
+			// Ses kaydı chunks
+			const audioChunks = [];
+			if (audioRecorder) {
+				audioRecorder.ondataavailable = (event) => {
+					if (event.data.size > 0) {
+						audioChunks.push(event.data);
+					}
+				};
+			}
+
+			// Tüm recorder'ları başlat
+			screenRecorder.start(1000);
+			if (cameraRecorder) cameraRecorder.start(1000);
+			if (audioRecorder) audioRecorder.start(1000);
+
+			// Global mediaRecorder referansını güncelle
+			mediaRecorder = {
+				screen: screenRecorder,
+				camera: cameraRecorder,
+				audio: audioRecorder,
+				stop: async () => {
+					screenRecorder.stop();
+					if (cameraRecorder) cameraRecorder.stop();
+					if (audioRecorder) audioRecorder.stop();
+
+					// Tüm kayıtlar bittiğinde editör sayfasına yönlendir
+					await saveRecording(
+						{
+							screen: screenChunks,
+							camera: cameraChunks,
+							audio: audioChunks,
+						},
+						selectedSource.value === "area" ? selectedArea.value : null
 					);
-				}
+				},
 			};
 
-			mediaRecorder.onstop = async () => {
-				console.log("6. MediaRecorder durduruldu, kayıt işlemi başlıyor");
-				// Seçili alan varsa kırpma bilgilerini gönder
-				if (selectedSource.value === "area" && selectedArea.value) {
-					console.log("7. Alan seçimli kayıt kaydediliyor");
-					await saveRecording(recordedChunks.value, selectedArea.value);
-				} else {
-					console.log("7. Normal kayıt kaydediliyor");
-					await saveRecording(recordedChunks.value);
-				}
-				recordedChunks.value = [];
-			};
-
-			mediaRecorder.start(1000); // Her saniyede bir veri al
-			console.log("8. MediaRecorder başlatıldı");
+			console.log("8. Tüm MediaRecorder'lar başlatıldı");
 			isRecording.value = true;
 		}
 	} catch (error) {
@@ -349,9 +400,9 @@ const startRecording = async () => {
 const stopRecording = async () => {
 	try {
 		console.log("1. Kayıt durdurma başlatıldı");
-		if (mediaRecorder && mediaRecorder.state !== "inactive") {
-			console.log("2. MediaRecorder durduruluyor");
-			mediaRecorder.stop();
+		if (mediaRecorder) {
+			console.log("2. MediaRecorder'lar durduruluyor");
+			await mediaRecorder.stop();
 			mediaRecorder = null;
 		}
 		console.log("3. Stream durduruluyor");

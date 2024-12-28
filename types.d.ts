@@ -1,29 +1,26 @@
-interface ElectronAPI {
-	desktopCapturer: {
-		getSources: (opts: any) => Promise<any>;
-	};
-	windowControls: {
-		close: () => void;
-		startDrag: (mousePosition: { x: number; y: number }) => void;
-		dragging: (mousePosition: { x: number; y: number }) => void;
-		endDrag: () => void;
-	};
-	fileSystem: {
-		saveTempVideo: (blob: string) => Promise<string>;
-		getTempVideoPath: () => Promise<string>;
-		cleanupTempVideo: () => void;
-	};
-	ipcRenderer: {
-		on: (channel: string, func: (...args: any[]) => void) => void;
-		once: (channel: string, func: (...args: any[]) => void) => void;
-		send: (channel: string, ...args: any[]) => void;
-		invoke: (channel: string, ...args: any[]) => Promise<any>;
-		removeAllListeners: (channel: string) => void;
+interface Window {
+	electron?: {
+		ipcRenderer: {
+			send: (channel: string, ...args: any[]) => void;
+			on: (channel: string, func: (...args: any[]) => void) => void;
+			invoke: (channel: string, ...args: any[]) => Promise<any>;
+			removeAllListeners: (channel: string) => void;
+		};
+		desktopCapturer: {
+			getSources: (opts: any) => Promise<any[]>;
+		};
+		fileSystem: {
+			saveTempVideo: (data: string, type: string) => Promise<string>;
+			getTempVideoPath: () => Promise<string>;
+		};
 	};
 }
 
-declare global {
-	interface Window {
-		electron?: ElectronAPI;
+declare module "#app" {
+	interface PageMeta {
+		title?: string;
+	}
+	interface NavigateToOptions {
+		query?: Record<string, string | undefined>;
 	}
 }
