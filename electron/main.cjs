@@ -4,6 +4,9 @@ const {
 	session,
 	desktopCapturer,
 	ipcMain,
+	Tray,
+	Menu,
+	nativeImage,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -19,6 +22,76 @@ let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 let tempVideoPath = null;
 let lastCameraPosition = { x: 0, y: 0 };
+let tray = null;
+let isRecording = false;
+
+// Tray menüsünü oluştur
+function createTrayMenu() {
+	const contextMenu = Menu.buildFromTemplate([
+		{
+			label: isRecording ? "Kaydı Durdur" : "Kaydı Başlat",
+			click: () => {
+				if (isRecording) {
+					mainWindow.webContents.send("STOP_RECORDING_FROM_TRAY");
+					mainWindow.show();
+				} else {
+					mainWindow.webContents.send("START_RECORDING_FROM_TRAY");
+					mainWindow.hide();
+				}
+				isRecording = !isRecording;
+				updateTrayIcon();
+			},
+		},
+		{
+			label: "Pencereyi Göster",
+			click: () => {
+				mainWindow.show();
+			},
+		},
+		{ type: "separator" },
+		{
+			label: "Çıkış",
+			click: () => {
+				app.quit();
+			},
+		},
+	]);
+
+	return contextMenu;
+}
+
+// Tray ikonunu güncelle
+function updateTrayIcon() {
+	const iconName = isRecording ? "recording.png" : "default.png";
+	const iconPath = path.join(__dirname, `../public/icons/${iconName}`);
+	const trayIcon = nativeImage
+		.createFromPath(iconPath)
+		.resize({ width: 16, height: 16 });
+	tray.setImage(trayIcon);
+	tray.setContextMenu(createTrayMenu());
+}
+
+// Tray'i oluştur
+function createTray() {
+	const iconPath = path.join(__dirname, "../public/icons/default.png");
+	const trayIcon = nativeImage
+		.createFromPath(iconPath)
+		.resize({ width: 16, height: 16 });
+	tray = new Tray(trayIcon);
+	tray.setToolTip("Sleer Screen Recorder");
+	tray.setContextMenu(createTrayMenu());
+}
+
+// IPC handler for recording status
+ipcMain.on("RECORDING_STATUS_CHANGED", (event, status) => {
+	isRecording = status;
+	updateTrayIcon();
+	if (status) {
+		mainWindow.hide();
+	} else {
+		mainWindow.show();
+	}
+});
 
 // Video kırpma işlemi için IPC handler
 ipcMain.handle(
@@ -515,6 +588,18 @@ async function createWindow() {
 	ipcMain.on("END_WINDOW_DRAG", () => {
 		isDragging = false;
 	});
+
+	// Tray'i oluştur
+	createTray();
+
+	// Pencere kapatıldığında sadece gizle
+	mainWindow.on("close", (event) => {
+		if (!app.isQuitting) {
+			event.preventDefault();
+			mainWindow.hide();
+		}
+		return false;
+	});
 }
 
 app.whenReady().then(createWindow);
@@ -557,4 +642,9 @@ ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
 			cameraWindow.setPosition(width - 340, height - 340);
 		}
 	}
+});
+
+// Uygulama kapatılmadan önce
+app.on("before-quit", () => {
+	app.isQuitting = true;
 });

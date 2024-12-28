@@ -247,9 +247,23 @@ onMounted(async () => {
 			});
 		});
 
+		// Tray'den kayıt kontrolü için event listener'lar
+		window.electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
+			startRecording();
+		});
+
+		window.electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
+			stopRecording();
+		});
+
 		// Yeni kayıt için sıfırlama
 		window.electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 	}
+});
+
+// Kayıt durumu değiştiğinde tray'i güncelle
+watch(isRecording, (newValue) => {
+	window.electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", newValue);
 });
 
 // Temizlik işlemleri
@@ -257,6 +271,8 @@ onBeforeUnmount(() => {
 	// Event listener'ları temizle
 	if (window.electron?.ipcRenderer) {
 		window.electron.ipcRenderer.removeAllListeners("AREA_SELECTED");
+		window.electron.ipcRenderer.removeAllListeners("START_RECORDING_FROM_TRAY");
+		window.electron.ipcRenderer.removeAllListeners("STOP_RECORDING_FROM_TRAY");
 	}
 });
 
