@@ -156,15 +156,44 @@
 	</div>
 
 	<!-- Başlık çubuğu -->
+	<div
+		v-if="currentCameraStream"
+		class="fixed bottom-4 right-4 w-40 h-40 rounded-full overflow-hidden shadow-lg"
+	>
+		<video
+			ref="cameraPreview"
+			class="w-full h-full object-cover transform scale-x-[-1]"
+			autoplay
+			playsinline
+			muted
+		></video>
+	</div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
+import { useIpcState } from "~/composables/useIpcState";
+import type { CropArea } from "~/composables/useMediaDevices";
 
 const preview = ref<HTMLVideoElement | null>(null);
 const cameraPreview = ref<HTMLVideoElement | null>(null);
-let mediaRecorder: MediaRecorder | null = null;
+
+// MediaRecorder ve chunks için tip tanımları
+interface CustomMediaRecorder {
+	screen: MediaRecorder;
+	camera: MediaRecorder | null;
+	audio: MediaRecorder | null;
+	stop: () => Promise<void>;
+}
+
+let mediaRecorder: CustomMediaRecorder | null = null;
+const currentAudioStream = ref<MediaStream | null>(null);
+
+// Chunks için tip tanımları
+const screenChunks: Blob[] = [];
+const cameraChunks: Blob[] = [];
+const audioChunks: Blob[] = [];
 
 const selectedSource = ref<"display" | "window" | "area">("display");
 const systemAudioEnabled = ref(true);
@@ -181,20 +210,18 @@ const {
 	mediaStream,
 	startRecording: startMediaStream,
 	stopRecording: stopMediaStream,
-	saveRecording,
+	saveTempVideo,
 } = useMediaDevices();
+
+const { ipcState, addIpcListener, removeIpcListener, sendIpcMessage } =
+	useIpcState();
 
 // Pencere sürükleme için değişkenler
 const isDragging = ref(false);
 const startPosition = ref({ x: 0, y: 0 });
 
 // Alan seçimi için değişkenler
-const selectedArea = ref<{
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-} | null>(null);
+const selectedArea = ref<CropArea | undefined>(undefined);
 
 // Kamera pozisyonu için değişkenler
 const cameraPosition = ref({ x: 20, y: 20 });
@@ -202,7 +229,7 @@ const isCameraDragging = ref(false);
 const cameraDragOffset = ref({ x: 0, y: 0 });
 
 const closeWindow = () => {
-	window.electron?.windowControls.close();
+	sendIpcMessage("WINDOW_CLOSE", null);
 };
 
 const toggleSystemAudio = () => {
@@ -212,75 +239,145 @@ const toggleSystemAudio = () => {
 const selectSource = (source: "display" | "window" | "area") => {
 	selectedSource.value = source;
 	if (source === "area") {
-		window.electron?.ipcRenderer.send("START_AREA_SELECTION");
+		sendIpcMessage("START_AREA_SELECTION", null);
 	}
 };
 
-watch(selectedVideoDevice.value, async (newDeviceId) => {
-	// set cookie
-	if (newDeviceId) {
-		window.electron?.ipcRenderer.send("SELECT_VIDEO_DEVICE", newDeviceId);
+// Kamera değişikliğini izle
+watch(
+	() => selectedVideoDevice.value,
+	async (newDeviceId) => {
+		if (newDeviceId) {
+			try {
+				// Önceki stream'i kapat
+				if (currentCameraStream.value) {
+					currentCameraStream.value
+						.getTracks()
+						.forEach((track) => track.stop());
+				}
+
+				// Kamera stream'ini başlat
+				const stream = await navigator.mediaDevices.getUserMedia({
+					video: {
+						deviceId: { exact: newDeviceId },
+						width: { ideal: 320 },
+						height: { ideal: 320 },
+						frameRate: { ideal: 30 },
+						aspectRatio: 1,
+					},
+					audio: false,
+				});
+
+				// Stream'i ayarla
+				if (cameraPreview.value) {
+					cameraPreview.value.srcObject = stream;
+					currentCameraStream.value = stream;
+					await cameraPreview.value.play().catch(console.error);
+				}
+
+				// Kamera penceresine bildir
+				sendIpcMessage("SELECT_VIDEO_DEVICE", newDeviceId);
+
+				// Kamera penceresini aç
+				sendIpcMessage("OPEN_CAMERA_WINDOW", null);
+			} catch (error) {
+				console.error("Kamera değiştirme hatası:", error);
+			}
+		}
 	}
-});
+);
+
+// Kamera stream'ini başlat
+const startCameraPreview = async () => {
+	try {
+		if (!selectedVideoDevice.value) {
+			await getDevices();
+		}
+
+		// Önceki stream'i kapat
+		if (cameraPreview.value?.srcObject) {
+			const stream = cameraPreview.value.srcObject as MediaStream;
+			stream.getTracks().forEach((track) => track.stop());
+		}
+
+		const stream = await navigator.mediaDevices.getUserMedia({
+			video: {
+				deviceId: selectedVideoDevice.value
+					? { exact: selectedVideoDevice.value }
+					: undefined,
+				width: { ideal: 320 },
+				height: { ideal: 320 },
+				frameRate: { ideal: 30 },
+				aspectRatio: 1,
+			},
+			audio: false,
+		});
+
+		if (cameraPreview.value) {
+			cameraPreview.value.srcObject = stream;
+			currentCameraStream.value = stream;
+			await cameraPreview.value.play().catch(console.error);
+		}
+	} catch (error) {
+		console.error("Kamera önizleme hatası:", error);
+	}
+};
 
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
 
-	// Electron API'si yüklendiyse event listener'ları ekle
-	if (window.electron?.ipcRenderer) {
-		// Alan seçimi event listener'ı
-		window.electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
-			console.log("Ham alan seçimi:", area);
+	// Alan seçimi event listener'ı
+	addIpcListener("AREA_SELECTED", (area: any) => {
+		console.log("Ham alan seçimi:", area);
 
-			// Ekran ölçeğini hesapla
-			const screenScale = window.devicePixelRatio || 1;
+		// Ekran ölçeğini hesapla
+		const screenScale = window.devicePixelRatio || 1;
 
-			// Seçilen alanı ekran pozisyonuna göre ayarla
-			selectedArea.value = {
-				x: Math.round(area.x * screenScale),
-				y: Math.round(area.y * screenScale),
-				width: Math.round(area.width * screenScale),
-				height: Math.round(area.height * screenScale),
-			};
+		// Seçilen alanı ekran pozisyonuna göre ayarla
+		selectedArea.value = {
+			x: Math.round(area.x * screenScale),
+			y: Math.round(area.y * screenScale),
+			width: Math.round(area.width * screenScale),
+			height: Math.round(area.height * screenScale),
+		};
 
-			console.log("Düzeltilmiş alan seçimi:", {
-				screenScale,
-				originalArea: area,
-				adjustedArea: selectedArea.value,
-				rawY: area.y,
-				scaledY: area.y * screenScale,
-				finalY: selectedArea.value.y,
-			});
+		console.log("Düzeltilmiş alan seçimi:", {
+			screenScale,
+			originalArea: area,
+			adjustedArea: selectedArea.value,
+			rawY: area.y,
+			scaledY: area.y * screenScale,
+			finalY: selectedArea.value.y,
 		});
+	});
 
-		// Tray'den kayıt kontrolü için event listener'lar
-		window.electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
-			startRecording();
-		});
+	// Tray'den kayıt kontrolü için event listener'lar
+	addIpcListener("START_RECORDING_FROM_TRAY", () => {
+		startRecording();
+	});
 
-		window.electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
-			stopRecording();
-		});
+	addIpcListener("STOP_RECORDING_FROM_TRAY", () => {
+		stopRecording();
+	});
 
-		// Yeni kayıt için sıfırlama
-		window.electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
-	}
+	// Yeni kayıt için sıfırlama
+	sendIpcMessage("RESET_FOR_NEW_RECORDING", null);
+
+	await startCameraPreview();
 });
 
 // Kayıt durumu değiştiğinde tray'i güncelle
 watch(isRecording, (newValue) => {
-	window.electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", newValue);
+	sendIpcMessage("RECORDING_STATUS_CHANGED", newValue);
 });
 
 // Temizlik işlemleri
 onBeforeUnmount(() => {
 	// Event listener'ları temizle
-	if (window.electron?.ipcRenderer) {
-		window.electron.ipcRenderer.removeAllListeners("AREA_SELECTED");
-		window.electron.ipcRenderer.removeAllListeners("START_RECORDING_FROM_TRAY");
-		window.electron.ipcRenderer.removeAllListeners("STOP_RECORDING_FROM_TRAY");
-	}
+	removeIpcListener("AREA_SELECTED", () => {});
+	removeIpcListener("START_RECORDING_FROM_TRAY", () => {});
+	removeIpcListener("STOP_RECORDING_FROM_TRAY", () => {});
 });
 
 onUnmounted(() => {
@@ -288,6 +385,12 @@ onUnmounted(() => {
 	document.removeEventListener("mousedown", handleMouseDown);
 	document.removeEventListener("mousemove", handleMouseMove);
 	document.removeEventListener("mouseup", handleMouseUp);
+
+	// Kamera stream'ini kapat
+	if (cameraPreview.value?.srcObject) {
+		const stream = cameraPreview.value.srcObject as MediaStream;
+		stream.getTracks().forEach((track) => track.stop());
+	}
 });
 
 const startRecording = async () => {
@@ -310,9 +413,7 @@ const startRecording = async () => {
 
 		// Kayıt başlat
 		console.log("2. Stream başlatılıyor...");
-		const { screenStream, cameraStream } = await startMediaStream(
-			streamOptions
-		);
+		await startMediaStream(streamOptions);
 		console.log("3. Stream başlatıldı");
 
 		// Her stream için ayrı MediaRecorder oluştur
@@ -320,15 +421,15 @@ const startRecording = async () => {
 			console.log("4. MediaRecorder'lar oluşturuluyor");
 
 			// Ekran kaydı için recorder
-			const screenRecorder = new MediaRecorder(screenStream, {
+			const screenRecorder = new MediaRecorder(mediaStream.value, {
 				mimeType: "video/webm;codecs=vp9",
 				videoBitsPerSecond: 50000000,
 			});
 
 			// Kamera kaydı için recorder (eğer varsa)
 			let cameraRecorder = null;
-			if (cameraStream) {
-				cameraRecorder = new MediaRecorder(cameraStream, {
+			if (currentCameraStream.value) {
+				cameraRecorder = new MediaRecorder(currentCameraStream.value, {
 					mimeType: "video/webm;codecs=vp9",
 					videoBitsPerSecond: 8000000,
 				});
@@ -345,7 +446,6 @@ const startRecording = async () => {
 			}
 
 			// Ekran kaydı chunks
-			const screenChunks = [];
 			screenRecorder.ondataavailable = (event) => {
 				if (event.data.size > 0) {
 					screenChunks.push(event.data);
@@ -353,7 +453,6 @@ const startRecording = async () => {
 			};
 
 			// Kamera kaydı chunks
-			const cameraChunks = [];
 			if (cameraRecorder) {
 				cameraRecorder.ondataavailable = (event) => {
 					if (event.data.size > 0) {
@@ -363,7 +462,6 @@ const startRecording = async () => {
 			}
 
 			// Ses kaydı chunks
-			const audioChunks = [];
 			if (audioRecorder) {
 				audioRecorder.ondataavailable = (event) => {
 					if (event.data.size > 0) {
@@ -374,72 +472,91 @@ const startRecording = async () => {
 
 			// Tüm recorder'ları başlat
 			screenRecorder.start(1000);
-			if (cameraRecorder) cameraRecorder.start(1000);
-			if (audioRecorder) audioRecorder.start(1000);
+			cameraRecorder?.start(1000);
+			audioRecorder?.start(1000);
 
-			// Global mediaRecorder referansını güncelle
+			// MediaRecorder'ları sakla
 			mediaRecorder = {
 				screen: screenRecorder,
 				camera: cameraRecorder,
 				audio: audioRecorder,
 				stop: async () => {
-					// Kayıt durduğunda recording sınıfını kaldır
-					document.body.classList.remove("recording");
+					return new Promise<void>((resolve) => {
+						const stopRecorders = () => {
+							screenRecorder.stop();
+							cameraRecorder?.stop();
+							audioRecorder?.stop();
+							resolve();
+						};
 
-					screenRecorder.stop();
-					if (cameraRecorder) cameraRecorder.stop();
-					if (audioRecorder) audioRecorder.stop();
-
-					// Tüm kayıtlar bittiğinde editör sayfasına yönlendir
-					await saveRecording(
-						{
-							screen: screenChunks,
-							camera: cameraChunks,
-							audio: audioChunks,
-						},
-						selectedSource.value === "area" ? selectedArea.value : null
-					);
+						if (screenRecorder.state === "recording") {
+							screenRecorder.addEventListener("stop", stopRecorders, {
+								once: true,
+							});
+							stopRecorders();
+						} else {
+							resolve();
+						}
+					});
 				},
 			};
-
-			console.log("8. Tüm MediaRecorder'lar başlatıldı");
-			isRecording.value = true;
 		}
 	} catch (error) {
-		console.error("Kayıt başlatılırken hata:", error);
-		// Hata durumunda recording sınıfını kaldır
-		document.body.classList.remove("recording");
+		console.error("Kayıt başlatma hatası:", error);
+		throw error;
 	}
 };
 
 const stopRecording = async () => {
 	try {
-		console.log("1. Kayıt durdurma başlatıldı");
 		if (mediaRecorder) {
-			console.log("2. MediaRecorder'lar durduruluyor");
+			// Tüm recorder'ları durdur
 			await mediaRecorder.stop();
-			mediaRecorder = null;
+
+			// Kayıtları kaydet
+			await saveTempVideo(
+				{
+					screen: screenChunks,
+					camera: cameraChunks,
+					audio: audioChunks,
+				},
+				selectedArea.value
+			);
+
+			// Chunks'ları temizle
+			screenChunks.length = 0;
+			cameraChunks.length = 0;
+			audioChunks.length = 0;
+
+			// Stream'leri kapat
+			stopMediaStream();
+
+			// Body'den recording sınıfını kaldır
+			document.body.classList.remove("recording");
 		}
-		console.log("3. Stream durduruluyor");
-		await stopMediaStream();
-		console.log("4. Kayıt durdurma tamamlandı");
-		isRecording.value = false;
 	} catch (error) {
-		console.error("Kayıt durdurulurken hata:", error);
+		console.error("Kayıt durdurma hatası:", error);
+		throw error;
 	}
 };
 
 // Pencere sürükleme işleyicileri
 const handleMouseDown = (e: MouseEvent) => {
-	window.electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
+	sendIpcMessage("START_WINDOW_DRAG", {
+		x: e.screenX,
+		y: e.screenY,
+	});
 };
 
 const handleMouseMove = (e: MouseEvent) => {
-	window.electron?.windowControls.dragging({ x: e.screenX, y: e.screenY });
+	sendIpcMessage("WINDOW_DRAGGING", {
+		x: e.screenX,
+		y: e.screenY,
+	});
 };
 
 const handleMouseUp = () => {
-	window.electron?.windowControls.endDrag();
+	sendIpcMessage("END_WINDOW_DRAG", null);
 };
 
 // Kamera sürükleme işleyicileri
@@ -488,7 +605,7 @@ watch(currentCameraStream, (stream) => {
 });
 
 const openCameraWindow = () => {
-	window.electron?.ipcRenderer.send("OPEN_CAMERA_WINDOW");
+	sendIpcMessage("OPEN_CAMERA_WINDOW", null);
 };
 
 // Mikrofon değişikliğini izle
@@ -511,21 +628,21 @@ watch(selectedAudioDevice, async (newDeviceId) => {
 
 // Pencere sürükleme fonksiyonları
 const startDrag = (event: MouseEvent) => {
-	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+	sendIpcMessage("START_WINDOW_DRAG", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
 const drag = (event: MouseEvent) => {
-	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+	sendIpcMessage("WINDOW_DRAGGING", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
 const endDrag = () => {
-	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
+	sendIpcMessage("END_WINDOW_DRAG", null);
 };
 </script>
 

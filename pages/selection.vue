@@ -54,6 +54,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useIpcState } from "~/composables/useIpcState";
+
+const { sendIpcMessage } = useIpcState();
 
 const isSelecting = ref(false);
 const startPos = ref({ x: 0, y: 0 });
@@ -107,8 +110,8 @@ const confirmSelection = () => {
 		devicePixelRatio: window.devicePixelRatio || 1,
 	};
 
-	window.electron?.ipcRenderer.send("AREA_SELECTED", area);
-	window.electron?.ipcRenderer.send("CLOSE_SELECTION_WINDOW");
+	sendIpcMessage("AREA_SELECTED", area);
+	sendIpcMessage("CLOSE_SELECTION_WINDOW", null);
 };
 
 const startResize = (handle: string) => {
@@ -180,10 +183,14 @@ const onGlobalMouseUp = () => {
 	window.removeEventListener("mouseup", onGlobalMouseUp);
 };
 
+const cancelSelection = () => {
+	sendIpcMessage("CANCEL_AREA_SELECTION", null);
+};
+
 onMounted(() => {
 	window.addEventListener("keydown", (e) => {
 		if (e.key === "Escape") {
-			window.electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
+			sendIpcMessage("CANCEL_AREA_SELECTION", null);
 		}
 	});
 });

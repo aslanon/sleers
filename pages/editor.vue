@@ -274,9 +274,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useIpcState } from "~/composables/useIpcState";
 
 const router = useRouter();
 const route = useRoute();
+
+const { ipcState, addIpcListener, removeIpcListener, sendIpcMessage } =
+	useIpcState();
 
 const screenPath = ref("");
 const cameraPath = ref("");
@@ -306,7 +310,7 @@ const startDrag = (e: MouseEvent) => {
 	}
 
 	isDragging.value = true;
-	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+	sendIpcMessage("START_WINDOW_DRAG", {
 		x: e.screenX,
 		y: e.screenY,
 	});
@@ -318,18 +322,15 @@ const startDrag = (e: MouseEvent) => {
 
 const onDrag = (e: MouseEvent) => {
 	if (!isDragging.value) return;
-	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+	sendIpcMessage("WINDOW_DRAGGING", {
 		x: e.screenX,
 		y: e.screenY,
 	});
 };
 
 const endDrag = () => {
-	if (!isDragging.value) return;
 	isDragging.value = false;
-	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
-
-	// Global event listener'ları kaldır
+	sendIpcMessage("END_WINDOW_DRAG", null);
 	window.removeEventListener("mousemove", onDrag);
 	window.removeEventListener("mouseup", endDrag);
 };
@@ -417,7 +418,7 @@ const onTimeUpdate = () => {
 };
 
 const closeWindow = () => {
-	window.electron?.ipcRenderer.send("WINDOW_CLOSE");
+	sendIpcMessage("WINDOW_CLOSE", null);
 };
 
 const startNewRecording = async () => {
@@ -427,7 +428,7 @@ const startNewRecording = async () => {
 const getMediaPaths = async () => {
 	try {
 		// Pencere yüksekliğini artır
-		window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
+		sendIpcMessage("RESIZE_EDITOR_WINDOW", null);
 
 		// URL'den dosya yollarını al
 		const rawScreenPath = decodeURIComponent(route.query.screen as string);
@@ -445,10 +446,9 @@ const getMediaPaths = async () => {
 		});
 
 		// Dosya varlığını kontrol et
-		const exists = await window.electron?.ipcRenderer.invoke(
-			"CHECK_FILE_EXISTS",
-			rawScreenPath
-		);
+		const exists = await sendIpcMessage("CHECK_FILE_EXISTS", {
+			path: rawScreenPath,
+		});
 		if (!exists) {
 			throw new Error(`Ekran kaydı dosyası bulunamadı: ${rawScreenPath}`);
 		}
@@ -458,10 +458,9 @@ const getMediaPaths = async () => {
 
 		// Kamera kaydı varsa kontrol et
 		if (rawCameraPath) {
-			const cameraExists = await window.electron?.ipcRenderer.invoke(
-				"CHECK_FILE_EXISTS",
-				rawCameraPath
-			);
+			const cameraExists = await sendIpcMessage("CHECK_FILE_EXISTS", {
+				path: rawCameraPath,
+			});
 			if (cameraExists) {
 				cameraPath.value = rawCameraPath;
 			} else {
@@ -471,10 +470,9 @@ const getMediaPaths = async () => {
 
 		// Ses kaydı varsa kontrol et
 		if (rawAudioPath) {
-			const audioExists = await window.electron?.ipcRenderer.invoke(
-				"CHECK_FILE_EXISTS",
-				rawAudioPath
-			);
+			const audioExists = await sendIpcMessage("CHECK_FILE_EXISTS", {
+				path: rawAudioPath,
+			});
 			if (audioExists) {
 				audioPath.value = rawAudioPath;
 			} else {
@@ -534,66 +532,103 @@ const exportVideo = async () => {
 			time: "00:00:00.00",
 		};
 
-		const savePath = await window.electron?.ipcRenderer.invoke(
-			"SHOW_SAVE_DIALOG",
-			{
-				title: "Videoyu Kaydet",
-				defaultPath: `kayit-${Date.now()}.webm`,
-				filters: [{ name: "Video", extensions: ["webm"] }],
-			}
-		);
-
+		const savePath = await sendIpcMessage("GET_SAVE_PATH", null);
 		if (!savePath) {
-			isExporting.value = false;
+			console.error("Kayıt yolu alınamadı");
 			return;
 		}
 
-		// file:// protokolünü kaldır
-		const cleanScreenPath = screenPath.value.replace("file://", "");
-		const cleanCameraPath = cameraPath.value
-			? cameraPath.value.replace("file://", "")
-			: null;
-		const cleanAudioPath = audioPath.value
-			? audioPath.value.replace("file://", "")
-			: null;
-
-		console.log("Export için dosya yolları:", {
-			screen: cleanScreenPath,
-			camera: cleanCameraPath,
-			audio: cleanAudioPath,
-			output: savePath,
-		});
-
-		// İlerleme durumunu dinle
-		window.electron?.ipcRenderer.on("MERGE_STATUS", (_, status) => {
-			console.log("Birleştirme durumu:", status);
+		// Birleştirme durumunu dinle
+		addIpcListener("MERGE_STATUS", (status) => {
 			exportProgress.value = status.percent || 0;
-
 			exportStatus.value = status;
 		});
 
-		await window.electron?.ipcRenderer.invoke("MERGE_VIDEOS", {
-			screenPath: cleanScreenPath,
-			cameraPath: cleanCameraPath,
-			audioPath: cleanAudioPath,
-			outputPath: savePath,
+		// Videoları birleştir
+		await sendIpcMessage("MERGE_VIDEOS", {
+			screen: screenPath.value,
+			camera: cameraPath.value,
+			audio: audioPath.value,
+			output: savePath,
 			cropArea: cropArea.value,
 		});
 
-		alert("Video başarıyla kaydedildi!");
-	} catch (error: any) {
-		console.error("Video dışa aktarılırken hata:", error);
-		alert(`Video dışa aktarılırken bir hata oluştu: ${error.message}`);
+		// Birleştirme tamamlandı
+		console.log("Video kaydedildi:", savePath);
+	} catch (error) {
+		console.error("Video kaydedilirken hata:", error);
 	} finally {
-		isExporting.value = false;
-		exportProgress.value = 0;
-		exportStatus.value = {
-			frames: 0,
-			fps: 0,
-			time: "00:00:00.00",
-		};
 		// Event listener'ı temizle
-		window.electron?.ipcRenderer.removeAllListeners("MERGE_STATUS");
+		removeIpcListener("MERGE_STATUS", () => {});
+	}
+};
+
+const checkFiles = async () => {
+	// Ekran kaydını kontrol et
+	const exists = await sendIpcMessage("CHECK_FILE_EXISTS", {
+		path: screenPath,
+	});
+	if (!exists) {
+		console.error("Ekran kaydı bulunamadı:", screenPath);
+		return false;
+	}
+
+	// Kamera kaydını kontrol et (varsa)
+	if (cameraPath) {
+		const cameraExists = await sendIpcMessage("CHECK_FILE_EXISTS", {
+			path: cameraPath,
+		});
+		if (!cameraExists) {
+			console.error("Kamera kaydı bulunamadı:", cameraPath);
+			return false;
+		}
+	}
+
+	// Ses kaydını kontrol et (varsa)
+	if (audioPath) {
+		const audioExists = await sendIpcMessage("CHECK_FILE_EXISTS", {
+			path: audioPath,
+		});
+		if (!audioExists) {
+			console.error("Ses kaydı bulunamadı:", audioPath);
+			return false;
+		}
+	}
+
+	return true;
+};
+
+const saveVideo = async () => {
+	try {
+		// Kayıt yolu al
+		const savePath = await sendIpcMessage("GET_SAVE_PATH", null);
+		if (!savePath) {
+			console.error("Kayıt yolu alınamadı");
+			return;
+		}
+
+		// Birleştirme durumunu dinle
+		addIpcListener("MERGE_STATUS", (status) => {
+			exportProgress.value = status.percent || 0;
+			exportStatus.value = status;
+		});
+
+		// Videoları birleştir
+		await sendIpcMessage("MERGE_VIDEOS", {
+			screen: screenPath,
+			camera: cameraPath,
+			audio: audioPath,
+			output: savePath,
+			cropArea: cropArea,
+		});
+
+		// Birleştirme tamamlandı
+		console.log("Video kaydedildi:", savePath);
+	} catch (error) {
+		console.error("Video kaydedilirken hata:", error);
+	} finally {
+		// Event listener'ı temizle
+		removeIpcListener("MERGE_STATUS", () => {});
 	}
 };
 
@@ -611,7 +646,7 @@ onMounted(async () => {
 		}
 
 		// Pencere boyutunu ayarla
-		window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
+		sendIpcMessage("RESIZE_EDITOR_WINDOW", null);
 
 		// Medya yollarını yükle
 		await getMediaPaths();
@@ -620,6 +655,16 @@ onMounted(async () => {
 		if (screenPlayer.value) {
 			screenPlayer.value.addEventListener("timeupdate", onTimeUpdate);
 		}
+
+		// Birleştirme durumu için listener ekle
+		addIpcListener("MERGE_PROGRESS", (progress) => {
+			exportProgress.value = progress.percent || 0;
+			exportStatus.value = {
+				frames: progress.frames || 0,
+				fps: progress.currentFps || 0,
+				time: progress.timemark || "00:00:00.00",
+			};
+		});
 
 		console.log("Editor sayfası yüklendi:", {
 			screenPlayer: !!screenPlayer.value,
@@ -640,6 +685,7 @@ onUnmounted(() => {
 	}
 	window.removeEventListener("mousemove", onDrag);
 	window.removeEventListener("mouseup", endDrag);
+	removeIpcListener("MERGE_PROGRESS", () => {});
 });
 
 // Video senkronizasyonu için watch
