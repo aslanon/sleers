@@ -36,9 +36,9 @@ let lastMousePositions = [];
 let isLargeCamera = false;
 const SMALL_SIZE = 160;
 const LARGE_SIZE = 360;
-const SHAKE_THRESHOLD = 1200; // Hız eşiği
+const SHAKE_THRESHOLD = 800; // Hız eşiği
 const SHAKE_TIME_WINDOW = 500; // Son 500ms içindeki hareketleri kontrol et
-const REQUIRED_MOVEMENTS = 3; // Gerekli hareket sayısı
+const REQUIRED_MOVEMENTS = 5; // Gerekli hareket sayısı
 
 // Easing fonksiyonu
 function lerp(start, end, factor) {
@@ -968,7 +968,6 @@ async function createWindow() {
 
 	// Ana kontrol penceresi
 	mainWindow = new BrowserWindow({
-		width: 1000,
 		height: 70,
 		alwaysOnTop: true,
 		resizable: false,

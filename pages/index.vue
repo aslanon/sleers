@@ -216,6 +216,12 @@ const selectSource = (source: "display" | "window" | "area") => {
 	}
 };
 
+watch(selectedVideoDevice, async (newDeviceId) => {
+	// set cookie
+	if (newDeviceId) {
+	}
+});
+
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
@@ -484,26 +490,6 @@ const openCameraWindow = () => {
 	window.electron?.ipcRenderer.send("OPEN_CAMERA_WINDOW");
 };
 
-// Kamera değişikliğini izle
-watch(selectedVideoDevice, async (newDeviceId) => {
-	if (newDeviceId) {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({
-				video: {
-					deviceId: { exact: newDeviceId },
-					width: 320,
-					height: 320,
-				},
-			});
-
-			// Kamera penceresine yeni stream'i gönder
-			window.electron?.ipcRenderer.send("UPDATE_CAMERA_STREAM", stream.id);
-		} catch (error) {
-			console.error("Kamera değiştirme hatası:", error);
-		}
-	}
-});
-
 // Mikrofon değişikliğini izle
 watch(selectedAudioDevice, async (newDeviceId) => {
 	if (newDeviceId) {
@@ -541,17 +527,6 @@ const endDrag = () => {
 	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
 </script>
-
-<!-- Kamera Önizleme -->
-<video
-	v-if="currentCameraStream"
-	ref="cameraPreview"
-	class="camera-preview absolute right-4 bottom-4 w-1/4 rounded-lg shadow-lg"
-	:style="{ 'z-index': isRecording ? '-1' : '10' }"
-	autoplay
-	muted
-	playsinline
-></video>
 
 <style>
 .camera-preview {

@@ -17,10 +17,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, watch } from "vue";
 
 const videoElement = ref<HTMLVideoElement | null>(null);
 const isDragging = ref(false);
+
+const { selectedVideoDevice, getDevices } = useMediaDevices();
+
+watch(
+	() => selectedVideoDevice.value,
+	async (newDeviceId) => {
+		if (newDeviceId) {
+			console.log(1231231231231);
+			if (videoElement.value && videoElement.value.srcObject) {
+				const stream = videoElement.value.srcObject as MediaStream;
+				stream.getTracks().forEach((track) => track.stop());
+			}
+			await getCamera();
+		}
+	},
+	{ deep: true }
+);
 
 // Sürükleme işleyicileri
 const startDrag = (e: MouseEvent) => {
@@ -53,10 +70,11 @@ const endDrag = () => {
 	window.removeEventListener("mouseup", endDrag);
 };
 
-onMounted(async () => {
+const getCamera = async () => {
 	try {
 		const stream = await navigator.mediaDevices.getUserMedia({
 			video: {
+				deviceId: { exact: selectedVideoDevice.value },
 				aspectRatio: 1,
 			},
 			audio: false,
@@ -68,6 +86,12 @@ onMounted(async () => {
 	} catch (error) {
 		console.error("Kamera erişimi hatası:", error);
 	}
+};
+
+onMounted(async () => {
+	// Cihazları listele
+	await getDevices();
+	await getCamera();
 });
 
 onUnmounted(() => {
