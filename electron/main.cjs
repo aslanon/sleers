@@ -391,7 +391,8 @@ ipcMain.on("WINDOW_CLOSE", () => {
 // IPC handler for getting window position
 ipcMain.handle("GET_WINDOW_POSITION", () => {
 	if (mainWindow) {
-		return mainWindow.getPosition();
+		const position = mainWindow.getPosition();
+		return position;
 	}
 	return [0, 0];
 });
@@ -399,7 +400,29 @@ ipcMain.handle("GET_WINDOW_POSITION", () => {
 // IPC handler for setting window position
 ipcMain.on("SET_WINDOW_POSITION", (event, { x, y }) => {
 	if (mainWindow) {
-		mainWindow.setPosition(Math.round(x), Math.round(y), true);
+		// Ekran sınırlarını kontrol et
+		const { screen } = require("electron");
+		const displays = screen.getAllDisplays();
+		const currentDisplay = screen.getDisplayNearestPoint({ x, y });
+
+		// Pencere boyutlarını al
+		const [width, height] = mainWindow.getSize();
+
+		// Pencerenin ekran dışına çıkmasını engelle
+		const newX = Math.max(
+			currentDisplay.bounds.x,
+			Math.min(x, currentDisplay.bounds.x + currentDisplay.bounds.width - width)
+		);
+
+		const newY = Math.max(
+			currentDisplay.bounds.y,
+			Math.min(
+				y,
+				currentDisplay.bounds.y + currentDisplay.bounds.height - height
+			)
+		);
+
+		mainWindow.setPosition(Math.round(newX), Math.round(newY));
 	}
 });
 
@@ -470,18 +493,11 @@ ipcMain.on("START_AREA_SELECTION", () => {
 				width: Math.round(area.width),
 				height: Math.round(area.height),
 			});
-
-			console.log(1111, {
-				...area,
-				x: Math.round(area.x),
-				y: Math.round(area.y),
-				width: Math.round(area.width),
-				height: Math.round(area.height),
-			});
 		}
 		// Seçim penceresini kapat
 		if (selectionWindow) {
 			selectionWindow.close();
+			selectionWindow = null;
 		}
 	});
 
@@ -835,22 +851,19 @@ async function createWindow() {
 	}
 
 	// Pencere sürükleme için IPC handlers
-	ipcMain.on("START_WINDOW_DRAG", (event, mousePosition) => {
+	ipcMain.on("START_WINDOW_DRAG", (event, mousePos) => {
 		isDragging = true;
-		const winPosition = mainWindow.getPosition();
+		const winPos = BrowserWindow.fromWebContents(event.sender).getPosition();
 		dragOffset = {
-			x: mousePosition.x - winPosition[0],
-			y: mousePosition.y - winPosition[1],
+			x: mousePos.x - winPos[0],
+			y: mousePos.y - winPos[1],
 		};
 	});
 
-	ipcMain.on("WINDOW_DRAGGING", (event, mousePosition) => {
-		if (isDragging && mainWindow) {
-			mainWindow.setPosition(
-				Math.round(mousePosition.x - dragOffset.x),
-				Math.round(mousePosition.y - dragOffset.y)
-			);
-		}
+	ipcMain.on("WINDOW_DRAGGING", (event, mousePos) => {
+		if (!isDragging) return;
+		const win = BrowserWindow.fromWebContents(event.sender);
+		win.setPosition(mousePos.x - dragOffset.x, mousePos.y - dragOffset.y);
 	});
 
 	ipcMain.on("END_WINDOW_DRAG", () => {
@@ -892,4 +905,12 @@ ipcMain.handle("GET_CAMERA_POSITION", () => {
 // Uygulama kapatılmadan önce
 app.on("before-quit", () => {
 	app.isQuitting = true;
+});
+
+// Seçim penceresi kapanma olayı
+ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
+	if (selectionWindow) {
+		selectionWindow.close();
+		selectionWindow = null;
+	}
 });

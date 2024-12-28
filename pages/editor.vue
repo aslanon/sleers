@@ -3,6 +3,7 @@
 		<!-- Üst Bar -->
 		<div
 			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-3xl border-b border-gray-700 z-50"
+			@mousedown.prevent="startDrag"
 		>
 			<div class="flex items-center justify-between p-4">
 				<div class="flex items-center space-x-4">
@@ -282,6 +283,7 @@ const cameraPath = ref("");
 const audioPath = ref("");
 const screenPlayer = ref<HTMLVideoElement | null>(null);
 const cameraPlayer = ref<HTMLVideoElement | null>(null);
+const cropArea = ref<any>(null);
 const isExporting = ref(false);
 const exportProgress = ref(0);
 const exportStatus = ref({
@@ -293,14 +295,71 @@ const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
 
+// Sürükleme durumu için ref'ler
+const isDragging = ref(false);
+
+// Sürükleme işleyicileri
+const startDrag = (e: MouseEvent) => {
+	// Butonlar ve ikonlar üzerinde sürüklemeyi engelle
+	if (e.target instanceof HTMLButtonElement || e.target instanceof SVGElement) {
+		return;
+	}
+
+	isDragging.value = true;
+	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+		x: e.screenX,
+		y: e.screenY,
+	});
+
+	// Global event listener'ları ekle
+	window.addEventListener("mousemove", onDrag);
+	window.addEventListener("mouseup", endDrag);
+};
+
+const onDrag = (e: MouseEvent) => {
+	if (!isDragging.value) return;
+	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+		x: e.screenX,
+		y: e.screenY,
+	});
+};
+
+const endDrag = () => {
+	if (!isDragging.value) return;
+	isDragging.value = false;
+	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
+
+	// Global event listener'ları kaldır
+	window.removeEventListener("mousemove", onDrag);
+	window.removeEventListener("mouseup", endDrag);
+};
+
 // Video yükleme işleyicileri
 const onScreenLoaded = () => {
 	if (screenPlayer.value) {
 		duration.value = screenPlayer.value.duration;
+
+		// Crop alanı varsa uygula
+		if (cropArea.value) {
+			const video = screenPlayer.value;
+			const { x, y, width, height, display, devicePixelRatio } = cropArea.value;
+
+			// Oranları hesapla
+			const scaleX = video.videoWidth / display.width;
+			const scaleY = video.videoHeight / display.height;
+
+			// Video elementinin stilini güncelle
+			video.style.objectFit = "cover";
+			video.style.clipPath = `inset(${y * scaleY}px ${
+				(display.width - (x + width)) * scaleX
+			}px ${(display.height - (y + height)) * scaleY}px ${x * scaleX}px)`;
+		}
+
 		console.log("Ekran kaydı yüklendi:", {
 			duration: duration.value,
 			videoWidth: screenPlayer.value.videoWidth,
 			videoHeight: screenPlayer.value.videoHeight,
+			cropArea: cropArea.value,
 		});
 	}
 };
@@ -444,6 +503,14 @@ const getMediaPaths = async () => {
 			cameraPlayer.value.src = fullPath;
 			await cameraPlayer.value.load();
 		}
+
+		// Crop alanını kontrol et
+		if (route.query.cropArea) {
+			cropArea.value = JSON.parse(
+				decodeURIComponent(route.query.cropArea as string)
+			);
+			console.log("Crop alanı yüklendi:", cropArea.value);
+		}
 	} catch (error) {
 		console.error("Dosya yolları alınırken hata:", error);
 		alert(
@@ -510,9 +577,7 @@ const exportVideo = async () => {
 			cameraPath: cleanCameraPath,
 			audioPath: cleanAudioPath,
 			outputPath: savePath,
-			cropArea: route.query.cropArea
-				? JSON.parse(decodeURIComponent(route.query.cropArea as string))
-				: null,
+			cropArea: cropArea.value,
 		});
 
 		alert("Video başarıyla kaydedildi!");
@@ -573,6 +638,8 @@ onUnmounted(() => {
 	if (screenPlayer.value) {
 		screenPlayer.value.removeEventListener("timeupdate", onTimeUpdate);
 	}
+	window.removeEventListener("mousemove", onDrag);
+	window.removeEventListener("mouseup", endDrag);
 });
 
 // Video senkronizasyonu için watch

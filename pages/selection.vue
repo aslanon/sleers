@@ -1,176 +1,291 @@
 <template>
-	<div class="fixed inset-0 bg-black/30 rounded-md backdrop-blur-sm">
+	<div class="selection-container">
 		<div
-			class="absolute inset-0 cursor-crosshair"
-			@mousedown="startSelection"
+			class="selection-area"
+			@mousedown.prevent="startSelection"
 			@mousemove="updateSelection"
-			@mouseup="endSelection"
-			@keydown.esc="cancelSelection"
-			tabindex="0"
-			ref="container"
 		>
 			<div
-				v-if="selection"
-				class="absolute border-2 border-blue-500 bg-transparent"
+				v-if="isSelecting"
+				class="selection-box"
 				:style="{
-					left: `${selection.x}px`,
-					top: `${selection.y}px`,
-					width: `${selection.width}px`,
-					height: `${selection.height}px`,
-					cursor: isMoving ? 'grabbing' : 'grab',
+					left: `${Math.min(startPos.x, currentPos.x)}px`,
+					top: `${Math.min(startPos.y, currentPos.y)}px`,
+					width: `${Math.abs(currentPos.x - startPos.x)}px`,
+					height: `${Math.abs(currentPos.y - startPos.y)}px`,
 				}"
-				@mousedown.stop="startMove"
-				@mousemove.stop="moveSelection"
-				@mouseup.stop="endMove"
 			>
-				<div
-					class="absolute -top-6 left-0 bg-blue-500 text-white px-2 py-1 text-sm rounded-t-md flex items-center space-x-2"
-				>
-					<span>{{ selection.width }} x {{ selection.height }}</span>
-					<button
-						@click="confirmSelection"
-						class="bg-green-500 hover:bg-green-600 px-2 py-0.5 rounded text-xs"
-					>
-						Onayla
-					</button>
+				<div class="selection-box-overlay"></div>
+				<div class="selection-box-handles">
+					<div
+						class="handle handle-nw"
+						@mousedown.stop="startResize('nw')"
+					></div>
+					<div
+						class="handle handle-ne"
+						@mousedown.stop="startResize('ne')"
+					></div>
+					<div
+						class="handle handle-sw"
+						@mousedown.stop="startResize('sw')"
+					></div>
+					<div
+						class="handle handle-se"
+						@mousedown.stop="startResize('se')"
+					></div>
 				</div>
-			</div>
-
-			<!-- Talimatlar -->
-			<div
-				v-if="!isSelecting && !selection"
-				class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white text-center"
-			>
-				<p class="text-lg mb-2">Kaydetmek istediğiniz alanı seçin</p>
-				<p class="text-sm opacity-75">ESC tuşu ile iptal edebilirsiniz</p>
+				<!-- Çözünürlük Bilgisi -->
+				<div class="resolution-info">
+					{{ Math.abs(currentPos.x - startPos.x) }} x
+					{{ Math.abs(currentPos.y - startPos.y) }}
+				</div>
+				<!-- Onay Butonu -->
+				<button
+					v-if="isValidSize"
+					class="confirm-button"
+					@click="confirmSelection"
+				>
+					Seçimi Onayla
+				</button>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 
-declare global {
-	interface Window {
-		electron: {
-			ipcRenderer: {
-				send: (channel: string, ...args: any[]) => void;
-			};
-		};
-	}
-}
-
-const { ipcRenderer } = window.electron;
-const container = ref<HTMLElement | null>(null);
 const isSelecting = ref(false);
-const isMoving = ref(false);
-const selection = ref<{
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-} | null>(null);
 const startPos = ref({ x: 0, y: 0 });
-const moveOffset = ref({ x: 0, y: 0 });
+const currentPos = ref({ x: 0, y: 0 });
+const isResizing = ref(false);
+const resizeHandle = ref("");
+const initialBoxSize = ref({ width: 0, height: 0 });
+const hasSelection = ref(false);
 
-onMounted(() => {
-	if (container.value) {
-		container.value.focus();
-	}
+// Minimum boyut kontrolü
+const isValidSize = computed(() => {
+	const width = Math.abs(currentPos.value.x - startPos.value.x);
+	const height = Math.abs(currentPos.value.y - startPos.value.y);
+	return width >= 100 && height >= 100;
 });
 
 const startSelection = (e: MouseEvent) => {
-	if (selection.value) return; // Eğer zaten bir seçim varsa yeni seçime izin verme
+	if (isResizing.value) return;
+
+	hasSelection.value = false;
 	isSelecting.value = true;
 	startPos.value = { x: e.clientX, y: e.clientY };
-	selection.value = {
-		x: e.clientX,
-		y: e.clientY,
-		width: 0,
-		height: 0,
-	};
+	currentPos.value = { x: e.clientX, y: e.clientY };
+
+	window.addEventListener("mousemove", onGlobalMouseMove);
+	window.addEventListener("mouseup", onGlobalMouseUp);
 };
 
 const updateSelection = (e: MouseEvent) => {
-	if (!isSelecting.value || !selection.value) return;
-
-	const currentX = e.clientX;
-	const currentY = e.clientY;
-
-	// Seçim alanını hesapla
-	const x = Math.min(startPos.value.x, currentX);
-	const y = Math.min(startPos.value.y, currentY);
-	const width = Math.abs(currentX - startPos.value.x);
-	const height = Math.abs(currentY - startPos.value.y);
-
-	selection.value = { x, y, width, height };
-};
-
-const endSelection = () => {
-	if (!isSelecting.value || !selection.value) return;
-	isSelecting.value = false;
-};
-
-const startMove = (e: MouseEvent) => {
-	if (!selection.value) return;
-	isMoving.value = true;
-	moveOffset.value = {
-		x: e.clientX - selection.value.x,
-		y: e.clientY - selection.value.y,
-	};
-};
-
-const moveSelection = (e: MouseEvent) => {
-	if (!isMoving.value || !selection.value) return;
-
-	const newX = e.clientX - moveOffset.value.x;
-	const newY = e.clientY - moveOffset.value.y;
-
-	// Sınırlar içinde tutma
-	const maxX = window.innerWidth - selection.value.width;
-	const maxY = window.innerHeight - selection.value.height;
-
-	selection.value.x = Math.max(0, Math.min(maxX, newX));
-	selection.value.y = Math.max(0, Math.min(maxY, newY));
-};
-
-const endMove = () => {
-	isMoving.value = false;
+	if (!isSelecting.value || hasSelection.value) return;
+	currentPos.value = { x: e.clientX, y: e.clientY };
 };
 
 const confirmSelection = () => {
-	if (!selection.value) return;
+	const width = Math.abs(currentPos.value.x - startPos.value.x);
+	const height = Math.abs(currentPos.value.y - startPos.value.y);
 
-	// Ekran ölçeklemesini hesapla
-	const scale = window.devicePixelRatio || 1;
+	if (width < 100 || height < 100) {
+		return;
+	}
 
-	// Seçilen alanı ölçekle ve yuvarlama işlemi uygula
-	const scaledSelection = {
-		x: Math.round(selection.value.x * scale),
-		y: Math.round(selection.value.y * scale),
-		width: Math.round(selection.value.width * scale),
-		height: Math.round(selection.value.height * scale),
+	const area = {
+		x: Math.min(startPos.value.x, currentPos.value.x),
+		y: Math.min(startPos.value.y, currentPos.value.y),
+		width,
+		height,
+		display: {
+			width: window.innerWidth,
+			height: window.innerHeight,
+		},
+		devicePixelRatio: window.devicePixelRatio || 1,
 	};
 
-	// Seçilen alanı ana pencereye gönder
-	ipcRenderer.send("AREA_SELECTED", scaledSelection);
-
-	// Pencereyi kapat
-	ipcRenderer.send("CLOSE_SELECTION_WINDOW");
+	window.electron?.ipcRenderer.send("AREA_SELECTED", area);
+	window.electron?.ipcRenderer.send("CLOSE_SELECTION_WINDOW");
 };
 
-const cancelSelection = () => {
-	ipcRenderer.send("CANCEL_AREA_SELECTION");
-	// İptal durumunda da pencereyi kapat
-	ipcRenderer.send("CLOSE_SELECTION_WINDOW");
+const startResize = (handle: string) => {
+	isResizing.value = true;
+	resizeHandle.value = handle;
+
+	const box = document.querySelector(".selection-box");
+	if (box) {
+		const rect = box.getBoundingClientRect();
+		initialBoxSize.value = {
+			width: rect.width,
+			height: rect.height,
+		};
+	}
+
+	window.addEventListener("mousemove", onGlobalMouseMove);
+	window.addEventListener("mouseup", onGlobalMouseUp);
 };
+
+const onGlobalMouseMove = (e: MouseEvent) => {
+	if (isResizing.value) {
+		const deltaX = e.clientX - startPos.value.x;
+		const deltaY = e.clientY - startPos.value.y;
+
+		switch (resizeHandle.value) {
+			case "nw":
+				currentPos.value = { x: e.clientX, y: e.clientY };
+				break;
+			case "ne":
+				currentPos.value = {
+					x: startPos.value.x + initialBoxSize.value.width + deltaX,
+					y: e.clientY,
+				};
+				break;
+			case "sw":
+				currentPos.value = {
+					x: e.clientX,
+					y: startPos.value.y + initialBoxSize.value.height + deltaY,
+				};
+				break;
+			case "se":
+				currentPos.value = {
+					x: startPos.value.x + initialBoxSize.value.width + deltaX,
+					y: startPos.value.y + initialBoxSize.value.height + deltaY,
+				};
+				break;
+		}
+	} else if (isSelecting.value && !hasSelection.value) {
+		updateSelection(e);
+	}
+};
+
+const onGlobalMouseUp = () => {
+	if (isResizing.value) {
+		isResizing.value = false;
+		resizeHandle.value = "";
+	} else if (isSelecting.value && !hasSelection.value) {
+		const width = Math.abs(currentPos.value.x - startPos.value.x);
+		const height = Math.abs(currentPos.value.y - startPos.value.y);
+
+		if (width >= 100 && height >= 100) {
+			hasSelection.value = true;
+		} else {
+			isSelecting.value = false;
+		}
+	}
+
+	window.removeEventListener("mousemove", onGlobalMouseMove);
+	window.removeEventListener("mouseup", onGlobalMouseUp);
+};
+
+onMounted(() => {
+	window.addEventListener("keydown", (e) => {
+		if (e.key === "Escape") {
+			window.electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
+		}
+	});
+});
+
+onUnmounted(() => {
+	window.removeEventListener("mousemove", onGlobalMouseMove);
+	window.removeEventListener("mouseup", onGlobalMouseUp);
+});
 </script>
 
-<style>
-html,
-body {
-	overflow: hidden;
-	user-select: none;
+<style scoped>
+.selection-container {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	cursor: crosshair;
+}
+
+.selection-area {
+	position: absolute;
+	inset: 0;
+}
+
+.selection-box {
+	position: absolute;
+	border: 2px solid #2563eb;
+	background: rgba(37, 99, 235, 0.1);
+	pointer-events: all;
+}
+
+.selection-box-overlay {
+	position: absolute;
+	inset: 0;
+	border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.selection-box-handles {
+	position: absolute;
+	inset: 0;
+	pointer-events: all;
+}
+
+.handle {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	background: #2563eb;
+	border: 1px solid white;
+}
+
+.handle-nw {
+	top: -5px;
+	left: -5px;
+	cursor: nw-resize;
+}
+.handle-ne {
+	top: -5px;
+	right: -5px;
+	cursor: ne-resize;
+}
+.handle-sw {
+	bottom: -5px;
+	left: -5px;
+	cursor: sw-resize;
+}
+.handle-se {
+	bottom: -5px;
+	right: -5px;
+	cursor: se-resize;
+}
+
+.resolution-info {
+	position: absolute;
+	top: -30px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: #2563eb;
+	color: white;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 14px;
+	white-space: nowrap;
+}
+
+.confirm-button {
+	position: absolute;
+	bottom: -40px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: #2563eb;
+	color: white;
+	padding: 8px 16px;
+	border-radius: 6px;
+	font-size: 14px;
+	cursor: pointer;
+	pointer-events: all;
+	border: none;
+	transition: background-color 0.2s;
+	z-index: 100;
+}
+
+.confirm-button:hover {
+	background: #1d4ed8;
 }
 </style>
