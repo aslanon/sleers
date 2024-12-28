@@ -718,9 +718,9 @@ async function createWindow() {
 			callback({
 				responseHeaders: {
 					...details.responseHeaders,
-					"Content-Security-Policy": [
-						"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file:; media-src 'self' file: blob: data:;",
-					],
+					// "Content-Security-Policy": [
+					// 	"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file:; media-src 'self' file: blob: data:;",
+					// ],
 				},
 			});
 		}

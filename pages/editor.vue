@@ -66,9 +66,13 @@
 								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
 							></path>
 						</svg>
-						<span>{{
-							isExporting ? "Dışa Aktarılıyor..." : "Dışa Aktar"
-						}}</span>
+						<div class="flex flex-col items-start" v-if="isExporting">
+							<span>Dışa Aktarılıyor...</span>
+							<span class="text-xs text-gray-300">
+								{{ exportStatus.frames }} kare işlendi | {{ exportStatus.time }}
+							</span>
+						</div>
+						<span v-else>Dışa Aktar</span>
 					</button>
 
 					<!-- Yeni Kayıt Butonu -->
@@ -116,7 +120,7 @@
 					<video
 						v-if="cameraPath"
 						ref="cameraPlayer"
-						class="absolute right-4 bottom-4 w-1/4 rounded-lg shadow-lg"
+						class="absolute right-4 bottom-4 w-48 h-48 object-cover rounded-full shadow-lg"
 						preload="auto"
 						@loadedmetadata="onCameraLoaded"
 						@error="(e) => console.error('Kamera kaydı yüklenirken hata:', e)"
@@ -255,6 +259,12 @@ const audioPath = ref("");
 const screenPlayer = ref<HTMLVideoElement | null>(null);
 const cameraPlayer = ref<HTMLVideoElement | null>(null);
 const isExporting = ref(false);
+const exportProgress = ref(0);
+const exportStatus = ref({
+	frames: 0,
+	fps: 0,
+	time: "00:00:00.00",
+});
 const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
@@ -426,6 +436,12 @@ const exportVideo = async () => {
 		}
 
 		isExporting.value = true;
+		exportProgress.value = 0;
+		exportStatus.value = {
+			frames: 0,
+			fps: 0,
+			time: "00:00:00.00",
+		};
 
 		const savePath = await window.electron?.ipcRenderer.invoke(
 			"SHOW_SAVE_DIALOG",
@@ -457,6 +473,14 @@ const exportVideo = async () => {
 			output: savePath,
 		});
 
+		// İlerleme durumunu dinle
+		window.electron?.ipcRenderer.on("MERGE_STATUS", (_, status) => {
+			console.log("Birleştirme durumu:", status);
+			exportProgress.value = status.percent || 0;
+
+			exportStatus.value = status;
+		});
+
 		await window.electron?.ipcRenderer.invoke("MERGE_VIDEOS", {
 			screenPath: cleanScreenPath,
 			cameraPath: cleanCameraPath,
@@ -473,6 +497,14 @@ const exportVideo = async () => {
 		alert(`Video dışa aktarılırken bir hata oluştu: ${error.message}`);
 	} finally {
 		isExporting.value = false;
+		exportProgress.value = 0;
+		exportStatus.value = {
+			frames: 0,
+			fps: 0,
+			time: "00:00:00.00",
+		};
+		// Event listener'ı temizle
+		window.electron?.ipcRenderer.removeAllListeners("MERGE_STATUS");
 	}
 };
 
