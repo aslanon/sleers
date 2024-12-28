@@ -39,7 +39,7 @@ ipcMain.handle(
 			}
 
 			console.log("1. Kırpma işlemi başlatılıyor");
-			console.log("Kırpma parametreleri:", { x, y, width, height });
+			console.log("Gelen kırpma parametreleri:", { x, y, width, height });
 			console.log("Input dosya boyutu:", stats.size, "bytes");
 
 			// Önce video bilgilerini al
@@ -68,30 +68,45 @@ ipcMain.handle(
 					format: metadata.format ? metadata.format.format_name : "unknown",
 				});
 
-				// Kırpma alanını video boyutlarına göre kontrol et
-				const cropWidth = Math.min(width, videoStream.width - x);
-				const cropHeight = Math.min(height, videoStream.height - y);
-				const cropX = Math.max(0, Math.min(x, videoStream.width - cropWidth));
-				const cropY = Math.max(0, Math.min(y, videoStream.height - cropHeight));
+				// Kırpma alanını video boyutlarına göre kontrol et ve ayarla
+				// Negatif değerleri pozitife çevir
+				const cropX = Math.abs(x);
+				const cropY = Math.abs(y);
+				const cropWidth = Math.abs(width);
+				const cropHeight = Math.abs(height);
 
-				if (cropWidth <= 0 || cropHeight <= 0) {
+				// Video sınırlarını kontrol et
+				const finalX = Math.min(cropX, videoStream.width - 100);
+				const finalY = Math.min(cropY, videoStream.height - 100);
+				const finalWidth = Math.min(cropWidth, videoStream.width - finalX);
+				const finalHeight = Math.min(cropHeight, videoStream.height - finalY);
+
+				// Minimum boyut kontrolü
+				if (finalWidth < 100 || finalHeight < 100) {
 					reject(
-						new Error(`Geçersiz kırpma boyutları: ${cropWidth}x${cropHeight}`)
+						new Error(
+							`Kırpma alanı çok küçük: ${finalWidth}x${finalHeight} (minimum 100x100)`
+						)
 					);
 					return;
 				}
 
 				console.log("Düzeltilmiş kırpma parametreleri:", {
-					x: cropX,
-					y: cropY,
-					width: cropWidth,
-					height: cropHeight,
+					x: finalX,
+					y: finalY,
+					width: finalWidth,
+					height: finalHeight,
+					originalParams: { x, y, width, height },
+					videoDimensions: {
+						width: videoStream.width,
+						height: videoStream.height,
+					},
 				});
 
 				// FFmpeg komutu oluştur
 				console.log("2. FFmpeg komutu hazırlanıyor");
 				const ffmpegCommand = ffmpeg(inputPath)
-					.videoFilters(`crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`)
+					.videoFilters(`crop=${finalWidth}:${finalHeight}:${finalX}:${finalY}`)
 					.outputOptions([
 						"-c:v libvpx-vp9", // Video codec
 						"-c:a copy", // Ses codec'ini kopyala
@@ -300,6 +315,14 @@ ipcMain.on("START_AREA_SELECTION", () => {
 				width: Math.round(area.width),
 				height: Math.round(area.height),
 			});
+
+			console.log(1111, {
+				...area,
+				x: Math.round(area.x),
+				y: Math.round(area.y),
+				width: Math.round(area.width),
+				height: Math.round(area.height),
+			});
 		}
 		// Seçim penceresini kapat
 		if (selectionWindow) {
@@ -470,7 +493,7 @@ async function createWindow() {
 		);
 	}
 
-	// Pencere sür��kleme için IPC handlers
+	// Pencere sürükleme için IPC handlers
 	ipcMain.on("START_WINDOW_DRAG", (event, mousePosition) => {
 		isDragging = true;
 		const winPosition = mainWindow.getPosition();

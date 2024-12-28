@@ -224,13 +224,27 @@ onMounted(async () => {
 	if (window.electron?.ipcRenderer) {
 		// Alan seçimi event listener'ı
 		window.electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
-			console.log("Alan seçildi:", area);
+			console.log("Ham alan seçimi:", area);
+
+			// Ekran ölçeğini hesapla
+			const screenScale = window.devicePixelRatio || 1;
+
+			// Seçilen alanı ekran pozisyonuna göre ayarla
 			selectedArea.value = {
-				x: Math.round(area.x),
-				y: Math.round(area.y),
-				width: Math.round(area.width),
-				height: Math.round(area.height),
+				x: Math.round(area.x * screenScale),
+				y: Math.round(area.y * screenScale),
+				width: Math.round(area.width * screenScale),
+				height: Math.round(area.height * screenScale),
 			};
+
+			console.log("Düzeltilmiş alan seçimi:", {
+				screenScale,
+				originalArea: area,
+				adjustedArea: selectedArea.value,
+				rawY: area.y,
+				scaledY: area.y * screenScale,
+				finalY: selectedArea.value.y,
+			});
 		});
 
 		// Yeni kayıt için sıfırlama

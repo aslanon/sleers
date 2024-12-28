@@ -1,5 +1,5 @@
 <template>
-	<div class="fixed inset-0 bg-black/30 backdrop-blur-sm">
+	<div class="fixed inset-0 bg-black/30 rounded-md backdrop-blur-sm">
 		<div
 			class="absolute inset-0 cursor-crosshair"
 			@mousedown="startSelection"
