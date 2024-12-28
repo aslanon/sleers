@@ -158,7 +158,7 @@ export const useMediaDevices = () => {
 				"screen"
 			);
 
-			console.log("Ekran kaydı kaydedildi:", screenPath);
+			console.log("2. Ekran kaydı kaydedildi:", screenPath);
 
 			// Kamera kaydını kaydet (varsa)
 			let cameraPath = null;
@@ -176,13 +176,15 @@ export const useMediaDevices = () => {
 					cameraDataUrl,
 					"camera"
 				);
-				console.log("Kamera kaydı kaydedildi:", cameraPath);
+				console.log("3. Kamera kaydı kaydedildi:", cameraPath);
 			}
 
 			// Ses kaydını kaydet (varsa)
 			let audioPath = null;
 			if (chunks.audio && chunks.audio.length > 0) {
-				const audioBlob = new Blob(chunks.audio, { type: "audio/webm" });
+				const audioBlob = new Blob(chunks.audio, {
+					type: "audio/webm;codecs=opus",
+				});
 				const audioBuffer = await audioBlob.arrayBuffer();
 				const audioBase64 = btoa(
 					new Uint8Array(audioBuffer).reduce(
@@ -195,12 +197,11 @@ export const useMediaDevices = () => {
 					audioDataUrl,
 					"audio"
 				);
-				console.log("Ses kaydı kaydedildi:", audioPath);
+				console.log("4. Ses kaydı kaydedildi:", audioPath);
 			}
 
-			// Editör sayfasına yönlendir ve medya yollarını gönder
-			await router.push({
-				path: "/editor",
+			// Editör sayfasına yönlendir
+			await navigateTo("/editor", {
 				query: {
 					screen: screenPath ? encodeURIComponent(screenPath) : undefined,
 					camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
@@ -211,7 +212,7 @@ export const useMediaDevices = () => {
 				},
 			});
 		} catch (error) {
-			console.error("Kayıtlar kaydedilirken hata oluştu:", error);
+			console.error("Kayıtlar kaydedilirken hata:", error);
 			alert("Kayıtlar kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
 		}
 	};

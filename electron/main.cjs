@@ -280,21 +280,32 @@ ipcMain.handle("SAVE_TEMP_VIDEO", async (event, data, type) => {
 		const tempPath = path.join(appDir, `temp-${type}-${Date.now()}.webm`);
 
 		// Base64 verisini dosyaya kaydet
-		const base64Data = data.replace(/^data:video\/\w+;base64,/, "");
+		const base64Data = data.replace(/^data:(audio|video)\/\w+;base64,/, "");
 		fs.writeFileSync(tempPath, base64Data, "base64");
 
-		// Dosya varlığını kontrol et
+		// Dosya varlığını ve boyutunu kontrol et
 		if (!fs.existsSync(tempPath)) {
 			throw new Error(`Geçici dosya oluşturulamadı: ${tempPath}`);
+		}
+
+		const stats = fs.statSync(tempPath);
+		if (stats.size === 0) {
+			fs.unlinkSync(tempPath); // Boş dosyayı sil
+			throw new Error(`Geçici dosya boş: ${tempPath}`);
 		}
 
 		// Map'e kaydet
 		tempFiles.set(type, tempPath);
 
-		console.log(`${type} için geçici dosya kaydedildi:`, tempPath);
+		console.log(`${type} için geçici dosya kaydedildi:`, {
+			path: tempPath,
+			size: stats.size,
+			type: type,
+		});
+
 		return tempPath;
 	} catch (error) {
-		console.error("Geçici video kaydedilirken hata:", error);
+		console.error("Geçici dosya kaydedilirken hata:", error);
 		throw error;
 	}
 });
@@ -311,6 +322,9 @@ ipcMain.handle("CHECK_FILE_EXISTS", async (event, filePath) => {
 
 // Geçici dosyaları temizle
 const cleanupTempFiles = () => {
+	console.log("Geçici dosyalar temizleniyor...");
+	console.log("Mevcut geçici dosyalar:", Array.from(tempFiles.entries()));
+
 	for (const [type, filePath] of tempFiles.entries()) {
 		if (fs.existsSync(filePath)) {
 			try {
@@ -322,6 +336,7 @@ const cleanupTempFiles = () => {
 		}
 	}
 	tempFiles.clear();
+	console.log("Geçici dosya temizliği tamamlandı");
 };
 
 // Uygulama kapatılmadan önce temizlik yap
@@ -609,15 +624,15 @@ ipcMain.handle(
 					command = command.complexFilter(filterComplex, outputs);
 				}
 
-				// Çıktı ayarlarını ekle
+				// Ç��ktı ayarlarını ekle
 				command
 					.outputOptions([
-						"-c:v libvpx-vp9", // Video codec
-						"-c:a libopus", // Ses codec
-						"-b:v 50M", // Video bitrate
-						"-crf 0", // En yüksek kalite
-						"-deadline best", // En iyi kalite için
-						"-cpu-used 0", // En yüksek kalite encoding
+						"-c:v libvpx-vp9",
+						"-c:a libopus",
+						"-b:v 50M",
+						"-crf 0",
+						"-deadline best",
+						"-cpu-used 0",
 						"-auto-alt-ref 1",
 						"-lag-in-frames 25",
 						"-quality best",
@@ -633,7 +648,6 @@ ipcMain.handle(
 						percent: progress.percent,
 						time: progress.timemark,
 					});
-					// İlerleme durumunu ana pencereye gönder
 					if (mainWindow) {
 						mainWindow.webContents.send("MERGE_PROGRESS", progress);
 					}
@@ -647,6 +661,8 @@ ipcMain.handle(
 					})
 					.on("end", () => {
 						console.log("Video birleştirme tamamlandı");
+						// Export tamamlandıktan sonra geçici dosyaları temizle
+						cleanupTempFiles();
 						resolve(outputPath);
 					})
 					.on("error", (err, stdout, stderr) => {
