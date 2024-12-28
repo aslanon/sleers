@@ -904,7 +904,7 @@ ipcMain.handle(
 						console.error("FFmpeg hatası:", err);
 						console.error("FFmpeg stdout:", stdout);
 						console.error("FFmpeg stderr:", stderr);
-						reject(new Error(`FFmpeg hatas��: ${err.message}`));
+						reject(new Error(`FFmpeg hatası: ${err.message}`));
 					});
 			} catch (error) {
 				console.error("Video birleştirme hatası:", error);
@@ -1135,13 +1135,19 @@ function createCameraWindow() {
 	if (isDev) {
 		cameraWindow.loadURL("http://localhost:3000/camera");
 	} else {
-		cameraWindow.loadFile(path.join(__dirname, "../dist/index.html"), {
-			hash: "camera",
-		});
+		cameraWindow.loadFile(
+			path.join(__dirname, "../.output/public/camera/index.html")
+		);
+	}
+
+	// Debug için DevTools'u aç (geliştirme modunda)
+	if (isDev) {
+		cameraWindow.webContents.openDevTools({ mode: "detach" });
 	}
 
 	// Pencere yüklendikten sonra ek ayarlar
 	cameraWindow.webContents.on("did-finish-load", () => {
+		console.log("Main process: Kamera penceresi yüklendi");
 		cameraWindow.webContents.setBackgroundThrottling(false);
 		// CSS enjekte et
 		cameraWindow.webContents.insertCSS(`
@@ -1173,9 +1179,42 @@ function createCameraWindow() {
 		`);
 	});
 
+	// Hata durumunda
+	cameraWindow.webContents.on(
+		"did-fail-load",
+		(event, errorCode, errorDescription) => {
+			console.error(
+				"Main process: Kamera penceresi yüklenemedi:",
+				errorCode,
+				errorDescription
+			);
+		}
+	);
+
 	// Pencere konumunu kaydet
 	cameraWindow.on("moved", () => {
 		const [x, y] = cameraWindow.getPosition();
 		lastCameraPosition = { x, y };
 	});
 }
+
+// Kamera değişikliği için IPC handler
+ipcMain.on("CAMERA_DEVICE_CHANGED", (event, deviceId) => {
+	console.log("Main process: Kamera değişikliği mesajı alındı:", deviceId);
+	if (cameraWindow && !cameraWindow.isDestroyed()) {
+		console.log("Main process: Kamera penceresine mesaj gönderiliyor");
+		try {
+			cameraWindow.webContents.send("UPDATE_CAMERA_DEVICE", deviceId);
+			console.log("Main process: Mesaj başarıyla gönderildi");
+		} catch (error) {
+			console.error("Main process: Mesaj gönderilirken hata:", error);
+		}
+	} else {
+		console.log("Main process: Kamera penceresi bulunamadı veya kapalı");
+	}
+});
+
+// Kamera penceresi hazır olduğunda
+ipcMain.on("CAMERA_WINDOW_READY", () => {
+	console.log("Main process: Kamera penceresi hazır sinyali alındı");
+});

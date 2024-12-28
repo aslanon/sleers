@@ -1,103 +1,131 @@
 <template>
-	<div
-		class="rounded-full overflow-hidden cursor-move"
-		:style="{
-			width: '100%',
-			height: '100%',
-		}"
-		@mousedown.prevent="startDrag"
-	>
+	<div class="camera-container">
 		<video
-			ref="videoElement"
-			class="w-full h-full object-cover transform scale-x-[-1]"
+			ref="videoRef"
 			autoplay
+			muted
 			playsinline
+			class="camera-video"
 		></video>
 	</div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 
-const videoElement = ref<HTMLVideoElement | null>(null);
-const isDragging = ref(false);
+const videoRef = ref<HTMLVideoElement | null>(null);
+let currentStream: MediaStream | null = null;
 
-const { selectedVideoDevice, getDevices } = useMediaDevices();
-
-window.electron?.ipcRenderer.on("SELECT_VIDEO_DEVICE", async (_, deviceId) => {
-	console.log(11111, deviceId);
-	if (videoElement.value && videoElement.value.srcObject) {
-		const stream = videoElement.value.srcObject as MediaStream;
-		stream.getTracks().forEach((track) => track.stop());
-	}
-	selectedVideoDevice.value = deviceId;
-	await getCamera();
-});
-
-// Sürükleme işleyicileri
-const startDrag = (e: MouseEvent) => {
-	isDragging.value = true;
-	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
-		x: e.screenX,
-		y: e.screenY,
-	});
-
-	// Global event listener'ları ekle
-	window.addEventListener("mousemove", onDrag);
-	window.addEventListener("mouseup", endDrag);
-};
-
-const onDrag = (e: MouseEvent) => {
-	if (!isDragging.value) return;
-	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
-		x: e.screenX,
-		y: e.screenY,
-	});
-};
-
-const endDrag = () => {
-	if (!isDragging.value) return;
-	isDragging.value = false;
-	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
-
-	// Global event listener'ları kaldır
-	window.removeEventListener("mousemove", onDrag);
-	window.removeEventListener("mouseup", endDrag);
-};
-
-const getCamera = async () => {
+const startCamera = async (deviceId?: string) => {
 	try {
-		const stream = await navigator.mediaDevices.getUserMedia({
-			video: {
-				deviceId: { exact: selectedVideoDevice.value },
-				aspectRatio: 1,
-			},
-			audio: false,
-		});
+		console.log("Kamera başlatma fonksiyonu çağrıldı:", deviceId);
 
-		if (videoElement.value) {
-			videoElement.value.srcObject = stream;
+		// Eğer aktif bir stream varsa kapatıyoruz
+		if (currentStream) {
+			console.log("Mevcut stream kapatılıyor");
+			currentStream.getTracks().forEach((track) => track.stop());
+		}
+
+		// Önce mevcut cihazları listeleyelim
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		const videoDevices = devices.filter(
+			(device) => device.kind === "videoinput"
+		);
+		console.log("Mevcut kamera cihazları:", videoDevices);
+
+		// deviceId'nin geçerli olup olmadığını kontrol edelim
+		const isValidDevice = videoDevices.some(
+			(device) => device.deviceId === deviceId
+		);
+		console.log("Geçerli cihaz mi?", isValidDevice);
+
+		// Yeni stream'i başlatıyoruz
+		const constraints: MediaStreamConstraints = {
+			video:
+				deviceId && isValidDevice
+					? {
+							deviceId: { exact: deviceId },
+							width: { ideal: 1280 },
+							height: { ideal: 1280 },
+							aspectRatio: 1,
+					  }
+					: {
+							width: { ideal: 1280 },
+							height: { ideal: 1280 },
+							aspectRatio: 1,
+					  },
+			audio: false,
+		};
+
+		console.log("Kullanılacak kısıtlamalar:", constraints);
+		const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+		console.log("Yeni stream başlatıldı");
+		currentStream = stream;
+		if (videoRef.value) {
+			videoRef.value.srcObject = stream;
+			console.log("Video elementi güncellendi");
 		}
 	} catch (error) {
-		console.error("Kamera erişimi hatası:", error);
+		console.error("Kamera başlatılamadı:", error);
+		// Hata durumunda varsayılan kamerayı deneyelim
+		if (deviceId) {
+			console.log("Varsayılan kamera deneniyor...");
+			startCamera(); // deviceId olmadan tekrar dene
+		}
 	}
 };
 
-onMounted(async () => {
-	// Cihazları listele
-	await getDevices();
-	await getCamera();
-});
+onMounted(() => {
+	console.log("Kamera penceresi mount edildi");
+	// İlk kamera başlatma
+	startCamera();
 
-onUnmounted(() => {
-	// Stream'i kapat
-	if (videoElement.value && videoElement.value.srcObject) {
-		const stream = videoElement.value.srcObject as MediaStream;
-		stream.getTracks().forEach((track) => track.stop());
-	}
+	// Kamera değişikliği mesajını dinle
+	const handleCameraUpdate = (deviceId: string) => {
+		console.log("Kamera değişikliği mesajı alındı:", deviceId);
+		startCamera(deviceId);
+	};
 
-	// Event listener'ları temizle
-	window.removeEventListener("mousemove", onDrag);
-	window.removeEventListener("mouseup", endDrag);
+	// Event listener'ı ekle
+	window.electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
+
+	// Cleanup için fonksiyonu sakla
+	onUnmounted(() => {
+		console.log("Kamera penceresi unmount ediliyor");
+		// Stream'i temizle
+		if (currentStream) {
+			currentStream.getTracks().forEach((track) => track.stop());
+		}
+
+		// Event listener'ı temizle
+		window.electron?.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
+		console.log("Event listener'lar temizlendi");
+	});
+
+	// Test mesajı gönder
+	console.log("IPC bağlantısı test ediliyor...");
+	window.electron?.ipcRenderer.send("CAMERA_WINDOW_READY");
 });
 </script>
+
+<style scoped>
+.camera-container {
+	width: 100%;
+	height: 100%;
+	border-radius: 50%;
+	overflow: hidden;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	aspect-ratio: 1;
+}
+
+.camera-video {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	border-radius: 50%;
+	transform: scaleX(-1); /* Ayna görüntüsü için */
+}
+</style>

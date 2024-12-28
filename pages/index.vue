@@ -216,10 +216,44 @@ const selectSource = (source: "display" | "window" | "area") => {
 	}
 };
 
-watch(selectedVideoDevice.value, async (newDeviceId) => {
-	// set cookie
+watch(selectedVideoDevice, async (newDeviceId) => {
 	if (newDeviceId) {
-		window.electron?.ipcRenderer.send("SELECT_VIDEO_DEVICE", newDeviceId);
+		try {
+			// Önce cihazın geçerli olduğunu kontrol edelim
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			const videoDevices = devices.filter(
+				(device) => device.kind === "videoinput"
+			);
+			const isValidDevice = videoDevices.some(
+				(device) => device.deviceId === newDeviceId
+			);
+
+			if (!isValidDevice) {
+				console.error("Geçersiz kamera deviceId:", newDeviceId);
+				return;
+			}
+
+			console.log("Kamera değişikliği tetiklendi:", newDeviceId);
+			// Electron'a kamera değişikliğini bildir
+			window.electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", newDeviceId);
+			console.log("Kamera değişikliği mesajı gönderildi");
+
+			// Diğer işlemler...
+			const stream = await navigator.mediaDevices.getUserMedia({
+				video: {
+					deviceId: { exact: newDeviceId },
+					width: { ideal: 1280 },
+					height: { ideal: 1280 },
+					aspectRatio: 1,
+				},
+				audio: false,
+			});
+			currentCameraStream.value = stream;
+			console.log("Ana pencere kamera stream'i güncellendi");
+		} catch (err) {
+			console.error("Kamera stream'i başlatılamadı:", err);
+			currentCameraStream.value = null;
+		}
 	}
 });
 
