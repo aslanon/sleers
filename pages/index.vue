@@ -216,9 +216,10 @@ const selectSource = (source: "display" | "window" | "area") => {
 	}
 };
 
-watch(selectedVideoDevice, async (newDeviceId) => {
+watch(selectedVideoDevice.value, async (newDeviceId) => {
 	// set cookie
 	if (newDeviceId) {
+		window.electron?.ipcRenderer.send("SELECT_VIDEO_DEVICE", newDeviceId);
 	}
 });
 

@@ -1102,20 +1102,17 @@ function createCameraWindow() {
 		alwaysOnTop: true,
 		skipTaskbar: true,
 		webPreferences: {
-			nodeIntegration: true,
-			contextIsolation: false,
-			backgroundThrottling: false,
+			nodeIntegration: false,
+			contextIsolation: true,
+			preload: path.join(__dirname, "preload.cjs"),
 		},
 		x: lastCameraPosition.x,
 		y: lastCameraPosition.y,
-		type: "panel",
 		roundedCorners: true,
 		titleBarOverlay: false,
-		focusable: false,
 		fullscreenable: false,
 		maximizable: false,
 		minimizable: false,
-		vibrancy: "ultra-dark", // Arka plan için ek şeffaflık
 	});
 
 	// Tüm çalışma alanlarında görünür yap

@@ -24,20 +24,15 @@ const isDragging = ref(false);
 
 const { selectedVideoDevice, getDevices } = useMediaDevices();
 
-watch(
-	() => selectedVideoDevice.value,
-	async (newDeviceId) => {
-		if (newDeviceId) {
-			console.log(1231231231231);
-			if (videoElement.value && videoElement.value.srcObject) {
-				const stream = videoElement.value.srcObject as MediaStream;
-				stream.getTracks().forEach((track) => track.stop());
-			}
-			await getCamera();
-		}
-	},
-	{ deep: true }
-);
+window.electron?.ipcRenderer.on("SELECT_VIDEO_DEVICE", async (_, deviceId) => {
+	console.log(11111, deviceId);
+	if (videoElement.value && videoElement.value.srcObject) {
+		const stream = videoElement.value.srcObject as MediaStream;
+		stream.getTracks().forEach((track) => track.stop());
+	}
+	selectedVideoDevice.value = deviceId;
+	await getCamera();
+});
 
 // Sürükleme işleyicileri
 const startDrag = (e: MouseEvent) => {
