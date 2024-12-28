@@ -28,6 +28,16 @@ let isRecording = false;
 // Geçici dosyaları saklamak için bir Map
 const tempFiles = new Map();
 
+// Mouse pozisyonunu takip etmek için değişken
+let mouseTrackingInterval = null;
+let currentPosition = { x: 0, y: 0 };
+let targetPosition = { x: 0, y: 0 };
+
+// Easing fonksiyonu
+function lerp(start, end, factor) {
+	return start + (end - start) * factor;
+}
+
 // Tray menüsünü oluştur
 function createTrayMenu() {
 	const contextMenu = Menu.buildFromTemplate([
@@ -93,10 +103,73 @@ function createTray() {
 	}
 }
 
+function startMouseTracking() {
+	if (cameraWindow && !mouseTrackingInterval) {
+		const { screen } = require("electron");
+		// İlk pozisyonu ayarla
+		const [startX, startY] = cameraWindow.getPosition();
+		currentPosition = { x: startX, y: startY };
+		targetPosition = { x: startX, y: startY };
+
+		mouseTrackingInterval = setInterval(() => {
+			const mousePos = screen.getCursorScreenPoint();
+			const [width, height] = cameraWindow.getSize();
+
+			// Ekran sınırlarını al
+			const display = screen.getDisplayNearestPoint(mousePos);
+			const bounds = display.bounds;
+
+			// Hedef pozisyonu hesapla
+			let x = mousePos.x - width / 2;
+			let y = mousePos.y + 50;
+
+			// Ekranın kenarlarına yaklaşıldığında kamera konumunu ayarla
+			const EDGE_THRESHOLD = 100;
+
+			if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
+				x = mousePos.x - width - 50;
+			} else if (mousePos.x < bounds.x + EDGE_THRESHOLD) {
+				x = mousePos.x + 50;
+			}
+
+			if (mousePos.y > bounds.y + bounds.height - EDGE_THRESHOLD) {
+				y = mousePos.y - height - 50;
+			} else if (mousePos.y < bounds.y + EDGE_THRESHOLD) {
+				y = mousePos.y + 50;
+			}
+
+			// Ekran sınırları içinde kal
+			x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.width - width));
+			y = Math.max(bounds.y, Math.min(y, bounds.y + bounds.height - height));
+
+			// Hedef pozisyonu güncelle
+			targetPosition = { x, y };
+
+			// Mevcut pozisyonu yumuşak bir şekilde hedefe doğru hareket ettir
+			currentPosition.x = lerp(currentPosition.x, targetPosition.x, 0.15);
+			currentPosition.y = lerp(currentPosition.y, targetPosition.y, 0.15);
+
+			// Pencereyi taşı
+			cameraWindow.setPosition(
+				Math.round(currentPosition.x),
+				Math.round(currentPosition.y)
+			);
+		}, 16); // ~60fps için 16ms
+	}
+}
+
+function stopMouseTracking() {
+	if (mouseTrackingInterval) {
+		clearInterval(mouseTrackingInterval);
+		mouseTrackingInterval = null;
+	}
+}
+
 // IPC handler for recording status
 ipcMain.on("RECORDING_STATUS_CHANGED", (event, status) => {
 	isRecording = status;
 	updateTrayIcon();
+
 	if (status) {
 		mainWindow.hide();
 	} else {
@@ -350,6 +423,8 @@ const cleanupTempFiles = () => {
 // Uygulama kapatılmadan önce temizlik yap
 app.on("before-quit", () => {
 	cleanupTempFiles();
+	app.isQuitting = true;
+	stopMouseTracking();
 });
 
 // Yeni kayıt için temizlik
@@ -760,7 +835,7 @@ async function createWindow() {
 		width: 1000,
 		height: 70,
 		alwaysOnTop: true,
-		resizable: false, // Başlangıçta resize kapalı
+		resizable: false,
 		skipTaskbar: false,
 		frame: false,
 		transparent: true,
@@ -780,9 +855,6 @@ async function createWindow() {
 			callback({
 				responseHeaders: {
 					...details.responseHeaders,
-					// "Content-Security-Policy": [
-					// 	"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: file:; media-src 'self' file: blob: data:;",
-					// ],
 				},
 			});
 		}
@@ -803,52 +875,19 @@ async function createWindow() {
 		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));
 	}
 
+	// Kamera penceresini oluştur
+	createCameraWindow();
+
+	// Mouse takibini başlat
+	startMouseTracking();
+
 	mainWindow.on("closed", () => {
+		stopMouseTracking();
 		mainWindow = null;
-		// Ana pencere kapandığında kamera penceresini de kapat
 		if (cameraWindow) {
 			cameraWindow.close();
 		}
 	});
-
-	// Kamera penceresini oluştur
-	cameraWindow = new BrowserWindow({
-		width: 320,
-		height: 320,
-		frame: false,
-		transparent: true,
-		hasShadow: true,
-		alwaysOnTop: true,
-		resizable: false,
-		skipTaskbar: true,
-		closable: false,
-		minimizable: false,
-		maximizable: false,
-		fullscreenable: false,
-		webPreferences: {
-			nodeIntegration: false,
-			contextIsolation: true,
-			preload: path.join(__dirname, "preload.cjs"),
-		},
-	});
-
-	// Kamera penceresini sağ alt köşeye yerleştir
-	const { screen } = require("electron");
-	const primaryDisplay = screen.getPrimaryDisplay();
-	const { width, height } = primaryDisplay.workAreaSize;
-	cameraWindow.setPosition(width - 340, height - 340);
-
-	// Her zaman en üstte kalmasını sağla
-	cameraWindow.setAlwaysOnTop(true, "screen-saver");
-	cameraWindow.setVisibleOnAllWorkspaces(true);
-
-	if (isDev) {
-		cameraWindow.loadURL("http://127.0.0.1:3000/camera");
-	} else {
-		cameraWindow.loadFile(
-			path.join(__dirname, "../.output/public/camera/index.html")
-		);
-	}
 
 	// Pencere sürükleme için IPC handlers
 	ipcMain.on("START_WINDOW_DRAG", (event, mousePos) => {
@@ -905,6 +944,7 @@ ipcMain.handle("GET_CAMERA_POSITION", () => {
 // Uygulama kapatılmadan önce
 app.on("before-quit", () => {
 	app.isQuitting = true;
+	stopMouseTracking();
 });
 
 // Seçim penceresi kapanma olayı
@@ -914,3 +954,43 @@ ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
 		selectionWindow = null;
 	}
 });
+
+// Kamera penceresi oluştur
+function createCameraWindow() {
+	cameraWindow = new BrowserWindow({
+		width: 200,
+		height: 200,
+		frame: false,
+		transparent: true,
+		alwaysOnTop: true,
+		skipTaskbar: true,
+		webPreferences: {
+			nodeIntegration: true,
+			contextIsolation: false,
+		},
+		x: lastCameraPosition.x,
+		y: lastCameraPosition.y,
+		type: "panel",
+		level: "floating",
+	});
+
+	// Tüm çalışma alanlarında görünür yap
+	cameraWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+	// Her zaman en üstte kalmasını sağla
+	cameraWindow.setAlwaysOnTop(true, "screen-saver", 1);
+
+	if (isDev) {
+		cameraWindow.loadURL("http://localhost:3000/camera");
+	} else {
+		cameraWindow.loadFile(path.join(__dirname, "../dist/index.html"), {
+			hash: "camera",
+		});
+	}
+
+	// Pencere konumunu kaydet
+	cameraWindow.on("moved", () => {
+		const [x, y] = cameraWindow.getPosition();
+		lastCameraPosition = { x, y };
+	});
+}
