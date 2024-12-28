@@ -125,54 +125,91 @@
 
 				<!-- Timeline -->
 				<div class="bg-gray-800 rounded-lg p-4 space-y-4">
-					<!-- Zaman Göstergesi -->
-					<div class="flex justify-between text-sm text-gray-400">
-						<span>{{ formatTime(currentTime) }}</span>
-						<span>{{ formatTime(duration) }}</span>
+					<!-- Oynatma Kontrolleri -->
+					<div class="flex items-center justify-between">
+						<div class="flex items-center space-x-4">
+							<button
+								@click="togglePlay"
+								class="p-2 hover:bg-gray-700 rounded-full"
+							>
+								<svg
+									v-if="isPlaying"
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+									/>
+								</svg>
+								<svg
+									v-else
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-6 w-6"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+									/>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+									/>
+								</svg>
+							</button>
+							<span class="text-sm text-gray-400">{{
+								formatTime(currentTime)
+							}}</span>
+						</div>
+						<span class="text-sm text-gray-400">{{
+							formatTime(duration)
+						}}</span>
 					</div>
 
-					<!-- Ana Timeline -->
-					<div class="relative h-24 bg-gray-700 rounded">
-						<!-- Ekran Kaydı Timeline -->
-						<div class="absolute top-0 left-0 h-8 w-full bg-blue-500/20">
-							<div
-								class="h-full bg-blue-500"
-								:style="{ width: `${(currentTime / duration) * 100}%` }"
-							></div>
-						</div>
-
-						<!-- Kamera Timeline -->
+					<!-- Timeline Bar -->
+					<div class="relative h-12">
+						<!-- Progress Track -->
 						<div
-							v-if="cameraPath"
-							class="absolute top-8 left-0 h-8 w-full bg-green-500/20"
+							class="absolute inset-0 bg-gray-700 rounded-lg overflow-hidden"
 						>
+							<!-- Progress Bar -->
 							<div
-								class="h-full bg-green-500"
+								class="h-full bg-blue-500/30 relative"
 								:style="{ width: `${(currentTime / duration) * 100}%` }"
-							></div>
+							>
+								<!-- Progress Gradient -->
+								<div
+									class="absolute inset-0 bg-gradient-to-r from-blue-500/50 to-purple-500/50"
+								></div>
+							</div>
+
+							<!-- Playhead -->
+							<div
+								class="absolute top-0 h-full w-0.5 bg-white"
+								:style="{ left: `${(currentTime / duration) * 100}%` }"
+							>
+								<div
+									class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg"
+								></div>
+							</div>
 						</div>
 
-						<!-- Ses Timeline -->
-						<div
-							v-if="audioPath"
-							class="absolute top-16 left-0 h-8 w-full bg-red-500/20"
-						>
-							<div
-								class="h-full bg-red-500"
-								:style="{ width: `${(currentTime / duration) * 100}%` }"
-							></div>
-						</div>
-
-						<!-- Playhead -->
-						<div
-							class="absolute top-0 h-full w-0.5 bg-white"
-							:style="{ left: `${(currentTime / duration) * 100}%` }"
-						></div>
-
-						<!-- Timeline Kontrolü -->
+						<!-- Timeline Control -->
 						<input
 							type="range"
-							class="absolute bottom-0 left-0 w-full opacity-0 cursor-pointer"
+							class="absolute inset-0 w-full opacity-0 cursor-pointer"
 							:min="0"
 							:max="duration"
 							:value="currentTime"
@@ -181,48 +218,22 @@
 						/>
 					</div>
 
-					<!-- Kontrol Butonları -->
-					<div class="flex items-center justify-center space-x-4">
+					<!-- Zoom Controls -->
+					<div class="flex justify-end space-x-2">
 						<button
-							@click="togglePlay"
-							class="p-2 hover:bg-gray-700 rounded-full"
+							class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg"
 						>
-							<svg
-								v-if="isPlaying"
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							<svg
-								v-else
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-								/>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
+							1x
+						</button>
+						<button
+							class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"
+						>
+							2x
+						</button>
+						<button
+							class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg"
+						>
+							Auto
 						</button>
 					</div>
 				</div>
@@ -262,7 +273,6 @@ const onScreenLoaded = () => {
 
 const onCameraLoaded = () => {
 	if (cameraPlayer.value && screenPlayer.value) {
-		// Kamera videosunu ana video ile senkronize et
 		cameraPlayer.value.currentTime = screenPlayer.value.currentTime;
 		console.log("Kamera kaydı yüklendi:", {
 			videoWidth: cameraPlayer.value.videoWidth,
