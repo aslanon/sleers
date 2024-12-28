@@ -298,6 +298,9 @@ const startRecording = async () => {
 			};
 		}
 
+		// Kayıt başlamadan önce body'e recording sınıfını ekle
+		document.body.classList.add("recording");
+
 		// Kayıt başlat
 		console.log("2. Stream başlatılıyor...");
 		const { screenStream, cameraStream } = await startMediaStream(
@@ -373,6 +376,9 @@ const startRecording = async () => {
 				camera: cameraRecorder,
 				audio: audioRecorder,
 				stop: async () => {
+					// Kayıt durduğunda recording sınıfını kaldır
+					document.body.classList.remove("recording");
+
 					screenRecorder.stop();
 					if (cameraRecorder) cameraRecorder.stop();
 					if (audioRecorder) audioRecorder.stop();
@@ -394,6 +400,8 @@ const startRecording = async () => {
 		}
 	} catch (error) {
 		console.error("Kayıt başlatılırken hata:", error);
+		// Hata durumunda recording sınıfını kaldır
+		document.body.classList.remove("recording");
 	}
 };
 
@@ -533,3 +541,20 @@ const endDrag = () => {
 	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
 </script>
+
+<!-- Kamera Önizleme -->
+<video
+	v-if="currentCameraStream"
+	ref="cameraPreview"
+	class="camera-preview absolute right-4 bottom-4 w-1/4 rounded-lg shadow-lg"
+	:style="{ 'z-index': isRecording ? '-1' : '10' }"
+	autoplay
+	muted
+	playsinline
+></video>
+
+<style>
+.camera-preview {
+	pointer-events: none;
+}
+</style>

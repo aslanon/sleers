@@ -13,6 +13,12 @@ interface Window {
 			saveTempVideo: (data: string, type: string) => Promise<string>;
 			getTempVideoPath: () => Promise<string>;
 		};
+		windowControls: {
+			close: () => void;
+			startDrag: (position: { x: number; y: number }) => void;
+			dragging: (position: { x: number; y: number }) => void;
+			endDrag: () => void;
+		};
 	};
 }
 

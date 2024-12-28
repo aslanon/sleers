@@ -20,4 +20,10 @@ contextBridge.exposeInMainWorld("electron", {
 			ipcRenderer.invoke("SAVE_TEMP_VIDEO", data, type),
 		getTempVideoPath: () => ipcRenderer.invoke("GET_TEMP_VIDEO_PATH"),
 	},
+	windowControls: {
+		close: () => ipcRenderer.send("WINDOW_CLOSE"),
+		startDrag: (position) => ipcRenderer.send("START_WINDOW_DRAG", position),
+		dragging: (position) => ipcRenderer.send("WINDOW_DRAGGING", position),
+		endDrag: () => ipcRenderer.send("END_WINDOW_DRAG"),
+	},
 });
