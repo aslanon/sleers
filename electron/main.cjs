@@ -159,7 +159,7 @@ ipcMain.handle(
 				const cropWidth = Math.abs(width);
 				const cropHeight = Math.abs(height);
 
-				// Video sın��rlarını kontrol et
+				// Video sınırlarını kontrol et
 				const finalX = Math.min(cropX, videoStream.width - 100);
 				const finalY = Math.min(cropY, videoStream.height - 100);
 				const finalWidth = Math.min(cropWidth, videoStream.width - finalX);
@@ -560,7 +560,7 @@ ipcMain.handle(
 				}
 
 				if (cameraPath && !fs.existsSync(cameraPath)) {
-					throw new Error(`Kamera kaydı dosyası bulunamad��: ${cameraPath}`);
+					throw new Error(`Kamera kaydı dosyası bulunamadı: ${cameraPath}`);
 				}
 				if (audioPath && !fs.existsSync(audioPath)) {
 					throw new Error(`Ses kaydı dosyası bulunamadı: ${audioPath}`);
@@ -687,6 +687,44 @@ ipcMain.handle(
 	}
 );
 
+// Editör penceresi yükseklik ayarı için IPC handler
+ipcMain.on("RESIZE_EDITOR_WINDOW", () => {
+	if (mainWindow) {
+		// Ekran boyutlarını al
+		const { screen } = require("electron");
+		const primaryDisplay = screen.getPrimaryDisplay();
+		const { width, height } = primaryDisplay.workAreaSize;
+
+		// Pencereyi ekranın %80'i boyutunda yap
+		const windowWidth = Math.round(width * 0.8);
+		const windowHeight = Math.round(height * 0.8);
+
+		// Pencereyi ortala ve boyutlandır
+		mainWindow.setResizable(true); // Yeniden boyutlandırmaya izin ver
+		mainWindow.setSize(windowWidth, windowHeight);
+		mainWindow.center();
+
+		// Minimum boyut sınırlaması ekle
+		mainWindow.setMinimumSize(1024, 768);
+	}
+});
+
+// Yeni kayıt için pencereyi sıfırla
+ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
+	if (mainWindow) {
+		mainWindow.setResizable(false); // Kayıt ekranında resize'ı kapat
+		mainWindow.setSize(1000, 70); // Orijinal boyuta döndür
+
+		// Kamera penceresini sağ alt köşeye yerleştir
+		const { screen } = require("electron");
+		const primaryDisplay = screen.getPrimaryDisplay();
+		const { width, height } = primaryDisplay.workAreaSize;
+		if (cameraWindow) {
+			cameraWindow.setPosition(width - 340, height - 340);
+		}
+	}
+});
+
 async function createWindow() {
 	if (isDev) {
 		try {
@@ -706,7 +744,7 @@ async function createWindow() {
 		width: 1000,
 		height: 70,
 		alwaysOnTop: true,
-		resizable: false,
+		resizable: false, // Başlangıçta resize kapalı
 		skipTaskbar: false,
 		frame: false,
 		transparent: true,
@@ -849,29 +887,6 @@ app.on("activate", () => {
 // Kamera pozisyonunu almak için yeni handler
 ipcMain.handle("GET_CAMERA_POSITION", () => {
 	return lastCameraPosition;
-});
-
-// Editör penceresi yükseklik ayarı için IPC handler
-ipcMain.on("RESIZE_EDITOR_WINDOW", () => {
-	if (mainWindow) {
-		const [width, height] = mainWindow.getSize();
-		mainWindow.setSize(width, 600); // Yüksekliği 600px yap
-	}
-});
-
-// Yeni kayıt için pencereyi sıfırla
-ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
-	if (mainWindow) {
-		mainWindow.setSize(800, 200); // Orijinal boyuta döndür
-
-		// Kamera penceresini sağ alt köşeye yerleştir
-		const { screen } = require("electron");
-		const primaryDisplay = screen.getPrimaryDisplay();
-		const { width, height } = primaryDisplay.workAreaSize;
-		if (cameraWindow) {
-			cameraWindow.setPosition(width - 340, height - 340);
-		}
-	}
 });
 
 // Uygulama kapatılmadan önce

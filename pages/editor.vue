@@ -100,12 +100,13 @@
 			</div>
 		</div>
 
-		<!-- Editör İçeriği -->
-		<div class="pt-20 p-4">
-			<div class="max-w-6xl mx-auto space-y-4">
-				<!-- Ana Önizleme -->
+		<!-- Ana İçerik -->
+		<div class="pt-20 p-4 flex min-h-screen">
+			<!-- Sol Taraf - Preview ve Timeline -->
+			<div class="flex-1 space-y-6 pr-4">
+				<!-- Preview Alanı -->
 				<div
-					class="relative w-full aspect-video bg-black rounded-lg overflow-hidden"
+					class="relative aspect-video bg-[#2a2b36] rounded-3xl overflow-hidden"
 				>
 					<!-- Ekran Kaydı -->
 					<video
@@ -127,85 +128,59 @@
 					></video>
 				</div>
 
-				<!-- Timeline -->
-				<div class="bg-gray-800 rounded-lg p-4 space-y-4">
-					<!-- Oynatma Kontrolleri -->
-					<div class="flex items-center justify-between">
-						<div class="flex items-center space-x-4">
-							<button
-								@click="togglePlay"
-								class="p-2 hover:bg-gray-700 rounded-full"
-							>
-								<svg
-									v-if="isPlaying"
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-6 w-6"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
-									/>
-								</svg>
-								<svg
-									v-else
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-6 w-6"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-									/>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-									/>
-								</svg>
-							</button>
-							<span class="text-sm text-gray-400">{{
-								formatTime(currentTime)
-							}}</span>
+				<!-- Timeline Alanı -->
+				<div class="relative">
+					<!-- Zaman Göstergesi -->
+					<div class="flex justify-between text-sm text-gray-400 mb-2 px-2">
+						<div class="flex space-x-4">
+							<span>{{ formatTime(currentTime) }}</span>
 						</div>
-						<span class="text-sm text-gray-400">{{
-							formatTime(duration)
-						}}</span>
+						<span>{{ formatTime(duration) }}</span>
 					</div>
 
-					<!-- Timeline Bar -->
-					<div class="relative h-12">
-						<!-- Progress Track -->
+					<!-- Timeline'lar Container -->
+					<div class="relative">
+						<!-- Playhead - Tüm timeline'ları kesen kırmızı çizgi -->
 						<div
-							class="absolute inset-0 bg-gray-700 rounded-lg overflow-hidden"
+							class="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+							:style="{ left: `${(currentTime / duration) * 100}%` }"
 						>
-							<!-- Progress Bar -->
 							<div
-								class="h-full bg-blue-500/30 relative"
-								:style="{ width: `${(currentTime / duration) * 100}%` }"
+								class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full"
+							></div>
+						</div>
+
+						<!-- Timeline'lar Stack -->
+						<div class="relative space-y-px">
+							<!-- Ekran Timeline -->
+							<div
+								class="relative h-16 bg-orange-500/20 rounded-t-2xl overflow-hidden"
 							>
-								<!-- Progress Gradient -->
 								<div
-									class="absolute inset-0 bg-gradient-to-r from-blue-500/50 to-purple-500/50"
+									class="absolute inset-y-0 bg-orange-500/30"
+									:style="{ width: `${(currentTime / duration) * 100}%` }"
 								></div>
 							</div>
 
-							<!-- Playhead -->
+							<!-- Kamera Timeline -->
 							<div
-								class="absolute top-0 h-full w-0.5 bg-white"
-								:style="{ left: `${(currentTime / duration) * 100}%` }"
+								v-if="cameraPath"
+								class="relative h-16 bg-purple-500/20 overflow-hidden"
 							>
 								<div
-									class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg"
+									class="absolute inset-y-0 bg-purple-500/30"
+									:style="{ width: `${(currentTime / duration) * 100}%` }"
+								></div>
+							</div>
+
+							<!-- Ses Timeline -->
+							<div
+								v-if="audioPath"
+								class="relative h-16 bg-green-500/20 rounded-b-2xl overflow-hidden"
+							>
+								<div
+									class="absolute inset-y-0 bg-green-500/30"
+									:style="{ width: `${(currentTime / duration) * 100}%` }"
 								></div>
 							</div>
 						</div>
@@ -222,23 +197,72 @@
 						/>
 					</div>
 
-					<!-- Zoom Controls -->
-					<div class="flex justify-end space-x-2">
+					<!-- Oynatma Kontrolleri -->
+					<div class="flex items-center mt-4">
 						<button
-							class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg"
+							@click="togglePlay"
+							class="p-2 hover:bg-gray-700 rounded-full"
 						>
-							1x
+							<svg
+								v-if="isPlaying"
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-6 w-6"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
+							</svg>
+							<svg
+								v-else
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-6 w-6"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+								/>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
+							</svg>
 						</button>
+					</div>
+				</div>
+			</div>
+
+			<!-- Sağ Taraf - Araçlar -->
+			<div class="w-80 space-y-4">
+				<!-- Crop Listesi -->
+				<div class="bg-[#2a2b36] rounded-2xl p-4 space-y-4">
+					<div class="space-y-2">
+						<h3 class="text-sm font-medium">Kırpma Alanları</h3>
 						<button
-							class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"
+							class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
 						>
-							2x
+							Alan Seç
 						</button>
-						<button
-							class="px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 rounded-lg"
-						>
-							Auto
-						</button>
+					</div>
+				</div>
+
+				<!-- Tool Properties -->
+				<div class="bg-[#2a2b36] rounded-2xl p-4 space-y-2">
+					<h3 class="text-sm font-medium">Özellikler</h3>
+					<div class="bg-[#1a1b26] rounded-lg p-4">
+						<p class="text-sm text-gray-400">Seçili bir araç yok</p>
 					</div>
 				</div>
 			</div>
@@ -520,6 +544,9 @@ onMounted(async () => {
 			console.error("Route parametreleri hazır değil veya eksik");
 			return;
 		}
+
+		// Pencere boyutunu ayarla
+		window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
 
 		// Medya yollarını yükle
 		await getMediaPaths();
