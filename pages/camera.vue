@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="rounded-full overflow-hidden bg-black cursor-move"
+		class="rounded-full overflow-hidden cursor-move"
 		:style="{
 			width: '100%',
 			height: '100%',

@@ -34,9 +34,9 @@ let currentPosition = { x: 0, y: 0 };
 let targetPosition = { x: 0, y: 0 };
 let lastMousePositions = [];
 let isLargeCamera = false;
-const SMALL_SIZE = 100;
-const LARGE_SIZE = 200;
-const SHAKE_THRESHOLD = 300; // Hız eşiği
+const SMALL_SIZE = 160;
+const LARGE_SIZE = 360;
+const SHAKE_THRESHOLD = 1200; // Hız eşiği
 const SHAKE_TIME_WINDOW = 500; // Son 500ms içindeki hareketleri kontrol et
 const REQUIRED_MOVEMENTS = 3; // Gerekli hareket sayısı
 
@@ -115,8 +115,67 @@ function toggleCameraSize() {
 	if (!cameraWindow) return;
 
 	isLargeCamera = !isLargeCamera;
-	const size = isLargeCamera ? LARGE_SIZE : SMALL_SIZE;
-	cameraWindow.setSize(size, size);
+	const targetSize = isLargeCamera ? LARGE_SIZE : SMALL_SIZE;
+	const currentSize = cameraWindow.getSize()[0];
+
+	// Animasyon için değişkenler
+	let startTime = Date.now();
+	const duration = 300; // 300ms animasyon süresi
+	const startSize = currentSize;
+
+	// Animasyon interval'ı
+	const animationInterval = setInterval(() => {
+		const currentTime = Date.now();
+		const elapsed = currentTime - startTime;
+		const progress = Math.min(elapsed / duration, 1);
+
+		// Ease-in fonksiyonu (cubic)
+		const easeIn = progress * progress * progress;
+
+		// Yeni boyutu hesapla
+		const newSize = Math.round(startSize + (targetSize - startSize) * easeIn);
+
+		// Pencereyi yeniden boyutlandır ve şeffaflığı koru
+		cameraWindow.setSize(newSize, newSize);
+		cameraWindow.setBackgroundColor("#00000000");
+
+		// Animasyon tamamlandı mı?
+		if (progress >= 1) {
+			clearInterval(animationInterval);
+			// Son boyutu ayarla
+			cameraWindow.setSize(targetSize, targetSize);
+			// Şeffaflığı tekrar uygula
+			cameraWindow.setBackgroundColor("#00000000");
+			// CSS'i tekrar enjekte et
+			cameraWindow.webContents.insertCSS(`
+				body, html, #app {
+					margin: 0 !important;
+					padding: 0 !important;
+					overflow: hidden !important;
+					background: transparent !important;
+				}
+				
+				.camera-container {
+					width: 100% !important;
+					height: 100% !important;
+					border-radius: 50% !important;
+					overflow: hidden !important;
+					display: flex !important;
+					justify-content: center !important;
+					align-items: center !important;
+				}
+				
+				video {
+					min-width: 100% !important;
+					min-height: 100% !important;
+					width: auto !important;
+					height: auto !important;
+					object-fit: cover !important;
+					border-radius: 50% !important;
+				}
+			`);
+		}
+	}, 16); // ~60fps için 16ms
 }
 
 // Mouse hızını kontrol et
@@ -197,11 +256,11 @@ function startMouseTracking() {
 			const bounds = display.bounds;
 
 			// Hedef pozisyonu hesapla
-			let x = mousePos.x - width / 2;
+			let x = mousePos.x + 40 - width / 2;
 			let y = mousePos.y + 50;
 
 			// Ekranın kenarlarına yaklaşıldığında kamera konumunu ayarla
-			const EDGE_THRESHOLD = 100;
+			const EDGE_THRESHOLD = 200;
 
 			if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
 				x = mousePos.x - width - 50;
@@ -383,7 +442,7 @@ ipcMain.handle(
 					.save(outputPath)
 					.on("end", () => {
 						console.log("5. Video kırpma tamamlandı");
-						// ��ıktı dosyasını kontrol et
+						// ıktı dosyasını kontrol et
 						if (
 							!fs.existsSync(outputPath) ||
 							fs.statSync(outputPath).size === 0
@@ -845,7 +904,7 @@ ipcMain.handle(
 						console.error("FFmpeg hatası:", err);
 						console.error("FFmpeg stdout:", stdout);
 						console.error("FFmpeg stderr:", stderr);
-						reject(new Error(`FFmpeg hatası: ${err.message}`));
+						reject(new Error(`FFmpeg hatas��: ${err.message}`));
 					});
 			} catch (error) {
 				console.error("Video birleştirme hatası:", error);
@@ -1035,20 +1094,29 @@ ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
 // Kamera penceresi oluştur
 function createCameraWindow() {
 	cameraWindow = new BrowserWindow({
-		width: SMALL_SIZE, // Başlangıçta küçük boyut
-		height: SMALL_SIZE, // Başlangıçta küçük boyut
-		frame: false,
+		width: SMALL_SIZE,
+		height: SMALL_SIZE,
 		transparent: true,
+		frame: false,
+		backgroundColor: "#00000000",
+		hasShadow: false,
 		alwaysOnTop: true,
 		skipTaskbar: true,
 		webPreferences: {
 			nodeIntegration: true,
 			contextIsolation: false,
+			backgroundThrottling: false,
 		},
 		x: lastCameraPosition.x,
 		y: lastCameraPosition.y,
 		type: "panel",
-		level: "floating",
+		roundedCorners: true,
+		titleBarOverlay: false,
+		focusable: false,
+		fullscreenable: false,
+		maximizable: false,
+		minimizable: false,
+		vibrancy: "ultra-dark", // Arka plan için ek şeffaflık
 	});
 
 	// Tüm çalışma alanlarında görünür yap
@@ -1057,6 +1125,13 @@ function createCameraWindow() {
 	// Her zaman en üstte kalmasını sağla
 	cameraWindow.setAlwaysOnTop(true, "screen-saver", 1);
 
+	// Arka planı şeffaf yap
+	cameraWindow.setBackgroundColor("#00000000");
+
+	// Pencere şeklini ayarla
+	cameraWindow.setWindowButtonVisibility(false);
+	cameraWindow.setAspectRatio(1);
+
 	if (isDev) {
 		cameraWindow.loadURL("http://localhost:3000/camera");
 	} else {
@@ -1064,6 +1139,39 @@ function createCameraWindow() {
 			hash: "camera",
 		});
 	}
+
+	// Pencere yüklendikten sonra ek ayarlar
+	cameraWindow.webContents.on("did-finish-load", () => {
+		cameraWindow.webContents.setBackgroundThrottling(false);
+		// CSS enjekte et
+		cameraWindow.webContents.insertCSS(`
+			body, html, #app {
+				margin: 0 !important;
+				padding: 0 !important;
+				overflow: hidden !important;
+				background: transparent !important;
+			}
+			
+			.camera-container {
+				width: 100% !important;
+				height: 100% !important;
+				border-radius: 50% !important;
+				overflow: hidden !important;
+				display: flex !important;
+				justify-content: center !important;
+				align-items: center !important;
+			}
+			
+			video {
+				min-width: 100% !important;
+				min-height: 100% !important;
+				width: auto !important;
+				height: auto !important;
+				object-fit: cover !important;
+				border-radius: 50% !important;
+			}
+		`);
+	});
 
 	// Pencere konumunu kaydet
 	cameraWindow.on("moved", () => {
