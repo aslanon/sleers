@@ -1104,6 +1104,7 @@ function createCameraWindow() {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
+			backgroundThrottling: false,
 			preload: path.join(__dirname, "preload.cjs"),
 		},
 		x: lastCameraPosition.x,
@@ -1111,6 +1112,9 @@ function createCameraWindow() {
 		roundedCorners: true,
 		titleBarOverlay: false,
 		fullscreenable: false,
+		type: "panel",
+		focusable: false,
+		vibrancy: "ultra-dark",
 		maximizable: false,
 		minimizable: false,
 	});
