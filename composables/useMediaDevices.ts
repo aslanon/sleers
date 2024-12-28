@@ -201,7 +201,8 @@ export const useMediaDevices = () => {
 			}
 
 			// Editör sayfasına yönlendir
-			await navigateTo("/editor", {
+			router.push({
+				path: "/editor",
 				query: {
 					screen: screenPath ? encodeURIComponent(screenPath) : undefined,
 					camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
