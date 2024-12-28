@@ -32,6 +32,13 @@ const tempFiles = new Map();
 let mouseTrackingInterval = null;
 let currentPosition = { x: 0, y: 0 };
 let targetPosition = { x: 0, y: 0 };
+let lastMousePositions = [];
+let isLargeCamera = false;
+const SMALL_SIZE = 100;
+const LARGE_SIZE = 200;
+const SHAKE_THRESHOLD = 300; // Hız eşiği
+const SHAKE_TIME_WINDOW = 500; // Son 500ms içindeki hareketleri kontrol et
+const REQUIRED_MOVEMENTS = 3; // Gerekli hareket sayısı
 
 // Easing fonksiyonu
 function lerp(start, end, factor) {
@@ -103,6 +110,73 @@ function createTray() {
 	}
 }
 
+// Kamera boyutunu değiştir
+function toggleCameraSize() {
+	if (!cameraWindow) return;
+
+	isLargeCamera = !isLargeCamera;
+	const size = isLargeCamera ? LARGE_SIZE : SMALL_SIZE;
+	cameraWindow.setSize(size, size);
+}
+
+// Mouse hızını kontrol et
+function checkMouseShake(mousePos) {
+	// Sürükleme sırasında shake kontrolü yapma
+	if (isDragging) return;
+
+	const now = Date.now();
+
+	// Eski pozisyonları temizle
+	lastMousePositions = lastMousePositions.filter(
+		(pos) => now - pos.time < SHAKE_TIME_WINDOW
+	);
+
+	// Yeni pozisyonu ekle
+	lastMousePositions.push({
+		x: mousePos.x,
+		y: mousePos.y,
+		time: now,
+	});
+
+	// En az 3 hareket varsa kontrol et
+	if (lastMousePositions.length >= REQUIRED_MOVEMENTS) {
+		let shakeCount = 0;
+		let lastDirection = null;
+
+		// Son hareketleri kontrol et
+		for (let i = 1; i < lastMousePositions.length; i++) {
+			const prev = lastMousePositions[i - 1];
+			const curr = lastMousePositions[i];
+
+			// Hızı hesapla (piksel/ms)
+			const dx = curr.x - prev.x;
+			const dy = curr.y - prev.y;
+			const dt = curr.time - prev.time;
+			const speed = Math.sqrt(dx * dx + dy * dy) / dt;
+
+			// Hareket yönünü belirle (yatay hareket için)
+			const currentDirection = dx > 0 ? "right" : "left";
+
+			// Yön değişimi ve hız kontrolü
+			if (
+				lastDirection &&
+				currentDirection !== lastDirection &&
+				speed * 1000 > SHAKE_THRESHOLD
+			) {
+				shakeCount++;
+			}
+
+			lastDirection = currentDirection;
+		}
+
+		// En az 2 yön değişimi varsa shake olarak kabul et
+		if (shakeCount >= 2) {
+			toggleCameraSize();
+			lastMousePositions = []; // Pozisyonları sıfırla
+		}
+	}
+}
+
 function startMouseTracking() {
 	if (cameraWindow && !mouseTrackingInterval) {
 		const { screen } = require("electron");
@@ -114,6 +188,9 @@ function startMouseTracking() {
 		mouseTrackingInterval = setInterval(() => {
 			const mousePos = screen.getCursorScreenPoint();
 			const [width, height] = cameraWindow.getSize();
+
+			// Mouse hareketlerini kontrol et
+			checkMouseShake(mousePos);
 
 			// Ekran sınırlarını al
 			const display = screen.getDisplayNearestPoint(mousePos);
@@ -306,7 +383,7 @@ ipcMain.handle(
 					.save(outputPath)
 					.on("end", () => {
 						console.log("5. Video kırpma tamamlandı");
-						// Çıktı dosyasını kontrol et
+						// ��ıktı dosyasını kontrol et
 						if (
 							!fs.existsSync(outputPath) ||
 							fs.statSync(outputPath).size === 0
@@ -958,8 +1035,8 @@ ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
 // Kamera penceresi oluştur
 function createCameraWindow() {
 	cameraWindow = new BrowserWindow({
-		width: 200,
-		height: 200,
+		width: SMALL_SIZE, // Başlangıçta küçük boyut
+		height: SMALL_SIZE, // Başlangıçta küçük boyut
 		frame: false,
 		transparent: true,
 		alwaysOnTop: true,

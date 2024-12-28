@@ -1,16 +1,15 @@
 <template>
 	<div
-		class="w-[200px] h-[200px] rounded-full overflow-hidden bg-black cursor-move"
+		class="rounded-full overflow-hidden bg-black cursor-move"
+		:style="{
+			width: '100%',
+			height: '100%',
+		}"
 		@mousedown.prevent="startDrag"
 	>
 		<video
 			ref="videoElement"
 			class="w-full h-full object-cover transform scale-x-[-1]"
-			:style="{
-				width: '200px',
-				height: '200px',
-				objectFit: 'cover',
-			}"
 			autoplay
 			playsinline
 		></video>
@@ -58,8 +57,6 @@ onMounted(async () => {
 	try {
 		const stream = await navigator.mediaDevices.getUserMedia({
 			video: {
-				width: 200,
-				height: 200,
 				aspectRatio: 1,
 			},
 			audio: false,
