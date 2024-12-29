@@ -122,6 +122,7 @@ onUnmounted(() => {
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
+	padding: 1rem;
 	overflow: hidden;
 	display: flex;
 	justify-content: center;
@@ -132,6 +133,8 @@ onUnmounted(() => {
 .camera-video {
 	width: 100%;
 	height: 100%;
+	box-shadow: 0 0 10px 0px rgba(0, 0, 0, 0.25);
+
 	object-fit: cover;
 	border-radius: 50%;
 	transform: scaleX(-1); /* Ayna görüntüsü için */
