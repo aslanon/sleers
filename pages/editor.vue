@@ -30,7 +30,7 @@
 
 		<!-- Yeni Layout -->
 		<div class="pt-20 bg-neutral-800 p-8">
-			<div class="max-w-7xl mx-auto space-y-6">
+			<div class="mx-auto space-y-6">
 				<!-- Video ve Araçlar -->
 				<div class="flex gap-6 mb-6">
 					<!-- Video Preview -->
