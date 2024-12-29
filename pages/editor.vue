@@ -1,6 +1,6 @@
 <template>
-	<div class="min-h-screen bg-[#1a1b26] text-white">
-		<!-- Üst Bar -->
+	<div class="min-h-screen bg-[#1a1b26]">
+		<!-- Üst Bar - Mevcut header'ı koruyoruz -->
 		<div
 			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-3xl border-b border-gray-200 z-50"
 			@mousedown.prevent="startDrag"
@@ -13,7 +13,7 @@
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
+							class="h-5 w-5 text-white"
 							viewBox="0 0 20 20"
 							fill="currentColor"
 						>
@@ -24,267 +24,149 @@
 							/>
 						</svg>
 					</button>
-
-					<!-- Export Butonu -->
-					<button
-						@click="exportVideo"
-						class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700"
-						:disabled="isExporting"
-					>
-						<svg
-							v-if="!isExporting"
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-							/>
-						</svg>
-						<svg
-							v-else
-							class="animate-spin h-5 w-5"
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-						>
-							<circle
-								class="opacity-25"
-								cx="12"
-								cy="12"
-								r="10"
-								stroke="currentColor"
-								stroke-width="4"
-							></circle>
-							<path
-								class="opacity-75"
-								fill="currentColor"
-								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-							></path>
-						</svg>
-						<div class="flex flex-col items-start" v-if="isExporting">
-							<span>Dışa Aktarılıyor...</span>
-							<span class="text-xs text-gray-300">
-								{{ exportStatus.frames }} kare işlendi | {{ exportStatus.time }}
-							</span>
-						</div>
-						<span v-else>Dışa Aktar</span>
-					</button>
-
-					<!-- Yeni Kayıt Butonu -->
-					<button
-						@click="startNewRecording"
-						class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 4v16m8-8H4"
-							/>
-						</svg>
-						<span>Yeni Kayıt</span>
-					</button>
 				</div>
 			</div>
 		</div>
 
-		<!-- Ana İçerik -->
-		<div class="pt-20 p-4 flex min-h-screen">
-			<!-- Sol Taraf - Preview ve Timeline -->
-			<div class="flex-1 space-y-6 pr-4">
-				<!-- Preview Alanı -->
-				<div
-					class="relative aspect-video bg-[#2a2b36] rounded-3xl overflow-hidden"
-				>
-					<!-- Ekran Kaydı -->
-					<video
-						ref="screenPlayer"
-						class="w-full h-full"
-						:style="{
-							objectFit: cropArea?.aspectRatio === 'free' ? 'contain' : 'cover',
-							clipPath: cropArea
-								? `inset(${(cropArea.y / cropArea.display.height) * 100}% ${
-										((cropArea.display.width - (cropArea.x + cropArea.width)) /
-											cropArea.display.width) *
-										100
-								  }% ${
-										((cropArea.display.height -
-											(cropArea.y + cropArea.height)) /
-											cropArea.display.height) *
-										100
-								  }% ${(cropArea.x / cropArea.display.width) * 100}%)`
-								: 'none',
-						}"
-						preload="auto"
-						@loadedmetadata="onScreenLoaded"
-						@error="(e) => console.error('Ekran kaydı yüklenirken hata:', e)"
-					></video>
+		<!-- Yeni Layout -->
+		<div class="pt-20 bg-neutral-800 p-8">
+			<div class="max-w-7xl mx-auto space-y-6">
+				<!-- Video ve Araçlar -->
+				<div class="flex gap-6 mb-6">
+					<!-- Video Preview -->
+					<div class="flex-1 bg-neutral-700 rounded-lg p-4 overflow-hidden">
+						<div class="relative aspect-video">
+							<!-- Ekran Kaydı -->
+							<video
+								ref="screenPlayer"
+								class="w-full h-full"
+								:style="{
+									objectFit:
+										cropArea?.aspectRatio === 'free' ? 'contain' : 'cover',
+									clipPath: cropArea
+										? `inset(${(cropArea.y / cropArea.display.height) * 100}% ${
+												((cropArea.display.width -
+													(cropArea.x + cropArea.width)) /
+													cropArea.display.width) *
+												100
+										  }% ${
+												((cropArea.display.height -
+													(cropArea.y + cropArea.height)) /
+													cropArea.display.height) *
+												100
+										  }% ${(cropArea.x / cropArea.display.width) * 100}%)`
+										: 'none',
+								}"
+								preload="auto"
+								@loadedmetadata="onScreenLoaded"
+								@error="
+									(e) => console.error('Ekran kaydı yüklenirken hata:', e)
+								"
+							></video>
 
-					<!-- Kamera Kaydı (PiP) -->
-					<!-- <video
-						v-if="cameraPath"
-						ref="cameraPlayer"
-						class="absolute hidden right-4 bottom-4 w-48 h-48 object-cover rounded-full shadow-lg"
-						preload="auto"
-						@loadedmetadata="onCameraLoaded"
-						@error="(e) => console.error('Kamera kaydı yüklenirken hata:', e)"
-					></video> -->
-				</div>
-
-				<!-- Timeline Alanı -->
-				<div class="relative">
-					<!-- Zaman Göstergesi -->
-					<div class="flex justify-between text-sm text-gray-400 mb-2 px-2">
-						<div class="flex space-x-4">
-							<span>{{ formatTime(currentTime) }}</span>
-						</div>
-						<span>{{ formatTime(duration) }}</span>
-					</div>
-
-					<!-- Timeline'lar Container -->
-					<div class="relative">
-						<!-- Playhead - Tüm timeline'ları kesen kırmızı çizgi -->
-						<div
-							class="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-							:style="{ left: `${(currentTime / duration) * 100}%` }"
-						>
-							<div
-								class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full"
-							></div>
-						</div>
-
-						<!-- Timeline'lar Stack -->
-						<div class="relative space-y-px">
-							<!-- Ekran Timeline -->
-							<div
-								class="relative h-16 bg-orange-500/20 rounded-t-2xl overflow-hidden"
-							>
-								<div
-									class="absolute inset-y-0 bg-orange-500/30"
-									:style="{ width: `${(currentTime / duration) * 100}%` }"
-								></div>
-							</div>
-
-							<!-- Kamera Timeline -->
-							<div
+							<!-- Kamera Kaydı (PiP) -->
+							<video
 								v-if="cameraPath"
-								class="relative h-16 bg-purple-500/20 overflow-hidden"
-							>
-								<div
-									class="absolute inset-y-0 bg-purple-500/30"
-									:style="{ width: `${(currentTime / duration) * 100}%` }"
-								></div>
-							</div>
+								ref="cameraPlayer"
+								class="absolute right-4 bottom-4 w-48 h-48 object-cover rounded-full shadow-lg"
+								preload="auto"
+								@loadedmetadata="onCameraLoaded"
+								@error="
+									(e) => console.error('Kamera kaydı yüklenirken hata:', e)
+								"
+							></video>
+						</div>
+					</div>
 
-							<!-- Ses Timeline -->
-							<div
-								v-if="audioPath"
-								class="relative h-16 bg-green-500/20 rounded-b-2xl overflow-hidden"
-							>
-								<div
-									class="absolute inset-y-0 bg-green-500/30"
-									:style="{ width: `${(currentTime / duration) * 100}%` }"
-								></div>
+					<!-- Araçlar -->
+					<div
+						class="w-72 bg-neutral-700 rounded-lg p-4 flex flex-col items-center justify-between"
+					>
+						<!-- Crop Listesi -->
+						<div class="w-full">
+							<h3 class="text-neutral-300 font-medium mb-2">Kırpma Alanları</h3>
+							<div class="space-y-2">
+								<!-- Crop alanları buraya gelecek -->
 							</div>
 						</div>
 
-						<!-- Timeline Control -->
-						<input
-							type="range"
-							class="absolute inset-0 w-full opacity-0 cursor-pointer"
-							:min="0"
-							:max="duration"
-							:value="currentTime"
-							@input="seekTo"
-							step="0.01"
-						/>
-					</div>
-
-					<!-- Oynatma Kontrolleri -->
-					<div class="flex items-center mt-4">
-						<button
-							@click="togglePlay"
-							class="p-2 hover:bg-gray-700 rounded-full"
-						>
-							<svg
-								v-if="isPlaying"
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							<svg
-								v-else
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-6 w-6"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-								/>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-						</button>
+						<!-- Tool Properties -->
+						<div class="w-full mt-4">
+							<h3 class="text-neutral-300 font-medium mb-2">Özellikler</h3>
+							<div class="bg-neutral-600 rounded p-4">
+								<p class="text-sm text-neutral-300">Seçili bir araç yok</p>
+							</div>
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<!-- Sağ Taraf - Araçlar -->
-			<div class="w-80 space-y-4">
-				<!-- Crop Listesi -->
-				<div class="bg-[#2a2b36] rounded-2xl p-4 space-y-4">
-					<div class="space-y-2">
-						<h3 class="text-sm font-medium">Kırpma Alanları</h3>
+				<!-- Timeline ve Kontroller -->
+				<div>
+					<!-- Butonlar -->
+					<div class="flex gap-4 mb-4">
 						<button
-							class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+							class="px-4 py-2 bg-neutral-700 text-white rounded hover:bg-neutral-600 transition-colors"
 						>
 							Alan Seç
 						</button>
+						<button
+							@click="exportVideo"
+							class="px-4 py-2 bg-neutral-700 text-white rounded hover:bg-neutral-600 transition-colors"
+							:disabled="isExporting"
+						>
+							<span v-if="isExporting">Dışa Aktarılıyor...</span>
+							<span v-else>Dışa Aktar</span>
+						</button>
 					</div>
-				</div>
 
-				<!-- Tool Properties -->
-				<div class="bg-[#2a2b36] rounded-2xl p-4 space-y-2">
-					<h3 class="text-sm font-medium">Özellikler</h3>
-					<div class="bg-[#1a1b26] rounded-lg p-4">
-						<p class="text-sm text-gray-400">Seçili bir araç yok</p>
+					<!-- Timeline -->
+					<div class="w-full h-32 relative">
+						<!-- Zaman İşaretleri -->
+						<div class="flex justify-between text-white text-sm mb-2">
+							<template v-for="i in 10" :key="i">
+								<span>{{ (i - 1) * 60 }}</span>
+							</template>
+						</div>
+
+						<!-- Progress Bar -->
+						<div class="w-full h-1 bg-blue-500 mb-4"></div>
+
+						<!-- Video Timeline -->
+						<div
+							class="h-16 rounded bg-[#E1A87A] relative"
+							:style="{
+								width: `${(duration / MAX_DURATION) * 100}%`,
+								transform: `translateX(${timelineState.scroll}px)`,
+							}"
+						>
+							<div class="absolute -top-6 text-white text-sm">
+								ekran videosunun timeline barı
+							</div>
+							<!-- Progress Indicator -->
+							<div
+								class="absolute inset-y-0 left-0 bg-[#E1A87A]/60"
+								:style="{ width: `${(currentTime / duration) * 100}%` }"
+							></div>
+						</div>
+
+						<!-- Playhead -->
+						<div
+							class="absolute top-0 bottom-0 w-0.5 bg-red-500"
+							:style="{
+								left: `${(currentTime / MAX_DURATION) * 100}%`,
+							}"
+							@mousedown.stop="startPlayheadDrag"
+						>
+							<div
+								class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full cursor-ew-resize hover:scale-110 transition-transform"
+							></div>
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 
-		<!-- Mevcut içerik -->
+		<!-- Cursor -->
 		<CustomCursor v-if="isRecording" />
 	</div>
 </template>
@@ -630,6 +512,111 @@ watch(isRecording, (newValue) => {
 	} else {
 		stopRecording();
 	}
+});
+
+// Timeline sabitleri ve state'i
+const MAX_DURATION = 600; // 10 dakika (saniye cinsinden)
+const timelineState = ref({
+	scroll: 0,
+	isDragging: false,
+	dragStartX: 0,
+	dragStartScroll: 0,
+});
+
+// Timeline sürükleme kontrolleri
+const startTimelineDrag = (e: MouseEvent) => {
+	timelineState.value.isDragging = true;
+	timelineState.value.dragStartX = e.clientX;
+	timelineState.value.dragStartScroll = timelineState.value.scroll;
+
+	window.addEventListener("mousemove", handleTimelineDrag);
+	window.addEventListener("mouseup", stopTimelineDrag);
+};
+
+const handleTimelineDrag = (e: MouseEvent) => {
+	if (!timelineState.value.isDragging) return;
+
+	const delta = e.clientX - timelineState.value.dragStartX;
+	const maxScroll = (duration.value / MAX_DURATION) * 100 - 100;
+
+	timelineState.value.scroll = Math.max(
+		Math.min(timelineState.value.dragStartScroll + delta, 0),
+		-maxScroll
+	);
+};
+
+const stopTimelineDrag = () => {
+	timelineState.value.isDragging = false;
+	window.removeEventListener("mousemove", handleTimelineDrag);
+	window.removeEventListener("mouseup", stopTimelineDrag);
+};
+
+// Playhead sürükleme
+const isPlayheadDragging = ref(false);
+const playheadDragStartX = ref(0);
+const playheadDragStartTime = ref(0);
+
+const startPlayheadDrag = (e: MouseEvent) => {
+	isPlayheadDragging.value = true;
+	playheadDragStartX.value = e.clientX;
+	playheadDragStartTime.value = currentTime.value;
+
+	window.addEventListener("mousemove", handlePlayheadDrag);
+	window.addEventListener("mouseup", stopPlayheadDrag);
+};
+
+const handlePlayheadDrag = (e: MouseEvent) => {
+	if (!isPlayheadDragging.value || !screenPlayer.value) return;
+
+	const timeline = e.currentTarget as HTMLElement;
+	const rect = timeline.getBoundingClientRect();
+	const delta = e.clientX - playheadDragStartX.value;
+	const timelineDuration = MAX_DURATION;
+	const pixelsPerSecond = rect.width / timelineDuration;
+	const timeDelta = delta / pixelsPerSecond;
+
+	const newTime = Math.max(
+		0,
+		Math.min(playheadDragStartTime.value + timeDelta, duration.value)
+	);
+	screenPlayer.value.currentTime = newTime;
+};
+
+const stopPlayheadDrag = () => {
+	isPlayheadDragging.value = false;
+	window.removeEventListener("mousemove", handlePlayheadDrag);
+	window.removeEventListener("mouseup", stopPlayheadDrag);
+};
+
+// Timeline click handler
+const handleTimelineClick = (e: MouseEvent) => {
+	if (
+		e.button === 0 &&
+		!timelineState.value.isDragging &&
+		!isPlayheadDragging.value
+	) {
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const x = e.clientX - rect.left;
+		const normalizedX = x / rect.width;
+		const newTime = Math.max(
+			0,
+			Math.min(normalizedX * MAX_DURATION, duration.value)
+		);
+
+		if (screenPlayer.value) {
+			screenPlayer.value.currentTime = newTime;
+		}
+	} else {
+		startTimelineDrag(e);
+	}
+};
+
+// Cleanup
+onUnmounted(() => {
+	window.removeEventListener("mousemove", handleTimelineDrag);
+	window.removeEventListener("mouseup", stopTimelineDrag);
+	window.removeEventListener("mousemove", handlePlayheadDrag);
+	window.removeEventListener("mouseup", stopPlayheadDrag);
 });
 
 onMounted(async () => {
