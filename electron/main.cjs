@@ -24,7 +24,7 @@ let tempVideoPath = null;
 let lastCameraPosition = { x: 0, y: 0 };
 let tray = null;
 let isRecording = false;
-
+let cropArea = null;
 // Geçici dosyaları saklamak için bir Map
 const tempFiles = new Map();
 
@@ -713,6 +713,8 @@ ipcMain.on("AREA_SELECTED", (event, area) => {
 		devicePixelRatio: area.devicePixelRatio || 1,
 	};
 
+	cropArea = cropData;
+
 	mainWindow.webContents.send("AREA_SELECTED", cropData);
 });
 
@@ -1009,6 +1011,8 @@ async function createWindow() {
 
 	if (isDev) {
 		mainWindow.loadURL("http://127.0.0.1:3000");
+		// Debug için DevTools'u aç (geliştirme modunda)
+		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));
 	}

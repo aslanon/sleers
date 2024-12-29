@@ -2,7 +2,7 @@
 	<div class="min-h-screen bg-[#1a1b26] text-white">
 		<!-- Üst Bar -->
 		<div
-			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-3xl border-b border-gray-700 z-50"
+			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-3xl border-b border-gray-200 z-50"
 			@mousedown.prevent="startDrag"
 		>
 			<div class="flex items-center justify-between p-4">
@@ -528,13 +528,13 @@ const getMediaPaths = async () => {
 			await cameraPlayer.value.load();
 		}
 
-		// Crop alanını kontrol et
-		if (route.query.cropArea) {
-			cropArea.value = JSON.parse(
-				decodeURIComponent(route.query.cropArea as string)
-			);
-			console.log("Crop alanı yüklendi:", cropArea.value);
-		}
+		// // Crop alanını kontrol et
+		// if (route.query.cropArea) {
+		// 	cropArea.value = JSON.parse(
+		// 		decodeURIComponent(route.query.cropArea as string)
+		// 	);
+		// 	console.log("Crop alanı yüklendi:", cropArea.value);
+		// }
 	} catch (error) {
 		console.error("Dosya yolları alınırken hata:", error);
 		alert(
@@ -655,6 +655,14 @@ onMounted(async () => {
 		if (screenPlayer.value) {
 			screenPlayer.value.addEventListener("timeupdate", onTimeUpdate);
 		}
+
+		window.electron?.ipcRenderer.on(
+			"AREA_SELECTED",
+			(event: any, area: any) => {
+				console.log(123123123123123213);
+				cropArea.value = area;
+			}
+		);
 
 		console.log("Editor sayfası yüklendi:", {
 			screenPlayer: !!screenPlayer.value,

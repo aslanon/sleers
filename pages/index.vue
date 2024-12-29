@@ -188,19 +188,6 @@ const {
 
 const { startRecording: startCursor, stopRecording: stopCursor } = useCursor();
 
-// Alan seçimi için değişkenler
-const selectedArea = ref<{
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-} | null>(null);
-
-// Kamera pozisyonu için değişkenler
-const cameraPosition = ref({ x: 20, y: 20 });
-const isCameraDragging = ref(false);
-const cameraDragOffset = ref({ x: 0, y: 0 });
-
 const electron = window.electron;
 
 const closeWindow = () => {
@@ -236,22 +223,6 @@ onMounted(async () => {
 	// Electron API'si yüklendiyse event listener'ları ekle
 	if (electron) {
 		// Alan seçimi event listener'ı
-		electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
-			console.log("Ham alan seçimi:", area);
-
-			// Ekran ölçeğini hesapla
-			const screenScale = window.devicePixelRatio || 1;
-
-			// Seçilen alanı ekran pozisyonuna göre ayarla
-			selectedArea.value = {
-				x: Math.round(area.x * screenScale),
-				y: Math.round(area.y * screenScale),
-				width: Math.round(area.width * screenScale),
-				height: Math.round(area.height * screenScale),
-			};
-
-			electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
-		});
 
 		// Tray'den kayıt kontrolü için event listener'lar
 		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
@@ -303,27 +274,13 @@ const startRecording = async () => {
 	try {
 		isRecording.value = true;
 		startCursor(); // İmleç yönetimini başlat
-		let streamOptions = {};
-
-		// Seçilen alana göre stream seçeneklerini ayarla
-		if (selectedSource.value === "area" && selectedArea.value) {
-			console.log("1. Seçili alan ile kayıt başlatılıyor:", selectedArea.value);
-			streamOptions = {
-				x: selectedArea.value.x,
-				y: selectedArea.value.y,
-				width: selectedArea.value.width,
-				height: selectedArea.value.height,
-			};
-		}
 
 		// Kayıt başlamadan önce body'e recording sınıfını ekle
 		document.body.classList.add("recording");
 
 		// Kayıt başlat
 		console.log("2. Stream başlatılıyor...");
-		const { screenStream, cameraStream } = await startMediaStream(
-			streamOptions
-		);
+		const { screenStream, cameraStream } = await startMediaStream({});
 		console.log("3. Stream başlatıldı");
 
 		// Her stream için ayrı MediaRecorder oluştur
@@ -402,14 +359,11 @@ const startRecording = async () => {
 					if (audioRecorder) audioRecorder.stop();
 
 					// Tüm kayıtlar bittiğinde editör sayfasına yönlendir
-					await saveRecording(
-						{
-							screen: screenChunks,
-							camera: cameraChunks,
-							audio: audioChunks,
-						},
-						selectedSource.value === "area" ? selectedArea.value : null
-					);
+					await saveRecording({
+						screen: screenChunks,
+						camera: cameraChunks,
+						audio: audioChunks,
+					});
 				},
 			};
 
