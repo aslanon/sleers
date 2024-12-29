@@ -18,86 +18,112 @@ let currentStream: MediaStream | null = null;
 
 const startCamera = async (deviceId?: string) => {
 	try {
-		console.log("Kamera başlatma fonksiyonu çağrıldı:", deviceId);
+		console.log("camera.vue: Kamera başlatma fonksiyonu çağrıldı:", deviceId);
 
 		// Eğer aktif bir stream varsa kapatıyoruz
 		if (currentStream) {
-			console.log("Mevcut stream kapatılıyor");
+			console.log("camera.vue: Mevcut stream kapatılıyor");
 			currentStream.getTracks().forEach((track) => track.stop());
 		}
 
-		// Önce mevcut cihazları listeleyelim
-		const devices = await navigator.mediaDevices.enumerateDevices();
-		const videoDevices = devices.filter(
-			(device) => device.kind === "videoinput"
-		);
-		console.log("Mevcut kamera cihazları:", videoDevices);
-
-		// deviceId'nin geçerli olup olmadığını kontrol edelim
-		const isValidDevice = videoDevices.some(
-			(device) => device.deviceId === deviceId
-		);
-		console.log("Geçerli cihaz mi?", isValidDevice);
-
 		// Yeni stream'i başlatıyoruz
 		const constraints: MediaStreamConstraints = {
-			video:
-				deviceId && isValidDevice
-					? {
-							deviceId: { exact: deviceId },
-							width: { ideal: 1280 },
-							height: { ideal: 1280 },
-							aspectRatio: 1,
-					  }
-					: {
-							width: { ideal: 1280 },
-							height: { ideal: 1280 },
-							aspectRatio: 1,
-					  },
+			video: deviceId
+				? {
+						deviceId: { exact: deviceId },
+						width: { ideal: 1280 },
+						height: { ideal: 1280 },
+						aspectRatio: 1,
+				  }
+				: {
+						width: { ideal: 1280 },
+						height: { ideal: 1280 },
+						aspectRatio: 1,
+				  },
 			audio: false,
 		};
 
-		console.log("Kullanılacak kısıtlamalar:", constraints);
+		console.log("camera.vue: Kullanılacak kısıtlamalar:", constraints);
 		const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-		console.log("Yeni stream başlatıldı");
+		console.log("camera.vue: Yeni stream başlatıldı");
 		currentStream = stream;
+
 		if (videoRef.value) {
+			// Stream'i video elementine bağla
+			videoRef.value.srcObject = null;
 			videoRef.value.srcObject = stream;
-			console.log("Video elementi güncellendi");
+
+			// Stream hazır olduğunda işlem yap
+			return new Promise<void>((resolve) => {
+				if (videoRef.value) {
+					const handleLoadedMetadata = () => {
+						console.log(
+							"camera.vue: Video elementi güncellendi ve stream hazır"
+						);
+						videoRef.value?.removeEventListener(
+							"loadedmetadata",
+							handleLoadedMetadata
+						);
+						resolve();
+					};
+
+					videoRef.value.addEventListener(
+						"loadedmetadata",
+						handleLoadedMetadata
+					);
+
+					// Timeout ekleyelim
+					setTimeout(() => {
+						if (videoRef.value) {
+							videoRef.value.removeEventListener(
+								"loadedmetadata",
+								handleLoadedMetadata
+							);
+							console.log(
+								"camera.vue: Stream yükleme timeout'a uğradı, devam ediliyor"
+							);
+							resolve();
+						}
+					}, 2000); // 2 saniye timeout
+				} else {
+					resolve();
+				}
+			});
 		}
 	} catch (error) {
 		console.error("Kamera başlatılamadı:", error);
 		// Hata durumunda varsayılan kamerayı deneyelim
 		if (deviceId) {
-			console.log("Varsayılan kamera deneniyor...");
-			startCamera(); // deviceId olmadan tekrar dene
+			console.log("camera.vue: Varsayılan kamera deneniyor...");
+			await startCamera(); // deviceId olmadan tekrar dene
 		}
 	}
 };
 
 onMounted(() => {
-	console.log("Kamera penceresi mount edildi");
+	console.log("camera.vue: Kamera penceresi mount edildi");
 	// İlk kamera başlatma
 	startCamera();
 
 	// Kamera değişikliği mesajını dinle
-	const handleCameraUpdate = (deviceId: string) => {
-		console.log("Kamera değişikliği mesajı alındı:", deviceId);
-		startCamera(deviceId);
+	const handleCameraUpdate = async (deviceId: string) => {
+		console.log("camera.vue: Kamera değişikliği mesajı alındı:", deviceId);
+		await startCamera(deviceId);
+		console.log("camera.vue: Kamera değişikliği tamamlandı");
 	};
 
 	// Event listener'ı ekle
 	window.electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
 
 	// Test mesajı gönder
-	console.log("IPC bağlantısı test ediliyor...");
+	console.log("camera.vue: IPC bağlantısı test ediliyor...");
 	window.electron?.ipcRenderer.send("CAMERA_WINDOW_READY");
 });
 
 // Cleanup için fonksiyonu sakla
 onUnmounted(() => {
-	console.log("Kamera penceresi unmount ediliyor");
+	console.log("camera.vue: Kamera penceresi unmount ediliyor");
 	// Stream'i temizle
 	if (currentStream) {
 		currentStream.getTracks().forEach((track) => track.stop());
@@ -105,7 +131,7 @@ onUnmounted(() => {
 
 	// Event listener'ı temizle
 	window.electron?.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
-	console.log("Event listener'lar temizlendi");
+	console.log("camera.vue: Event listener'lar temizlendi");
 });
 </script>
 
