@@ -2,7 +2,7 @@
 	<div class="min-h-screen bg-[#1a1b26]">
 		<!-- Üst Bar - Mevcut header'ı koruyoruz -->
 		<div
-			class="fixed top-0 left-0 right-0 bg-[#1a1b26]/80 backdrop-blur-3xl border-b border-gray-200 z-50"
+			class="fixed top-0 left-0 right-0 px-4 bg-[#1a1b26]/50 backdrop-blur-3xl z-50"
 			@mousedown.prevent="startDrag"
 		>
 			<div class="flex items-center justify-between p-4">
@@ -24,22 +24,49 @@
 							/>
 						</svg>
 					</button>
+					<!-- Yeni Kayıt Butonu -->
+					<button
+						@click="startNewRecording"
+						class="px-4 py-2 bg-[#525252] text-white rounded-lg hover:bg-[#525252]/80 transition-colors flex items-center space-x-2"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-5 w-5"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+						<span>Yeni Kayıt</span>
+					</button>
 				</div>
+				<button
+					@click="exportVideo"
+					class="px-4 py-2 bg-[#2546ff] text-white rounded-lg hover:bg-[#E1A87A]/80 transition-colors flex items-center space-x-2"
+					:disabled="isExporting"
+				>
+					<span v-if="isExporting">Dışa Aktarılıyor...</span>
+					<span v-else>Dışa Aktar</span>
+				</button>
 			</div>
 		</div>
 
 		<!-- Yeni Layout -->
-		<div class="pt-20 bg-neutral-800 p-8">
+		<div class="pt-24 bg-neutral-800">
 			<div class="mx-auto space-y-6">
 				<!-- Video ve Araçlar -->
-				<div class="flex gap-6 mb-6">
+				<div class="flex p-8 gap-6 mb-6">
 					<!-- Video Preview -->
-					<div class="flex-1 bg-neutral-700 rounded-lg p-4 overflow-hidden">
+					<div class="flex-1 rounded-lg p-4 overflow-hidden">
 						<div class="relative aspect-video">
 							<!-- Ekran Kaydı -->
 							<video
 								ref="screenPlayer"
-								class="w-full h-full"
+								class="w-full h-full rounded-e-lg"
 								:style="{
 									objectFit:
 										cropArea?.aspectRatio === 'free' ? 'contain' : 'cover',
@@ -101,28 +128,11 @@
 				</div>
 
 				<!-- Timeline ve Kontroller -->
-				<div>
-					<!-- Butonlar -->
-					<div class="flex gap-4 mb-4">
-						<button
-							class="px-4 py-2 bg-neutral-700 text-white rounded hover:bg-neutral-600 transition-colors"
-						>
-							Alan Seç
-						</button>
-						<button
-							@click="exportVideo"
-							class="px-4 py-2 bg-neutral-700 text-white rounded hover:bg-neutral-600 transition-colors"
-							:disabled="isExporting"
-						>
-							<span v-if="isExporting">Dışa Aktarılıyor...</span>
-							<span v-else>Dışa Aktar</span>
-						</button>
-					</div>
-
+				<div class="p-4">
 					<!-- Timeline -->
 					<div class="w-full relative">
 						<!-- Timeline Container -->
-						<div class="bg-neutral-800/50 rounded-lg p-4">
+						<div class="bg-neutral-800 rounded-lg p-4">
 							<!-- Time Scale -->
 							<div class="flex text-xs text-neutral-400 mb-2 relative">
 								<div class="absolute inset-x-0 flex">
@@ -152,9 +162,6 @@
 
 							<!-- Timeline Track -->
 							<div class="relative h-20">
-								<!-- Background Track -->
-								<div class="absolute inset-0 bg-neutral-700/30 rounded"></div>
-
 								<!-- Video Section -->
 								<div
 									class="absolute inset-y-0 left-0 w-[500px] group"
@@ -497,6 +504,9 @@ const closeWindow = () => {
 };
 
 const startNewRecording = async () => {
+	// Kayıt için temizlik yap
+	window.electron?.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
+	// Ana sayfaya yönlendir
 	await router.push("/");
 };
 
