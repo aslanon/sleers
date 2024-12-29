@@ -156,11 +156,14 @@
 	</div>
 
 	<!-- Başlık çubuğu -->
+	<CustomCursor v-if="isRecording" />
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
+import CustomCursor from "~/components/CustomCursor.vue";
+import { useCursor } from "~/composables/useCursor";
 
 const preview = ref<HTMLVideoElement | null>(null);
 const cameraPreview = ref<HTMLVideoElement | null>(null);
@@ -183,6 +186,8 @@ const {
 	stopRecording: stopMediaStream,
 	saveRecording,
 } = useMediaDevices();
+
+const { startRecording: startCursor, stopRecording: stopCursor } = useCursor();
 
 // Pencere sürükleme için değişkenler
 const isDragging = ref(false);
@@ -326,6 +331,8 @@ onUnmounted(() => {
 
 const startRecording = async () => {
 	try {
+		isRecording.value = true;
+		startCursor(); // İmleç yönetimini başlat
 		let streamOptions = {};
 
 		// Seçilen alana göre stream seçeneklerini ayarla
@@ -443,10 +450,15 @@ const startRecording = async () => {
 		console.error("Kayıt başlatılırken hata:", error);
 		// Hata durumunda recording sınıfını kaldır
 		document.body.classList.remove("recording");
+		isRecording.value = false;
+		stopCursor(); // Hata durumunda imleci durdur
 	}
 };
 
 const stopRecording = async () => {
+	isRecording.value = false;
+	stopCursor(); // İmleç yönetimini durdur
+
 	try {
 		console.log("1. Kayıt durdurma başlatıldı");
 		if (mediaRecorder) {
@@ -461,6 +473,9 @@ const stopRecording = async () => {
 	} catch (error) {
 		console.error("Kayıt durdurulurken hata:", error);
 	}
+
+	// Temizlik işlemleri
+	document.body.classList.remove("recording");
 };
 
 // Pencere sürükleme işleyicileri

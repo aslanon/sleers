@@ -119,14 +119,14 @@
 					></video>
 
 					<!-- Kamera Kaydı (PiP) -->
-					<video
+					<!-- <video
 						v-if="cameraPath"
 						ref="cameraPlayer"
-						class="absolute right-4 bottom-4 w-48 h-48 object-cover rounded-full shadow-lg"
+						class="absolute hidden right-4 bottom-4 w-48 h-48 object-cover rounded-full shadow-lg"
 						preload="auto"
 						@loadedmetadata="onCameraLoaded"
 						@error="(e) => console.error('Kamera kaydı yüklenirken hata:', e)"
-					></video>
+					></video> -->
 				</div>
 
 				<!-- Timeline Alanı -->
@@ -268,12 +268,17 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Mevcut içerik -->
+		<CustomCursor v-if="isRecording" />
 	</div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import CustomCursor from "~/components/CustomCursor.vue";
+import { useCursor } from "~/composables/useCursor";
 
 const router = useRouter();
 const route = useRoute();
@@ -297,6 +302,8 @@ const duration = ref(0);
 
 // Sürükleme durumu için ref'ler
 const isDragging = ref(false);
+
+const { settings, cursorState, startRecording, stopRecording } = useCursor();
 
 // Sürükleme işleyicileri
 const startDrag = (e: MouseEvent) => {
@@ -597,6 +604,17 @@ const exportVideo = async () => {
 	}
 };
 
+const isRecording = ref(false);
+
+// Kayıt durumunu izle
+watch(isRecording, (newValue) => {
+	if (newValue) {
+		startRecording();
+	} else {
+		stopRecording();
+	}
+});
+
 onMounted(async () => {
 	try {
 		// Route'un hazır olmasını bekle
@@ -656,3 +674,14 @@ watch(isPlaying, (newValue) => {
 	}
 });
 </script>
+
+<style>
+.camera-preview {
+	pointer-events: none;
+}
+
+/* Kamera önizlemesini gizle */
+video[ref="cameraPlayer"] {
+	display: none !important;
+}
+</style>

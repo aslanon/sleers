@@ -775,45 +775,66 @@ ipcMain.handle(
 	) => {
 		return new Promise((resolve, reject) => {
 			try {
-				// Dosya varlığını kontrol et
-				if (!fs.existsSync(screenPath)) {
-					throw new Error(`Ekran kaydı dosyası bulunamadı: ${screenPath}`);
+				console.log(
+					"Video birleştirme başlıyor. Detaylı kontroller yapılıyor..."
+				);
+
+				// Giriş dosyalarının detaylı kontrolü
+				const checkInputFile = (path, type) => {
+					if (!path) {
+						console.log(`${type} dosyası belirtilmemiş, atlanıyor`);
+						return false;
+					}
+					if (!fs.existsSync(path)) {
+						throw new Error(`${type} dosyası bulunamadı: ${path}`);
+					}
+					const stats = fs.statSync(path);
+					if (stats.size === 0) {
+						throw new Error(`${type} dosyası boş: ${path} (0 bytes)`);
+					}
+					console.log(`${type} dosyası kontrolü başarılı:`, {
+						path,
+						size: stats.size,
+						permissions: stats.mode,
+						modified: stats.mtime,
+					});
+					return true;
+				};
+
+				// Ekran kaydını kontrol et
+				if (!checkInputFile(screenPath, "Ekran kaydı")) {
+					throw new Error("Ekran kaydı dosyası gerekli");
 				}
 
-				// Dosya boyutunu kontrol et
-				const stats = fs.statSync(screenPath);
-				if (stats.size === 0) {
-					throw new Error("Ekran kaydı dosyası boş");
-				}
-
-				if (cameraPath && !fs.existsSync(cameraPath)) {
-					throw new Error(`Kamera kaydı dosyası bulunamadı: ${cameraPath}`);
-				}
-				if (audioPath && !fs.existsSync(audioPath)) {
-					throw new Error(`Ses kaydı dosyası bulunamadı: ${audioPath}`);
-				}
-
-				console.log("Video birleştirme başlıyor:", {
-					screenPath,
-					cameraPath,
-					audioPath,
-					outputPath,
-					cropArea,
-				});
+				// Kamera ve ses kayıtlarını kontrol et
+				const hasCamera = checkInputFile(cameraPath, "Kamera kaydı");
+				const hasAudio = checkInputFile(audioPath, "Ses kaydı");
 
 				// FFmpeg komutu oluştur
 				let command = ffmpeg();
 
+				// Debug modunu aktifleştir
+				command.on("start", (commandLine) => {
+					console.log("FFmpeg Komutu:", commandLine);
+				});
+
+				command.on("stderr", (stderrLine) => {
+					console.log("FFmpeg stderr:", stderrLine);
+				});
+
 				// Ekran kaydını ekle
+				console.log("Ekran kaydı ekleniyor:", screenPath);
 				command = command.input(screenPath);
 
-				// Kamera kaydını ekle (varsa)
-				if (cameraPath) {
+				// Kamera kaydını ekle
+				if (hasCamera) {
+					console.log("Kamera kaydı ekleniyor:", cameraPath);
 					command = command.input(cameraPath);
 				}
 
-				// Ses kaydını ekle (varsa)
-				if (audioPath) {
+				// Ses kaydını ekle
+				if (hasAudio) {
+					console.log("Ses kaydı ekleniyor:", audioPath);
 					command = command.input(audioPath);
 				}
 
@@ -821,18 +842,18 @@ ipcMain.handle(
 				let filterComplex = [];
 				let outputs = [];
 
-				// Ekran kaydı her zaman var
+				// Ekran kaydı filtresi
 				if (cropArea) {
-					filterComplex.push(
-						`[0:v]crop=${cropArea.width}:${cropArea.height}:${cropArea.x}:${cropArea.y}[main]`
-					);
+					const filter = `[0:v]crop=${cropArea.width}:${cropArea.height}:${cropArea.x}:${cropArea.y}[main]`;
+					console.log("Ekran kırpma filtresi:", filter);
+					filterComplex.push(filter);
 				} else {
-					filterComplex.push(`[0:v]null[main]`);
+					filterComplex.push(`[0:v]copy[main]`);
 				}
 
-				// Kamera varsa PiP (Picture in Picture) olarak ekle
-				if (cameraPath) {
-					filterComplex.push(`[1:v]scale=320:-1[cam]`);
+				// Kamera filtresi
+				if (hasCamera) {
+					filterComplex.push(`[1:v]scale=240:-1[cam]`);
 					filterComplex.push(
 						`[main][cam]overlay=main_w-overlay_w-10:main_h-overlay_h-10[v]`
 					);
@@ -841,71 +862,66 @@ ipcMain.handle(
 					outputs.push(`[main]`);
 				}
 
-				// Ses kanallarını birleştir
-				if (audioPath) {
-					// Hem ekran hem mikrofon sesi varsa mixle
+				// Ses filtresi
+				if (hasAudio) {
 					if (screenPath.includes("audio")) {
-						filterComplex.push(`[0:a][2:a]amix=inputs=2[a]`);
+						filterComplex.push(`[0:a][2:a]amix=inputs=2:duration=first[a]`);
 					} else {
 						filterComplex.push(`[2:a]aformat=sample_fmts=fltp[a]`);
 					}
 					outputs.push(`[a]`);
-				} else if (screenPath.includes("audio")) {
-					outputs.push(`[0:a]`);
 				}
 
-				// Filtre kompleksini komuta ekle
+				console.log("Filtre kompleksi:", filterComplex);
+				console.log("Çıkış noktaları:", outputs);
+
+				// Filtre kompleksini uygula
 				if (filterComplex.length > 0) {
 					command = command.complexFilter(filterComplex, outputs);
 				}
 
-				// Çıktı ayarlarını ekle
+				// Çıktı ayarlarını belirle
 				command
 					.outputOptions([
-						"-c:v libvpx-vp9",
-						"-c:a libopus",
-						"-b:v 50M",
-						"-crf 0",
-						"-deadline best",
-						"-cpu-used 0",
-						"-auto-alt-ref 1",
-						"-lag-in-frames 25",
-						"-quality best",
-						"-speed 0",
+						"-c:v libx264", // Video codec
+						"-preset veryfast", // Encoding hızı
+						"-crf 23", // Kalite seviyesi
+						"-movflags +faststart", // Hızlı başlatma
+						"-max_muxing_queue_size 1024", // Muxing queue boyutunu artır
 					])
-					.toFormat("webm");
+					.toFormat("mp4");
 
-				// Progress durumunu logla
+				// İlerleme durumunu izle
 				command.on("progress", (progress) => {
-					console.log("Birleştirme durumu:", {
-						frames: progress.frames,
-						fps: progress.currentFps,
-						percent: progress.percent,
-						time: progress.timemark,
-					});
-					if (mainWindow) {
-						mainWindow.webContents.send("MERGE_PROGRESS", progress);
-					}
+					console.log("İşlem durumu:", progress);
+					event.sender.send("MERGE_STATUS", progress);
 				});
 
 				// Çıktıyı kaydet
 				command
-					.save(outputPath)
-					.on("start", (commandLine) => {
-						console.log("FFmpeg komutu:", commandLine);
-					})
 					.on("end", () => {
-						console.log("Video birleştirme tamamlandı");
-						// Export tamamlandıktan sonra geçici dosyaları temizle
-						cleanupTempFiles();
+						console.log("Video birleştirme tamamlandı:", outputPath);
+						// Çıktı dosyasını kontrol et
+						if (!fs.existsSync(outputPath)) {
+							reject(new Error("Çıktı dosyası oluşturulamadı"));
+							return;
+						}
+						const stats = fs.statSync(outputPath);
+						if (stats.size === 0) {
+							reject(new Error("Çıktı dosyası boş"));
+							return;
+						}
 						resolve(outputPath);
 					})
 					.on("error", (err, stdout, stderr) => {
-						console.error("FFmpeg hatası:", err);
+						console.error("FFmpeg hatası:", err.message);
 						console.error("FFmpeg stdout:", stdout);
 						console.error("FFmpeg stderr:", stderr);
-						reject(new Error(`FFmpeg hatası: ${err.message}`));
-					});
+						reject(
+							new Error(`FFmpeg hatası: ${err.message}\nstderr: ${stderr}`)
+						);
+					})
+					.save(outputPath);
 			} catch (error) {
 				console.error("Video birleştirme hatası:", error);
 				reject(error);

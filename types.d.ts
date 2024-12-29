@@ -30,3 +30,27 @@ declare module "#app" {
 		query?: Record<string, string | undefined>;
 	}
 }
+
+export interface CursorSettings {
+	smoothing: boolean;
+	size: number;
+	autoHide: boolean;
+	loopPosition: boolean;
+	highQuality: boolean;
+	hideDelay: number;
+	smoothingFactor: number;
+}
+
+export interface CursorPosition {
+	x: number;
+	y: number;
+	timestamp: number;
+}
+
+export interface CursorState {
+	isVisible: boolean;
+	lastPosition: CursorPosition;
+	currentPosition: CursorPosition;
+	isMoving: boolean;
+	lastMoveTime: number;
+}
