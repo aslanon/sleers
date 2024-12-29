@@ -703,6 +703,7 @@ ipcMain.on("START_AREA_SELECTION", () => {
 				y: Math.round(area.y),
 				width: Math.round(area.width),
 				height: Math.round(area.height),
+				aspectRatio: area.aspectRatio || "free",
 			});
 		}
 		// Seçim penceresini kapat
@@ -729,8 +730,20 @@ ipcMain.on("START_AREA_SELECTION", () => {
 
 // IPC handler for area selection complete
 ipcMain.on("AREA_SELECTED", (event, area) => {
+	console.log("Seçilen alan:", {
+		...area,
+		aspectRatio: area.aspectRatio || "free",
+	});
+
 	if (mainWindow) {
-		mainWindow.webContents.send("AREA_SELECTED", area);
+		mainWindow.webContents.send("AREA_SELECTED", {
+			...area,
+			x: Math.round(area.x),
+			y: Math.round(area.y),
+			width: Math.round(area.width),
+			height: Math.round(area.height),
+			aspectRatio: area.aspectRatio || "free",
+		});
 	}
 	if (selectionWindow) {
 		selectionWindow.close();

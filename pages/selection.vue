@@ -1,5 +1,17 @@
 <template>
 	<div class="selection-container">
+		<!-- Aspect Ratio Seçici -->
+		<div class="aspect-ratio-selector">
+			<select v-model="selectedRatio" class="ratio-select">
+				<option value="free">Serbest</option>
+				<option value="1:1">1:1 Kare</option>
+				<option value="4:3">4:3 Yatay</option>
+				<option value="16:9">16:9 Yatay</option>
+				<option value="9:16">9:16 Dikey</option>
+				<option value="3:4">3:4 Dikey</option>
+			</select>
+		</div>
+
 		<div
 			class="selection-area"
 			@mousedown.prevent="startSelection"
@@ -62,29 +74,59 @@ const isResizing = ref(false);
 const resizeHandle = ref("");
 const initialBoxSize = ref({ width: 0, height: 0 });
 const hasSelection = ref(false);
+const selectedRatio = ref("free");
 
-// Minimum boyut kontrolü
-const isValidSize = computed(() => {
-	const width = Math.abs(currentPos.value.x - startPos.value.x);
-	const height = Math.abs(currentPos.value.y - startPos.value.y);
-	return width >= 100 && height >= 100;
-});
+// Aspect ratio hesaplayıcı
+const getAspectRatio = (ratio: string) => {
+	switch (ratio) {
+		case "1:1":
+			return 1;
+		case "4:3":
+			return 4 / 3;
+		case "16:9":
+			return 16 / 9;
+		case "9:16":
+			return 9 / 16;
+		case "3:4":
+			return 3 / 4;
+		default:
+			return null;
+	}
+};
 
-const startSelection = (e: MouseEvent) => {
-	if (isResizing.value) return;
+// Seçim alanını aspect ratio'ya göre güncelle
+const updateSelectionWithRatio = (e: MouseEvent) => {
+	const ratio = getAspectRatio(selectedRatio.value);
+	if (!ratio) {
+		currentPos.value = { x: e.clientX, y: e.clientY };
+		return;
+	}
 
-	hasSelection.value = false;
-	isSelecting.value = true;
-	startPos.value = { x: e.clientX, y: e.clientY };
-	currentPos.value = { x: e.clientX, y: e.clientY };
+	const width = Math.abs(e.clientX - startPos.value.x);
+	const height = width / ratio;
 
-	window.addEventListener("mousemove", onGlobalMouseMove);
-	window.addEventListener("mouseup", onGlobalMouseUp);
+	// Mouse'un yönüne göre pozisyonu ayarla
+	if (e.clientX < startPos.value.x) {
+		currentPos.value.x = startPos.value.x - width;
+	} else {
+		currentPos.value.x = startPos.value.x + width;
+	}
+
+	if (e.clientY < startPos.value.y) {
+		currentPos.value.y = startPos.value.y - height;
+	} else {
+		currentPos.value.y = startPos.value.y + height;
+	}
 };
 
 const updateSelection = (e: MouseEvent) => {
 	if (!isSelecting.value || hasSelection.value) return;
-	currentPos.value = { x: e.clientX, y: e.clientY };
+
+	if (selectedRatio.value === "free") {
+		currentPos.value = { x: e.clientX, y: e.clientY };
+	} else {
+		updateSelectionWithRatio(e);
+	}
 };
 
 const confirmSelection = () => {
@@ -105,6 +147,7 @@ const confirmSelection = () => {
 			height: window.innerHeight,
 		},
 		devicePixelRatio: window.devicePixelRatio || 1,
+		aspectRatio: selectedRatio.value,
 	};
 
 	window.electron?.ipcRenderer.send("AREA_SELECTED", area);
@@ -180,6 +223,25 @@ const onGlobalMouseUp = () => {
 	window.removeEventListener("mouseup", onGlobalMouseUp);
 };
 
+// Minimum boyut kontrolü
+const isValidSize = computed(() => {
+	const width = Math.abs(currentPos.value.x - startPos.value.x);
+	const height = Math.abs(currentPos.value.y - startPos.value.y);
+	return width >= 100 && height >= 100;
+});
+
+const startSelection = (e: MouseEvent) => {
+	if (isResizing.value) return;
+
+	hasSelection.value = false;
+	isSelecting.value = true;
+	startPos.value = { x: e.clientX, y: e.clientY };
+	currentPos.value = { x: e.clientX, y: e.clientY };
+
+	window.addEventListener("mousemove", onGlobalMouseMove);
+	window.addEventListener("mouseup", onGlobalMouseUp);
+};
+
 onMounted(() => {
 	window.addEventListener("keydown", (e) => {
 		if (e.key === "Escape") {
@@ -200,6 +262,28 @@ onUnmounted(() => {
 	inset: 0;
 	background: rgba(0, 0, 0, 0.5);
 	cursor: crosshair;
+}
+
+.aspect-ratio-selector {
+	position: fixed;
+	top: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 1000;
+}
+
+.ratio-select {
+	background: #2563eb;
+	color: white;
+	padding: 8px 16px;
+	border: none;
+	border-radius: 6px;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.ratio-select:hover {
+	background: #1d4ed8;
 }
 
 .selection-area {

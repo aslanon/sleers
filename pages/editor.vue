@@ -113,6 +113,17 @@
 					<video
 						ref="screenPlayer"
 						class="w-full h-full"
+						:class="{
+							'object-contain':
+								!cropArea?.aspectRatio || cropArea.aspectRatio === 'free',
+							[`aspect-${cropArea?.aspectRatio?.replace(':', '-')}`]:
+								cropArea?.aspectRatio && cropArea.aspectRatio !== 'free',
+						}"
+						:style="{
+							clipPath: cropArea
+								? `inset(${cropArea.y}px ${cropArea.x}px ${cropArea.height}px ${cropArea.width}px)`
+								: 'none',
+						}"
 						preload="auto"
 						@loadedmetadata="onScreenLoaded"
 						@error="(e) => console.error('Ekran kaydı yüklenirken hata:', e)"
@@ -349,14 +360,15 @@ const onScreenLoaded = () => {
 		// Crop alanı varsa uygula
 		if (cropArea.value) {
 			const video = screenPlayer.value;
-			const { x, y, width, height, display, devicePixelRatio } = cropArea.value;
+			const { x, y, width, height, display, devicePixelRatio, aspectRatio } =
+				cropArea.value;
 
 			// Oranları hesapla
 			const scaleX = video.videoWidth / display.width;
 			const scaleY = video.videoHeight / display.height;
 
 			// Video elementinin stilini güncelle
-			video.style.objectFit = "cover";
+			video.style.objectFit = aspectRatio === "free" ? "contain" : "cover";
 			video.style.clipPath = `inset(${y * scaleY}px ${
 				(display.width - (x + width)) * scaleX
 			}px ${(display.height - (y + height)) * scaleY}px ${x * scaleX}px)`;
