@@ -260,7 +260,7 @@ function startMouseTracking() {
 			let y = mousePos.y + 50;
 
 			// Ekranın kenarlarına yaklaşıldığında kamera konumunu ayarla
-			const EDGE_THRESHOLD = 200;
+			const EDGE_THRESHOLD = 400;
 
 			if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
 				x = mousePos.x - width - 50;
