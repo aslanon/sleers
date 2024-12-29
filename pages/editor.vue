@@ -103,6 +103,101 @@
 								"
 							></video>
 						</div>
+
+						<div class="flex items-center justify-between mt-4">
+							<div class="flex items-center space-x-2">
+								<!-- Play/Pause Button -->
+								<button
+									@click="togglePlay"
+									class="p-2 rounded-full hover:bg-neutral-700/50 transition-colors"
+								>
+									<svg
+										v-if="isPlaying"
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5 text-white"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+									>
+										<path
+											fill-rule="evenodd"
+											d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
+											clip-rule="evenodd"
+										/>
+									</svg>
+									<svg
+										v-else
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-5 w-5 text-white"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+									>
+										<path
+											fill-rule="evenodd"
+											d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+											clip-rule="evenodd"
+										/>
+									</svg>
+								</button>
+
+								<!-- Time Display -->
+								<div class="text-sm text-white font-medium">
+									<span>{{ formatTime(currentTime) }}</span>
+									<span class="text-neutral-400 mx-1">/</span>
+									<span class="text-neutral-400">{{
+										formatTime(duration)
+									}}</span>
+								</div>
+							</div>
+
+							<!-- Zoom Controls -->
+							<div
+								class="flex items-center space-x-1 bg-neutral-700/30 rounded-full p-1"
+							>
+								<button
+									@click="zoomOut"
+									class="p-1 rounded-full hover:bg-neutral-600/50 transition-colors"
+									:class="{
+										'opacity-50 cursor-not-allowed': timelineState.zoom <= 0.5,
+									}"
+									:disabled="timelineState.zoom <= 0.5"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4 text-white"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+									>
+										<path
+											fill-rule="evenodd"
+											d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+											clip-rule="evenodd"
+										/>
+									</svg>
+								</button>
+								<div class="w-px h-4 bg-neutral-600"></div>
+								<button
+									@click="zoomIn"
+									class="p-1 rounded-full hover:bg-neutral-600/50 transition-colors"
+									:class="{
+										'opacity-50 cursor-not-allowed': timelineState.zoom >= 4,
+									}"
+									:disabled="timelineState.zoom >= 4"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="h-4 w-4 text-white"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+									>
+										<path
+											fill-rule="evenodd"
+											d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+											clip-rule="evenodd"
+										/>
+									</svg>
+								</button>
+							</div>
+						</div>
 					</div>
 
 					<!-- Araçlar -->
@@ -128,11 +223,11 @@
 				</div>
 
 				<!-- Timeline ve Kontroller -->
-				<div class="p-4">
+				<div class="p-4 bg-neutral-900 overflow-scroll h-[500px]">
 					<!-- Timeline -->
 					<div class="w-full relative">
 						<!-- Timeline Container -->
-						<div class="bg-neutral-800 rounded-lg p-4">
+						<div class="rounded-lg p-4">
 							<!-- Time Scale -->
 							<div class="flex text-xs text-neutral-400 mb-2 relative">
 								<div class="absolute inset-x-0 flex">
@@ -171,7 +266,7 @@
 								>
 									<!-- Video Bar -->
 									<div
-										class="h-full bg-gradient-to-r from-[#E1A87A] to-[#E1A87A]/80 rounded-md shadow-lg relative overflow-hidden"
+										class="h-full bg-gradient-to-r from-[#E1A87A] to-[#E1A87A]/80 rounded-2xl shadow-lg relative overflow-hidden"
 									>
 										<!-- Progress Overlay -->
 										<div
@@ -198,7 +293,7 @@
 
 									<!-- Hover Effect -->
 									<div
-										class="absolute inset-0 ring-2 ring-white/0 group-hover:ring-white/20 rounded-md transition-all"
+										class="absolute inset-0 ring-4 ring-white/0 group-hover:ring-white/20 rounded-2xl transition-all"
 									></div>
 								</div>
 
@@ -238,103 +333,6 @@
 									>
 										{{ formatTime(currentTime) }}
 									</div>
-								</div>
-							</div>
-
-							<!-- Timeline Controls -->
-							<div class="flex items-center justify-between mt-4">
-								<div class="flex items-center space-x-2">
-									<!-- Play/Pause Button -->
-									<button
-										@click="togglePlay"
-										class="p-2 rounded-full hover:bg-neutral-700/50 transition-colors"
-									>
-										<svg
-											v-if="isPlaying"
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-5 w-5 text-white"
-											viewBox="0 0 20 20"
-											fill="currentColor"
-										>
-											<path
-												fill-rule="evenodd"
-												d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
-												clip-rule="evenodd"
-											/>
-										</svg>
-										<svg
-											v-else
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-5 w-5 text-white"
-											viewBox="0 0 20 20"
-											fill="currentColor"
-										>
-											<path
-												fill-rule="evenodd"
-												d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-												clip-rule="evenodd"
-											/>
-										</svg>
-									</button>
-
-									<!-- Time Display -->
-									<div class="text-sm text-white font-medium">
-										<span>{{ formatTime(currentTime) }}</span>
-										<span class="text-neutral-400 mx-1">/</span>
-										<span class="text-neutral-400">{{
-											formatTime(duration)
-										}}</span>
-									</div>
-								</div>
-
-								<!-- Zoom Controls -->
-								<div
-									class="flex items-center space-x-1 bg-neutral-700/30 rounded-full p-1"
-								>
-									<button
-										@click="zoomOut"
-										class="p-1 rounded-full hover:bg-neutral-600/50 transition-colors"
-										:class="{
-											'opacity-50 cursor-not-allowed':
-												timelineState.zoom <= 0.5,
-										}"
-										:disabled="timelineState.zoom <= 0.5"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4 text-white"
-											viewBox="0 0 20 20"
-											fill="currentColor"
-										>
-											<path
-												fill-rule="evenodd"
-												d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
-												clip-rule="evenodd"
-											/>
-										</svg>
-									</button>
-									<div class="w-px h-4 bg-neutral-600"></div>
-									<button
-										@click="zoomIn"
-										class="p-1 rounded-full hover:bg-neutral-600/50 transition-colors"
-										:class="{
-											'opacity-50 cursor-not-allowed': timelineState.zoom >= 4,
-										}"
-										:disabled="timelineState.zoom >= 4"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="h-4 w-4 text-white"
-											viewBox="0 0 20 20"
-											fill="currentColor"
-										>
-											<path
-												fill-rule="evenodd"
-												d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-												clip-rule="evenodd"
-											/>
-										</svg>
-									</button>
 								</div>
 							</div>
 						</div>
