@@ -124,7 +124,7 @@
 						<!-- Zaman İşaretleri -->
 						<div class="flex justify-between text-white text-sm mb-2">
 							<template v-for="i in 10" :key="i">
-								<span>{{ (i - 1) * 60 }}</span>
+								<span>{{ formatTime((i - 1) * 60) }}</span>
 							</template>
 						</div>
 
@@ -132,34 +132,39 @@
 						<div class="w-full h-1 bg-blue-500 mb-4"></div>
 
 						<!-- Video Timeline -->
-						<div
-							class="h-16 rounded bg-[#E1A87A] relative"
-							:style="{
-								width: `${(duration / MAX_DURATION) * 100}%`,
-								transform: `translateX(${timelineState.scroll}px)`,
-							}"
-						>
-							<div class="absolute -top-6 text-white text-sm">
-								ekran videosunun timeline barı
-							</div>
-							<!-- Progress Indicator -->
-							<div
-								class="absolute inset-y-0 left-0 bg-[#E1A87A]/60"
-								:style="{ width: `${(currentTime / duration) * 100}%` }"
-							></div>
-						</div>
+						<div class="relative">
+							<!-- Sabit Timeline Bar -->
+							<div class="w-full h-16 bg-neutral-600/50 rounded"></div>
 
-						<!-- Playhead -->
-						<div
-							class="absolute top-0 bottom-0 w-0.5 bg-red-500"
-							:style="{
-								left: `${(currentTime / MAX_DURATION) * 100}%`,
-							}"
-							@mousedown.stop="startPlayheadDrag"
-						>
+							<!-- Video Bar -->
 							<div
-								class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full cursor-ew-resize hover:scale-110 transition-transform"
-							></div>
+								class="absolute top-0 left-0 w-[500px] h-16 rounded bg-[#E1A87A] transition-transform"
+								:style="{
+									transform: `translateX(${timelineState.scroll}px)`,
+								}"
+							>
+								<div class="absolute -top-6 text-white text-sm">
+									ekran videosunun timeline barı
+								</div>
+								<!-- Progress Indicator -->
+								<div
+									class="absolute inset-y-0 left-0 bg-[#E1A87A]/60"
+									:style="{ width: `${(currentTime / duration) * 100}%` }"
+								></div>
+							</div>
+
+							<!-- Playhead -->
+							<div
+								class="absolute top-0 bottom-0 w-0.5 bg-red-500"
+								:style="{
+									left: `${(currentTime / duration) * 500}px`,
+								}"
+								@mousedown.stop="startPlayheadDrag"
+							>
+								<div
+									class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full cursor-ew-resize hover:scale-110 transition-transform"
+								></div>
+							</div>
 						</div>
 					</div>
 				</div>
