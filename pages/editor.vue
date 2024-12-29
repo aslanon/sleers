@@ -120,50 +120,215 @@
 					</div>
 
 					<!-- Timeline -->
-					<div class="w-full h-32 relative">
-						<!-- Zaman İşaretleri -->
-						<div class="flex justify-between text-white text-sm mb-2">
-							<template v-for="i in 10" :key="i">
-								<span>{{ formatTime((i - 1) * 60) }}</span>
-							</template>
-						</div>
-
-						<!-- Progress Bar -->
-						<div class="w-full h-1 bg-blue-500 mb-4"></div>
-
-						<!-- Video Timeline -->
-						<div class="relative">
-							<!-- Sabit Timeline Bar -->
-							<div class="w-full h-16 bg-neutral-600/50 rounded"></div>
-
-							<!-- Video Bar -->
-							<div
-								class="absolute top-0 left-0 w-[500px] h-16 rounded bg-[#E1A87A] transition-transform"
-								:style="{
-									transform: `translateX(${timelineState.scroll}px)`,
-								}"
-							>
-								<div class="absolute -top-6 text-white text-sm">
-									ekran videosunun timeline barı
+					<div class="w-full relative">
+						<!-- Timeline Container -->
+						<div class="bg-neutral-800/50 rounded-lg p-4">
+							<!-- Time Scale -->
+							<div class="flex text-xs text-neutral-400 mb-2 relative">
+								<div class="absolute inset-x-0 flex">
+									<template v-for="i in 600" :key="i">
+										<div
+											class="flex-shrink-0 relative"
+											:style="{ width: '60px' }"
+										>
+											<div
+												v-if="i % 10 === 0"
+												class="absolute left-0 -bottom-1 w-px h-2 bg-neutral-600"
+											></div>
+											<div
+												v-else
+												class="absolute left-0 -bottom-1 w-px h-1 bg-neutral-600/50"
+											></div>
+											<span
+												v-if="i % 10 === 0"
+												class="absolute left-0 -top-5 transform -translate-x-1/2"
+											>
+												{{ formatTime(i) }}
+											</span>
+										</div>
+									</template>
 								</div>
-								<!-- Progress Indicator -->
-								<div
-									class="absolute inset-y-0 left-0 bg-[#E1A87A]/60"
-									:style="{ width: `${(currentTime / duration) * 100}%` }"
-								></div>
 							</div>
 
-							<!-- Playhead -->
-							<div
-								class="absolute top-0 bottom-0 w-0.5 bg-red-500"
-								:style="{
-									left: `${(currentTime / duration) * 500}px`,
-								}"
-								@mousedown.stop="startPlayheadDrag"
-							>
+							<!-- Timeline Track -->
+							<div class="relative h-20">
+								<!-- Background Track -->
+								<div class="absolute inset-0 bg-neutral-700/30 rounded"></div>
+
+								<!-- Video Section -->
 								<div
-									class="absolute -top-1 -translate-x-1/2 w-3 h-3 bg-red-500 rounded-full cursor-ew-resize hover:scale-110 transition-transform"
-								></div>
+									class="absolute inset-y-0 left-0 w-[500px] group"
+									:style="{
+										transform: `translateX(${timelineState.scroll}px)`,
+									}"
+								>
+									<!-- Video Bar -->
+									<div
+										class="h-full bg-gradient-to-r from-[#E1A87A] to-[#E1A87A]/80 rounded-md shadow-lg relative overflow-hidden"
+									>
+										<!-- Progress Overlay -->
+										<div
+											class="absolute inset-y-0 left-0 bg-gradient-to-r from-[#E1A87A] to-[#E1A87A] transition-all"
+											:style="{ width: `${(currentTime / duration) * 100}%` }"
+										>
+											<div class="absolute inset-0 bg-white/10"></div>
+										</div>
+
+										<!-- Video Info -->
+										<div
+											class="absolute inset-x-0 top-0 p-2 text-xs text-white/90 font-medium bg-gradient-to-b from-black/20 to-transparent"
+										>
+											Video Timeline
+										</div>
+
+										<!-- Duration Label -->
+										<div
+											class="absolute right-2 bottom-2 px-2 py-1 text-xs text-white/90 bg-black/30 rounded"
+										>
+											{{ formatTime(duration) }}
+										</div>
+									</div>
+
+									<!-- Hover Effect -->
+									<div
+										class="absolute inset-0 ring-2 ring-white/0 group-hover:ring-white/20 rounded-md transition-all"
+									></div>
+								</div>
+
+								<!-- Playhead -->
+								<div
+									class="absolute top-0 bottom-0 z-10"
+									:style="{
+										left: `${(currentTime / duration) * 500}px`,
+									}"
+									@mousedown.stop="startPlayheadDrag"
+								>
+									<!-- Playhead Line -->
+									<div
+										class="absolute inset-y-0 left-1/2 w-px bg-red-500 transform -translate-x-1/2"
+									>
+										<div
+											class="absolute inset-0 animate-pulse bg-red-500/50 w-0.5"
+										></div>
+									</div>
+
+									<!-- Playhead Handle -->
+									<div
+										class="absolute -top-1 left-1/2 transform -translate-x-1/2 w-3 h-3"
+									>
+										<div
+											class="absolute inset-0 bg-red-500 rounded-full cursor-ew-resize hover:scale-110 transition-transform shadow-lg"
+										>
+											<div
+												class="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-50"
+											></div>
+										</div>
+									</div>
+
+									<!-- Time Label -->
+									<div
+										class="absolute -top-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-neutral-900/90 rounded text-xs text-white whitespace-nowrap"
+									>
+										{{ formatTime(currentTime) }}
+									</div>
+								</div>
+							</div>
+
+							<!-- Timeline Controls -->
+							<div class="flex items-center justify-between mt-4">
+								<div class="flex items-center space-x-2">
+									<!-- Play/Pause Button -->
+									<button
+										@click="togglePlay"
+										class="p-2 rounded-full hover:bg-neutral-700/50 transition-colors"
+									>
+										<svg
+											v-if="isPlaying"
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-5 w-5 text-white"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+										>
+											<path
+												fill-rule="evenodd"
+												d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
+												clip-rule="evenodd"
+											/>
+										</svg>
+										<svg
+											v-else
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-5 w-5 text-white"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+										>
+											<path
+												fill-rule="evenodd"
+												d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+												clip-rule="evenodd"
+											/>
+										</svg>
+									</button>
+
+									<!-- Time Display -->
+									<div class="text-sm text-white font-medium">
+										<span>{{ formatTime(currentTime) }}</span>
+										<span class="text-neutral-400 mx-1">/</span>
+										<span class="text-neutral-400">{{
+											formatTime(duration)
+										}}</span>
+									</div>
+								</div>
+
+								<!-- Zoom Controls -->
+								<div
+									class="flex items-center space-x-1 bg-neutral-700/30 rounded-full p-1"
+								>
+									<button
+										@click="zoomOut"
+										class="p-1 rounded-full hover:bg-neutral-600/50 transition-colors"
+										:class="{
+											'opacity-50 cursor-not-allowed':
+												timelineState.zoom <= 0.5,
+										}"
+										:disabled="timelineState.zoom <= 0.5"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4 text-white"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+										>
+											<path
+												fill-rule="evenodd"
+												d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"
+												clip-rule="evenodd"
+											/>
+										</svg>
+									</button>
+									<div class="w-px h-4 bg-neutral-600"></div>
+									<button
+										@click="zoomIn"
+										class="p-1 rounded-full hover:bg-neutral-600/50 transition-colors"
+										:class="{
+											'opacity-50 cursor-not-allowed': timelineState.zoom >= 4,
+										}"
+										:disabled="timelineState.zoom >= 4"
+									>
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-4 w-4 text-white"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+										>
+											<path
+												fill-rule="evenodd"
+												d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+												clip-rule="evenodd"
+											/>
+										</svg>
+									</button>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -526,6 +691,7 @@ const timelineState = ref({
 	isDragging: false,
 	dragStartX: 0,
 	dragStartScroll: 0,
+	zoom: 1,
 });
 
 // Timeline sürükleme kontrolleri
@@ -690,6 +856,14 @@ watch(isPlaying, (newValue) => {
 		}
 	}
 });
+
+const zoomOut = () => {
+	timelineState.value.zoom = Math.max(0.5, timelineState.value.zoom - 0.5);
+};
+
+const zoomIn = () => {
+	timelineState.value.zoom = Math.min(4, timelineState.value.zoom + 0.5);
+};
 </script>
 
 <style>
