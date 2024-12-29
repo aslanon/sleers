@@ -157,10 +157,10 @@ onUnmounted(() => {
 	position: absolute;
 	width: 100%;
 	height: 100%;
-	font-size: 4px;
+	font-size: 5px;
 	font-weight: bold;
 	letter-spacing: 1px;
-	animation: rotate 20s linear infinite;
+	/* animation: rotate 20s linear infinite; */
 }
 
 .text-content {
