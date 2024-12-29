@@ -15,118 +15,105 @@ import { ref, onMounted, onUnmounted } from "vue";
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 let currentStream: MediaStream | null = null;
+const electron = window.electron;
 
 const startCamera = async (deviceId?: string) => {
 	try {
 		console.log("camera.vue: Kamera başlatma fonksiyonu çağrıldı:", deviceId);
 
-		// Eğer aktif bir stream varsa kapatıyoruz
+		// Eski stream varsa durduruyoruz
 		if (currentStream) {
-			console.log("camera.vue: Mevcut stream kapatılıyor");
 			currentStream.getTracks().forEach((track) => track.stop());
+			console.log("camera.vue: Eski stream durduruldu");
 		}
+
+		// Video elementinin null olmadığından emin olalım
+		if (!videoRef.value) {
+			console.error("videoRef is not connected to the DOM");
+			return;
+		}
+
+		// Video elementinin srcObject'ini sıfırlıyoruz (önceki stream'i temizlemek için)
+		videoRef.value.srcObject = null;
 
 		// Yeni stream'i başlatıyoruz
 		const constraints: MediaStreamConstraints = {
-			video: deviceId
-				? {
-						deviceId: { exact: deviceId },
-						width: { ideal: 1280 },
-						height: { ideal: 1280 },
-						aspectRatio: 1,
-				  }
-				: {
-						width: { ideal: 1280 },
-						height: { ideal: 1280 },
-						aspectRatio: 1,
-				  },
+			video: {
+				deviceId: { exact: deviceId || undefined }, // deviceId doğru geçildiğinden emin olun
+				width: { ideal: 1280 }, // Daha esnek çözünürlük
+				height: { ideal: 720 }, // Daha esnek çözünürlük
+				frameRate: { ideal: 30 }, // Daha esnek fps
+			},
 			audio: false,
 		};
 
 		console.log("camera.vue: Kullanılacak kısıtlamalar:", constraints);
+
 		const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
-		console.log("camera.vue: Yeni stream başlatıldı");
+		// Kamera açıldığında yapılacak işlemler
+		console.log("Kamera açıldı", stream);
+		// Yeni stream'i video elementine aktaralım
+		videoRef.value.srcObject = stream;
+
+		// Yeni stream'i sakla
 		currentStream = stream;
 
-		if (videoRef.value) {
-			// Stream'i video elementine bağla
-			videoRef.value.srcObject = null;
-			videoRef.value.srcObject = stream;
+		console.log("camera.vue: Yeni stream başlatıldı");
 
-			// Stream hazır olduğunda işlem yap
-			return new Promise<void>((resolve) => {
-				if (videoRef.value) {
-					const handleLoadedMetadata = () => {
-						console.log(
-							"camera.vue: Video elementi güncellendi ve stream hazır"
-						);
-						videoRef.value?.removeEventListener(
-							"loadedmetadata",
-							handleLoadedMetadata
-						);
-						resolve();
-					};
-
-					videoRef.value.addEventListener(
-						"loadedmetadata",
-						handleLoadedMetadata
-					);
-
-					// Timeout ekleyelim
-					setTimeout(() => {
-						if (videoRef.value) {
-							videoRef.value.removeEventListener(
-								"loadedmetadata",
-								handleLoadedMetadata
-							);
-							console.log(
-								"camera.vue: Stream yükleme timeout'a uğradı, devam ediliyor"
-							);
-							resolve();
-						}
-					}, 2000); // 2 saniye timeout
-				} else {
-					resolve();
-				}
-			});
-		}
+		// Kamera başarıyla başlatıldı, main process'e bildir
+		electron?.ipcRenderer.send("CAMERA_STATUS_UPDATE", {
+			status: "active",
+			deviceId: deviceId || "default",
+		});
 	} catch (error) {
 		console.error("Kamera başlatılamadı:", error);
-		// Hata durumunda varsayılan kamerayı deneyelim
-		if (deviceId) {
-			console.log("camera.vue: Varsayılan kamera deneniyor...");
-			await startCamera(); // deviceId olmadan tekrar dene
+		if (error.name === "OverconstrainedError") {
+			console.error(
+				"Geçerli bir cihaz bulunamadı, çözünürlük veya frame rate gibi parametreler uyumsuz olabilir."
+			);
 		}
 	}
 };
 
-// Kamera değişikliği mesajını dinle
-const handleCameraUpdate = async (event: any, deviceId: string) => {
-    console.log("camera.vue: Yeni kamera deviceId alındı:", deviceId);
-    if (deviceId) {
-        await startCamera(deviceId);
-    }
+const getDeviceList = async () => {
+	const devices = await navigator.mediaDevices.enumerateDevices();
+	devices.forEach((device) => {
+		console.log(
+			`Device kind: ${device.kind}, label: ${device.label}, deviceId: ${device.deviceId}`
+		);
+	});
 };
 
 onMounted(() => {
 	console.log("camera.vue: Kamera penceresi mount edildi");
-    
-    // Event listener'ı ekle
-    window.electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
-    
-    // İlk kamera başlatma
-    startCamera();
+
+	// İlk kamera başlatma
+	startCamera();
+
+	electron?.ipcRenderer.on(
+		"UPDATE_CAMERA_DEVICE",
+		async function (deviceLabel) {
+			console.log("yeni camera: ", deviceLabel);
+
+			const devices = await navigator.mediaDevices.enumerateDevices();
+			let device = devices.find((device) => device.label === deviceLabel);
+			console.log(device);
+
+			startCamera(device?.deviceId);
+		}
+	);
 });
 
 onUnmounted(() => {
-    // Event listener'ı temizle
-    window.electron?.ipcRenderer.removeListener("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
-    
-    // Aktif stream'i kapat
-    if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-    }
+	// Event listener'ı temizle
+	electron?.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
+
+	// Aktif stream'i kapat
+	if (currentStream) {
+		currentStream.getTracks().forEach((track) => track.stop());
+		currentStream = null;
+	}
 });
 </script>
 

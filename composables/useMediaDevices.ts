@@ -23,7 +23,7 @@ export const useMediaDevices = () => {
 			);
 
 			if (videoDevices.value.length > 0) {
-				selectedVideoDevice.value = videoDevices.value[0].deviceId;
+				selectedVideoDevice.value = videoDevices.value[0].label;
 			}
 			if (audioDevices.value.length > 0) {
 				selectedAudioDevice.value = audioDevices.value[0].deviceId;

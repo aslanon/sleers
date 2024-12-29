@@ -98,7 +98,7 @@
 				<option
 					v-for="device in videoDevices"
 					:key="device.deviceId"
-					:value="device.deviceId"
+					:value="device.label"
 				>
 					{{ device.label || `Kamera ${device.deviceId}` }}
 				</option>
@@ -177,7 +177,6 @@ const {
 	audioDevices,
 	selectedVideoDevice,
 	selectedAudioDevice,
-	currentCameraStream,
 	getDevices,
 	isRecording,
 	recordedChunks,
@@ -188,10 +187,6 @@ const {
 } = useMediaDevices();
 
 const { startRecording: startCursor, stopRecording: stopCursor } = useCursor();
-
-// Pencere sürükleme için değişkenler
-const isDragging = ref(false);
-const startPosition = ref({ x: 0, y: 0 });
 
 // Alan seçimi için değişkenler
 const selectedArea = ref<{
@@ -206,8 +201,10 @@ const cameraPosition = ref({ x: 20, y: 20 });
 const isCameraDragging = ref(false);
 const cameraDragOffset = ref({ x: 0, y: 0 });
 
+const electron = window.electron;
+
 const closeWindow = () => {
-	window.electron?.windowControls.close();
+	electron?.windowControls.close();
 };
 
 const toggleSystemAudio = () => {
@@ -217,34 +214,19 @@ const toggleSystemAudio = () => {
 const selectSource = (source: "display" | "window" | "area") => {
 	selectedSource.value = source;
 	if (source === "area") {
-		window.electron?.ipcRenderer.send("START_AREA_SELECTION");
+		electron?.ipcRenderer.send("START_AREA_SELECTION");
 	}
 };
 
-watch(selectedVideoDevice, async (newDeviceId) => {
-    if (newDeviceId) {
-        try {
-            // Önce cihazın geçerli olduğunu kontrol edelim
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoDevices = devices.filter(
-                (device) => device.kind === "videoinput"
-            );
-            const isValidDevice = videoDevices.some(
-                (device) => device.deviceId === newDeviceId
-            );
-
-            if (!isValidDevice) {
-                console.error("Geçersiz kamera deviceId:", newDeviceId);
-                return;
-            }
-
-            console.log("Kamera değişikliği tetiklendi:", newDeviceId);
-            // Electron IPC üzerinden kamera değişikliği mesajını gönder
-            window.electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", newDeviceId);
-        } catch (error) {
-            console.error("Kamera değişikliği sırasında hata:", error);
-        }
-    }
+watch(selectedVideoDevice, async (deviceLabel) => {
+	if (deviceLabel) {
+		try {
+			// Kamera değişikliğini main process'e bildir
+			electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", deviceLabel);
+		} catch (error) {
+			console.error("Kamera değişikliği sırasında hata:", error);
+		}
+	}
 });
 
 onMounted(async () => {
@@ -252,9 +234,9 @@ onMounted(async () => {
 	await getDevices();
 
 	// Electron API'si yüklendiyse event listener'ları ekle
-	if (window.electron?.ipcRenderer) {
+	if (electron) {
 		// Alan seçimi event listener'ı
-		window.electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
+		electron.ipcRenderer.on("AREA_SELECTED", (event: any, area: any) => {
 			console.log("Ham alan seçimi:", area);
 
 			// Ekran ölçeğini hesapla
@@ -267,43 +249,44 @@ onMounted(async () => {
 				width: Math.round(area.width * screenScale),
 				height: Math.round(area.height * screenScale),
 			};
-
-			console.log("Düzeltilmiş alan seçimi:", {
-				screenScale,
-				originalArea: area,
-				adjustedArea: selectedArea.value,
-				rawY: area.y,
-				scaledY: area.y * screenScale,
-				finalY: selectedArea.value.y,
-			});
 		});
 
 		// Tray'den kayıt kontrolü için event listener'lar
-		window.electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
+		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
 			startRecording();
 		});
 
-		window.electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
+		electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
 			stopRecording();
 		});
 
+		// Kamera durumunu dinle
+		electron.ipcRenderer.on("CAMERA_STATUS_CHANGED", (event, statusData) => {
+			if (statusData.status === "active") {
+				console.log("Kamera aktif:", statusData.deviceId);
+			} else if (statusData.status === "error") {
+				console.error("Kamera hatası:", statusData.error);
+			}
+		});
+
 		// Yeni kayıt için sıfırlama
-		window.electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
+		electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 	}
 });
 
 // Kayıt durumu değiştiğinde tray'i güncelle
 watch(isRecording, (newValue) => {
-	window.electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", newValue);
+	electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", newValue);
 });
 
 // Temizlik işlemleri
 onBeforeUnmount(() => {
 	// Event listener'ları temizle
-	if (window.electron?.ipcRenderer) {
-		window.electron.ipcRenderer.removeAllListeners("AREA_SELECTED");
-		window.electron.ipcRenderer.removeAllListeners("START_RECORDING_FROM_TRAY");
-		window.electron.ipcRenderer.removeAllListeners("STOP_RECORDING_FROM_TRAY");
+	if (electron) {
+		electron.ipcRenderer.removeAllListeners("AREA_SELECTED");
+		electron.ipcRenderer.removeAllListeners("START_RECORDING_FROM_TRAY");
+		electron.ipcRenderer.removeAllListeners("STOP_RECORDING_FROM_TRAY");
+		electron.ipcRenderer.removeAllListeners("CAMERA_STATUS_CHANGED");
 	}
 });
 
@@ -465,64 +448,15 @@ const stopRecording = async () => {
 
 // Pencere sürükleme işleyicileri
 const handleMouseDown = (e: MouseEvent) => {
-	window.electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
+	electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
 };
 
 const handleMouseMove = (e: MouseEvent) => {
-	window.electron?.windowControls.dragging({ x: e.screenX, y: e.screenY });
+	electron?.windowControls.dragging({ x: e.screenX, y: e.screenY });
 };
 
 const handleMouseUp = () => {
-	window.electron?.windowControls.endDrag();
-};
-
-// Kamera sürükleme işleyicileri
-const startCameraDrag = (e: MouseEvent) => {
-	e.stopPropagation();
-	isCameraDragging.value = true;
-	const rect = (e.target as HTMLElement).getBoundingClientRect();
-	cameraDragOffset.value = {
-		x: e.clientX - rect.left,
-		y: e.clientY - rect.top,
-	};
-};
-
-const dragCamera = (e: MouseEvent) => {
-	e.stopPropagation();
-	if (!isCameraDragging.value) return;
-
-	const container = preview.value?.parentElement;
-	if (!container) return;
-
-	const rect = container.getBoundingClientRect();
-	const newX = e.clientX - rect.left - cameraDragOffset.value.x;
-	const newY = e.clientY - rect.top - cameraDragOffset.value.y;
-
-	// Sınırlar içinde tutma
-	const maxX = rect.width - 200;
-	const maxY = rect.height - 200;
-
-	cameraPosition.value = {
-		x: Math.max(0, Math.min(maxX, newX)),
-		y: Math.max(0, Math.min(maxY, newY)),
-	};
-};
-
-const endCameraDrag = (e: MouseEvent) => {
-	e.stopPropagation();
-	isCameraDragging.value = false;
-};
-
-watch(currentCameraStream, (stream) => {
-	const cameraPreview =
-		document.querySelector<HTMLVideoElement>("#cameraPreview");
-	if (cameraPreview && stream) {
-		cameraPreview.srcObject = stream;
-	}
-});
-
-const openCameraWindow = () => {
-	window.electron?.ipcRenderer.send("OPEN_CAMERA_WINDOW");
+	electron?.windowControls.endDrag();
 };
 
 // Mikrofon değişikliğini izle
@@ -545,21 +479,21 @@ watch(selectedAudioDevice, async (newDeviceId) => {
 
 // Pencere sürükleme fonksiyonları
 const startDrag = (event: MouseEvent) => {
-	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
 const drag = (event: MouseEvent) => {
-	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+	electron?.ipcRenderer.send("WINDOW_DRAGGING", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
 const endDrag = () => {
-	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
+	electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
 </script>
 

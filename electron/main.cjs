@@ -1216,17 +1216,22 @@ function createCameraWindow() {
 
 // Kamera değişikliği için IPC handler
 ipcMain.on("CAMERA_DEVICE_CHANGED", (event, deviceId) => {
-	console.log("Main process: Kamera değişikliği mesajı alındı:", deviceId);
-	if (cameraWindow && !cameraWindow.isDestroyed()) {
-		console.log("Main process: Kamera penceresine mesaj gönderiliyor");
-		try {
-			cameraWindow.webContents.send("UPDATE_CAMERA_DEVICE", deviceId);
-			console.log("Main process: Mesaj başarıyla gönderildi");
-		} catch (error) {
-			console.error("Main process: Mesaj gönderilirken hata:", error);
-		}
-	} else {
-		console.log("Main process: Kamera penceresi bulunamadı veya kapalı");
+	if (deviceId && cameraWindow && !cameraWindow.isDestroyed()) {
+		// Kamera penceresine yeni deviceId'yi gönder
+		cameraWindow.webContents.send("UPDATE_CAMERA_DEVICE", deviceId);
+	}
+});
+
+ipcMain.on("ONUR", (event, device) => {
+	console.log("deviced", device);
+	cameraWindow.webContents.send("ONUR", device);
+});
+
+// Kamera durumu değişikliği için IPC handler
+ipcMain.on("CAMERA_STATUS_UPDATE", (event, statusData) => {
+	// Ana pencereye kamera durumunu ilet
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.webContents.send("CAMERA_STATUS_CHANGED", statusData);
 	}
 });
 
