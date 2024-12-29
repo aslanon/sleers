@@ -113,15 +113,19 @@
 					<video
 						ref="screenPlayer"
 						class="w-full h-full"
-						:class="{
-							'object-contain':
-								!cropArea?.aspectRatio || cropArea.aspectRatio === 'free',
-							[`aspect-${cropArea?.aspectRatio?.replace(':', '-')}`]:
-								cropArea?.aspectRatio && cropArea.aspectRatio !== 'free',
-						}"
 						:style="{
+							objectFit: cropArea?.aspectRatio === 'free' ? 'contain' : 'cover',
 							clipPath: cropArea
-								? `inset(${cropArea.y}px ${cropArea.x}px ${cropArea.height}px ${cropArea.width}px)`
+								? `inset(${(cropArea.y / cropArea.display.height) * 100}% ${
+										((cropArea.display.width - (cropArea.x + cropArea.width)) /
+											cropArea.display.width) *
+										100
+								  }% ${
+										((cropArea.display.height -
+											(cropArea.y + cropArea.height)) /
+											cropArea.display.height) *
+										100
+								  }% ${(cropArea.x / cropArea.display.width) * 100}%)`
 								: 'none',
 						}"
 						preload="auto"
@@ -363,15 +367,16 @@ const onScreenLoaded = () => {
 			const { x, y, width, height, display, devicePixelRatio, aspectRatio } =
 				cropArea.value;
 
-			// Oranları hesapla
-			const scaleX = video.videoWidth / display.width;
-			const scaleY = video.videoHeight / display.height;
+			// Yüzdelik oranları hesapla
+			const clipTop = (y / display.height) * 100;
+			const clipRight = ((display.width - (x + width)) / display.width) * 100;
+			const clipBottom =
+				((display.height - (y + height)) / display.height) * 100;
+			const clipLeft = (x / display.width) * 100;
 
 			// Video elementinin stilini güncelle
 			video.style.objectFit = aspectRatio === "free" ? "contain" : "cover";
-			video.style.clipPath = `inset(${y * scaleY}px ${
-				(display.width - (x + width)) * scaleX
-			}px ${(display.height - (y + height)) * scaleY}px ${x * scaleX}px)`;
+			video.style.clipPath = `inset(${clipTop}% ${clipRight}% ${clipBottom}% ${clipLeft}%)`;
 		}
 
 		console.log("Ekran kaydı yüklendi:", {

@@ -150,8 +150,8 @@ const confirmSelection = () => {
 		aspectRatio: selectedRatio.value,
 	};
 
+	// Önce seçilen alanı gönder
 	window.electron?.ipcRenderer.send("AREA_SELECTED", area);
-	window.electron?.ipcRenderer.send("CLOSE_SELECTION_WINDOW");
 };
 
 const startResize = (handle: string) => {

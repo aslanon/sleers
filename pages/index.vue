@@ -249,6 +249,8 @@ onMounted(async () => {
 				width: Math.round(area.width * screenScale),
 				height: Math.round(area.height * screenScale),
 			};
+
+			electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
 		});
 
 		// Tray'den kayıt kontrolü için event listener'lar

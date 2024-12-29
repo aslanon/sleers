@@ -692,40 +692,6 @@ ipcMain.on("START_AREA_SELECTION", () => {
 			path.join(__dirname, "../.output/public/selection/index.html")
 		);
 	}
-
-	// Alan seçimi tamamlandığında
-	ipcMain.once("AREA_SELECTED", (event, area) => {
-		// Seçilen alanı ana pencereye gönder
-		if (mainWindow) {
-			mainWindow.webContents.send("AREA_SELECTED", {
-				...area,
-				x: Math.round(area.x),
-				y: Math.round(area.y),
-				width: Math.round(area.width),
-				height: Math.round(area.height),
-				aspectRatio: area.aspectRatio || "free",
-			});
-		}
-		// Seçim penceresini kapat
-		if (selectionWindow) {
-			selectionWindow.close();
-			selectionWindow = null;
-		}
-	});
-
-	// ESC tuşuna basıldığında veya iptal edildiğinde
-	ipcMain.once("CANCEL_AREA_SELECTION", () => {
-		if (selectionWindow) {
-			selectionWindow.close();
-		}
-	});
-
-	// Pencere kapandığında event listener'ları temizle
-	selectionWindow.on("closed", () => {
-		selectionWindow = null;
-		ipcMain.removeAllListeners("AREA_SELECTED");
-		ipcMain.removeAllListeners("CANCEL_AREA_SELECTION");
-	});
 });
 
 // IPC handler for area selection complete
@@ -736,17 +702,27 @@ ipcMain.on("AREA_SELECTED", (event, area) => {
 	});
 
 	if (mainWindow) {
-		mainWindow.webContents.send("AREA_SELECTED", {
+		// Crop değerlerini hesapla
+		const cropData = {
 			...area,
 			x: Math.round(area.x),
 			y: Math.round(area.y),
 			width: Math.round(area.width),
 			height: Math.round(area.height),
 			aspectRatio: area.aspectRatio || "free",
-		});
+			display: area.display,
+			devicePixelRatio: area.devicePixelRatio || 1,
+		};
+
+		mainWindow.webContents.send("AREA_SELECTED", cropData);
 	}
-	if (selectionWindow) {
+});
+
+// ESC tuşuna basıldığında veya iptal edildiğinde
+ipcMain.on("CANCEL_AREA_SELECTION", () => {
+	if (selectionWindow && !selectionWindow.isDestroyed()) {
 		selectionWindow.close();
+		selectionWindow = null;
 	}
 });
 
@@ -1109,14 +1085,6 @@ ipcMain.handle("GET_CAMERA_POSITION", () => {
 app.on("before-quit", () => {
 	app.isQuitting = true;
 	stopMouseTracking();
-});
-
-// Seçim penceresi kapanma olayı
-ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
-	if (selectionWindow) {
-		selectionWindow.close();
-		selectionWindow = null;
-	}
 });
 
 // Kamera penceresi oluştur
