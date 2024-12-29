@@ -245,6 +245,11 @@ function startMouseTracking() {
 		targetPosition = { x: startX, y: startY };
 
 		mouseTrackingInterval = setInterval(() => {
+			if (!cameraWindow || cameraWindow.isDestroyed()) {
+				stopMouseTracking();
+				return;
+			}
+
 			const mousePos = screen.getCursorScreenPoint();
 			const [width, height] = cameraWindow.getSize();
 
@@ -286,10 +291,12 @@ function startMouseTracking() {
 			currentPosition.y = lerp(currentPosition.y, targetPosition.y, 0.15);
 
 			// Pencereyi taşı
-			cameraWindow.setPosition(
-				Math.round(currentPosition.x),
-				Math.round(currentPosition.y)
-			);
+			if (cameraWindow && !cameraWindow.isDestroyed()) {
+				cameraWindow.setPosition(
+					Math.round(currentPosition.x),
+					Math.round(currentPosition.y)
+				);
+			}
 		}, 16); // ~60fps için 16ms
 	}
 }
@@ -1091,6 +1098,8 @@ app.on("before-quit", () => {
 
 // Kamera penceresi oluştur
 function createCameraWindow() {
+	if (cameraWindow) return; // Eğer zaten varsa yeni pencere oluşturma
+
 	cameraWindow = new BrowserWindow({
 		width: SMALL_SIZE,
 		height: SMALL_SIZE,
@@ -1139,11 +1148,6 @@ function createCameraWindow() {
 		);
 	}
 
-	// Debug için DevTools'u aç (geliştirme modunda)
-	if (isDev) {
-		// cameraWindow.webContents.openDevTools({ mode: "detach" });
-	}
-
 	// Pencere yüklendikten sonra ek ayarlar
 	cameraWindow.webContents.on("did-finish-load", () => {
 		console.log("Main process: Kamera penceresi yüklendi");
@@ -1178,24 +1182,44 @@ function createCameraWindow() {
 		`);
 	});
 
-	// Hata durumunda
-	cameraWindow.webContents.on(
-		"did-fail-load",
-		(event, errorCode, errorDescription) => {
-			console.error(
-				"Main process: Kamera penceresi yüklenemedi:",
-				errorCode,
-				errorDescription
-			);
-		}
-	);
-
 	// Pencere konumunu kaydet
 	cameraWindow.on("moved", () => {
 		const [x, y] = cameraWindow.getPosition();
 		lastCameraPosition = { x, y };
 	});
 }
+
+// Camera window yönetimi için fonksiyonlar
+function closeCameraWindow() {
+	if (cameraWindow) {
+		stopMouseTracking(); // Mouse tracking'i durdur
+		lastCameraPosition = cameraWindow.getPosition();
+		cameraWindow.close();
+		cameraWindow = null;
+	}
+}
+
+// IPC olaylarını güncelle
+ipcMain.on("START_RECORDING", () => {
+	isRecording = true;
+	updateTrayIcon();
+	createCameraWindow();
+	startMouseTracking(); // Mouse tracking'i başlat
+});
+
+ipcMain.on("STOP_RECORDING", () => {
+	isRecording = false;
+	updateTrayIcon();
+	closeCameraWindow();
+});
+
+ipcMain.on("RECORDING_SAVED", () => {
+	closeCameraWindow();
+});
+
+ipcMain.on("NAVIGATE_TO_EDITOR", () => {
+	closeCameraWindow();
+});
 
 // Kamera değişikliği için IPC handler
 ipcMain.on("CAMERA_DEVICE_CHANGED", (event, deviceId) => {

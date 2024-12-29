@@ -829,6 +829,9 @@ onMounted(async () => {
 			cameraPath: cameraPath.value,
 			audioPath: audioPath.value,
 		});
+
+		// Editör sayfası açıldığında kamera penceresini kapat
+		window.electron.ipcRenderer.send("NAVIGATE_TO_EDITOR");
 	} catch (error) {
 		console.error("Editor sayfası yüklenirken hata:", error);
 		alert("Editor sayfası yüklenirken bir hata oluştu. Lütfen tekrar deneyin.");
