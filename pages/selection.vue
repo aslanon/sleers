@@ -54,8 +54,9 @@
 				<!-- Onay Butonu -->
 				<button
 					v-if="isValidSize"
-					class="confirm-button"
-					@click="confirmSelection"
+					class="confirm-button z-50"
+					@mousedown.stop
+					@click.stop="confirmSelection"
 				>
 					Seçimi Onayla
 				</button>
@@ -129,13 +130,21 @@ const updateSelection = (e: MouseEvent) => {
 	}
 };
 
-const confirmSelection = () => {
+const confirmSelection = (e: MouseEvent) => {
+	// Event'in yayılmasını engelle
+	e.preventDefault();
+	e.stopPropagation();
+
+	// Önce seçim modunu kapat
+	isSelecting.value = false;
+	hasSelection.value = false;
+
+	// Global event listener'ları kaldır
+	window.removeEventListener("mousemove", onGlobalMouseMove);
+	window.removeEventListener("mouseup", onGlobalMouseUp);
+
 	const width = Math.abs(currentPos.value.x - startPos.value.x);
 	const height = Math.abs(currentPos.value.y - startPos.value.y);
-
-	if (width < 100 || height < 100) {
-		return;
-	}
 
 	const area = {
 		x: Math.min(startPos.value.x, currentPos.value.x),
@@ -150,8 +159,10 @@ const confirmSelection = () => {
 		aspectRatio: selectedRatio.value,
 	};
 
-	// Önce seçilen alanı gönder
+	// Seçilen alanı gönder
 	window.electron?.ipcRenderer.send("AREA_SELECTED", area);
+	// Pencereyi kapat
+	window.electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
 };
 
 const startResize = (handle: string) => {

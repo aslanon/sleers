@@ -701,21 +701,19 @@ ipcMain.on("AREA_SELECTED", (event, area) => {
 		aspectRatio: area.aspectRatio || "free",
 	});
 
-	if (mainWindow) {
-		// Crop değerlerini hesapla
-		const cropData = {
-			...area,
-			x: Math.round(area.x),
-			y: Math.round(area.y),
-			width: Math.round(area.width),
-			height: Math.round(area.height),
-			aspectRatio: area.aspectRatio || "free",
-			display: area.display,
-			devicePixelRatio: area.devicePixelRatio || 1,
-		};
+	// Crop değerlerini hesapla
+	const cropData = {
+		...area,
+		x: Math.round(area.x),
+		y: Math.round(area.y),
+		width: Math.round(area.width),
+		height: Math.round(area.height),
+		aspectRatio: area.aspectRatio || "free",
+		display: area.display,
+		devicePixelRatio: area.devicePixelRatio || 1,
+	};
 
-		mainWindow.webContents.send("AREA_SELECTED", cropData);
-	}
+	mainWindow.webContents.send("AREA_SELECTED", cropData);
 });
 
 // ESC tuşuna basıldığında veya iptal edildiğinde
