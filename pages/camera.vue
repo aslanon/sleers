@@ -101,37 +101,32 @@ const startCamera = async (deviceId?: string) => {
 	}
 };
 
+// Kamera değişikliği mesajını dinle
+const handleCameraUpdate = async (event: any, deviceId: string) => {
+    console.log("camera.vue: Yeni kamera deviceId alındı:", deviceId);
+    if (deviceId) {
+        await startCamera(deviceId);
+    }
+};
+
 onMounted(() => {
 	console.log("camera.vue: Kamera penceresi mount edildi");
-	// İlk kamera başlatma
-	startCamera();
-
-	// Kamera değişikliği mesajını dinle
-	const handleCameraUpdate = async (deviceId: string) => {
-		console.log("camera.vue: Kamera değişikliği mesajı alındı:", deviceId);
-		await startCamera(deviceId);
-		console.log("camera.vue: Kamera değişikliği tamamlandı");
-	};
-
-	// Event listener'ı ekle
-	window.electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
-
-	// Test mesajı gönder
-	console.log("camera.vue: IPC bağlantısı test ediliyor...");
-	window.electron?.ipcRenderer.send("CAMERA_WINDOW_READY");
+    
+    // Event listener'ı ekle
+    window.electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
+    
+    // İlk kamera başlatma
+    startCamera();
 });
 
-// Cleanup için fonksiyonu sakla
 onUnmounted(() => {
-	console.log("camera.vue: Kamera penceresi unmount ediliyor");
-	// Stream'i temizle
-	if (currentStream) {
-		currentStream.getTracks().forEach((track) => track.stop());
-	}
-
-	// Event listener'ı temizle
-	window.electron?.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
-	console.log("camera.vue: Event listener'lar temizlendi");
+    // Event listener'ı temizle
+    window.electron?.ipcRenderer.removeListener("UPDATE_CAMERA_DEVICE", handleCameraUpdate);
+    
+    // Aktif stream'i kapat
+    if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+    }
 });
 </script>
 
