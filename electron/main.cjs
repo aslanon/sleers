@@ -926,28 +926,6 @@ ipcMain.handle(
 	}
 );
 
-// Editör penceresi yükseklik ayarı için IPC handler
-ipcMain.on("RESIZE_EDITOR_WINDOW", () => {
-	if (mainWindow) {
-		// Ekran boyutlarını al
-		const { screen } = require("electron");
-		const primaryDisplay = screen.getPrimaryDisplay();
-		const { width, height } = primaryDisplay.workAreaSize;
-
-		// Pencereyi ekranın %80'i boyutunda yap
-		const windowWidth = Math.round(width * 0.8);
-		const windowHeight = Math.round(height * 0.8);
-
-		// Pencereyi ortala ve boyutlandır
-		mainWindow.setResizable(true); // Yeniden boyutlandırmaya izin ver
-		mainWindow.setSize(windowWidth, windowHeight);
-		mainWindow.center();
-
-		// Minimum boyut sınırlaması ekle
-		mainWindow.setMinimumSize(1024, 768);
-	}
-});
-
 // Yeni kayıt için pencereyi sıfırla
 ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
 	if (mainWindow) {
@@ -1215,10 +1193,6 @@ ipcMain.on("STOP_RECORDING", () => {
 });
 
 ipcMain.on("RECORDING_SAVED", () => {
-	closeCameraWindow();
-});
-
-ipcMain.on("NAVIGATE_TO_EDITOR", () => {
 	closeCameraWindow();
 });
 
