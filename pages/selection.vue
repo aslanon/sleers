@@ -67,7 +67,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
-import { useCursor } from "~/composables/useCursor";
 
 const electron = window.electron;
 const isSelecting = ref(false);

@@ -1019,7 +1019,7 @@ async function createWindow() {
 	if (isDev) {
 		mainWindow.loadURL("http://127.0.0.1:3000");
 		// Debug için DevTools'u aç (geliştirme modunda)
-		// mainWindow.webContents.openDevTools({ mode: "detach" });
+		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));
 	}
@@ -1142,6 +1142,7 @@ function createCameraWindow() {
 
 	if (isDev) {
 		cameraWindow.loadURL("http://localhost:3000/camera");
+		cameraWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		cameraWindow.loadFile(
 			path.join(__dirname, "../.output/public/camera/index.html")

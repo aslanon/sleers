@@ -154,19 +154,12 @@
 			</button>
 		</div>
 	</div>
-
-	<!-- Başlık çubuğu -->
-	<CustomCursor v-if="isRecording" />
 </template>
 
 <script setup>
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
-import CustomCursor from "~/components/CustomCursor.vue";
-import { useCursor } from "~/composables/useCursor";
 
-const preview = ref(null);
-const cameraPreview = ref(null);
 let mediaRecorder = null;
 
 const selectedSource = ref("display");
@@ -185,8 +178,6 @@ const {
 	stopRecording: stopMediaStream,
 	saveRecording,
 } = useMediaDevices();
-
-const { startRecording: startCursor, stopRecording: stopCursor } = useCursor();
 
 const electron = window.electron;
 
@@ -273,7 +264,6 @@ onUnmounted(() => {
 const startRecording = async () => {
 	try {
 		isRecording.value = true;
-		startCursor(); // İmleç yönetimini başlat
 
 		// Kayıt başlamadan önce body'e recording sınıfını ekle
 		document.body.classList.add("recording");
@@ -375,13 +365,11 @@ const startRecording = async () => {
 		// Hata durumunda recording sınıfını kaldır
 		document.body.classList.remove("recording");
 		isRecording.value = false;
-		stopCursor(); // Hata durumunda imleci durdur
 	}
 };
 
 const stopRecording = async () => {
 	isRecording.value = false;
-	stopCursor(); // İmleç yönetimini durdur
 
 	try {
 		console.log("1. Kayıt durdurma başlatıldı");
