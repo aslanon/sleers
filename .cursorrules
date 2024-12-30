@@ -1,0 +1,67 @@
+// Screen Studio .cursorrules
+
+// Genel İlkeler
+- Uygulamanın masaüstü sürümü için Electron framework'ünü kullanın.
+- Web sürümü için Nuxt.js framework'ünü kullanın.
+- Kodlama standartları olarak ES6+ özelliklerini tercih edin.
+- Modüler ve yeniden kullanılabilir bileşenler oluşturun.
+- Asenkron işlemler için async/await yapısını kullanın.
+- Hata yönetimi için try/catch bloklarını kullanın.
+- Kodunuzu anlamlı ve açıklayıcı yorumlarla belgeleyin.
+
+// Electron Uygulaması
+- Electron'un en son kararlı sürümünü kullanın.
+- Electron'un `BrowserWindow` özelliklerini kullanarak ana pencereyi oluşturun.
+- Electron'un `ipcRenderer` ve `ipcMain` modüllerini kullanarak ana süreç ve renderer süreçleri arasında iletişimi sağlayın.
+- Electron'un `app` ve `BrowserWindow` nesnelerini doğru şekilde yöneterek uygulamanın yaşam döngüsünü yönetin.
+- Electron'un `Menu` ve `MenuItem` modüllerini kullanarak uygulama menüsünü oluşturun.
+- Electron'un `dialog` modülünü kullanarak dosya açma ve kaydetme diyaloglarını yönetin.
+- Electron'un `nativeImage` modülünü kullanarak uygulama simgesini ayarlayın.
+- Electron'un `autoUpdater` modülünü kullanarak uygulama güncellemelerini yönetin.
+- Electron'un `session` ve `webContents` özelliklerini kullanarak güvenlik önlemlerini alın.
+- Electron'un `powerMonitor` ve `powerSaveBlocker` modüllerini kullanarak enerji yönetimini optimize edin.
+- Electron'un `globalShortcut` modülünü kullanarak klavye kısayollarını tanımlayın.
+- Electron'un `protocol` modülünü kullanarak özel protokoller oluşturun.
+- Electron'un `screen` modülünü kullanarak ekran bilgilerini alın.
+- Electron'un `clipboard` modülünü kullanarak panoya veri kopyalayın ve yapıştırın.
+- Electron'un `shell` modülünü kullanarak sistem komutlarını çalıştırın.
+- Electron'un `app` ve `BrowserWindow` nesnelerini doğru şekilde yöneterek uygulamanın yaşam döngüsünü yönetin.
+- Electron'un `Menu` ve `MenuItem` modüllerini kullanarak uygulama menüsünü oluşturun.
+- Electron'un `dialog` modülünü kullanarak dosya açma ve kaydetme diyaloglarını yönetin.
+- Electron'un `nativeImage` modülünü kullanarak uygulama simgesini ayarlayın.
+- Electron'un `autoUpdater` modülünü kullanarak uygulama güncellemelerini yönetin.
+- Electron'un `session` ve `webContents` özelliklerini kullanarak güvenlik önlemlerini alın.
+- Electron'un `powerMonitor` ve `powerSaveBlocker` modüllerini kullanarak enerji yönetimini optimize edin.
+- Electron'un `globalShortcut` modülünü kullanarak klavye kısayollarını tanımlayın.
+- Electron'un `protocol` modülünü kullanarak özel protokoller oluşturun.
+- Electron'un `screen` modülünü kullanarak ekran bilgilerini alın.
+- Electron'un `clipboard` modülünü kullanarak panoya veri kopyalayın ve yapıştırın.
+- Electron'un `shell` modülünü kullanarak sistem komutlarını çalıştırın.
+- Electron'un `app` ve `BrowserWindow` nesnelerini doğru şekilde yöneterek uygulamanın yaşam döngüsünü yönetin.
+- Electron'un `Menu` ve `MenuItem` modüllerini kullanarak uygulama menüsünü oluşturun.
+- Electron'un `dialog` modülünü kullanarak dosya açma ve kaydetme diyaloglarını yönetin.
+- Electron'un `nativeImage` modülünü kullanarak uygulama simgesini ayarlayın.
+- Electron'un `autoUpdater` modülünü kullanarak uygulama güncellemelerini yönetin.
+- Electron'un `session` ve `webContents` özelliklerini kullanarak güvenlik önlemlerini alın.
+- Electron'un `powerMonitor` ve `powerSaveBlocker` modüllerini kullanarak enerji yönetimini optimize edin.
+- Electron'un `globalShortcut` modülünü kullanarak klavye kısayollarını tanımlayın.
+- Electron'un `protocol` modülünü kullanarak özel protokoller oluşturun.
+- Electron'un `screen` modülünü kullanarak ekran bilgilerini alın.
+- Electron'un `clipboard` modülünü kullanarak panoya veri kopyalayın ve yapıştırın.
+- Electron'un `shell` modülünü kullanarak sistem komutlarını çalıştırın.
+- Electron'un `app` ve `BrowserWindow` nesnelerini doğru şekilde yöneterek uygulamanın yaşam döngüsünü yönetin.
+- Electron'un `Menu` ve `MenuItem` modüllerini kullanarak uygulama menüsünü oluşturun.
+- Electron'un `dialog` modülünü kullanarak dosya açma ve kaydetme diyaloglarını yönetin.
+- Electron'un `nativeImage` modülünü kullanarak uygulama simgesini ayarlayın.
+- Electron'un `autoUpdater` modülünü kullanarak uygulama güncellemelerini yönetin.
+- Electron'un `session` ve `webContents` özelliklerini kullanarak güvenlik önlemlerini alın.
+- Electron'un `powerMonitor` ve `powerSaveBlocker` modüllerini kullanarak enerji yönetimini optimize edin.
+- Electron'un `globalShortcut` modülünü kullanarak klavye kısayollarını tanımlayın.
+- Electron'un `protocol` modülünü kullanarak özel protokoller oluşturun.
+- Electron'un `screen` modülünü kullanarak ekran bilgilerini alın.
+- Electron'un `clipboard` modülünü kullanarak panoya veri kopyalayın ve yapıştırın.
+- Electron'un `shell` modülünü kullanarak sistem komutlarını çalıştırın.
+- Electron'un `app` ve `BrowserWindow` nesnelerini doğru şekilde yöneterek uygulamanın yaşam döngüsünü yönetin.
+- Electron'un `Menu` ve `MenuItem` modüllerini kullanarak uygulama menüsünü oluşturun.
+
+ 
