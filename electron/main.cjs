@@ -34,8 +34,8 @@ let currentPosition = { x: 0, y: 0 };
 let targetPosition = { x: 0, y: 0 };
 let lastMousePositions = [];
 let isLargeCamera = false;
-const SMALL_SIZE = 160;
-const LARGE_SIZE = 360;
+const SMALL_SIZE = 260;
+const LARGE_SIZE = 460;
 const SHAKE_THRESHOLD = 800; // Hız eşiği
 const SHAKE_TIME_WINDOW = 500; // Son 500ms içindeki hareketleri kontrol et
 const REQUIRED_MOVEMENTS = 5; // Gerekli hareket sayısı
@@ -261,22 +261,22 @@ function startMouseTracking() {
 			const bounds = display.bounds;
 
 			// Hedef pozisyonu hesapla
-			let x = mousePos.x + 40 - width / 2;
-			let y = mousePos.y + 50;
+			let x = mousePos.x - width / 2;
+			let y = mousePos.y + 25;
 
 			// Ekranın kenarlarına yaklaşıldığında kamera konumunu ayarla
-			const EDGE_THRESHOLD = 400;
+			const EDGE_THRESHOLD = 600;
 
 			if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
-				x = mousePos.x - width - 50;
+				x = mousePos.x - width - 25;
 			} else if (mousePos.x < bounds.x + EDGE_THRESHOLD) {
-				x = mousePos.x + 50;
+				x = mousePos.x + 25;
 			}
 
 			if (mousePos.y > bounds.y + bounds.height - EDGE_THRESHOLD) {
-				y = mousePos.y - height - 50;
+				y = mousePos.y - height - 25;
 			} else if (mousePos.y < bounds.y + EDGE_THRESHOLD) {
-				y = mousePos.y + 50;
+				y = mousePos.y + 25;
 			}
 
 			// Ekran sınırları içinde kal

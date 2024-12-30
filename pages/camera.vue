@@ -7,7 +7,12 @@
 			playsinline
 			class="camera-video"
 		></video>
-		<svg class="circular-text" viewBox="0 0 100 100">
+		<div
+			class="absolute bottom-6 text-xl text-white bg-purple-600 text-center rounded-full rounded-tl-none px-4 py-2"
+		>
+			aslanon
+		</div>
+		<svg v-if="false" class="circular-text" viewBox="0 0 100 100">
 			<path
 				id="curve"
 				fill="transparent"
@@ -63,7 +68,7 @@ onUnmounted(() => {
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
-	padding: 2rem;
+	padding: 5rem;
 	overflow: hidden;
 	position: relative;
 	display: flex;
@@ -76,7 +81,6 @@ onUnmounted(() => {
 	width: 100%;
 	height: 100%;
 	box-shadow: 0 0 10px 0px rgba(0, 0, 0, 0.25);
-
 	object-fit: cover;
 	border-radius: 50%;
 	transform: scaleX(-1); /* Ayna görüntüsü için */
