@@ -29,7 +29,6 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
-import { useMediaDevices } from "~/composables/useMediaDevices";
 
 const videoRef = ref(null);
 let currentStream = null;

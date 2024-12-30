@@ -172,7 +172,6 @@ const {
 	selectedAudioDevice,
 	getDevices,
 	isRecording,
-	recordedChunks,
 	mediaStream,
 	startRecording: startMediaStream,
 	stopRecording: stopMediaStream,

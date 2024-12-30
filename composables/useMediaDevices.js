@@ -9,7 +9,6 @@ export const useMediaDevices = () => {
 	const selectedAudioDevice = ref("");
 	const mediaStream = ref(null);
 	const isRecording = ref(false);
-	const recordedChunks = ref([]);
 	const currentCameraStream = ref(null);
 
 	const getDevices = async () => {
@@ -250,7 +249,6 @@ export const useMediaDevices = () => {
 		selectedAudioDevice,
 		mediaStream,
 		isRecording,
-		recordedChunks,
 		currentCameraStream,
 		getDevices,
 		startRecording,
