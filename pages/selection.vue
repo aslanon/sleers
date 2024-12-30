@@ -21,10 +21,10 @@
 				v-if="isSelecting"
 				class="selection-box"
 				:style="{
-					left: `${Math.min(startPos.x, currentPos.x)}px`,
-					top: `${Math.min(startPos.y, currentPos.y)}px`,
-					width: `${Math.abs(currentPos.x - startPos.x)}px`,
-					height: `${Math.abs(currentPos.y - startPos.y)}px`,
+					left: `${Math.min(startPoint.x, endPoint.x)}px`,
+					top: `${Math.min(startPoint.y, endPoint.y)}px`,
+					width: `${Math.abs(endPoint.x - startPoint.x)}px`,
+					height: `${Math.abs(endPoint.y - startPoint.y)}px`,
 				}"
 			>
 				<div class="selection-box-overlay"></div>
@@ -48,8 +48,8 @@
 				</div>
 				<!-- Çözünürlük Bilgisi -->
 				<div class="resolution-info">
-					{{ Math.abs(currentPos.x - startPos.x) }} x
-					{{ Math.abs(currentPos.y - startPos.y) }}
+					{{ Math.abs(endPoint.x - startPoint.x) }} x
+					{{ Math.abs(endPoint.y - startPoint.y) }}
 				</div>
 				<!-- Onay Butonu -->
 				<button
@@ -65,205 +65,57 @@
 	</div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+<script setup>
+import { ref, onMounted, onUnmounted } from "vue";
+import { useCursor } from "~/composables/useCursor";
 
+const electron = window.electron;
 const isSelecting = ref(false);
-const startPos = ref({ x: 0, y: 0 });
-const currentPos = ref({ x: 0, y: 0 });
+const startPoint = ref({ x: 0, y: 0 });
+const endPoint = ref({ x: 0, y: 0 });
+const selectedArea = ref({ x: 0, y: 0, width: 0, height: 0 });
 const isResizing = ref(false);
 const resizeHandle = ref("");
-const initialBoxSize = ref({ width: 0, height: 0 });
-const hasSelection = ref(false);
-const selectedRatio = ref("free");
 
-// Aspect ratio hesaplayıcı
-const getAspectRatio = (ratio: string) => {
-	switch (ratio) {
-		case "1:1":
-			return 1;
-		case "4:3":
-			return 4 / 3;
-		case "16:9":
-			return 16 / 9;
-		case "9:16":
-			return 9 / 16;
-		case "3:4":
-			return 3 / 4;
-		default:
-			return null;
+const onMouseDown = (e) => {
+	if (e.button === 0) {
+		isSelecting.value = true;
+		startPoint.value = { x: e.clientX, y: e.clientY };
+		endPoint.value = { x: e.clientX, y: e.clientY };
 	}
 };
 
-// Seçim alanını aspect ratio'ya göre güncelle
-const updateSelectionWithRatio = (e: MouseEvent) => {
-	const ratio = getAspectRatio(selectedRatio.value);
-	if (!ratio) {
-		currentPos.value = { x: e.clientX, y: e.clientY };
-		return;
-	}
-
-	const width = Math.abs(e.clientX - startPos.value.x);
-	const height = width / ratio;
-
-	// Mouse'un yönüne göre pozisyonu ayarla
-	if (e.clientX < startPos.value.x) {
-		currentPos.value.x = startPos.value.x - width;
-	} else {
-		currentPos.value.x = startPos.value.x + width;
-	}
-
-	if (e.clientY < startPos.value.y) {
-		currentPos.value.y = startPos.value.y - height;
-	} else {
-		currentPos.value.y = startPos.value.y + height;
+const onMouseMove = (e) => {
+	if (isSelecting.value) {
+		endPoint.value = { x: e.clientX, y: e.clientY };
 	}
 };
 
-const updateSelection = (e: MouseEvent) => {
-	if (!isSelecting.value || hasSelection.value) return;
+const onMouseUp = () => {
+	if (isSelecting.value) {
+		isSelecting.value = false;
+		const width = Math.abs(endPoint.value.x - startPoint.value.x);
+		const height = Math.abs(endPoint.value.y - startPoint.value.y);
 
-	if (selectedRatio.value === "free") {
-		currentPos.value = { x: e.clientX, y: e.clientY };
-	} else {
-		updateSelectionWithRatio(e);
-	}
-};
-
-const confirmSelection = (e: MouseEvent) => {
-	// Event'in yayılmasını engelle
-	e.preventDefault();
-	e.stopPropagation();
-
-	// Önce seçim modunu kapat
-	isSelecting.value = false;
-	hasSelection.value = false;
-
-	// Global event listener'ları kaldır
-	window.removeEventListener("mousemove", onGlobalMouseMove);
-	window.removeEventListener("mouseup", onGlobalMouseUp);
-
-	const width = Math.abs(currentPos.value.x - startPos.value.x);
-	const height = Math.abs(currentPos.value.y - startPos.value.y);
-
-	const area = {
-		x: Math.min(startPos.value.x, currentPos.value.x),
-		y: Math.min(startPos.value.y, currentPos.value.y),
-		width,
-		height,
-		display: {
-			width: window.innerWidth,
-			height: window.innerHeight,
-		},
-		devicePixelRatio: window.devicePixelRatio || 1,
-		aspectRatio: selectedRatio.value,
-	};
-
-	// Seçilen alanı gönder
-	window.electron?.ipcRenderer.send("AREA_SELECTED", area);
-	// Pencereyi kapat
-	window.electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
-};
-
-const startResize = (handle: string) => {
-	isResizing.value = true;
-	resizeHandle.value = handle;
-
-	const box = document.querySelector(".selection-box");
-	if (box) {
-		const rect = box.getBoundingClientRect();
-		initialBoxSize.value = {
-			width: rect.width,
-			height: rect.height,
+		selectedArea.value = {
+			x: Math.min(startPoint.value.x, endPoint.value.x),
+			y: Math.min(startPoint.value.y, endPoint.value.y),
+			width,
+			height,
 		};
 	}
-
-	window.addEventListener("mousemove", onGlobalMouseMove);
-	window.addEventListener("mouseup", onGlobalMouseUp);
-};
-
-const onGlobalMouseMove = (e: MouseEvent) => {
-	if (isResizing.value) {
-		const deltaX = e.clientX - startPos.value.x;
-		const deltaY = e.clientY - startPos.value.y;
-
-		switch (resizeHandle.value) {
-			case "nw":
-				currentPos.value = { x: e.clientX, y: e.clientY };
-				break;
-			case "ne":
-				currentPos.value = {
-					x: startPos.value.x + initialBoxSize.value.width + deltaX,
-					y: e.clientY,
-				};
-				break;
-			case "sw":
-				currentPos.value = {
-					x: e.clientX,
-					y: startPos.value.y + initialBoxSize.value.height + deltaY,
-				};
-				break;
-			case "se":
-				currentPos.value = {
-					x: startPos.value.x + initialBoxSize.value.width + deltaX,
-					y: startPos.value.y + initialBoxSize.value.height + deltaY,
-				};
-				break;
-		}
-	} else if (isSelecting.value && !hasSelection.value) {
-		updateSelection(e);
-	}
-};
-
-const onGlobalMouseUp = () => {
-	if (isResizing.value) {
-		isResizing.value = false;
-		resizeHandle.value = "";
-	} else if (isSelecting.value && !hasSelection.value) {
-		const width = Math.abs(currentPos.value.x - startPos.value.x);
-		const height = Math.abs(currentPos.value.y - startPos.value.y);
-
-		if (width >= 100 && height >= 100) {
-			hasSelection.value = true;
-		} else {
-			isSelecting.value = false;
-		}
-	}
-
-	window.removeEventListener("mousemove", onGlobalMouseMove);
-	window.removeEventListener("mouseup", onGlobalMouseUp);
-};
-
-// Minimum boyut kontrolü
-const isValidSize = computed(() => {
-	const width = Math.abs(currentPos.value.x - startPos.value.x);
-	const height = Math.abs(currentPos.value.y - startPos.value.y);
-	return width >= 100 && height >= 100;
-});
-
-const startSelection = (e: MouseEvent) => {
-	if (isResizing.value) return;
-
-	hasSelection.value = false;
-	isSelecting.value = true;
-	startPos.value = { x: e.clientX, y: e.clientY };
-	currentPos.value = { x: e.clientX, y: e.clientY };
-
-	window.addEventListener("mousemove", onGlobalMouseMove);
-	window.addEventListener("mouseup", onGlobalMouseUp);
 };
 
 onMounted(() => {
-	window.addEventListener("keydown", (e) => {
-		if (e.key === "Escape") {
-			window.electron?.ipcRenderer.send("CANCEL_AREA_SELECTION");
-		}
-	});
+	window.addEventListener("mousedown", onMouseDown);
+	window.addEventListener("mousemove", onMouseMove);
+	window.addEventListener("mouseup", onMouseUp);
 });
 
 onUnmounted(() => {
-	window.removeEventListener("mousemove", onGlobalMouseMove);
-	window.removeEventListener("mouseup", onGlobalMouseUp);
+	window.removeEventListener("mousedown", onMouseDown);
+	window.removeEventListener("mousemove", onMouseMove);
+	window.removeEventListener("mouseup", onMouseUp);
 });
 </script>
 

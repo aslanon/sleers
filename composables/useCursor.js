@@ -1,9 +1,8 @@
 import { ref, onMounted, onUnmounted, watch } from "vue";
-import type { CursorSettings, CursorPosition, CursorState } from "~/types";
 
 export const useCursor = () => {
 	// Varsayılan ayarlar
-	const defaultSettings: CursorSettings = {
+	const defaultSettings = {
 		smoothing: true,
 		size: 1,
 		autoHide: true,
@@ -13,21 +12,21 @@ export const useCursor = () => {
 		smoothingFactor: 0.15,
 	};
 
-	const settings = ref<CursorSettings>({ ...defaultSettings });
-	const cursorState = ref<CursorState>({
+	const settings = { ...defaultSettings };
+	const cursorState = {
 		isVisible: true,
 		lastPosition: { x: 0, y: 0, timestamp: Date.now() },
 		currentPosition: { x: 0, y: 0, timestamp: Date.now() },
 		isMoving: false,
 		lastMoveTime: Date.now(),
-	});
+	};
 
-	let hideTimeout: NodeJS.Timeout | null = null;
-	let animationFrame: number | null = null;
-	const positionHistory: CursorPosition[] = [];
+	let hideTimeout = null;
+	let animationFrame = null;
+	const positionHistory = [];
 
 	// İmleç pozisyonunu yumuşat
-	const smoothCursorPosition = (targetX: number, targetY: number) => {
+	const smoothCursorPosition = (targetX, targetY) => {
 		if (!settings.value.smoothing) {
 			cursorState.value.currentPosition = {
 				x: targetX,
@@ -85,7 +84,7 @@ export const useCursor = () => {
 	};
 
 	// Mouse hareketlerini takip et
-	const handleMouseMove = (e: MouseEvent) => {
+	const handleMouseMove = (e) => {
 		cursorState.value.lastPosition = { ...cursorState.value.currentPosition };
 		cursorState.value.isMoving = true;
 		cursorState.value.lastMoveTime = Date.now();

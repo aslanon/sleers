@@ -39,7 +39,7 @@
 	</div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { useCursor } from "~/composables/useCursor";
 
 const { settings, cursorState } = useCursor();

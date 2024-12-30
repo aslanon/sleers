@@ -159,17 +159,17 @@
 	<CustomCursor v-if="isRecording" />
 </template>
 
-<script setup lang="ts">
+<script setup>
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 import CustomCursor from "~/components/CustomCursor.vue";
 import { useCursor } from "~/composables/useCursor";
 
-const preview = ref<HTMLVideoElement | null>(null);
-const cameraPreview = ref<HTMLVideoElement | null>(null);
-let mediaRecorder: MediaRecorder | null = null;
+const preview = ref(null);
+const cameraPreview = ref(null);
+let mediaRecorder = null;
 
-const selectedSource = ref<"display" | "window" | "area">("display");
+const selectedSource = ref("display");
 const systemAudioEnabled = ref(true);
 
 const {
@@ -198,7 +198,7 @@ const toggleSystemAudio = () => {
 	systemAudioEnabled.value = !systemAudioEnabled.value;
 };
 
-const selectSource = (source: "display" | "window" | "area") => {
+const selectSource = (source) => {
 	selectedSource.value = source;
 	if (source === "area") {
 		electron?.ipcRenderer.send("START_AREA_SELECTION");
@@ -403,11 +403,11 @@ const stopRecording = async () => {
 };
 
 // Pencere sürükleme işleyicileri
-const handleMouseDown = (e: MouseEvent) => {
+const handleMouseDown = (e) => {
 	electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
 };
 
-const handleMouseMove = (e: MouseEvent) => {
+const handleMouseMove = (e) => {
 	electron?.windowControls.dragging({ x: e.screenX, y: e.screenY });
 };
 
@@ -434,14 +434,14 @@ watch(selectedAudioDevice, async (newDeviceId) => {
 });
 
 // Pencere sürükleme fonksiyonları
-const startDrag = (event: MouseEvent) => {
+const startDrag = (event) => {
 	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
 		x: event.screenX,
 		y: event.screenY,
 	});
 };
 
-const drag = (event: MouseEvent) => {
+const drag = (event) => {
 	electron?.ipcRenderer.send("WINDOW_DRAGGING", {
 		x: event.screenX,
 		y: event.screenY,

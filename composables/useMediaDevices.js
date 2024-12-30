@@ -3,14 +3,14 @@ import { useRouter } from "vue-router";
 
 export const useMediaDevices = () => {
 	const router = useRouter();
-	const videoDevices = ref<MediaDeviceInfo[]>([]);
-	const audioDevices = ref<MediaDeviceInfo[]>([]);
-	const selectedVideoDevice = ref<string>("");
-	const selectedAudioDevice = ref<string>("");
-	const mediaStream = ref<MediaStream | null>(null);
+	const videoDevices = ref([]);
+	const audioDevices = ref([]);
+	const selectedVideoDevice = ref("");
+	const selectedAudioDevice = ref("");
+	const mediaStream = ref(null);
 	const isRecording = ref(false);
-	const recordedChunks = ref<Blob[]>([]);
-	const currentCameraStream = ref<MediaStream | null>(null);
+	const recordedChunks = ref([]);
+	const currentCameraStream = ref(null);
 
 	const getDevices = async () => {
 		try {
@@ -33,7 +33,7 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const startRecording = async (streamOptions: any) => {
+	const startRecording = async (streamOptions) => {
 		try {
 			// Ekran seçimi için kaynakları al
 			const sources = await window.electron?.desktopCapturer.getSources({
@@ -131,10 +131,7 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const saveRecording = async (
-		chunks: { screen: Blob[]; camera: Blob[]; audio: Blob[] },
-		cropArea?: { x: number; y: number; width: number; height: number }
-	) => {
+	const saveRecording = async (chunks, cropArea) => {
 		try {
 			console.log("1. Kayıtlar kaydediliyor...", {
 				hasScreen: chunks.screen.length > 0,

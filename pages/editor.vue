@@ -346,535 +346,134 @@
 	</div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+<script setup>
+import { ref, onMounted, onUnmounted, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import CustomCursor from "~/components/CustomCursor.vue";
-import { useCursor } from "~/composables/useCursor";
 
-const router = useRouter();
-const route = useRoute();
-
-const screenPath = ref("");
-const cameraPath = ref("");
-const audioPath = ref("");
-const screenPlayer = ref<HTMLVideoElement | null>(null);
-const cameraPlayer = ref<HTMLVideoElement | null>(null);
-const cropArea = ref<any>(null);
-const isExporting = ref(false);
-const exportProgress = ref(0);
-const exportStatus = ref({
-	frames: 0,
-	fps: 0,
-	time: "00:00:00.00",
-});
-const isPlaying = ref(false);
+const videoRef = ref(null);
+const audioRef = ref(null);
 const currentTime = ref(0);
 const duration = ref(0);
-
-// Sürükleme durumu için ref'ler
-const isDragging = ref(false);
-
-const { settings, cursorState, startRecording, stopRecording } = useCursor();
+const isPlaying = ref(false);
+const volume = ref(1);
+const isMuted = ref(false);
+const isFullscreen = ref(false);
+const showControls = ref(true);
+const isLoading = ref(true);
+const electron = window.electron;
 
 // Sürükleme işleyicileri
-const startDrag = (e: MouseEvent) => {
+const startDrag = (e) => {
 	// Butonlar ve ikonlar üzerinde sürüklemeyi engelle
 	if (e.target instanceof HTMLButtonElement || e.target instanceof SVGElement) {
 		return;
 	}
-
-	isDragging.value = true;
-	window.electron?.ipcRenderer.send("START_WINDOW_DRAG", {
-		x: e.screenX,
-		y: e.screenY,
-	});
-
-	// Global event listener'ları ekle
-	window.addEventListener("mousemove", onDrag);
-	window.addEventListener("mouseup", endDrag);
-};
-
-const onDrag = (e: MouseEvent) => {
-	if (!isDragging.value) return;
-	window.electron?.ipcRenderer.send("WINDOW_DRAGGING", {
-		x: e.screenX,
-		y: e.screenY,
-	});
+	electron?.ipcRenderer.send("START_DRAG");
 };
 
 const endDrag = () => {
-	if (!isDragging.value) return;
-	isDragging.value = false;
-	window.electron?.ipcRenderer.send("END_WINDOW_DRAG");
-
-	// Global event listener'ları kaldır
-	window.removeEventListener("mousemove", onDrag);
-	window.removeEventListener("mouseup", endDrag);
+	electron?.ipcRenderer.send("END_DRAG");
 };
 
-// Video yükleme işleyicileri
-const onScreenLoaded = () => {
-	if (screenPlayer.value) {
-		duration.value = screenPlayer.value.duration;
-
-		// Crop alanı varsa uygula
-		if (cropArea.value) {
-			const video = screenPlayer.value;
-			const { x, y, width, height, display, devicePixelRatio, aspectRatio } =
-				cropArea.value;
-
-			// Yüzdelik oranları hesapla
-			const clipTop = (y / display.height) * 100;
-			const clipRight = ((display.width - (x + width)) / display.width) * 100;
-			const clipBottom =
-				((display.height - (y + height)) / display.height) * 100;
-			const clipLeft = (x / display.width) * 100;
-
-			// Video elementinin stilini güncelle
-			video.style.objectFit = aspectRatio === "free" ? "contain" : "cover";
-			video.style.clipPath = `inset(${clipTop}% ${clipRight}% ${clipBottom}% ${clipLeft}%)`;
-		}
-
-		console.log("Ekran kaydı yüklendi:", {
-			duration: duration.value,
-			videoWidth: screenPlayer.value.videoWidth,
-			videoHeight: screenPlayer.value.videoHeight,
-			cropArea: cropArea.value,
-		});
-	}
-};
-
-const onCameraLoaded = () => {
-	if (cameraPlayer.value && screenPlayer.value) {
-		cameraPlayer.value.currentTime = screenPlayer.value.currentTime;
-		console.log("Kamera kaydı yüklendi:", {
-			videoWidth: cameraPlayer.value.videoWidth,
-			videoHeight: cameraPlayer.value.videoHeight,
-		});
-	}
-};
-
-// Zaman formatlayıcı
-const formatTime = (time: number) => {
-	const minutes = Math.floor(time / 60);
-	const seconds = Math.floor(time % 60);
-	return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
-// Oynatma kontrolü
+// Video kontrolü
 const togglePlay = () => {
-	if (!screenPlayer.value) return;
-
-	if (isPlaying.value) {
-		screenPlayer.value.pause();
-		if (cameraPlayer.value) cameraPlayer.value.pause();
-	} else {
-		screenPlayer.value.play();
-		if (cameraPlayer.value) cameraPlayer.value.play();
-	}
-	isPlaying.value = !isPlaying.value;
-};
-
-// Timeline kontrolü
-const seekTo = (event: Event) => {
-	const time = parseFloat((event.target as HTMLInputElement).value);
-	if (screenPlayer.value) {
-		screenPlayer.value.currentTime = time;
-		if (cameraPlayer.value) {
-			cameraPlayer.value.currentTime = time;
-		}
-	}
-};
-
-// Video senkronizasyonu için timeupdate event listener
-const onTimeUpdate = () => {
-	if (screenPlayer.value) {
-		currentTime.value = screenPlayer.value.currentTime;
-		if (cameraPlayer.value) {
-			cameraPlayer.value.currentTime = currentTime.value;
-		}
-	}
-};
-
-const closeWindow = () => {
-	window.electron?.ipcRenderer.send("WINDOW_CLOSE");
-};
-
-const startNewRecording = async () => {
-	// Kayıt için temizlik yap
-	window.electron?.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
-	// Ana sayfaya yönlendir
-	await router.push("/");
-};
-
-const getMediaPaths = async () => {
-	try {
-		// Pencere yüksekliğini artır
-		window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
-
-		// URL'den dosya yollarını al
-		const rawScreenPath = decodeURIComponent(route.query.screen as string);
-		const rawCameraPath = route.query.camera
-			? decodeURIComponent(route.query.camera as string)
-			: null;
-		const rawAudioPath = route.query.audio
-			? decodeURIComponent(route.query.audio as string)
-			: null;
-
-		console.log("Ham dosya yolları:", {
-			screen: rawScreenPath,
-			camera: rawCameraPath,
-			audio: rawAudioPath,
-		});
-
-		// Dosya varlığını kontrol et
-		const exists = await window.electron?.ipcRenderer.invoke(
-			"CHECK_FILE_EXISTS",
-			rawScreenPath
-		);
-		if (!exists) {
-			throw new Error(`Ekran kaydı dosyası bulunamadı: ${rawScreenPath}`);
-		}
-
-		// Dosya yollarını ayarla
-		screenPath.value = rawScreenPath;
-
-		// Kamera kaydı varsa kontrol et
-		if (rawCameraPath) {
-			const cameraExists = await window.electron?.ipcRenderer.invoke(
-				"CHECK_FILE_EXISTS",
-				rawCameraPath
-			);
-			if (cameraExists) {
-				cameraPath.value = rawCameraPath;
-			} else {
-				console.warn("Kamera kaydı dosyası bulunamadı:", rawCameraPath);
-			}
-		}
-
-		// Ses kaydı varsa kontrol et
-		if (rawAudioPath) {
-			const audioExists = await window.electron?.ipcRenderer.invoke(
-				"CHECK_FILE_EXISTS",
-				rawAudioPath
-			);
-			if (audioExists) {
-				audioPath.value = rawAudioPath;
-			} else {
-				console.warn("Ses kaydı dosyası bulunamadı:", rawAudioPath);
-			}
-		}
-
-		console.log("İşlenmiş dosya yolları:", {
-			screen: screenPath.value,
-			camera: cameraPath.value,
-			audio: audioPath.value,
-		});
-
-		// Video elementlerini güncelle
-		await nextTick();
-		if (screenPlayer.value && screenPath.value) {
-			const fullPath = `file://${screenPath.value}`;
-			console.log("Ekran kaydı yükleniyor:", fullPath);
-			screenPlayer.value.src = fullPath;
-			await screenPlayer.value.load();
-		}
-
-		if (cameraPlayer.value && cameraPath.value) {
-			const fullPath = `file://${cameraPath.value}`;
-			console.log("Kamera kaydı yükleniyor:", fullPath);
-			cameraPlayer.value.src = fullPath;
-			await cameraPlayer.value.load();
-		}
-
-		// // Crop alanını kontrol et
-		// if (route.query.cropArea) {
-		// 	cropArea.value = JSON.parse(
-		// 		decodeURIComponent(route.query.cropArea as string)
-		// 	);
-		// 	console.log("Crop alanı yüklendi:", cropArea.value);
-		// }
-	} catch (error) {
-		console.error("Dosya yolları alınırken hata:", error);
-		alert(
-			"Kayıt dosyaları yüklenirken bir hata oluştu. Lütfen tekrar deneyin."
-		);
-		throw error; // Hatayı yukarı ilet
-	}
-};
-
-const exportVideo = async () => {
-	try {
-		if (!screenPath.value) {
-			throw new Error("Ekran kaydı bulunamadı");
-		}
-
-		isExporting.value = true;
-		exportProgress.value = 0;
-		exportStatus.value = {
-			frames: 0,
-			fps: 0,
-			time: "00:00:00.00",
-		};
-
-		const savePath = await window.electron?.ipcRenderer.invoke(
-			"SHOW_SAVE_DIALOG",
-			{
-				title: "Videoyu Kaydet",
-				defaultPath: `kayit-${Date.now()}.webm`,
-				filters: [{ name: "Video", extensions: ["webm"] }],
-			}
-		);
-
-		if (!savePath) {
-			isExporting.value = false;
-			return;
-		}
-
-		// file:// protokolünü kaldır
-		const cleanScreenPath = screenPath.value.replace("file://", "");
-		const cleanCameraPath = cameraPath.value
-			? cameraPath.value.replace("file://", "")
-			: null;
-		const cleanAudioPath = audioPath.value
-			? audioPath.value.replace("file://", "")
-			: null;
-
-		console.log("Export için dosya yolları:", {
-			screen: cleanScreenPath,
-			camera: cleanCameraPath,
-			audio: cleanAudioPath,
-			output: savePath,
-		});
-
-		// İlerleme durumunu dinle
-		window.electron?.ipcRenderer.on("MERGE_STATUS", (_, status) => {
-			console.log("Birleştirme durumu:", status);
-			exportProgress.value = status.percent || 0;
-
-			exportStatus.value = status;
-		});
-
-		await window.electron?.ipcRenderer.invoke("MERGE_VIDEOS", {
-			screenPath: cleanScreenPath,
-			cameraPath: cleanCameraPath,
-			audioPath: cleanAudioPath,
-			outputPath: savePath,
-			cropArea: cropArea.value,
-		});
-
-		alert("Video başarıyla kaydedildi!");
-	} catch (error: any) {
-		console.error("Video dışa aktarılırken hata:", error);
-		alert(`Video dışa aktarılırken bir hata oluştu: ${error.message}`);
-	} finally {
-		isExporting.value = false;
-		exportProgress.value = 0;
-		exportStatus.value = {
-			frames: 0,
-			fps: 0,
-			time: "00:00:00.00",
-		};
-		// Event listener'ı temizle
-		window.electron?.ipcRenderer.removeAllListeners("MERGE_STATUS");
-	}
-};
-
-const isRecording = ref(false);
-
-// Kayıt durumunu izle
-watch(isRecording, (newValue) => {
-	if (newValue) {
-		startRecording();
-	} else {
-		stopRecording();
-	}
-});
-
-// Timeline sabitleri ve state'i
-const MAX_DURATION = 600; // 10 dakika (saniye cinsinden)
-const timelineState = ref({
-	scroll: 0,
-	isDragging: false,
-	dragStartX: 0,
-	dragStartScroll: 0,
-	zoom: 1,
-});
-
-// Timeline sürükleme kontrolleri
-const startTimelineDrag = (e: MouseEvent) => {
-	timelineState.value.isDragging = true;
-	timelineState.value.dragStartX = e.clientX;
-	timelineState.value.dragStartScroll = timelineState.value.scroll;
-
-	window.addEventListener("mousemove", handleTimelineDrag);
-	window.addEventListener("mouseup", stopTimelineDrag);
-};
-
-const handleTimelineDrag = (e: MouseEvent) => {
-	if (!timelineState.value.isDragging) return;
-
-	const delta = e.clientX - timelineState.value.dragStartX;
-	const maxScroll = (duration.value / MAX_DURATION) * 100 - 100;
-
-	timelineState.value.scroll = Math.max(
-		Math.min(timelineState.value.dragStartScroll + delta, 0),
-		-maxScroll
-	);
-};
-
-const stopTimelineDrag = () => {
-	timelineState.value.isDragging = false;
-	window.removeEventListener("mousemove", handleTimelineDrag);
-	window.removeEventListener("mouseup", stopTimelineDrag);
-};
-
-// Playhead sürükleme
-const isPlayheadDragging = ref(false);
-const playheadDragStartX = ref(0);
-const playheadDragStartTime = ref(0);
-
-const startPlayheadDrag = (e: MouseEvent) => {
-	isPlayheadDragging.value = true;
-	playheadDragStartX.value = e.clientX;
-	playheadDragStartTime.value = currentTime.value;
-
-	window.addEventListener("mousemove", handlePlayheadDrag);
-	window.addEventListener("mouseup", stopPlayheadDrag);
-};
-
-const handlePlayheadDrag = (e: MouseEvent) => {
-	if (!isPlayheadDragging.value || !screenPlayer.value) return;
-
-	const timeline = e.currentTarget as HTMLElement;
-	const rect = timeline.getBoundingClientRect();
-	const delta = e.clientX - playheadDragStartX.value;
-	const timelineDuration = MAX_DURATION;
-	const pixelsPerSecond = rect.width / timelineDuration;
-	const timeDelta = delta / pixelsPerSecond;
-
-	const newTime = Math.max(
-		0,
-		Math.min(playheadDragStartTime.value + timeDelta, duration.value)
-	);
-	screenPlayer.value.currentTime = newTime;
-};
-
-const stopPlayheadDrag = () => {
-	isPlayheadDragging.value = false;
-	window.removeEventListener("mousemove", handlePlayheadDrag);
-	window.removeEventListener("mouseup", stopPlayheadDrag);
-};
-
-// Timeline click handler
-const handleTimelineClick = (e: MouseEvent) => {
-	if (
-		e.button === 0 &&
-		!timelineState.value.isDragging &&
-		!isPlayheadDragging.value
-	) {
-		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-		const x = e.clientX - rect.left;
-		const normalizedX = x / rect.width;
-		const newTime = Math.max(
-			0,
-			Math.min(normalizedX * MAX_DURATION, duration.value)
-		);
-
-		if (screenPlayer.value) {
-			screenPlayer.value.currentTime = newTime;
-		}
-	} else {
-		startTimelineDrag(e);
-	}
-};
-
-// Cleanup
-onUnmounted(() => {
-	window.removeEventListener("mousemove", handleTimelineDrag);
-	window.removeEventListener("mouseup", stopTimelineDrag);
-	window.removeEventListener("mousemove", handlePlayheadDrag);
-	window.removeEventListener("mouseup", stopPlayheadDrag);
-});
-
-onMounted(async () => {
-	try {
-		// Route'un hazır olmasını bekle
-		await nextTick();
-
-		console.log("Route query:", route.query);
-
-		// Route kontrolü
-		if (!route.query || !route.query.screen) {
-			console.error("Route parametreleri hazır değil veya eksik");
-			return;
-		}
-
-		// Pencere boyutunu ayarla
-		window.electron?.ipcRenderer.send("RESIZE_EDITOR_WINDOW");
-
-		// Medya yollarını yükle
-		await getMediaPaths();
-
-		// Event listener'ları ekle
-		if (screenPlayer.value) {
-			screenPlayer.value.addEventListener("timeupdate", onTimeUpdate);
-		}
-
-		window.electron?.ipcRenderer.on(
-			"AREA_SELECTED",
-			(event: any, area: any) => {
-				console.log(123123123123123213);
-				cropArea.value = area;
-			}
-		);
-
-		console.log("Editor sayfası yüklendi:", {
-			screenPlayer: !!screenPlayer.value,
-			cameraPlayer: !!cameraPlayer.value,
-			screenPath: screenPath.value,
-			cameraPath: cameraPath.value,
-			audioPath: audioPath.value,
-		});
-
-		// Editör sayfası açıldığında kamera penceresini kapat
-		window.electron.ipcRenderer.send("NAVIGATE_TO_EDITOR");
-	} catch (error) {
-		console.error("Editor sayfası yüklenirken hata:", error);
-		alert("Editor sayfası yüklenirken bir hata oluştu. Lütfen tekrar deneyin.");
-	}
-});
-
-onUnmounted(() => {
-	if (screenPlayer.value) {
-		screenPlayer.value.removeEventListener("timeupdate", onTimeUpdate);
-	}
-	window.removeEventListener("mousemove", onDrag);
-	window.removeEventListener("mouseup", endDrag);
-});
-
-// Video senkronizasyonu için watch
-watch(isPlaying, (newValue) => {
-	if (screenPlayer.value && cameraPlayer.value) {
-		if (newValue) {
-			Promise.all([screenPlayer.value.play(), cameraPlayer.value.play()]).catch(
-				console.error
-			);
+	if (videoRef.value) {
+		if (isPlaying.value) {
+			videoRef.value.pause();
 		} else {
-			screenPlayer.value.pause();
-			cameraPlayer.value.pause();
+			videoRef.value.play();
 		}
 	}
+};
+
+// Ses kontrolü
+const toggleMute = () => {
+	if (videoRef.value) {
+		isMuted.value = !isMuted.value;
+		videoRef.value.muted = isMuted.value;
+	}
+};
+
+const updateVolume = (value) => {
+	if (videoRef.value) {
+		volume.value = value;
+		videoRef.value.volume = value;
+	}
+};
+
+// Tam ekran kontrolü
+const toggleFullscreen = () => {
+	if (!document.fullscreenElement) {
+		document.documentElement.requestFullscreen();
+		isFullscreen.value = true;
+	} else {
+		document.exitFullscreen();
+		isFullscreen.value = false;
+	}
+};
+
+// Video olayları
+const onTimeUpdate = () => {
+	if (videoRef.value) {
+		currentTime.value = videoRef.value.currentTime;
+	}
+};
+
+const onLoadedMetadata = () => {
+	if (videoRef.value) {
+		duration.value = videoRef.value.duration;
+		isLoading.value = false;
+	}
+};
+
+const onPlay = () => {
+	isPlaying.value = true;
+};
+
+const onPause = () => {
+	isPlaying.value = false;
+};
+
+const onEnded = () => {
+	isPlaying.value = false;
+};
+
+// Kontrol çubuğu görünürlüğü
+let controlsTimeout;
+const showControlsTemporarily = () => {
+	showControls.value = true;
+	clearTimeout(controlsTimeout);
+	controlsTimeout = setTimeout(() => {
+		if (!isPlaying.value) return;
+		showControls.value = false;
+	}, 3000);
+};
+
+// Klavye kısayolları
+const onKeyDown = (e) => {
+	if (e.code === "Space") {
+		e.preventDefault();
+		togglePlay();
+	} else if (e.code === "KeyM") {
+		toggleMute();
+	} else if (e.code === "KeyF") {
+		toggleFullscreen();
+	}
+};
+
+// Yaşam döngüsü
+onMounted(() => {
+	window.addEventListener("keydown", onKeyDown);
+	document.addEventListener("fullscreenchange", () => {
+		isFullscreen.value = !!document.fullscreenElement;
+	});
 });
 
-const zoomOut = () => {
-	timelineState.value.zoom = Math.max(0.5, timelineState.value.zoom - 0.5);
-};
-
-const zoomIn = () => {
-	timelineState.value.zoom = Math.min(4, timelineState.value.zoom + 0.5);
-};
+onUnmounted(() => {
+	window.removeEventListener("keydown", onKeyDown);
+	clearTimeout(controlsTimeout);
+});
 </script>
 
 <style>
