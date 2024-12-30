@@ -193,8 +193,21 @@ class CameraManager {
 			webPreferences: {
 				nodeIntegration: true,
 				contextIsolation: true,
+				backgroundThrottling: false,
+
 				preload: path.join(__dirname, "preload.cjs"),
 			},
+
+			backgroundColor: "#00000000",
+			hasShadow: false,
+			roundedCorners: true,
+			titleBarOverlay: false,
+			fullscreenable: false,
+			type: "panel",
+			focusable: false,
+			vibrancy: "ultra-dark",
+			maximizable: false,
+			minimizable: false,
 		});
 
 		const cameraHtmlPath = path.join(
