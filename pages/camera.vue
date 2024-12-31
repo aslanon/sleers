@@ -133,19 +133,19 @@ onMounted(() => {
 	console.log("[camera.vue] Component mount edildi");
 
 	// İlk açılışta varsayılan kamera ile başlat
-	// startCamera();
+	startCamera();
 
 	// Ana pencereden gelecek kamera seçimi için event listener ekle
 	if (electron) {
 		console.log("[camera.vue] Electron bulundu, event listener ekleniyor");
-		electron.ipcRenderer.on("UPDATE_CAMERA_DEVICE", async (deviceLabel) => {
+		electron.ipcRenderer.on("UPDATE_CAMERA_DEVICE", (deviceLabel) => {
 			console.log(
 				"[camera.vue] UPDATE_CAMERA_DEVICE eventi alındı, label:",
 				deviceLabel
 			);
 			// Sadece geçerli bir label geldiğinde kamerayı değiştir
 			if (deviceLabel) {
-				await startCamera(deviceLabel);
+				startCamera(deviceLabel);
 			}
 		});
 		console.log("[camera.vue] Event listener eklendi");
