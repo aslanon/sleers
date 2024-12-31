@@ -195,13 +195,19 @@ const selectSource = (source) => {
 	}
 };
 
+// Kamera değişikliği izleyicisi
 watch(selectedVideoDevice, async (deviceLabel) => {
 	if (deviceLabel) {
 		try {
+			console.log("[index.vue] Seçilen kamera label:", deviceLabel);
 			// Kamera değişikliğini main process'e bildir
 			electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", deviceLabel);
+			console.log(
+				"[index.vue] Kamera değişikliği main process'e gönderildi:",
+				deviceLabel
+			);
 		} catch (error) {
-			console.error("Kamera değişikliği sırasında hata:", error);
+			console.error("[index.vue] Kamera değişikliği sırasında hata:", error);
 		}
 	}
 });

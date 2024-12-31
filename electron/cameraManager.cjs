@@ -259,9 +259,34 @@ class CameraManager {
 		return this.lastCameraPosition;
 	}
 
-	updateCameraDevice(deviceId) {
-		if (deviceId && this.cameraWindow && !this.cameraWindow.isDestroyed()) {
-			this.cameraWindow.webContents.send("UPDATE_CAMERA_DEVICE", deviceId);
+	updateCameraDevice(deviceLabel) {
+		console.log(
+			"[cameraManager.cjs] Kamera cihazı güncelleniyor, label:",
+			deviceLabel
+		);
+		// Sadece geçerli bir label varsa güncelleme yap
+		if (
+			deviceLabel &&
+			deviceLabel !== "undefined" &&
+			this.cameraWindow &&
+			!this.cameraWindow.isDestroyed()
+		) {
+			// Kamera penceresine yeni deviceLabel'ı gönder
+			this.cameraWindow.webContents.send("UPDATE_CAMERA_DEVICE", deviceLabel);
+			console.log(
+				"[cameraManager.cjs] Kamera penceresi güncellendi, label:",
+				deviceLabel
+			);
+		} else {
+			console.log(
+				"[cameraManager.cjs] Kamera penceresi bulunamadı veya label geçersiz",
+				{
+					hasLabel: !!deviceLabel,
+					isLabelValid: deviceLabel !== "undefined",
+					hasWindow: !!this.cameraWindow,
+					isDestroyed: this.cameraWindow?.isDestroyed(),
+				}
+			);
 		}
 	}
 
@@ -276,8 +301,10 @@ class CameraManager {
 	}
 
 	handleCameraStatusUpdate(statusData) {
+		console.log("CameraManager: Kamera durumu güncelleniyor:", statusData);
 		if (this.mainWindow && !this.mainWindow.isDestroyed()) {
 			this.mainWindow.webContents.send("CAMERA_STATUS_CHANGED", statusData);
+			console.log("CameraManager: Ana pencere bilgilendirildi");
 		}
 	}
 

@@ -47,10 +47,24 @@ ipcMain.on("RECORDING_STATUS_CHANGED", (event, status) => {
 });
 
 // Kamera değişikliği için IPC handler
-ipcMain.on("CAMERA_DEVICE_CHANGED", (event, deviceId) => {
-	console.log("Kamera cihazı değişti:", deviceId);
+ipcMain.on("CAMERA_DEVICE_CHANGED", (event, deviceLabel) => {
+	console.log("[main.cjs] Kamera cihazı değişti, label:", deviceLabel);
+	if (deviceLabel && cameraManager) {
+		cameraManager.updateCameraDevice(deviceLabel);
+		console.log("[main.cjs] CameraManager'a değişiklik iletildi");
+	} else {
+		console.log("[main.cjs] Kamera değişikliği iletilemedi:", {
+			hasLabel: !!deviceLabel,
+			hasCameraManager: !!cameraManager,
+		});
+	}
+});
+
+// Kamera durumu değişikliği için IPC handler
+ipcMain.on("CAMERA_STATUS_UPDATE", (event, statusData) => {
+	console.log("Main process: Kamera durumu güncellendi:", statusData);
 	if (cameraManager) {
-		cameraManager.updateCameraDevice(deviceId);
+		cameraManager.handleCameraStatusUpdate(statusData);
 	}
 });
 

@@ -1,4 +1,4 @@
-import { ref, watch } from "vue";
+import { ref } from "vue";
 import { useRouter } from "vue-router";
 
 export const useMediaDevices = () => {
@@ -9,7 +9,6 @@ export const useMediaDevices = () => {
 	const selectedAudioDevice = ref("");
 	const mediaStream = ref(null);
 	const isRecording = ref(false);
-	const currentCameraStream = ref(null);
 
 	const getDevices = async () => {
 		try {
@@ -67,23 +66,6 @@ export const useMediaDevices = () => {
 				},
 			});
 
-			// Kamera yakalama (isteğe bağlı)
-			let cameraStream = null;
-			if (selectedVideoDevice.value) {
-				try {
-					cameraStream = await navigator.mediaDevices.getUserMedia({
-						video: {
-							deviceId: { exact: selectedVideoDevice.value },
-							width: { ideal: 1280 },
-							height: { ideal: 720 },
-						},
-						audio: false,
-					});
-				} catch (err) {
-					console.warn("Kamera akışı alınamadı:", err);
-				}
-			}
-
 			// Ses yakalama (isteğe bağlı)
 			let audioStream = null;
 			if (selectedAudioDevice.value) {
@@ -105,14 +87,13 @@ export const useMediaDevices = () => {
 			const tracks = [
 				...screenStream.getVideoTracks(),
 				...(audioStream?.getAudioTracks() || []),
-				...(cameraStream?.getVideoTracks() || []),
 			];
 
 			const combinedStream = new MediaStream(tracks);
 			mediaStream.value = combinedStream;
 			isRecording.value = true;
 
-			return { screenStream, cameraStream };
+			return { screenStream };
 		} catch (error) {
 			console.error("Kayıt başlatılırken hata oluştu:", error);
 			throw error;
@@ -121,7 +102,6 @@ export const useMediaDevices = () => {
 
 	const stopRecording = () => {
 		if (mediaStream.value) {
-			// Tüm track'leri durdur
 			mediaStream.value.getTracks().forEach((track) => {
 				track.stop();
 			});
@@ -214,34 +194,6 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	// Kamera değiştiğinde otomatik güncelleme
-	watch(selectedVideoDevice, async (newDeviceId) => {
-		if (newDeviceId) {
-			try {
-				// Önceki stream'i kapat
-				if (currentCameraStream.value) {
-					currentCameraStream.value
-						.getTracks()
-						.forEach((track) => track.stop());
-				}
-
-				// Yeni kamera stream'ini başlat
-				const stream = await navigator.mediaDevices.getUserMedia({
-					video: {
-						deviceId: { exact: newDeviceId },
-						width: { ideal: 1280 },
-						height: { ideal: 720 },
-					},
-					audio: false,
-				});
-				currentCameraStream.value = stream;
-			} catch (err) {
-				console.error("Kamera stream'i başlatılamadı:", err);
-				currentCameraStream.value = null;
-			}
-		}
-	});
-
 	return {
 		videoDevices,
 		audioDevices,
@@ -249,7 +201,6 @@ export const useMediaDevices = () => {
 		selectedAudioDevice,
 		mediaStream,
 		isRecording,
-		currentCameraStream,
 		getDevices,
 		startRecording,
 		stopRecording,

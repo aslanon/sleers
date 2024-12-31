@@ -35,15 +35,90 @@ const videoRef = ref(null);
 let currentStream = null;
 const electron = window.electron;
 
-const startCamera = async () => {
+const startCamera = async (deviceLabel) => {
 	try {
-		const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+		console.log(
+			"[camera.vue] startCamera başlatıldı, istenen label:",
+			deviceLabel
+		);
+		// Önce mevcut stream'i durdur
+		stopCamera();
+
+		// Tüm kamera cihazlarını al
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		const videoDevices = devices.filter(
+			(device) => device.kind === "videoinput"
+		);
+
+		console.log(
+			"[camera.vue] Mevcut kameralar:",
+			videoDevices.map((d) => ({ label: d.label, id: d.deviceId }))
+		);
+
+		// Label'a göre cihazı bul
+		let selectedDevice;
+		if (deviceLabel) {
+			selectedDevice = videoDevices.find(
+				(device) => device.label === deviceLabel
+			);
+			console.log("[camera.vue] Label'a göre bulunan kamera:", selectedDevice);
+		}
+
+		// Eğer belirli bir cihaz bulunamadıysa veya label belirtilmediyse
+		// ilk kamerayı kullan
+		if (!selectedDevice && videoDevices.length > 0) {
+			selectedDevice = videoDevices[0];
+			console.log(
+				"[camera.vue] Varsayılan kamera kullanılıyor:",
+				selectedDevice
+			);
+		}
+
+		if (!selectedDevice) {
+			throw new Error("Kullanılabilir kamera bulunamadı");
+		}
+
+		console.log("[camera.vue] Kamera başlatılıyor:", {
+			deviceId: selectedDevice.deviceId,
+			label: selectedDevice.label,
+		});
+
+		// Seçilen kamera ile stream başlat
+		const stream = await navigator.mediaDevices.getUserMedia({
+			video: {
+				deviceId: { exact: selectedDevice.deviceId },
+				width: { ideal: 1920 },
+				height: { ideal: 1080 },
+				frameRate: { ideal: 60 },
+			},
+			audio: false,
+		});
+
 		currentStream = stream;
 		if (videoRef.value) {
 			videoRef.value.srcObject = stream;
+			await videoRef.value
+				.play()
+				.catch((e) => console.error("[camera.vue] Video oynatma hatası:", e));
+		}
+
+		// Kamera durumunu ana pencereye bildir
+		if (electron) {
+			electron.ipcRenderer.send("CAMERA_STATUS_UPDATE", {
+				status: "active",
+				deviceId: selectedDevice.deviceId,
+				label: selectedDevice.label,
+			});
+			console.log("[camera.vue] Kamera durumu ana pencereye bildirildi");
 		}
 	} catch (error) {
-		console.error("Kamera erişimi hatası:", error);
+		console.error("[camera.vue] Kamera erişimi hatası:", error);
+		if (electron) {
+			electron.ipcRenderer.send("CAMERA_STATUS_UPDATE", {
+				status: "error",
+				error: error.message,
+			});
+		}
 	}
 };
 
@@ -55,11 +130,34 @@ const stopCamera = () => {
 };
 
 onMounted(() => {
-	startCamera();
+	console.log("[camera.vue] Component mount edildi");
+
+	// İlk açılışta varsayılan kamera ile başlat
+	// startCamera();
+
+	// Ana pencereden gelecek kamera seçimi için event listener ekle
+	if (electron) {
+		console.log("[camera.vue] Electron bulundu, event listener ekleniyor");
+		electron.ipcRenderer.on("UPDATE_CAMERA_DEVICE", async (deviceLabel) => {
+			console.log(
+				"[camera.vue] UPDATE_CAMERA_DEVICE eventi alındı, label:",
+				deviceLabel
+			);
+			// Sadece geçerli bir label geldiğinde kamerayı değiştir
+			if (deviceLabel) {
+				await startCamera(deviceLabel);
+			}
+		});
+		console.log("[camera.vue] Event listener eklendi");
+	}
 });
 
 onUnmounted(() => {
 	stopCamera();
+	// Event listener'ı temizle
+	if (electron) {
+		electron.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
+	}
 });
 </script>
 
