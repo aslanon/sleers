@@ -16,6 +16,7 @@ const ffmpeg = require("fluent-ffmpeg");
 
 const TrayManager = require("./trayManager.cjs");
 const CameraManager = require("./cameraManager.cjs");
+const EditorManager = require("./editorManager.cjs");
 
 let trayManager = null;
 let cameraManager = null;
@@ -29,20 +30,25 @@ const tempFiles = new Map();
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 
+// Editor Manager instance'ı
+let editorManager = null;
+
 // IPC handler for recording status
 ipcMain.on("RECORDING_STATUS_CHANGED", (event, status) => {
 	console.log("Kayıt durumu değişti:", status);
-	if (cameraManager) {
-		cameraManager.setRecordingStatus(status);
-	}
-	if (trayManager) {
-		trayManager.setRecordingStatus(status);
+
+	if (status) {
+		// Kayıt başladığında sadece ana pencereyi gizle
+		if (mainWindow) mainWindow.hide();
+	} else {
+		// Kayıt bittiğinde editor'ü göster ve kamerayı gizle
+		if (cameraManager) cameraManager.closeCameraWindow();
+		if (editorManager) editorManager.showEditorWindow();
 	}
 
-	if (status && mainWindow) {
-		mainWindow.hide();
-	} else if (mainWindow) {
-		mainWindow.show();
+	// Tray ikonunu güncelle
+	if (trayManager) {
+		trayManager.setRecordingStatus(status);
 	}
 });
 
@@ -148,6 +154,9 @@ async function createWindow() {
 		}
 		return false;
 	});
+
+	// Editor Manager'ı başlat
+	editorManager = new EditorManager(mainWindow);
 }
 
 // Uygulama yaşam döngüsü olayları
@@ -273,14 +282,17 @@ ipcMain.on("AREA_SELECTED", (event, area) => {
 
 // Yeni kayıt için temizlik
 ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
+	// Editor'ü gizle
+	if (editorManager) {
+		editorManager.hideEditorWindow();
+	}
+
+	// Ana pencere ve kamerayı göster
+	if (mainWindow) mainWindow.show();
+	if (cameraManager) cameraManager.showCameraWindow();
+
+	// Geçici dosyaları temizle
 	cleanupTempFiles();
-	if (mainWindow) {
-		mainWindow.setResizable(false);
-		mainWindow.setSize(1000, 70);
-	}
-	if (cameraManager) {
-		cameraManager.resetForNewRecording();
-	}
 });
 
 // Geçici dosyaları temizle
@@ -814,4 +826,28 @@ ipcMain.on("WINDOW_DRAGGING", (event, mousePos) => {
 
 ipcMain.on("END_WINDOW_DRAG", () => {
 	isDragging = false;
+});
+
+// Editor ile ilgili IPC handler'lar
+ipcMain.on("EDITOR_STATUS_UPDATE", (event, statusData) => {
+	console.log("[main.cjs] Editor durumu güncellendi:", statusData);
+	if (editorManager) {
+		editorManager.handleEditorStatusUpdate(statusData);
+	}
+});
+
+ipcMain.on("CLOSE_EDITOR_WINDOW", () => {
+	if (editorManager) {
+		editorManager.closeEditorWindow();
+	}
+});
+
+ipcMain.on("OPEN_EDITOR", (event, videoData) => {
+	if (editorManager) {
+		editorManager.createEditorWindow();
+		// Pencere yüklendikten sonra video verilerini gönder
+		setTimeout(() => {
+			editorManager.startEditing(videoData);
+		}, 1000);
+	}
 });

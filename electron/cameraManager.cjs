@@ -247,10 +247,41 @@ class CameraManager {
 
 	// Close camera window
 	closeCameraWindow() {
-		if (this.cameraWindow) {
-			this.stopMouseTracking();
-			this.cameraWindow.close();
-			this.cameraWindow = null;
+		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+			this.cameraWindow.hide();
+		}
+	}
+
+	// Kamera penceresini göster
+	showCameraWindow() {
+		if (!this.cameraWindow || this.cameraWindow.isDestroyed()) {
+			this.createCameraWindow();
+		} else {
+			this.cameraWindow.show();
+		}
+	}
+
+	// Yeni kayıt için sıfırla
+	resetForNewRecording() {
+		if (!this.cameraWindow || this.cameraWindow.isDestroyed()) {
+			this.createCameraWindow();
+		} else {
+			this.cameraWindow.show();
+			// Kamera penceresini varsayılan konuma getir
+			const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+			const size = this.SMALL_SIZE;
+			this.cameraWindow.setPosition(width - size - 50, height - size - 50);
+		}
+	}
+
+	// Kayıt durumunu ayarla
+	setRecordingStatus(status) {
+		this.isRecording = status;
+		if (status) {
+			this.showCameraWindow();
+			this.startMouseTracking();
+		} else {
+			this.closeCameraWindow();
 		}
 	}
 
@@ -290,16 +321,6 @@ class CameraManager {
 		}
 	}
 
-	setRecordingStatus(status) {
-		this.isRecording = status;
-		if (status) {
-			this.createCameraWindow();
-			this.startMouseTracking();
-		} else {
-			this.closeCameraWindow();
-		}
-	}
-
 	handleCameraStatusUpdate(statusData) {
 		console.log("CameraManager: Kamera durumu güncelleniyor:", statusData);
 		if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -332,16 +353,13 @@ class CameraManager {
 		}
 	}
 
-	resetForNewRecording() {
-		if (this.cameraWindow) {
-			const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-			this.cameraWindow.setPosition(width - 340, height - 340);
-		}
-	}
-
+	// Temizlik işlemi
 	cleanup() {
 		this.stopMouseTracking();
-		this.closeCameraWindow();
+		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+			this.cameraWindow.destroy();
+			this.cameraWindow = null;
+		}
 	}
 }
 
