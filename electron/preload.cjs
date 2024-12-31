@@ -1,3 +1,5 @@
+// Valid channels
+
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electron", {

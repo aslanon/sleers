@@ -26,6 +26,12 @@ let tempVideoPath = null;
 // Geçici dosyaları saklamak için bir Map
 const tempFiles = new Map();
 
+// Medya dosyalarının yollarını saklamak için state
+let mediaState = {
+	videoPath: null,
+	audioPath: null,
+};
+
 // Pencere sürükleme için değişkenler
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
@@ -34,16 +40,42 @@ let dragOffset = { x: 0, y: 0 };
 let editorManager = null;
 
 // IPC handler for recording status
-ipcMain.on("RECORDING_STATUS_CHANGED", (event, status) => {
+ipcMain.on("RECORDING_STATUS_CHANGED", async (event, status) => {
 	console.log("Kayıt durumu değişti:", status);
 
 	if (status) {
 		// Kayıt başladığında sadece ana pencereyi gizle
 		if (mainWindow) mainWindow.hide();
 	} else {
+		// Kayıt bittiğinde mediaState'i güncelle
+		mediaState.videoPath =
+			tempFiles.get("screen") || tempFiles.get("video") || null;
+		mediaState.audioPath = tempFiles.get("audio") || null;
+
+		console.log("MediaState güncellendi:", mediaState);
+
 		// Kayıt bittiğinde editor'ü göster ve kamerayı gizle
 		if (cameraManager) cameraManager.closeCameraWindow();
-		if (editorManager) editorManager.showEditorWindow();
+		if (editorManager) {
+			// Medya yollarını editor'e gönder
+			await editorManager.showEditorWindow();
+			console.log(
+				"Editor penceresi açıldı, mediaState gönderiliyor:",
+				mediaState
+			);
+
+			setTimeout(() => {
+				if (editorManager.editorWindow) {
+					editorManager.editorWindow.webContents.send(
+						"MEDIA_PATHS",
+						mediaState
+					);
+					console.log("MediaState editöre gönderildi");
+				} else {
+					console.error("Editor penceresi bulunamadı");
+				}
+			}, 1000);
+		}
 	}
 
 	// Tray ikonunu güncelle
@@ -111,26 +143,6 @@ async function createWindow() {
 
 	trayManager.createTray();
 	cameraManager.createCameraWindow();
-
-	// CSP ayarlarını güncelle
-	mainWindow.webContents.session.webRequest.onHeadersReceived(
-		(details, callback) => {
-			callback({
-				responseHeaders: {
-					...details.responseHeaders,
-				},
-			});
-		}
-	);
-
-	// Protokol kısıtlamalarını kaldır
-	mainWindow.webContents.session.protocol.registerFileProtocol(
-		"file",
-		(request, callback) => {
-			const filePath = request.url.replace("file://", "");
-			callback({ path: filePath });
-		}
-	);
 
 	if (isDev) {
 		mainWindow.loadURL("http://127.0.0.1:3000");
@@ -352,10 +364,18 @@ ipcMain.handle("SAVE_TEMP_VIDEO", async (event, data, type) => {
 		// Map'e kaydet
 		tempFiles.set(type, tempPath);
 
+		// MediaState'i güncelle
+		if (type === "video" || type === "screen") {
+			mediaState.videoPath = tempPath;
+		} else if (type === "audio") {
+			mediaState.audioPath = tempPath;
+		}
+
 		console.log(`${type} için geçici dosya kaydedildi:`, {
 			path: tempPath,
 			size: stats.size,
 			type: type,
+			mediaState: mediaState, // State'i logla
 		});
 
 		return tempPath;

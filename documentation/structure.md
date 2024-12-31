@@ -24,6 +24,11 @@
 
 ### Kamera İşlemleri
 
+0. **Pencere görünürlük akışı**;
+
+- var olan flowları bozma:
+- pencerlerin açılış kapanış / gizle göster özelliklerine dokunmadan sadece kayıdı sonlandır işleminden sonrasında, oluşan video ve audio urllerini main.cjs de sakla. sonrasında editor.vue nu penceresinin açılma eventine buradaki pathleri eklemelisin. daha sonra editor.vue da bu pathleri yakalayarak video taginde işlemelisin
+
 1. **Kamera Seçimi**:
 
    ```

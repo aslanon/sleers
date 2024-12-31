@@ -71,6 +71,25 @@ const videoDuration = ref(0);
 const videoWidth = ref(0);
 const videoHeight = ref(0);
 
+// IPC mesajını dinle
+onMounted(() => {
+	console.log("[editor.vue] Component mount edildi");
+
+	// Media paths için listener
+	electron?.ipcRenderer.on("MEDIA_PATHS", (paths) => {
+		console.log("[editor.vue] Media paths alındı:", paths);
+		if (paths.videoPath) {
+			videoUrl.value = `file://${paths.videoPath}`;
+		}
+	});
+
+	// Start editing için listener
+	electron?.ipcRenderer.on("START_EDITING", (videoData) => {
+		console.log("[editor.vue] START_EDITING eventi alındı:", videoData);
+		startEditing(videoData);
+	});
+});
+
 // Video yüklendiğinde
 const onVideoLoaded = () => {
 	if (videoRef.value) {
@@ -143,22 +162,11 @@ const startNewRecording = () => {
 	}
 };
 
-onMounted(() => {
-	console.log("[editor.vue] Component mount edildi");
-
-	// Event listener'ları ekle
-	if (electron) {
-		electron.ipcRenderer.on("START_EDITING", (videoData) => {
-			console.log("[editor.vue] START_EDITING eventi alındı");
-			startEditing(videoData);
-		});
-	}
-});
-
 onUnmounted(() => {
 	// Event listener'ları temizle
-	if (electron) {
-		electron.ipcRenderer.removeAllListeners("START_EDITING");
+	if (window.electron) {
+		window.electron.ipcRenderer.removeAllListeners("MEDIA_PATHS");
+		window.electron.ipcRenderer.removeAllListeners("START_EDITING");
 	}
 });
 </script>
