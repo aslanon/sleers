@@ -8,6 +8,7 @@
 			class="camera-video"
 		></video>
 		<div
+			v-if="false"
 			class="absolute max-w-[220px] bottom-6 text-xl text-white bg-purple-600 text-center rounded-full rounded-tl-none px-4 py-2"
 		>
 			aslanon
