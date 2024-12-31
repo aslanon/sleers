@@ -8,6 +8,7 @@
 					ref="videoRef"
 					class="w-full h-full"
 					controls
+					s
 					@loadedmetadata="onVideoLoaded"
 				>
 					<source :src="videoUrl" type="video/mp4" />

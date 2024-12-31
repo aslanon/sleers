@@ -74,7 +74,7 @@ ipcMain.on("RECORDING_STATUS_CHANGED", async (event, status) => {
 				} else {
 					console.error("Editor penceresi bulunamadı");
 				}
-			}, 1000);
+			}, 2000);
 		}
 	}
 
