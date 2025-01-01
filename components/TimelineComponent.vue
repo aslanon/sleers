@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-container relative flex flex-col bg-gray-900 text-white">
+	<div class="timeline-container p-12 relative flex flex-col text-white">
 		<!-- Timeline Header -->
 		<div class="flex justify-between items-center px-4 py-2">
 			<div class="text-sm font-medium text-gray-300">Timeline</div>
@@ -32,91 +32,92 @@
 		</div>
 
 		<!-- Timeline Ruler -->
-		<div
-			ref="timelineRef"
-			class="timeline-ruler relative h-24 overflow-x-auto select-none bg-gray-800"
-			@wheel="handleWheel"
-			@mousedown="startDragging"
-			@click="handleTimelineClick"
-		>
+		<div class="overflow-x-auto">
 			<div
-				class="timeline-content relative h-full"
-				:style="{ width: `${timelineWidth}px` }"
+				ref="timelineRef"
+				class="timeline-ruler mx: 8 px-8 relative h-24 select-none"
+				@wheel="handleWheel"
+				@mousedown="startDragging"
+				@click="handleTimelineClick"
 			>
-				<!-- Zaman İşaretleri -->
 				<div
-					v-for="marker in timeMarkers"
-					:key="marker.time"
-					class="absolute flex flex-col items-center"
-					:style="{
-						left: `${marker.position}%`,
-						transform: 'translateX(-50%)',
-					}"
+					class="timeline-content relative h-full"
+					:style="{ width: `${timelineWidth}px` }"
 				>
+					<!-- Zaman İşaretleri -->
 					<div
-						class="w-0.5"
-						:class="{
-							'h-4 bg-gray-400': marker.isHour,
-							'h-3 bg-gray-500': !marker.isHour && marker.isMinute,
-							'h-2 bg-gray-600':
-								!marker.isHour && !marker.isMinute && marker.isHalfMinute,
-							'h-1.5 bg-gray-700':
-								!marker.isHour && !marker.isMinute && !marker.isHalfMinute,
-						}"
-					></div>
-					<span
-						v-if="shouldShowTime(marker.time)"
-						class="text-[10px] text-gray-400 mt-0.5"
-						:class="{
-							'font-medium': marker.isHour || marker.isMinute,
+						v-for="marker in timeMarkers"
+						:key="marker.time"
+						class="absolute flex flex-col items-center"
+						:style="{
+							left: `${marker.position}%`,
+							transform: 'translateX(-50%)',
 						}"
 					>
-						{{ marker.label }}
-					</span>
-				</div>
-
-				<!-- Video Track -->
-				<div
-					class="absolute left-0 right-0 bottom-8 h-12 flex items-center px-2"
-				>
-					<div class="w-full h-8 bg-black/50 rounded">
-						<!-- Video Segments -->
 						<div
-							v-for="(segment, index) in props.segments"
-							:key="index"
-							class="absolute h-full bg-black rounded"
-							:style="{
-								left: `${(segment.start / props.duration) * 100}%`,
-								width: `${
-									((segment.end - segment.start) / props.duration) * 100
-								}%`,
+							class="w-0.5"
+							:class="{
+								'h-4 bg-gray-400': marker.isHour,
+								'h-3 bg-gray-500': !marker.isHour && marker.isMinute,
+								'h-2 bg-gray-600':
+									!marker.isHour && !marker.isMinute && marker.isHalfMinute,
+								'h-1.5 bg-gray-700':
+									!marker.isHour && !marker.isMinute && !marker.isHalfMinute,
 							}"
 						></div>
+						<span
+							v-if="shouldShowTime(marker.time)"
+							class="text-[10px] text-gray-400 mt-0.5"
+							:class="{
+								'font-medium': marker.isHour || marker.isMinute,
+							}"
+						>
+							{{ marker.label }}
+						</span>
 					</div>
-				</div>
 
-				<!-- Playhead -->
-				<div
-					class="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10"
-					:style="{
-						left: `${playheadPosition}%`,
-						transform: 'translateX(-50%)',
-					}"
-				></div>
+					<!-- Video Track -->
+					<div
+						class="absolute left-0 right-0 bottom-8 h-12 flex items-center px-2"
+					>
+						<div class="timeline-layer-bar w-full h-8 bg-orange-300 rounded-xl">
+							<!-- Video Segments -->
+							<div
+								v-for="(segment, index) in props.segments"
+								:key="index"
+								class="absolute h-full bg-black rounded"
+								:style="{
+									left: `${(segment.start / props.duration) * 100}%`,
+									width: `${
+										((segment.end - segment.start) / props.duration) * 100
+									}%`,
+								}"
+							></div>
+						</div>
+					</div>
 
-				<!-- Playhead Handle -->
-				<div
-					class="absolute -top-1 w-3 h-3 cursor-pointer z-20"
-					:style="{
-						left: `${playheadPosition}%`,
-						transform: 'translateX(-50%)',
-					}"
-				>
-					<div class="w-3 h-3 bg-blue-500 rounded-full"></div>
+					<!-- Playhead -->
+					<div
+						class="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+						:style="{
+							left: `${playheadPosition}%`,
+							transform: 'translateX(-50%)',
+						}"
+					></div>
+
+					<!-- Playhead Handle -->
+					<div
+						class="absolute -top-1 w-3 h-3 cursor-pointer z-20"
+						:style="{
+							left: `${playheadPosition}%`,
+							transform: 'translateX(-50%)',
+						}"
+					>
+						<div class="w-3 h-3 bg-red-500 rounded-full"></div>
+					</div>
 				</div>
 			</div>
 		</div>
-
 		<!-- Timeline Footer -->
 		<div
 			class="flex justify-between items-center px-4 py-2 text-xs text-gray-400"
