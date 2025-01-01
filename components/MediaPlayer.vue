@@ -41,6 +41,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	currentTime: {
+		type: Number,
+		default: 0,
+	},
 });
 
 const emit = defineEmits([
@@ -73,18 +77,18 @@ const onVideoLoaded = () => {
 	}
 };
 
-// Video durduğunda veya bittiğinde
-const onVideoEnded = () => {
-	emit("videoEnded");
-	const audio = audioRef.value;
-	if (audio) audio.pause();
-};
-
 // Video zamanı güncellendiğinde
 const onTimeUpdate = () => {
 	if (videoRef.value) {
 		emit("timeUpdate", videoRef.value.currentTime);
 	}
+};
+
+// Video durduğunda veya bittiğinde
+const onVideoEnded = () => {
+	emit("videoEnded");
+	const audio = audioRef.value;
+	if (audio) audio.pause();
 };
 
 // isPlaying prop'unu izle
@@ -116,6 +120,20 @@ watch(
 	{ immediate: true }
 );
 
+// Timeline'dan gelen zaman güncellemelerini izle
+watch(
+	() => props.currentTime,
+	(newTime) => {
+		const video = videoRef.value;
+		if (video && Math.abs(video.currentTime - newTime) > 0.1) {
+			video.currentTime = newTime;
+			if (audioRef.value) {
+				audioRef.value.currentTime = newTime;
+			}
+		}
+	}
+);
+
 // Component mount olduğunda
 onMounted(() => {
 	const video = videoRef.value;
@@ -141,3 +159,18 @@ defineExpose({
 	audioRef,
 });
 </script>
+
+<style scoped>
+.media-player {
+	aspect-ratio: 16/9;
+}
+
+video::-webkit-media-controls {
+	display: none !important;
+}
+
+video {
+	object-fit: contain;
+	background: black;
+}
+</style>
