@@ -3,16 +3,22 @@
 		<video
 			ref="videoRef"
 			class="w-full h-full"
-			:src="videoUrl"
-			:type="videoType"
+			preload="metadata"
 			@loadedmetadata="onVideoLoaded"
+			@loadeddata="onVideoDataLoaded"
+			@durationchange="onDurationChange"
 			@timeupdate="onTimeUpdate"
-		></video>
+			@error="onVideoError"
+		>
+			<source v-if="videoUrl" :src="videoUrl" :type="videoType" />
+		</video>
 		<audio
-			v-show="audioUrl"
+			v-if="audioUrl"
 			ref="audioRef"
+			preload="metadata"
 			:src="audioUrl"
 			:type="audioType"
+			@error="onAudioError"
 		></audio>
 	</div>
 </template>
@@ -56,41 +62,121 @@ const emit = defineEmits([
 
 const videoRef = ref(null);
 const audioRef = ref(null);
+let metadataLoaded = false;
 
-// Video yüklendiğinde
+// Video metadata yüklendiğinde
 const onVideoLoaded = () => {
-	if (videoRef.value) {
-		const duration = videoRef.value.duration;
-		const width = videoRef.value.videoWidth;
-		const height = videoRef.value.videoHeight;
+	if (!videoRef.value) return;
 
-		// Sürenin geçerli bir sayı olduğundan emin ol
-		if (Number.isFinite(duration)) {
-			emit("videoLoaded", {
-				duration,
-				width,
-				height,
-			});
-		} else {
-			console.error("[MediaPlayer] Video süresi geçersiz:", duration);
-		}
+	const video = videoRef.value;
+	console.log("[MediaPlayer] Video metadata yükleniyor:", {
+		readyState: video.readyState,
+		networkState: video.networkState,
+		src: video.src,
+		currentSrc: video.currentSrc,
+		type: video.type,
+		duration: video.duration,
+		width: video.videoWidth,
+		height: video.videoHeight,
+	});
+};
+
+// Video data yüklendiğinde
+const onVideoDataLoaded = () => {
+	if (!videoRef.value || metadataLoaded) return;
+
+	const video = videoRef.value;
+	const duration = video.duration;
+	const width = video.videoWidth;
+	const height = video.videoHeight;
+
+	if (Number.isFinite(duration) && duration > 0 && width > 0 && height > 0) {
+		metadataLoaded = true;
+		console.log("[MediaPlayer] Video data yüklendi:", {
+			duration,
+			width,
+			height,
+		});
+		emit("videoLoaded", {
+			duration,
+			width,
+			height,
+		});
 	}
 };
 
-// Video zamanı güncellendiğinde
-const onTimeUpdate = () => {
-	if (videoRef.value) {
-		const currentTime = videoRef.value.currentTime;
-		emit("timeUpdate", currentTime);
+// Video süresi değiştiğinde
+const onDurationChange = () => {
+	if (!videoRef.value || metadataLoaded) return;
 
-		// Ses ile senkronizasyonu kontrol et
-		if (
-			audioRef.value &&
-			Math.abs(audioRef.value.currentTime - currentTime) > 0.1
-		) {
-			audioRef.value.currentTime = currentTime;
+	const video = videoRef.value;
+	const duration = video.duration;
+	const width = video.videoWidth;
+	const height = video.videoHeight;
+
+	if (Number.isFinite(duration) && duration > 0 && width > 0 && height > 0) {
+		metadataLoaded = true;
+		console.log("[MediaPlayer] Video süresi güncellendi:", {
+			duration,
+			width,
+			height,
+		});
+		emit("videoLoaded", {
+			duration,
+			width,
+			height,
+		});
+	}
+};
+
+// Hata yönetimi
+const onVideoError = (error) => {
+	console.error("[MediaPlayer] Video hatası:", {
+		error,
+		video: videoRef.value?.error,
+		readyState: videoRef.value?.readyState,
+		networkState: videoRef.value?.networkState,
+	});
+};
+
+const onAudioError = (error) => {
+	console.error("[MediaPlayer] Ses hatası:", {
+		error,
+		audio: audioRef.value?.error,
+	});
+};
+
+// Video URL'si değiştiğinde
+watch(
+	() => props.videoUrl,
+	() => {
+		metadataLoaded = false;
+		if (videoRef.value) {
+			videoRef.value.load();
 		}
 	}
+);
+
+// Video zamanı güncellendiğinde
+const onTimeUpdate = () => {
+	if (!videoRef.value) return;
+	emit("timeUpdate", videoRef.value.currentTime);
+};
+
+// Video kontrolü
+const play = () => {
+	if (!videoRef.value) return;
+	videoRef.value.play();
+};
+
+const pause = () => {
+	if (!videoRef.value) return;
+	videoRef.value.pause();
+};
+
+const seek = (time) => {
+	if (!videoRef.value) return;
+	videoRef.value.currentTime = time;
 };
 
 // Video durduğunda veya bittiğinde
@@ -100,51 +186,24 @@ const onVideoEnded = () => {
 	if (audio) audio.pause();
 };
 
-// isPlaying prop'unu izle
+// Props izleme
 watch(
 	() => props.isPlaying,
-	async (newValue) => {
-		const video = videoRef.value;
-		const audio = audioRef.value;
-
-		if (!video) return;
-
+	(newValue) => {
 		if (newValue) {
-			// Oynat
-			try {
-				await video.play();
-				if (audio) {
-					await audio.play();
-					audio.currentTime = video.currentTime;
-				}
-			} catch (error) {
-				console.error("Medya oynatma hatası:", error);
-			}
+			play();
 		} else {
-			// Durdur
-			video.pause();
-			if (audio) audio.pause();
+			pause();
 		}
-	},
-	{ immediate: true }
+	}
 );
 
-// Timeline'dan gelen zaman güncellemelerini izle
 watch(
 	() => props.currentTime,
-	(newTime) => {
-		const video = videoRef.value;
-		if (video && Math.abs(video.currentTime - newTime) > 0.1) {
-			video.currentTime = newTime;
-			if (audioRef.value) {
-				audioRef.value.currentTime = newTime;
-			}
-			// Zaman değiştiğinde oynatmayı durdur
-			if (props.isPlaying) {
-				video.pause();
-				if (audioRef.value) audioRef.value.pause();
-				emit("videoPaused");
-			}
+	(newValue) => {
+		if (!videoRef.value) return;
+		if (Math.abs(videoRef.value.currentTime - newValue) > 0.1) {
+			seek(newValue);
 		}
 	}
 );
@@ -168,10 +227,11 @@ onUnmounted(() => {
 	}
 });
 
-// Medya kontrollerini dışa aç
+// Component exposed methods
 defineExpose({
-	videoRef,
-	audioRef,
+	play,
+	pause,
+	seek,
 });
 </script>
 
