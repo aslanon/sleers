@@ -31,132 +31,63 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from "vue";
 
-const videoRef = ref(null);
-let currentStream = null;
 const electron = window.electron;
+const videoRef = ref(null);
+let stream = null;
 
-const startCamera = async (deviceLabel) => {
+// Kamerayı başlat
+const startCamera = async () => {
 	try {
-		console.log(
-			"[camera.vue] startCamera başlatıldı, istenen label:",
-			deviceLabel
-		);
-		// Önce mevcut stream'i durdur
-		stopCamera();
-
-		// Tüm kamera cihazlarını al
-		const devices = await navigator.mediaDevices.enumerateDevices();
-		const videoDevices = devices.filter(
-			(device) => device.kind === "videoinput"
-		);
-
-		console.log(
-			"[camera.vue] Mevcut kameralar:",
-			videoDevices.map((d) => ({ label: d.label, id: d.deviceId }))
-		);
-
-		// Label'a göre cihazı bul
-		let selectedDevice;
-		if (deviceLabel) {
-			selectedDevice = videoDevices.find(
-				(device) => device.label === deviceLabel
-			);
-			console.log("[camera.vue] Label'a göre bulunan kamera:", selectedDevice);
+		if (stream) {
+			stopCamera();
 		}
 
-		// Eğer belirli bir cihaz bulunamadıysa veya label belirtilmediyse
-		// ilk kamerayı kullan
-		if (!selectedDevice && videoDevices.length > 0) {
-			selectedDevice = videoDevices[0];
-			console.log(
-				"[camera.vue] Varsayılan kamera kullanılıyor:",
-				selectedDevice
-			);
-		}
-
-		if (!selectedDevice) {
-			throw new Error("Kullanılabilir kamera bulunamadı");
-		}
-
-		console.log("[camera.vue] Kamera başlatılıyor:", {
-			deviceId: selectedDevice.deviceId,
-			label: selectedDevice.label,
-		});
-
-		// Seçilen kamera ile stream başlat
-		const stream = await navigator.mediaDevices.getUserMedia({
+		stream = await navigator.mediaDevices.getUserMedia({
 			video: {
-				deviceId: { exact: selectedDevice.deviceId },
 				width: { ideal: 1920 },
 				height: { ideal: 1080 },
-				frameRate: { ideal: 60 },
 			},
-			audio: false,
 		});
 
-		currentStream = stream;
 		if (videoRef.value) {
 			videoRef.value.srcObject = stream;
-			await videoRef.value
-				.play()
-				.catch((e) => console.error("[camera.vue] Video oynatma hatası:", e));
-		}
-
-		// Kamera durumunu ana pencereye bildir
-		if (electron) {
-			electron.ipcRenderer.send("CAMERA_STATUS_UPDATE", {
-				status: "active",
-				deviceId: selectedDevice.deviceId,
-				label: selectedDevice.label,
-			});
-			console.log("[camera.vue] Kamera durumu ana pencereye bildirildi");
 		}
 	} catch (error) {
-		console.error("[camera.vue] Kamera erişimi hatası:", error);
-		if (electron) {
-			electron.ipcRenderer.send("CAMERA_STATUS_UPDATE", {
-				status: "error",
-				error: error.message,
-			});
-		}
+		console.error("Kamera başlatılırken hata:", error);
 	}
 };
 
+// Kamerayı durdur
 const stopCamera = () => {
-	if (currentStream) {
-		currentStream.getTracks().forEach((track) => track.stop());
-		currentStream = null;
+	if (stream) {
+		stream.getTracks().forEach((track) => track.stop());
+		stream = null;
+	}
+	if (videoRef.value) {
+		videoRef.value.srcObject = null;
 	}
 };
 
+// Component mount olduğunda
 onMounted(() => {
-	console.log("[camera.vue] Component mount edildi");
-
-	// İlk açılışta varsayılan kamera ile başlat
 	startCamera();
 
-	// Ana pencereden gelecek kamera seçimi için event listener ekle
-	if (electron) {
-		console.log("[camera.vue] Electron bulundu, event listener ekleniyor");
-		electron.ipcRenderer.on("UPDATE_CAMERA_DEVICE", (deviceLabel) => {
-			console.log(
-				"[camera.vue] UPDATE_CAMERA_DEVICE eventi alındı, label:",
-				deviceLabel
-			);
-			// Sadece geçerli bir label geldiğinde kamerayı değiştir
-			if (deviceLabel) {
-				startCamera(deviceLabel);
-			}
-		});
-		console.log("[camera.vue] Event listener eklendi");
-	}
+	// Kamera kontrol mesajlarını dinle
+	electron?.ipcRenderer.on("STOP_CAMERA", () => {
+		stopCamera();
+	});
+
+	electron?.ipcRenderer.on("START_CAMERA", () => {
+		startCamera();
+	});
 });
 
+// Component unmount olduğunda
 onUnmounted(() => {
 	stopCamera();
-	// Event listener'ı temizle
-	if (electron) {
-		electron.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
+	if (window.electron) {
+		window.electron.ipcRenderer.removeAllListeners("STOP_CAMERA");
+		window.electron.ipcRenderer.removeAllListeners("START_CAMERA");
 	}
 });
 </script>

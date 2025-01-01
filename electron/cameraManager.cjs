@@ -248,16 +248,18 @@ class CameraManager {
 	// Close camera window
 	closeCameraWindow() {
 		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+			this.stopCamera();
 			this.cameraWindow.hide();
 		}
 	}
 
-	// Kamera penceresini göster
+	// Show camera window
 	showCameraWindow() {
-		if (!this.cameraWindow || this.cameraWindow.isDestroyed()) {
-			this.createCameraWindow();
-		} else {
+		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+			this.startCamera();
 			this.cameraWindow.show();
+		} else {
+			this.createCameraWindow();
 		}
 	}
 
@@ -359,6 +361,22 @@ class CameraManager {
 		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
 			this.cameraWindow.destroy();
 			this.cameraWindow = null;
+		}
+	}
+
+	// Kamerayı durdur
+	stopCamera() {
+		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+			this.cameraWindow.webContents.send("STOP_CAMERA");
+			this.cameraWindow.hide();
+		}
+	}
+
+	// Kamerayı başlat
+	startCamera() {
+		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+			this.cameraWindow.webContents.send("START_CAMERA");
+			this.cameraWindow.show();
 		}
 	}
 }
