@@ -3,17 +3,71 @@
 		<!-- Ana İçerik -->
 		<div class="flex flex-1 p-4">
 			<!-- Video Önizleme -->
-			<div class="flex-1 bg-black rounded-lg overflow-hidden">
+
+			<div
+				class="flex-1 w-full max-h-[500px] bg-black rounded-lg overflow-hidden"
+			>
 				<video
 					ref="videoRef"
 					class="w-full h-full"
-					controls
 					:src="videoUrl"
 					:type="videoType"
 					@loadedmetadata="onVideoLoaded"
 				></video>
+				<audio
+					v-if="audioUrl"
+					ref="audioRef"
+					:src="audioUrl"
+					:type="audioType"
+				></audio>
 			</div>
-
+			<!-- Medya Kontrolleri -->
+			<div class="mt-4 flex justify-center items-center space-x-4">
+				<button
+					@click="togglePlayback"
+					class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center"
+				>
+					<span v-if="isPlaying">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
+						</svg>
+					</span>
+					<span v-else>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+							/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
+						</svg>
+					</span>
+					<span class="ml-2">{{ isPlaying ? "Durdur" : "Oynat" }}</span>
+				</button>
+			</div>
 			<!-- Kontrol Paneli -->
 			<div class="w-80 ml-4 bg-gray-800 rounded-lg p-4">
 				<h2 class="text-xl font-bold mb-4">Video Ayarları</h2>
@@ -66,25 +120,20 @@ import { ref, onMounted, onUnmounted } from "vue";
 
 const electron = window.electron;
 const videoRef = ref(null);
+const audioRef = ref(null);
 const videoUrl = ref("");
+const audioUrl = ref("");
 const videoDuration = ref(0);
 const videoWidth = ref(0);
 const videoHeight = ref(0);
 const videoType = ref("video/mp4");
+const audioType = ref("audio/webm");
 const videoBlob = ref(null);
+const audioBlob = ref(null);
+const isPlaying = ref(false);
 
-// Video URL'sini güvenli hale getir
-const sanitizeVideoUrl = (url) => {
-	if (!url) return "";
-	// URL'yi düzgün formata çevir
-	if (!url.startsWith("file://")) {
-		return `file://${url}`;
-	}
-	return url;
-};
-
-// Video URL'sini güvenli hale getir
-const loadVideo = async (filePath) => {
+// Video ve ses dosyalarını yükle
+const loadMedia = async (filePath, type = "video") => {
 	try {
 		// Dosya içeriğini base64 olarak al
 		const base64Data = await electron?.ipcRenderer.invoke(
@@ -92,13 +141,20 @@ const loadVideo = async (filePath) => {
 			filePath
 		);
 		if (!base64Data) {
-			console.error("[editor.vue] Video dosyası okunamadı");
+			console.error(`[editor.vue] ${type} dosyası okunamadı`);
 			return;
 		}
 
 		// Dosya uzantısına göre MIME type belirle
 		const extension = filePath.split(".").pop()?.toLowerCase();
-		const mimeType = extension === "webm" ? "video/webm" : "video/mp4";
+		const mimeType =
+			type === "video"
+				? extension === "webm"
+					? "video/webm"
+					: "video/mp4"
+				: extension === "webm"
+				? "audio/webm"
+				: "audio/mp4";
 
 		// Base64'ü Blob'a çevir
 		const byteCharacters = atob(base64Data);
@@ -110,32 +166,86 @@ const loadVideo = async (filePath) => {
 		const blob = new Blob([byteArray], { type: mimeType });
 
 		// Blob URL oluştur
-		if (videoBlob.value) {
-			URL.revokeObjectURL(videoBlob.value);
+		if (type === "video") {
+			if (videoBlob.value) {
+				URL.revokeObjectURL(videoBlob.value);
+			}
+			videoBlob.value = URL.createObjectURL(blob);
+			videoUrl.value = videoBlob.value;
+			videoType.value = mimeType;
+		} else {
+			if (audioBlob.value) {
+				URL.revokeObjectURL(audioBlob.value);
+			}
+			audioBlob.value = URL.createObjectURL(blob);
+			audioUrl.value = audioBlob.value;
+			audioType.value = mimeType;
 		}
-		videoBlob.value = URL.createObjectURL(blob);
-		videoUrl.value = videoBlob.value;
-		videoType.value = mimeType;
 
-		console.log("[editor.vue] Video yüklendi:", {
-			url: videoUrl.value,
-			type: videoType.value,
+		console.log(`[editor.vue] ${type} yüklendi:`, {
+			url: type === "video" ? videoUrl.value : audioUrl.value,
+			type: type === "video" ? videoType.value : audioType.value,
 			size: blob.size,
 		});
 	} catch (error) {
-		console.error("[editor.vue] Video yükleme hatası:", error);
+		console.error(`[editor.vue] ${type} yükleme hatası:`, error);
 	}
 };
 
-// IPC mesajını dinle
+// Oynatma/durdurma kontrolü
+const togglePlayback = async () => {
+	try {
+		const video = videoRef.value;
+		const audio = audioRef.value;
+
+		if (!video) return;
+
+		if (isPlaying.value) {
+			// Durdur
+			video.pause();
+			if (audio) audio.pause();
+		} else {
+			// Oynat
+			await video.play();
+			if (audio) {
+				await audio.play();
+				// Ses ve videoyu senkronize et
+				audio.currentTime = video.currentTime;
+			}
+		}
+		isPlaying.value = !isPlaying.value;
+	} catch (error) {
+		console.error("Medya oynatma hatası:", error);
+	}
+};
+
+// Video durduğunda veya bittiğinde
+const onVideoEnded = () => {
+	isPlaying.value = false;
+	const audio = audioRef.value;
+	if (audio) audio.pause();
+};
+
+// Component mount olduğunda
 onMounted(() => {
 	console.log("[editor.vue] Component mount edildi");
+
+	const video = videoRef.value;
+	if (video) {
+		video.addEventListener("ended", onVideoEnded);
+		video.addEventListener("pause", () => {
+			isPlaying.value = false;
+		});
+	}
 
 	// Media paths için listener
 	electron?.ipcRenderer.on("MEDIA_PATHS", async (paths) => {
 		console.log("[editor.vue] Media paths alındı:", paths);
 		if (paths.videoPath) {
-			await loadVideo(paths.videoPath);
+			await loadMedia(paths.videoPath, "video");
+		}
+		if (paths.audioPath) {
+			await loadMedia(paths.audioPath, "audio");
 		}
 	});
 
@@ -220,8 +330,16 @@ const startNewRecording = () => {
 
 // Component unmount olduğunda Blob URL'lerini temizle
 onUnmounted(() => {
+	const video = videoRef.value;
+	if (video) {
+		video.removeEventListener("ended", onVideoEnded);
+	}
+
 	if (videoBlob.value) {
 		URL.revokeObjectURL(videoBlob.value);
+	}
+	if (audioBlob.value) {
+		URL.revokeObjectURL(audioBlob.value);
 	}
 	// Event listener'ları temizle
 	if (window.electron) {
