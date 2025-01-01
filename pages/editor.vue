@@ -15,7 +15,7 @@
 					@loadedmetadata="onVideoLoaded"
 				></video>
 				<audio
-					v-if="audioUrl"
+					v-show="audioUrl"
 					ref="audioRef"
 					:src="audioUrl"
 					:type="audioType"
