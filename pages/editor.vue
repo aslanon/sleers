@@ -65,6 +65,7 @@
 		<TimelineComponent
 			:duration="videoDuration"
 			:current-time="currentTime"
+			:segments="videoSegments"
 			@time-update="onTimelineUpdate"
 		/>
 	</div>
@@ -91,6 +92,12 @@ const audioBlob = ref(null);
 const isPlaying = ref(false);
 const currentTime = ref(0);
 const isTrimMode = ref(false);
+const videoSegments = ref([
+	{
+		start: 0,
+		end: 0,
+	},
+]);
 
 // Video ve ses dosyalarını yükle
 const loadMedia = async (filePath, type = "video") => {
@@ -150,17 +157,15 @@ const togglePlayback = () => {
 };
 
 // Video yüklendiğinde
-const onVideoLoaded = (data) => {
-	videoDuration.value = data.duration;
-	videoWidth.value = data.width;
-	videoHeight.value = data.height;
-
-	electron?.ipcRenderer.send("EDITOR_STATUS_UPDATE", {
-		status: "ready",
-		duration: videoDuration.value,
-		width: videoWidth.value,
-		height: videoHeight.value,
-	});
+const onVideoLoaded = ({ duration, width, height }) => {
+	videoDuration.value = duration;
+	// İlk segment'i video süresine göre ayarla
+	videoSegments.value = [
+		{
+			start: 0,
+			end: duration,
+		},
+	];
 };
 
 // Video bittiğinde
