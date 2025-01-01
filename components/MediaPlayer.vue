@@ -1,7 +1,5 @@
 <template>
-	<div
-		class="media-player flex-1 w-full max-h-[500px] bg-black rounded-lg overflow-hidden"
-	>
+	<div class="media-player flex-1 w-full bg-black rounded-lg overflow-hidden">
 		<video
 			ref="videoRef"
 			class="w-full h-full"

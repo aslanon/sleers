@@ -4,7 +4,7 @@
 	>
 		<button
 			@click="$emit('togglePlayback')"
-			class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center"
+			class="px-6 py-2 rounded-lg flex items-center"
 		>
 			<span v-if="isPlaying">
 				<svg
@@ -44,7 +44,7 @@
 					/>
 				</svg>
 			</span>
-			<span class="ml-2">{{ isPlaying ? "Durdur" : "Oynat" }}</span>
+			<!-- <span class="ml-2">{{ isPlaying ? "Durdur" : "Oynat" }}</span> -->
 		</button>
 	</div>
 </template>

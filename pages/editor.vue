@@ -1,8 +1,34 @@
 <template>
-	<div class="editor-container bg-gray-900 text-white min-h-screen">
+	<div class="w-full flex flex-col bg-black text-white min-h-screen">
+		<div class="w-full p-4 px-6 bg-black flex justify-between gap-2">
+			<div class="flex flex-row gap-2 items-center">
+				<button
+					class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+					@click="startNewRecording()"
+				>
+					Yeni Kayıt
+				</button>
+			</div>
+			<!-- Butonlar -->
+			<div class="flex flex-row gap-2 items-center">
+				<button
+					class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg"
+					@click="saveVideo()"
+				>
+					Kaydet
+				</button>
+
+				<!-- <button
+					class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+					@click="discardChanges()"
+				>
+					Kapat
+				</button> -->
+			</div>
+		</div>
 		<!-- Ana İçerik -->
-		<div class="flex flex-1 p-4">
-			<div class="flex-1 flex flex-col">
+		<div class="w-full flex-1 flex">
+			<div class="w-full p-4 flex-1 flex flex-col">
 				<MediaPlayer
 					ref="mediaPlayerRef"
 					:video-url="videoUrl"
@@ -25,11 +51,9 @@
 				:duration="videoDuration"
 				:width="videoWidth"
 				:height="videoHeight"
-				@save-video="saveVideo"
-				@start-new-recording="startNewRecording"
-				@discard-changes="discardChanges"
 			/>
 		</div>
+		<div class="w-full h-[500px] bg-black">asd</div>
 	</div>
 </template>
 
@@ -197,11 +221,3 @@ onUnmounted(() => {
 	}
 });
 </script>
-
-<style scoped>
-.editor-container {
-	display: flex;
-	flex-direction: column;
-	height: 100vh;
-}
-</style>
