@@ -6,6 +6,7 @@ const {
 	ipcMain,
 	Menu,
 	nativeImage,
+	protocol,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -135,7 +136,28 @@ async function createWindow() {
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.cjs"),
 			webSecurity: false,
+			allowRunningInsecureContent: true,
+			webviewTag: true,
+			additionalArguments: ["--disable-site-isolation-trials"],
 		},
+	});
+
+	// Güvenlik politikalarını ayarla
+	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		callback({
+			responseHeaders: {
+				...details.responseHeaders,
+				"Content-Security-Policy": [
+					"default-src 'self' 'unsafe-inline' 'unsafe-eval' file: data: blob:; media-src 'self' file: blob: data:;",
+				],
+			},
+		});
+	});
+
+	// Protokol güvenliği için özel protokol kaydı
+	protocol.registerFileProtocol("file", (request, callback) => {
+		const pathname = decodeURIComponent(request.url.replace("file:///", ""));
+		callback(pathname);
 	});
 
 	trayManager = new TrayManager(mainWindow);
@@ -638,13 +660,33 @@ ipcMain.handle("COPY_FILE", async (event, src, dest) => {
 	}
 });
 
+// Video dosyası okuma işlemi için IPC handler
 ipcMain.handle("READ_VIDEO_FILE", async (event, filePath) => {
 	try {
-		const data = await fs.promises.readFile(filePath);
-		return data.toString("base64");
+		// Dosyanın varlığını kontrol et
+		if (!fs.existsSync(filePath)) {
+			console.error("Dosya bulunamadı:", filePath);
+			return null;
+		}
+
+		// Dosya boyutunu kontrol et
+		const stats = fs.statSync(filePath);
+		if (stats.size === 0) {
+			console.error("Dosya boş:", filePath);
+			return null;
+		}
+
+		console.log("Video dosyası okunuyor:", {
+			path: filePath,
+			size: stats.size,
+		});
+
+		// Dosyayı oku ve base64'e çevir
+		const buffer = await fs.promises.readFile(filePath);
+		return buffer.toString("base64");
 	} catch (error) {
 		console.error("Video dosyası okunurken hata:", error);
-		throw error;
+		return null;
 	}
 });
 

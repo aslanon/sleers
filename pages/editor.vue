@@ -8,11 +8,10 @@
 					ref="videoRef"
 					class="w-full h-full"
 					controls
-					s
+					:src="videoUrl"
+					:type="videoType"
 					@loadedmetadata="onVideoLoaded"
-				>
-					<source :src="videoUrl" type="video/mp4" />
-				</video>
+				></video>
 			</div>
 
 			<!-- Kontrol Paneli -->
@@ -71,16 +70,72 @@ const videoUrl = ref("");
 const videoDuration = ref(0);
 const videoWidth = ref(0);
 const videoHeight = ref(0);
+const videoType = ref("video/mp4");
+const videoBlob = ref(null);
+
+// Video URL'sini güvenli hale getir
+const sanitizeVideoUrl = (url) => {
+	if (!url) return "";
+	// URL'yi düzgün formata çevir
+	if (!url.startsWith("file://")) {
+		return `file://${url}`;
+	}
+	return url;
+};
+
+// Video URL'sini güvenli hale getir
+const loadVideo = async (filePath) => {
+	try {
+		// Dosya içeriğini base64 olarak al
+		const base64Data = await electron?.ipcRenderer.invoke(
+			"READ_VIDEO_FILE",
+			filePath
+		);
+		if (!base64Data) {
+			console.error("[editor.vue] Video dosyası okunamadı");
+			return;
+		}
+
+		// Dosya uzantısına göre MIME type belirle
+		const extension = filePath.split(".").pop()?.toLowerCase();
+		const mimeType = extension === "webm" ? "video/webm" : "video/mp4";
+
+		// Base64'ü Blob'a çevir
+		const byteCharacters = atob(base64Data);
+		const byteNumbers = new Array(byteCharacters.length);
+		for (let i = 0; i < byteCharacters.length; i++) {
+			byteNumbers[i] = byteCharacters.charCodeAt(i);
+		}
+		const byteArray = new Uint8Array(byteNumbers);
+		const blob = new Blob([byteArray], { type: mimeType });
+
+		// Blob URL oluştur
+		if (videoBlob.value) {
+			URL.revokeObjectURL(videoBlob.value);
+		}
+		videoBlob.value = URL.createObjectURL(blob);
+		videoUrl.value = videoBlob.value;
+		videoType.value = mimeType;
+
+		console.log("[editor.vue] Video yüklendi:", {
+			url: videoUrl.value,
+			type: videoType.value,
+			size: blob.size,
+		});
+	} catch (error) {
+		console.error("[editor.vue] Video yükleme hatası:", error);
+	}
+};
 
 // IPC mesajını dinle
 onMounted(() => {
 	console.log("[editor.vue] Component mount edildi");
 
 	// Media paths için listener
-	electron?.ipcRenderer.on("MEDIA_PATHS", (paths) => {
+	electron?.ipcRenderer.on("MEDIA_PATHS", async (paths) => {
 		console.log("[editor.vue] Media paths alındı:", paths);
 		if (paths.videoPath) {
-			videoUrl.value = `file://${paths.videoPath}`;
+			await loadVideo(paths.videoPath);
 		}
 	});
 
@@ -163,7 +218,11 @@ const startNewRecording = () => {
 	}
 };
 
+// Component unmount olduğunda Blob URL'lerini temizle
 onUnmounted(() => {
+	if (videoBlob.value) {
+		URL.revokeObjectURL(videoBlob.value);
+	}
 	// Event listener'ları temizle
 	if (window.electron) {
 		window.electron.ipcRenderer.removeAllListeners("MEDIA_PATHS");
