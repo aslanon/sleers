@@ -6,6 +6,7 @@
 			:src="videoUrl"
 			:type="videoType"
 			@loadedmetadata="onVideoLoaded"
+			@timeupdate="onTimeUpdate"
 		></video>
 		<audio
 			v-show="audioUrl"
@@ -42,7 +43,12 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["videoLoaded", "videoEnded", "videoPaused"]);
+const emit = defineEmits([
+	"videoLoaded",
+	"videoEnded",
+	"videoPaused",
+	"timeUpdate",
+]);
 
 const videoRef = ref(null);
 const audioRef = ref(null);
@@ -50,11 +56,20 @@ const audioRef = ref(null);
 // Video yüklendiğinde
 const onVideoLoaded = () => {
 	if (videoRef.value) {
-		emit("videoLoaded", {
-			duration: videoRef.value.duration,
-			width: videoRef.value.videoWidth,
-			height: videoRef.value.videoHeight,
-		});
+		const duration = videoRef.value.duration;
+		const width = videoRef.value.videoWidth;
+		const height = videoRef.value.videoHeight;
+
+		// Sürenin geçerli bir sayı olduğundan emin ol
+		if (Number.isFinite(duration)) {
+			emit("videoLoaded", {
+				duration,
+				width,
+				height,
+			});
+		} else {
+			console.error("[MediaPlayer] Video süresi geçersiz:", duration);
+		}
 	}
 };
 
@@ -63,6 +78,13 @@ const onVideoEnded = () => {
 	emit("videoEnded");
 	const audio = audioRef.value;
 	if (audio) audio.pause();
+};
+
+// Video zamanı güncellendiğinde
+const onTimeUpdate = () => {
+	if (videoRef.value) {
+		emit("timeUpdate", videoRef.value.currentTime);
+	}
 };
 
 // isPlaying prop'unu izle

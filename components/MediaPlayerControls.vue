@@ -2,6 +2,7 @@
 	<div
 		class="media-player-controls mt-4 flex justify-center items-center space-x-4"
 	>
+		<div class="text-sm text-gray-300">{{ formatTime(currentTime) }}</div>
 		<button
 			@click="$emit('togglePlayback')"
 			class="px-6 py-2 rounded-lg flex items-center"
@@ -44,8 +45,8 @@
 					/>
 				</svg>
 			</span>
-			<!-- <span class="ml-2">{{ isPlaying ? "Durdur" : "Oynat" }}</span> -->
 		</button>
+		<div class="text-sm text-gray-300">{{ formatTime(duration) }}</div>
 	</div>
 </template>
 
@@ -55,7 +56,23 @@ defineProps({
 		type: Boolean,
 		default: false,
 	},
+	currentTime: {
+		type: Number,
+		default: 0,
+	},
+	duration: {
+		type: Number,
+		default: 0,
+	},
 });
 
 defineEmits(["togglePlayback"]);
+
+const formatTime = (seconds) => {
+	if (!Number.isFinite(seconds)) return "0:00";
+
+	const minutes = Math.floor(seconds / 60);
+	const remainingSeconds = Math.floor(seconds % 60);
+	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+};
 </script>

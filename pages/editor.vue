@@ -1,9 +1,11 @@
 <template>
 	<div class="w-full flex flex-col bg-black text-white min-h-screen">
-		<div class="w-full p-4 px-6 bg-black flex justify-between gap-2">
+		<div
+			class="w-full p-2 px-6 bg-black border-b border-gray-700 flex justify-between gap-2"
+		>
 			<div class="flex flex-row gap-2 items-center">
 				<button
-					class="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+					class="px-4 py-1 bg-gray-600 hover:bg-gray-700 rounded-lg"
 					@click="startNewRecording()"
 				>
 					Yeni Kayıt
@@ -12,7 +14,7 @@
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
 				<button
-					class="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg"
+					class="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded-lg"
 					@click="saveVideo()"
 				>
 					Kaydet
@@ -39,10 +41,13 @@
 					@video-loaded="onVideoLoaded"
 					@video-ended="onVideoEnded"
 					@video-paused="isPlaying = false"
+					@time-update="onTimeUpdate"
 				/>
 
 				<MediaPlayerControls
 					:is-playing="isPlaying"
+					:current-time="currentTime"
+					:duration="videoDuration"
 					@toggle-playback="togglePlayback"
 				/>
 			</div>
@@ -75,6 +80,7 @@ const audioType = ref("audio/webm");
 const videoBlob = ref(null);
 const audioBlob = ref(null);
 const isPlaying = ref(false);
+const currentTime = ref(0);
 
 // Video ve ses dosyalarını yükle
 const loadMedia = async (filePath, type = "video") => {
@@ -194,6 +200,11 @@ const startNewRecording = () => {
 		electron?.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 		closeWindow();
 	}
+};
+
+// Video zamanı güncellendiğinde
+const onTimeUpdate = (time) => {
+	currentTime.value = time;
 };
 
 onMounted(() => {
