@@ -48,7 +48,9 @@
 					:is-playing="isPlaying"
 					:current-time="currentTime"
 					:duration="videoDuration"
+					:is-trim-mode="isTrimMode"
 					@toggle-playback="togglePlayback"
+					@toggle-trim-mode="toggleTrimMode"
 				/>
 			</div>
 
@@ -58,7 +60,12 @@
 				:height="videoHeight"
 			/>
 		</div>
-		<div class="w-full h-[500px] bg-black">asd</div>
+
+		<TimelineComponent
+			:duration="videoDuration"
+			:current-time="currentTime"
+			@segment-update="onSegmentUpdate"
+		/>
 	</div>
 </template>
 
@@ -67,6 +74,7 @@ import { ref, onMounted, onUnmounted } from "vue";
 import MediaPlayer from "~/components/MediaPlayer.vue";
 import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
+import TimelineComponent from "~/components/TimelineComponent.vue";
 
 const electron = window.electron;
 const mediaPlayerRef = ref(null);
@@ -81,6 +89,7 @@ const videoBlob = ref(null);
 const audioBlob = ref(null);
 const isPlaying = ref(false);
 const currentTime = ref(0);
+const isTrimMode = ref(false);
 
 // Video ve ses dosyalarını yükle
 const loadMedia = async (filePath, type = "video") => {
@@ -205,6 +214,17 @@ const startNewRecording = () => {
 // Video zamanı güncellendiğinde
 const onTimeUpdate = (time) => {
 	currentTime.value = time;
+};
+
+// Kesme modunu aç/kapa
+const toggleTrimMode = () => {
+	isTrimMode.value = !isTrimMode.value;
+};
+
+// Segment güncellemelerini işle
+const onSegmentUpdate = ({ type, segments }) => {
+	console.log(`[editor.vue] ${type} segmentleri güncellendi:`, segments);
+	// Burada segmentleri işleyebilir ve videoyu/sesi buna göre düzenleyebilirsiniz
 };
 
 onMounted(() => {
