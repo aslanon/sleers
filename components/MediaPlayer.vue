@@ -80,7 +80,16 @@ const onVideoLoaded = () => {
 // Video zamanı güncellendiğinde
 const onTimeUpdate = () => {
 	if (videoRef.value) {
-		emit("timeUpdate", videoRef.value.currentTime);
+		const currentTime = videoRef.value.currentTime;
+		emit("timeUpdate", currentTime);
+
+		// Ses ile senkronizasyonu kontrol et
+		if (
+			audioRef.value &&
+			Math.abs(audioRef.value.currentTime - currentTime) > 0.1
+		) {
+			audioRef.value.currentTime = currentTime;
+		}
 	}
 };
 
@@ -129,6 +138,12 @@ watch(
 			video.currentTime = newTime;
 			if (audioRef.value) {
 				audioRef.value.currentTime = newTime;
+			}
+			// Zaman değiştiğinde oynatmayı durdur
+			if (props.isPlaying) {
+				video.pause();
+				if (audioRef.value) audioRef.value.pause();
+				emit("videoPaused");
 			}
 		}
 	}

@@ -38,6 +38,7 @@
 					:video-type="videoType"
 					:audio-type="audioType"
 					:is-playing="isPlaying"
+					:current-time="currentTime"
 					@video-loaded="onVideoLoaded"
 					@video-ended="onVideoEnded"
 					@video-paused="isPlaying = false"
@@ -64,7 +65,7 @@
 		<TimelineComponent
 			:duration="videoDuration"
 			:current-time="currentTime"
-			@segment-update="onSegmentUpdate"
+			@time-update="onTimelineUpdate"
 		/>
 	</div>
 </template>
@@ -211,9 +212,17 @@ const startNewRecording = () => {
 	}
 };
 
-// Video zamanı güncellendiğinde
+// Video zamanı güncellendiğinde (video'dan gelen)
 const onTimeUpdate = (time) => {
 	currentTime.value = time;
+};
+
+// Timeline'dan gelen zaman güncellemesi
+const onTimelineUpdate = (time) => {
+	currentTime.value = time;
+	if (mediaPlayerRef.value?.videoRef?.value) {
+		mediaPlayerRef.value.videoRef.value.currentTime = time;
+	}
 };
 
 // Kesme modunu aç/kapa
