@@ -80,12 +80,12 @@
 					<div
 						class="absolute left-0 right-0 bottom-8 h-12 flex items-center px-2"
 					>
-						<div class="timeline-layer-bar w-full h-8 bg-orange-300 rounded-xl">
+						<div class="timeline-layer-bar w-full h-8 rounded-xl">
 							<!-- Video Segments -->
 							<div
 								v-for="(segment, index) in props.segments"
 								:key="index"
-								class="absolute h-full bg-black rounded"
+								class="absolute h-full bg-orange-300 rounded"
 								:style="{
 									left: `${(segment.start / props.duration) * 100}%`,
 									width: `${
@@ -162,18 +162,21 @@ const zoomStep = 0.1; // Zoom adımı
 
 // Timeline genişliği
 const timelineWidth = computed(() => {
-	return props.duration * 100 * currentZoom.value; // Her saniye için 100px
+	const maxDuration = Math.max(props.duration, 600); // Minimum 10 dakika
+	return maxDuration * 100 * currentZoom.value; // Her saniye için 100px
 });
 
 // Playhead pozisyonu
 const playheadPosition = computed(() => {
-	return (props.currentTime / props.duration) * 100;
+	const maxDuration = Math.max(props.duration, 600); // Minimum 10 dakika
+	return (props.currentTime / maxDuration) * 100;
 });
 
 // Zaman işaretleri
 const timeMarkers = computed(() => {
 	const markers = [];
-	const totalSeconds = Math.ceil(props.duration);
+	const maxDuration = Math.max(props.duration, 600); // Minimum 10 dakika
+	const totalSeconds = Math.ceil(maxDuration);
 
 	// Zoom seviyesine göre marker aralığını belirle
 	let interval;
@@ -206,7 +209,7 @@ const timeMarkers = computed(() => {
 		markers.push({
 			time: i,
 			label,
-			position: (i / props.duration) * 100,
+			position: (i / maxDuration) * 100,
 			isHour: i % 3600 === 0,
 			isMinute: i % 60 === 0,
 			isHalfMinute: i % 30 === 0,
@@ -236,8 +239,10 @@ const handleTimelineClick = (e) => {
 	const container = timelineRef.value;
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
-	const time = (x / timelineWidth.value) * props.duration;
+	const maxDuration = Math.max(props.duration, 600); // Minimum 10 dakika
+	const time = (x / timelineWidth.value) * maxDuration;
 
+	// Video süresini aşmayacak şekilde sınırla
 	emit("timeUpdate", Math.max(0, Math.min(props.duration, time)));
 };
 
