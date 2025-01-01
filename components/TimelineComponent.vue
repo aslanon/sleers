@@ -1,292 +1,335 @@
 <template>
-	<div class="w-full max-w-[1000px] mx-auto p-4 bg-gray-900 rounded-lg">
-		<div class="flex justify-between items-center mb-4">
-			<div class="text-lg font-semibold text-gray-300">Timeline</div>
-			<div class="flex gap-2">
+	<div class="timeline-container relative flex flex-col bg-gray-900 text-white">
+		<!-- Timeline Header -->
+		<div class="flex justify-between items-center px-4 py-2">
+			<div class="text-sm font-medium text-gray-300">Timeline</div>
+			<div class="flex gap-1">
 				<button
-					@click="handleZoomOut"
-					class="p-2 rounded hover:bg-gray-800"
-					title="Zoom Out"
-					:disabled="zoomLevel <= 1"
+					class="p-1.5 rounded hover:bg-gray-800"
+					@click="currentZoom = Math.max(minZoom, currentZoom / 2)"
+					:disabled="currentZoom <= minZoom"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
+					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
 						<path
-							fill-rule="evenodd"
-							d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-							clip-rule="evenodd"
+							d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
 						/>
-						<path
-							fill-rule="evenodd"
-							d="M5 8a1 1 0 011-1h4a1 1 0 110 2H6a1 1 0 01-1-1z"
-							clip-rule="evenodd"
-						/>
+						<path d="M7 9h5v1H7z" />
 					</svg>
 				</button>
 				<button
-					@click="handleZoomIn"
-					class="p-2 rounded hover:bg-gray-800"
-					title="Zoom In"
-					:disabled="zoomLevel >= maxZoom"
+					class="p-1.5 rounded hover:bg-gray-800"
+					@click="currentZoom = Math.min(maxZoom, currentZoom * 2)"
+					:disabled="currentZoom >= maxZoom"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
-						viewBox="0 0 20 20"
-						fill="currentColor"
-					>
+					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
 						<path
-							fill-rule="evenodd"
-							d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-							clip-rule="evenodd"
+							d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 0 0 1.48-5.34c-.47-2.78-2.79-5-5.59-5.34a6.505 6.505 0 0 0-7.27 7.27c.34 2.8 2.56 5.12 5.34 5.59a6.5 6.5 0 0 0 5.34-1.48l.27.28v.79l4.25 4.25c.41.41 1.08.41 1.49 0 .41-.41.41-1.08 0-1.49L15.5 14zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
 						/>
-						<path
-							fill-rule="evenodd"
-							d="M8 5a1 1 0 000 2h2v2a1 1 0 102 0V7h2a1 1 0 100-2h-2V3a1 1 0 10-2 0v2H8z"
-							clip-rule="evenodd"
-						/>
+						<path d="M7 9h5v1H7zm2-2h1v5H9z" />
 					</svg>
 				</button>
 			</div>
 		</div>
 
-		<div ref="containerRef" class="overflow-x-auto relative border rounded-lg">
+		<!-- Timeline Ruler -->
+		<div
+			ref="timelineRef"
+			class="timeline-ruler relative h-24 overflow-x-auto select-none bg-gray-800"
+			@wheel="handleWheel"
+			@mousedown="startDragging"
+			@click="handleTimelineClick"
+		>
 			<div
-				ref="timelineRef"
-				class="relative h-20 bg-gray-800"
-				:style="{ width: `${timelineWidth * zoomLevel}px` }"
-				@click="handleTimelineClick"
-				@wheel.ctrl.prevent="handleWheel"
+				class="timeline-content relative h-full"
+				:style="{ width: `${timelineWidth}px` }"
 			>
 				<!-- Zaman İşaretleri -->
 				<div
-					v-for="time in timeMarkers"
-					:key="time"
+					v-for="marker in timeMarkers"
+					:key="marker.time"
 					class="absolute flex flex-col items-center"
 					:style="{
-						left: `${(time / duration) * timelineWidth * zoomLevel}px`,
+						left: `${marker.position}%`,
 						transform: 'translateX(-50%)',
 					}"
 				>
 					<div
-						class="h-3 w-0.5"
+						class="w-0.5"
 						:class="{
-							'bg-gray-500': time % 60 === 0,
-							'bg-gray-600': time % 30 === 0 && time % 60 !== 0,
-							'bg-gray-700': time % 10 === 0 && time % 30 !== 0,
+							'h-4 bg-gray-400': marker.isHour,
+							'h-3 bg-gray-500': !marker.isHour && marker.isMinute,
+							'h-2 bg-gray-600':
+								!marker.isHour && !marker.isMinute && marker.isHalfMinute,
+							'h-1.5 bg-gray-700':
+								!marker.isHour && !marker.isMinute && !marker.isHalfMinute,
 						}"
 					></div>
-					<span v-if="shouldShowTime(time)" class="text-xs text-gray-400 mt-1">
-						{{ formatDetailedTime(time) }}
+					<span
+						v-if="shouldShowTime(marker.time)"
+						class="text-[10px] text-gray-400 mt-0.5"
+						:class="{
+							'font-medium': marker.isHour || marker.isMinute,
+						}"
+					>
+						{{ marker.label }}
 					</span>
 				</div>
 
-				<!-- Oynatma İmleci -->
+				<!-- Video Track -->
+				<div
+					class="absolute left-0 right-0 bottom-8 h-12 flex items-center px-2"
+				>
+					<div class="w-full h-8 bg-black/50 rounded">
+						<!-- Video Segments -->
+						<div
+							v-for="(segment, index) in props.segments"
+							:key="index"
+							class="absolute h-full bg-black rounded"
+							:style="{
+								left: `${(segment.start / props.duration) * 100}%`,
+								width: `${
+									((segment.end - segment.start) / props.duration) * 100
+								}%`,
+							}"
+						></div>
+					</div>
+				</div>
+
+				<!-- Playhead -->
 				<div
 					class="absolute top-0 bottom-0 w-0.5 bg-blue-500 z-10"
 					:style="{
-						left: `${(currentTime / duration) * timelineWidth * zoomLevel}px`,
+						left: `${playheadPosition}%`,
 						transform: 'translateX(-50%)',
 					}"
 				></div>
 
-				<!-- Playhead -->
+				<!-- Playhead Handle -->
 				<div
-					class="absolute -top-2 w-4 h-4 cursor-pointer z-20"
+					class="absolute -top-1 w-3 h-3 cursor-pointer z-20"
 					:style="{
-						left: `${(currentTime / duration) * timelineWidth * zoomLevel}px`,
+						left: `${playheadPosition}%`,
 						transform: 'translateX(-50%)',
 					}"
-					@mousedown.stop="startPlayheadDrag"
 				>
-					<div class="w-4 h-4 bg-blue-500 rounded-full hover:bg-blue-400"></div>
+					<div class="w-3 h-3 bg-blue-500 rounded-full"></div>
 				</div>
 			</div>
 		</div>
 
-		<div class="mt-2 flex justify-between text-sm text-gray-400">
-			<span>{{ formatDetailedTime(currentTime) }}</span>
-			<span>{{ formatDetailedTime(duration) }}</span>
+		<!-- Timeline Footer -->
+		<div
+			class="flex justify-between items-center px-4 py-2 text-xs text-gray-400"
+		>
+			<span>Current Time: {{ formatTime(props.currentTime) }}</span>
+			<span>Total Duration: {{ formatTime(props.duration) }}</span>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 
 const props = defineProps({
 	duration: {
 		type: Number,
-		default: 600, // 10 dakika
+		required: true,
 	},
 	currentTime: {
 		type: Number,
 		default: 0,
 	},
+	segments: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits(["timeUpdate"]);
 
-// Referanslar ve Sabitler
-const containerRef = ref(null);
+// Referanslar ve state
 const timelineRef = ref(null);
-const timelineWidth = 1000;
-const zoomLevel = ref(1);
-const minZoom = 1;
-const maxZoom = 10;
+const currentZoom = ref(1);
+const isDragging = ref(false);
+const startDragX = ref(0);
+const startScrollLeft = ref(0);
+
+// Zoom sabitleri
+const minZoom = 0.01; // 100x uzaklaştırma
+const maxZoom = 20; // 20x yakınlaştırma
+const zoomStep = 0.1; // Zoom adımı
+
+// Timeline genişliği
+const timelineWidth = computed(() => {
+	return props.duration * 100 * currentZoom.value; // Her saniye için 100px
+});
+
+// Playhead pozisyonu
+const playheadPosition = computed(() => {
+	return (props.currentTime / props.duration) * 100;
+});
 
 // Zaman işaretleri
 const timeMarkers = computed(() => {
 	const markers = [];
-	const step = Math.max(10 / zoomLevel.value, 1);
-	for (let time = 0; time <= props.duration; time += step) {
-		markers.push(time);
+	const totalSeconds = Math.ceil(props.duration);
+
+	// Zoom seviyesine göre marker aralığını belirle
+	let interval;
+	if (currentZoom.value <= 0.02) interval = 600; // Her 10 dakika
+	else if (currentZoom.value <= 0.05) interval = 300; // Her 5 dakika
+	else if (currentZoom.value <= 0.1) interval = 120; // Her 2 dakika
+	else if (currentZoom.value <= 0.2) interval = 60; // Her dakika
+	else if (currentZoom.value <= 0.5) interval = 30; // Her 30 saniye
+	else if (currentZoom.value <= 1) interval = 15; // Her 15 saniye
+	else if (currentZoom.value <= 2) interval = 5; // Her 5 saniye
+	else if (currentZoom.value <= 5) interval = 2; // Her 2 saniye
+	else interval = 1; // Her saniye
+
+	for (let i = 0; i <= totalSeconds; i += interval) {
+		const hours = Math.floor(i / 3600);
+		const minutes = Math.floor((i % 3600) / 60);
+		const seconds = i % 60;
+
+		let label;
+		if (hours > 0) {
+			label = `${hours}:${minutes.toString().padStart(2, "0")}:${seconds
+				.toString()
+				.padStart(2, "0")}`;
+		} else {
+			label = `${minutes.toString().padStart(2, "0")}:${seconds
+				.toString()
+				.padStart(2, "0")}`;
+		}
+
+		markers.push({
+			time: i,
+			label,
+			position: (i / props.duration) * 100,
+			isHour: i % 3600 === 0,
+			isMinute: i % 60 === 0,
+			isHalfMinute: i % 30 === 0,
+		});
 	}
+
 	return markers;
 });
 
-// Zaman formatı
-const formatDetailedTime = (seconds) => {
-	const minutes = Math.floor(seconds / 60);
-	const remainingSeconds = Math.floor(seconds % 60);
-	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
-};
-
 // Zaman gösterme kontrolü
 const shouldShowTime = (time) => {
-	if (zoomLevel.value >= 4) return time % 10 === 0;
-	if (zoomLevel.value >= 2) return time % 30 === 0;
-	return time % 60 === 0;
+	if (currentZoom.value <= 0.02) return time % 600 === 0; // Her 10 dakika
+	if (currentZoom.value <= 0.05) return time % 300 === 0; // Her 5 dakika
+	if (currentZoom.value <= 0.1) return time % 120 === 0; // Her 2 dakika
+	if (currentZoom.value <= 0.2) return time % 60 === 0; // Her dakika
+	if (currentZoom.value <= 0.5) return time % 30 === 0; // Her 30 saniye
+	if (currentZoom.value <= 1) return time % 15 === 0; // Her 15 saniye
+	if (currentZoom.value <= 2) return time % 5 === 0; // Her 5 saniye
+	if (currentZoom.value <= 5) return time % 2 === 0; // Her 2 saniye
+	return true; // Her saniye
 };
 
-// Timeline tıklama
-const handleTimelineClick = (event) => {
-	if (!containerRef.value) return;
+// Timeline tıklama ve sürükleme
+const handleTimelineClick = (e) => {
+	if (isDragging.value) return;
 
-	const rect = containerRef.value.getBoundingClientRect();
-	const x = event.clientX - rect.left + containerRef.value.scrollLeft;
-	const secondsPerPixel = props.duration / (timelineWidth * zoomLevel.value);
-	const newTime = Math.max(0, Math.min(props.duration, x * secondsPerPixel));
+	const container = timelineRef.value;
+	const rect = container.getBoundingClientRect();
+	const x = e.clientX - rect.left + container.scrollLeft;
+	const time = (x / timelineWidth.value) * props.duration;
 
-	emit("timeUpdate", newTime);
+	emit("timeUpdate", Math.max(0, Math.min(props.duration, time)));
 };
 
-// Zoom kontrolleri
-const handleZoomIn = () => {
-	zoomLevel.value = Math.min(zoomLevel.value * 1.5, maxZoom);
-	updateScroll();
+const startDragging = (e) => {
+	isDragging.value = true;
+	startDragX.value = e.clientX;
+	startScrollLeft.value = timelineRef.value.scrollLeft;
 };
 
-const handleZoomOut = () => {
-	zoomLevel.value = Math.max(zoomLevel.value / 1.5, minZoom);
-	updateScroll();
+const stopDragging = () => {
+	isDragging.value = false;
 };
 
-const handleWheel = (event) => {
-	const delta = event.deltaY > 0 ? -0.1 : 0.1;
-	const newZoom = Math.max(
-		minZoom,
-		Math.min(maxZoom, zoomLevel.value * (1 + delta))
-	);
+const handleDrag = (e) => {
+	if (!isDragging.value) return;
 
-	// Zoom yaparken imlecin altındaki zamanı sabit tut
-	const rect = containerRef.value.getBoundingClientRect();
-	const mouseX = event.clientX - rect.left + containerRef.value.scrollLeft;
-	const timeAtMouse =
-		(mouseX / (timelineWidth * zoomLevel.value)) * props.duration;
-
-	zoomLevel.value = newZoom;
-
-	// Yeni scroll pozisyonunu hesapla
-	const newMouseX = (timeAtMouse / props.duration) * timelineWidth * newZoom;
-	containerRef.value.scrollLeft = newMouseX - (event.clientX - rect.left);
+	const dx = e.clientX - startDragX.value;
+	timelineRef.value.scrollLeft = startScrollLeft.value - dx;
 };
 
-// Playhead sürükleme
-let isPlayheadDragging = false;
+// Mouse wheel ile zoom
+const handleWheel = (e) => {
+	if (e.ctrlKey || e.metaKey) {
+		e.preventDefault();
 
-const startPlayheadDrag = (event) => {
-	event.stopPropagation();
-	isPlayheadDragging = true;
-	document.addEventListener("mousemove", handlePlayheadDrag);
-	document.addEventListener("mouseup", stopPlayheadDrag);
-};
+		const delta = -Math.sign(e.deltaY) * zoomStep;
+		const newZoom = Math.max(
+			minZoom,
+			Math.min(maxZoom, currentZoom.value + delta)
+		);
 
-const handlePlayheadDrag = (event) => {
-	if (!isPlayheadDragging || !containerRef.value) return;
+		if (newZoom !== currentZoom.value) {
+			// Zoom yaparken mouse pozisyonunu merkez al
+			const container = timelineRef.value;
+			const mouseX = e.clientX - container.getBoundingClientRect().left;
+			const scrollLeftBeforeZoom = container.scrollLeft;
+			const containerWidthBeforeZoom = container.scrollWidth;
 
-	const rect = containerRef.value.getBoundingClientRect();
-	const x = event.clientX - rect.left + containerRef.value.scrollLeft;
-	const secondsPerPixel = props.duration / (timelineWidth * zoomLevel.value);
-	const newTime = Math.max(0, Math.min(props.duration, x * secondsPerPixel));
+			currentZoom.value = newZoom;
 
-	emit("timeUpdate", newTime);
-};
-
-const stopPlayheadDrag = () => {
-	isPlayheadDragging = false;
-	document.removeEventListener("mousemove", handlePlayheadDrag);
-	document.removeEventListener("mouseup", stopPlayheadDrag);
-};
-
-// Scroll pozisyonunu güncelle
-const updateScroll = () => {
-	if (!containerRef.value) return;
-
-	const container = containerRef.value;
-	const markerPosition =
-		(props.currentTime / props.duration) * timelineWidth * zoomLevel.value;
-	const viewportWidth = container.clientWidth;
-
-	if (
-		markerPosition > container.scrollLeft + viewportWidth * 0.7 ||
-		markerPosition < container.scrollLeft + viewportWidth * 0.3
-	) {
-		container.scrollLeft = markerPosition - viewportWidth / 2;
+			// Zoom sonrası scroll pozisyonunu güncelle
+			nextTick(() => {
+				const scale = container.scrollWidth / containerWidthBeforeZoom;
+				container.scrollLeft =
+					mouseX * (scale - 1) + scrollLeftBeforeZoom * scale;
+			});
+		}
 	}
 };
 
-// Oynatma konumunu izle
-watch(
-	() => props.currentTime,
-	() => {
-		updateScroll();
-	}
-);
+// Zaman formatı
+const formatTime = (seconds) => {
+	const hours = Math.floor(seconds / 3600);
+	const minutes = Math.floor((seconds % 3600) / 60);
+	const secs = Math.floor(seconds % 60);
 
-// Event listener'ları temizle
+	if (hours > 0) {
+		return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
+			.toString()
+			.padStart(2, "0")}`;
+	}
+	return `${minutes.toString().padStart(2, "0")}:${secs
+		.toString()
+		.padStart(2, "0")}`;
+};
+
+// Component mount/unmount
+onMounted(() => {
+	window.addEventListener("mouseup", stopDragging);
+	window.addEventListener("mousemove", handleDrag);
+});
+
 onUnmounted(() => {
-	document.removeEventListener("mousemove", handlePlayheadDrag);
-	document.removeEventListener("mouseup", stopPlayheadDrag);
+	window.removeEventListener("mouseup", stopDragging);
+	window.removeEventListener("mousemove", handleDrag);
 });
 </script>
 
 <style scoped>
-.overflow-x-auto {
-	overflow-x: auto;
-	overflow-y: hidden;
-	scroll-behavior: smooth;
+.timeline-ruler::-webkit-scrollbar {
+	height: 6px;
 }
 
-.overflow-x-auto::-webkit-scrollbar {
-	height: 8px;
-}
-
-.overflow-x-auto::-webkit-scrollbar-track {
+.timeline-ruler::-webkit-scrollbar-track {
 	background: #1f2937;
-	border-radius: 4px;
 }
 
-.overflow-x-auto::-webkit-scrollbar-thumb {
+.timeline-ruler::-webkit-scrollbar-thumb {
 	background: #4b5563;
-	border-radius: 4px;
+	border-radius: 3px;
 }
 
-.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+.timeline-ruler::-webkit-scrollbar-thumb:hover {
 	background: #6b7280;
 }
 
