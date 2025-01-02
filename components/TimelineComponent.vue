@@ -91,7 +91,7 @@
 								@click="handleSegmentClick(index, $event)"
 							>
 								<div
-									class="absolute inset-0 flex items-center justify-between px-2 text-xs text-gray-800"
+									class="absolute inset-0 flex items-end p-2 justify-between px-2 text-xs text-white/40"
 									:class="{
 										'opacity-0':
 											(segment.end - segment.start) * currentZoom.value < 12,
@@ -177,8 +177,8 @@ const startDragX = ref(0);
 const startScrollLeft = ref(0);
 
 // Zoom sabitleri
-const minZoom = 0.2; // Minimum zoom değeri artırıldı
-const maxZoom = 12; // Maximum zoom değeri artırıldı
+const minZoom = 0.1; // Minimum zoom değeri artırıldı
+const maxZoom = 10; // Maximum zoom değeri artırıldı
 const zoomStep = 0.4; // Zoom adımı artırıldı
 
 // Timeline sabitleri
