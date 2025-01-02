@@ -287,15 +287,27 @@ const activeSegmentIndex = ref(null);
 
 // Segment pozisyonlama hesaplamaları
 const getSegmentStyle = (segment, index) => {
+	// Segment başlangıç ve bitiş zamanlarını doğrula
+	const start = segment.start || 0;
+	const end = segment.end || 0;
+
+	// Pozisyon ve genişlik hesapla
 	const position = (segment.start / maxDuration.value) * 100;
 	const width = ((segment.end - segment.start) / maxDuration.value) * 100;
+
+	console.log("[TimelineComponent] Segment stil hesaplaması:", {
+		start,
+		end,
+		maxDuration: maxDuration.value,
+		position,
+		width,
+	});
 
 	return {
 		left: `${position}%`,
 		width: `${width}%`,
 		boxShadow:
 			"0px 0px 0px 1px inset #ffffff61, 0px 0px 25px 0px inset #0000008f",
-
 		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
 	};
 };

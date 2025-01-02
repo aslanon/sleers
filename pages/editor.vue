@@ -207,26 +207,22 @@ const onVideoLoaded = (data) => {
 
 			// Mevcut segment'i güncelle
 			if (segments.value.length > 0) {
-				const duration = videoDuration.value;
 				segments.value[0] = {
 					...segments.value[0],
-					start: 0,
-					end: duration,
 					startTime: 0,
-					endTime: duration,
-					startPosition: "0%",
-					width: "100%",
-					source: videoUrl.value,
+					endTime: videoDuration.value,
+					start: 0,
+					end: videoDuration.value,
 				};
 
 				console.log("[editor.vue] Segment güncellendi:", {
-					duration,
+					duration: videoDuration.value,
 					segment: segments.value[0],
 				});
-			}
 
-			// Segment pozisyonlarını güncelle
-			updateSegments();
+				// Segment pozisyonlarını güncelle
+				updateSegments();
+			}
 		} else {
 			console.warn("[editor.vue] Video süresi geçersiz:", data);
 		}
@@ -360,16 +356,27 @@ const updateSegments = () => {
 	if (!segments.value?.length) return;
 
 	segments.value = segments.value.map((segment) => {
-		// Yüzdeleri hesapla
-		const startPercent =
-			(segment.startTime / Math.max(0.1, videoDuration.value)) * 100;
-		const endPercent =
-			(segment.endTime / Math.max(0.1, videoDuration.value)) * 100;
+		// Segment başlangıç ve bitiş zamanlarını doğru formata dönüştür
+		const start = segment.startTime || 0;
+		const end = segment.endTime || videoDuration.value;
+
+		// Yüzdeleri hesapla (videoDuration 0 veya undefined ise hata oluşmasını önle)
+		const duration = videoDuration.value || 1;
+		const startPercent = (start / duration) * 100;
+		const endPercent = (end / duration) * 100;
+
+		console.log("[editor.vue] Segment hesaplaması:", {
+			start,
+			end,
+			duration,
+			startPercent,
+			endPercent,
+		});
 
 		return {
 			...segment,
-			start: segment.startTime,
-			end: segment.endTime,
+			start,
+			end,
 			startPosition: `${startPercent}%`,
 			width: `${endPercent - startPercent}%`,
 		};
