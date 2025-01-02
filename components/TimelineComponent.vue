@@ -34,17 +34,17 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll overflow-y-hidden scroll-smooth"
+			class="overflow-x-scroll overflow-y-hidden scroll-smooth flex-1 h-full"
 			@wheel.prevent="handleContainerWheel"
 		>
 			<div
 				ref="timelineRef"
-				class="timeline-ruler px-8 relative h-32 select-none"
+				class="timeline-ruler px-8 relative h-full min-h-[256px] select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 			>
 				<div
-					class="timeline-content relative h-full transition-all ease-linear duration-300"
+					class="timeline-content relative h-screen transition-all ease-linear duration-300"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -427,6 +427,17 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ScrollContainer scrollbar'ını gizle */
+.overflow-x-scroll::-webkit-scrollbar {
+	display: none;
+}
+
+.overflow-x-scroll {
+	-ms-overflow-style: none; /* IE ve Edge için */
+	scrollbar-width: none; /* Firefox için */
+}
+
+/* Timeline ruler scrollbar stilleri */
 .timeline-ruler::-webkit-scrollbar {
 	height: 4px;
 	background: transparent;
