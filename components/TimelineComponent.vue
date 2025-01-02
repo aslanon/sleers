@@ -77,17 +77,13 @@
 					</div>
 
 					<!-- Video Track -->
-					<div
-						class="absolute left-0 right-0 bottom-8 h-12 flex items-center px-2"
-					>
-						<div
-							class="timeline-layer-bar w-full h-8 bg-gray-800/50 rounded-xl"
-						>
+					<div class="absolute left-0 right-0 top-8 flex items-center px-2">
+						<div class="timeline-layer-bar w-full rounded-xl">
 							<!-- Video Segments -->
 							<div
 								v-for="(segment, index) in props.segments"
 								:key="index"
-								class="absolute h-full bg-orange-300 rounded-xl"
+								class="absolute h-12 bg-orange-300 rounded-xl"
 								:style="getSegmentStyle(segment, index)"
 								@click="handleSegmentClick(index, $event)"
 							>
@@ -116,7 +112,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute -top-1 w-3 h-3 cursor-pointer z-20"
+						class="absolute top-0 w-3 h-3 cursor-pointer z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
