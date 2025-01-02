@@ -94,7 +94,7 @@
 									class="absolute inset-0 flex items-center justify-between px-2 text-xs text-gray-800"
 									:class="{
 										'opacity-0':
-											(segment.end - segment.start) * currentZoom.value < 50,
+											(segment.end - segment.start) * currentZoom.value < 12,
 									}"
 								>
 									<span>{{ formatTime(segment.start) }}</span>
@@ -177,16 +177,16 @@ const startDragX = ref(0);
 const startScrollLeft = ref(0);
 
 // Zoom sabitleri
-const minZoom = 0.05; // 100x uzaklaştırma
-const maxZoom = 6; // 20x yakınlaştırma
-const zoomStep = 0.1; // Zoom adımı
+const minZoom = 0.2; // Minimum zoom değeri artırıldı
+const maxZoom = 12; // Maximum zoom değeri artırıldı
+const zoomStep = 0.4; // Zoom adımı artırıldı
 
 // Timeline sabitleri
 const maxDuration = computed(() => Math.max(props.duration, 600)); // Minimum 10 dakika
 
 // Timeline genişliği
 const timelineWidth = computed(() => {
-	return maxDuration.value * 100 * currentZoom.value;
+	return maxDuration.value * 25 * currentZoom.value;
 });
 
 // Playhead pozisyonu
