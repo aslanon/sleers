@@ -88,13 +88,20 @@
 								v-for="(segment, index) in props.segments"
 								:key="index"
 								class="absolute h-full bg-orange-300 rounded-xl"
-								:style="{
-									left: `${(segment.start / maxDuration.value) * 100}%`,
-									width: `${
-										((segment.end - segment.start) / maxDuration.value) * 100
-									}%`,
-								}"
-							></div>
+								:style="getSegmentStyle(segment, index)"
+								@click="handleSegmentClick(index, $event)"
+							>
+								<div
+									class="absolute inset-0 flex items-center justify-between px-2 text-xs text-gray-800"
+									:class="{
+										'opacity-0':
+											(segment.end - segment.start) * currentZoom.value < 50,
+									}"
+								>
+									<span>{{ formatTime(segment.start) }}</span>
+									<span>{{ formatTime(segment.end) }}</span>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -137,18 +144,36 @@ const props = defineProps({
 	duration: {
 		type: Number,
 		required: true,
+		validator: (value) => value > 0,
 	},
 	currentTime: {
 		type: Number,
 		default: 0,
+		validator: (value) => value >= 0,
 	},
 	segments: {
 		type: Array,
 		default: () => [],
+		validator: (segments) =>
+			segments.every(
+				(segment) =>
+					segment.start >= 0 &&
+					segment.end > segment.start &&
+					typeof segment.start === "number" &&
+					typeof segment.end === "number"
+			),
+	},
+	minZoom: {
+		type: Number,
+		default: 0.01,
+	},
+	maxZoom: {
+		type: Number,
+		default: 20,
 	},
 });
 
-const emit = defineEmits(["timeUpdate"]);
+const emit = defineEmits(["timeUpdate", "segmentUpdate", "segmentSelect"]);
 
 // Referanslar ve state
 const timelineRef = ref(null);
@@ -167,7 +192,7 @@ const maxDuration = computed(() => Math.max(props.duration, 600)); // Minimum 10
 
 // Timeline genişliği
 const timelineWidth = computed(() => {
-	return maxDuration.value * 100 * currentZoom.value; // Her saniye için 100px
+	return maxDuration.value * 100 * currentZoom.value;
 });
 
 // Playhead pozisyonu
@@ -234,7 +259,40 @@ const shouldShowTime = (time) => {
 	return true; // Her saniye
 };
 
-// Timeline tıklama ve sürükleme
+// Aktif segment state'i
+const activeSegmentIndex = ref(null);
+
+// Segment pozisyonlama hesaplamaları
+const getSegmentStyle = (segment, index) => {
+	const position = (segment.start / maxDuration.value) * 100;
+	const width = ((segment.end - segment.start) / maxDuration.value) * 100;
+
+	return {
+		left: `${position}%`,
+		width: `${width}%`,
+
+		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
+	};
+};
+
+// Segment seçme
+const handleSegmentClick = (index, event) => {
+	event.stopPropagation();
+	activeSegmentIndex.value = index;
+	emit("segmentSelect", index);
+};
+
+// Segment sürükleme
+const handleSegmentDragStart = (index, event) => {
+	if (!props.segments[index]) return;
+
+	isDragging.value = true;
+	activeSegmentIndex.value = index;
+	startDragX.value = event.clientX;
+	startSegmentStart.value = props.segments[index].start;
+};
+
+// Timeline tıklama ve playhead güncelleme
 const handleTimelineClick = (e) => {
 	if (isDragging.value) return;
 
@@ -243,8 +301,19 @@ const handleTimelineClick = (e) => {
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	// Video süresini aşmayacak şekilde sınırla
-	emit("timeUpdate", Math.max(0, Math.min(props.duration, time)));
+	// Segment sınırları içinde olup olmadığını kontrol et
+	const validTime = Math.max(0, Math.min(props.duration, time));
+	const activeSegment = props.segments[activeSegmentIndex.value];
+
+	if (activeSegment) {
+		const clampedTime = Math.max(
+			activeSegment.start,
+			Math.min(activeSegment.end, validTime)
+		);
+		emit("timeUpdate", clampedTime);
+	} else {
+		emit("timeUpdate", validTime);
+	}
 };
 
 const startDragging = (e) => {

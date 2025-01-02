@@ -158,14 +158,33 @@ const togglePlayback = () => {
 
 // Video yüklendiğinde
 const onVideoLoaded = ({ duration, width, height }) => {
+	console.log("[editor.vue] Video yüklendi:", { duration, width, height });
 	videoDuration.value = duration;
+	videoWidth.value = width;
+	videoHeight.value = height;
+
 	// İlk segment'i video süresine göre ayarla
 	videoSegments.value = [
 		{
 			start: 0,
 			end: duration,
+			type: "video",
 		},
 	];
+
+	console.log("[editor.vue] Segment oluşturuldu:", {
+		segment: videoSegments.value[0],
+		duration,
+		startPosition: `${(0 / duration) * 100}%`,
+		width: `${(duration / duration) * 100}%`,
+	});
+
+	electron?.ipcRenderer.send("EDITOR_STATUS_UPDATE", {
+		status: "ready",
+		duration: videoDuration.value,
+		width: videoWidth.value,
+		height: videoHeight.value,
+	});
 };
 
 // Video bittiğinde
