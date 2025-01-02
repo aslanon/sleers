@@ -1,8 +1,10 @@
 <template>
-	<div class="media-player flex-1 w-full bg-black rounded-lg overflow-hidden">
+	<div
+		class="media-player flex-1 w-full max-h-[600px] p-4 bg-gray-900 rounded-lg overflow-hidden"
+	>
 		<video
 			ref="videoRef"
-			class="w-full h-full"
+			class="h-full m-auto"
 			preload="metadata"
 			@loadedmetadata="onVideoLoaded"
 			@loadeddata="onVideoDataLoaded"

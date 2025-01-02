@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-container p-12 relative flex flex-col text-white">
+	<div class="timeline-container relative flex flex-col text-white">
 		<!-- Timeline Header -->
 		<div class="flex justify-between items-center px-4 py-2">
 			<div class="text-sm font-medium text-gray-300">Timeline</div>
@@ -32,16 +32,16 @@
 		</div>
 
 		<!-- Timeline Ruler -->
-		<div class="overflow-x-auto">
+		<div class="overflow-x-scroll">
 			<div
 				ref="timelineRef"
-				class="timeline-ruler mx: 8 px-8 relative h-24 select-none"
+				class="timeline-ruler px-8 relative h-[250px] select-none"
 				@wheel="handleWheel"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 			>
 				<div
-					class="timeline-content relative h-full"
+					class="timeline-content relative h-full transition-all ease-in-out duration-300"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -103,7 +103,7 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+						class="absolute top-0 bottom-0 transition-all ease-in-out duration-300 w-0.5 bg-red-500 z-10"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -112,7 +112,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute top-0 w-3 h-3 cursor-pointer z-20"
+						class="absolute top-0 w-3 h-3 transition-all ease-in-out duration-300 cursor-pointer z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
