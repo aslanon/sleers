@@ -93,10 +93,12 @@ defineProps({
 defineEmits(["togglePlayback", "toggleTrimMode"]);
 
 const formatTime = (seconds) => {
-	if (!Number.isFinite(seconds)) return "0:00";
-
 	const minutes = Math.floor(seconds / 60);
-	const remainingSeconds = Math.floor(seconds % 60);
-	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+	const secs = Math.floor(seconds % 60);
+	const centiseconds = Math.floor((seconds % 1) * 100);
+
+	return `${minutes.toString().padStart(2, "0")}:${secs
+		.toString()
+		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
 };
 </script>

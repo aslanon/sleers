@@ -2,7 +2,7 @@
 	<div class="timeline-container relative flex flex-col text-white">
 		<!-- Timeline Header -->
 		<div class="flex justify-between items-center px-4 py-2">
-			<div class="text-sm font-medium text-gray-300">Timeline</div>
+			<!-- <div class="text-sm font-medium text-gray-300">Timeline</div> -->
 			<div class="flex gap-1">
 				<button
 					class="p-1.5 rounded hover:bg-gray-800"
@@ -44,7 +44,7 @@
 				@click="handleTimelineClick"
 			>
 				<div
-					class="timeline-content relative h-screen transition-all ease-linear duration-300"
+					class="timeline-content relative h-[500px] transition-all ease-linear duration-300"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -86,7 +86,7 @@
 							<div
 								v-for="(segment, index) in props.segments"
 								:key="index"
-								class="absolute h-12 bg-orange-300 rounded-xl"
+								class="absolute h-12 bg-yellow-300 rounded-xl"
 								:style="getSegmentStyle(segment, index)"
 								@click="handleSegmentClick(index, $event)"
 							>
@@ -400,18 +400,13 @@ const handleContainerWheel = (e) => {
 
 // Zaman formatı
 const formatTime = (seconds) => {
-	const hours = Math.floor(seconds / 3600);
-	const minutes = Math.floor((seconds % 3600) / 60);
+	const minutes = Math.floor(seconds / 60);
 	const secs = Math.floor(seconds % 60);
+	const centiseconds = Math.floor((seconds % 1) * 100);
 
-	if (hours > 0) {
-		return `${hours}:${minutes.toString().padStart(2, "0")}:${secs
-			.toString()
-			.padStart(2, "0")}`;
-	}
 	return `${minutes.toString().padStart(2, "0")}:${secs
 		.toString()
-		.padStart(2, "0")}`;
+		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
 };
 
 // Component mount/unmount
