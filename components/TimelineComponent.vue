@@ -32,16 +32,19 @@
 		</div>
 
 		<!-- Timeline Ruler -->
-		<div class="overflow-x-scroll">
+		<div
+			ref="scrollContainerRef"
+			class="overflow-x-scroll overflow-y-hidden scroll-smooth"
+			@wheel.prevent="handleContainerWheel"
+		>
 			<div
 				ref="timelineRef"
-				class="timeline-ruler px-8 relative h-[250px] select-none"
-				@wheel="handleWheel"
+				class="timeline-ruler px-8 relative h-32 select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 			>
 				<div
-					class="timeline-content relative h-full transition-all ease-in-out duration-300"
+					class="timeline-content relative h-full transition-all ease-linear duration-300"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -103,7 +106,7 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 transition-all ease-in-out duration-300 w-0.5 bg-red-500 z-10"
+						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-0.5 bg-red-500 z-10"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -112,11 +115,12 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute top-0 w-3 h-3 transition-all ease-in-out duration-300 cursor-pointer z-20"
+						class="absolute top-0 w-3 h-3 transition-all ease-linear duration-300 cursor-pointer z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
 						}"
+						@mousedown="handleSegmentDragStart(index, $event)"
 					>
 						<div class="w-3 h-3 bg-red-500 rounded-full"></div>
 					</div>
@@ -172,6 +176,7 @@ const props = defineProps({
 const emit = defineEmits(["timeUpdate", "segmentUpdate", "segmentSelect"]);
 
 // Referanslar ve state
+const scrollContainerRef = ref(null);
 const timelineRef = ref(null);
 const currentZoom = ref(1);
 const isDragging = ref(false);
@@ -179,8 +184,8 @@ const startDragX = ref(0);
 const startScrollLeft = ref(0);
 
 // Zoom sabitleri
-const minZoom = 0.01; // 100x uzaklaştırma
-const maxZoom = 20; // 20x yakınlaştırma
+const minZoom = 0.05; // 100x uzaklaştırma
+const maxZoom = 6; // 20x yakınlaştırma
 const zoomStep = 0.1; // Zoom adımı
 
 // Timeline sabitleri
@@ -195,6 +200,35 @@ const timelineWidth = computed(() => {
 const playheadPosition = computed(() => {
 	return (props.currentTime / maxDuration.value) * 100;
 });
+
+// Playhead'i takip et
+watch(
+	() => props.currentTime,
+	(newTime) => {
+		const container = scrollContainerRef.value;
+		if (!container) return;
+
+		const timelineWidth = container.scrollWidth;
+		const containerWidth = container.clientWidth;
+		const playheadX = (newTime / maxDuration.value) * timelineWidth;
+
+		const scrollLeft = container.scrollLeft;
+		const scrollRight = scrollLeft + containerWidth;
+
+		if (playheadX > scrollRight - 100) {
+			container.scrollTo({
+				left: playheadX - containerWidth + 100,
+				behavior: "auto",
+			});
+		} else if (playheadX < scrollLeft + 100) {
+			container.scrollTo({
+				left: playheadX - 100,
+				behavior: "auto",
+			});
+		}
+	},
+	{ immediate: true }
+);
 
 // Zaman işaretleri
 const timeMarkers = computed(() => {
@@ -329,11 +363,10 @@ const handleDrag = (e) => {
 	timelineRef.value.scrollLeft = startScrollLeft.value - dx;
 };
 
-// Mouse wheel ile zoom
-const handleWheel = (e) => {
+// Mouse wheel ile zoom ve scroll
+const handleContainerWheel = (e) => {
 	if (e.ctrlKey || e.metaKey) {
-		e.preventDefault();
-
+		// Zoom işlemi
 		const delta = -Math.sign(e.deltaY) * zoomStep;
 		const newZoom = Math.max(
 			minZoom,
@@ -342,7 +375,7 @@ const handleWheel = (e) => {
 
 		if (newZoom !== currentZoom.value) {
 			// Zoom yaparken mouse pozisyonunu merkez al
-			const container = timelineRef.value;
+			const container = scrollContainerRef.value;
 			const mouseX = e.clientX - container.getBoundingClientRect().left;
 			const scrollLeftBeforeZoom = container.scrollLeft;
 			const containerWidthBeforeZoom = container.scrollWidth;
@@ -355,6 +388,12 @@ const handleWheel = (e) => {
 				container.scrollLeft =
 					mouseX * (scale - 1) + scrollLeftBeforeZoom * scale;
 			});
+		}
+	} else {
+		// Yatay scroll - hızı artırıldı
+		const container = scrollContainerRef.value;
+		if (container) {
+			container.scrollLeft += e.deltaY * 3; // Scroll hızını 3 katına çıkardık
 		}
 	}
 };
@@ -389,24 +428,43 @@ onUnmounted(() => {
 
 <style scoped>
 .timeline-ruler::-webkit-scrollbar {
-	height: 6px;
+	height: 4px;
+	background: transparent;
 }
 
 .timeline-ruler::-webkit-scrollbar-track {
-	background: #1f2937;
+	background: #111827;
+	border-radius: 2px;
 }
 
 .timeline-ruler::-webkit-scrollbar-thumb {
-	background: #4b5563;
-	border-radius: 3px;
+	background: #374151;
+	border-radius: 2px;
+	transition: all 0.2s ease;
 }
 
 .timeline-ruler::-webkit-scrollbar-thumb:hover {
-	background: #6b7280;
+	background: #4b5563;
+}
+
+/* Firefox için scrollbar */
+.timeline-ruler {
+	scrollbar-width: thin;
+	scrollbar-color: #374151 #111827;
+	scroll-behavior: smooth;
+	--scroll-behavior-duration: 150ms;
 }
 
 button:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
+}
+
+.scroll-smooth {
+	scroll-behavior: smooth;
+}
+
+.timeline-content {
+	will-change: transform, width;
 }
 </style>
