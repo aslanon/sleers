@@ -35,8 +35,8 @@
 		<div
 			ref="scrollContainerRef"
 			class="overflow-x-scroll overflow-y-hidden scroll-smooth flex-1 h-full"
-			@wheel.prevent="handleContainerWheel"
 		>
+			<!-- @wheel.prevent="handleContainerWheel" -->
 			<div
 				ref="timelineRef"
 				class="timeline-ruler px-8 relative h-full min-h-[200px] select-none"
@@ -259,7 +259,7 @@ const timeMarkers = computed(() => {
 		markers.push({
 			time: i,
 			label,
-			position: (i / maxDuration.value) * 100,
+			position: (i / maxDuration.value) * 25,
 			isHour: i % 3600 === 0,
 			isMinute: i % 60 === 0,
 			isHalfMinute: i % 30 === 0,

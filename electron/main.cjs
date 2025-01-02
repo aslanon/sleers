@@ -107,6 +107,95 @@ ipcMain.on("CAMERA_STATUS_UPDATE", (event, statusData) => {
 	}
 });
 
+// Buffer'ı dosyaya kaydetmek için IPC handler
+ipcMain.handle("SAVE_BUFFER_TO_FILE", async (event, buffer, filePath) => {
+	try {
+		await fs.promises.writeFile(filePath, buffer);
+		return true;
+	} catch (error) {
+		console.error("[main.cjs] Dosya kaydedilirken hata:", error);
+		throw error;
+	}
+});
+
+// Video kaydetme ve kırpma için IPC handler
+ipcMain.handle(
+	"SAVE_VIDEO_FILE",
+	async (event, arrayBuffer, filePath, cropInfo) => {
+		try {
+			// Önce geçici bir dosyaya kaydet
+			const tempDir = path.join(app.getPath("temp"), "sleer-temp");
+			if (!fs.existsSync(tempDir)) {
+				fs.mkdirSync(tempDir, { recursive: true });
+			}
+
+			const tempInputPath = path.join(tempDir, `temp-input-${Date.now()}.webm`);
+			const tempOutputPath = path.join(
+				tempDir,
+				`temp-output-${Date.now()}.mp4`
+			);
+
+			// ArrayBuffer'ı geçici dosyaya kaydet
+			const buffer = Buffer.from(arrayBuffer);
+			await fs.promises.writeFile(tempInputPath, buffer);
+
+			// FFmpeg ile videoyu kırp ve kaydet
+			await new Promise((resolve, reject) => {
+				let command = ffmpeg(tempInputPath);
+
+				// Kırpma parametreleri varsa uygula
+				if (cropInfo && cropInfo.width && cropInfo.height) {
+					command = command.videoFilters([
+						{
+							filter: "crop",
+							options: {
+								w: cropInfo.width,
+								h: cropInfo.height,
+								x: cropInfo.x,
+								y: cropInfo.y,
+							},
+						},
+					]);
+				}
+
+				command
+					.outputOptions([
+						"-c:v libx264", // Video codec
+						"-preset veryfast", // Encoding hızı
+						"-crf 23", // Kalite seviyesi
+						"-movflags +faststart", // Hızlı başlatma
+					])
+					.toFormat("mp4")
+					.on("end", () => {
+						console.log("Video dönüştürme tamamlandı");
+						resolve();
+					})
+					.on("error", (err) => {
+						console.error("FFmpeg hatası:", err);
+						reject(err);
+					})
+					.save(tempOutputPath);
+			});
+
+			// Dönüştürülen videoyu hedef konuma taşı
+			await fs.promises.copyFile(tempOutputPath, filePath);
+
+			// Geçici dosyaları temizle
+			try {
+				fs.unlinkSync(tempInputPath);
+				fs.unlinkSync(tempOutputPath);
+			} catch (err) {
+				console.error("Geçici dosyalar silinirken hata:", err);
+			}
+
+			return true;
+		} catch (error) {
+			console.error("[main.cjs] Video dosyası kaydedilirken hata:", error);
+			throw error;
+		}
+	}
+);
+
 async function createWindow() {
 	if (isDev) {
 		try {

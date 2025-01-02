@@ -50,8 +50,10 @@
 					:current-time="currentTime"
 					:duration="videoDuration"
 					:is-trim-mode="isTrimMode"
+					:selected-ratio="selectedRatio"
 					@toggle-playback="togglePlayback"
 					@toggle-trim-mode="toggleTrimMode"
+					@update:selected-ratio="onAspectRatioChange"
 				/>
 			</div>
 
@@ -92,12 +94,23 @@ const audioBlob = ref(null);
 const isPlaying = ref(false);
 const currentTime = ref(0);
 const isTrimMode = ref(false);
+const selectedRatio = ref("");
 const videoSegments = ref([
 	{
 		start: 0,
 		end: 0,
 	},
 ]);
+
+// Kırpma ve pozisyon state'leri
+const cropState = ref({
+	position: { x: 0, y: 0 },
+	scale: 1,
+	cropArea: { x: 0, y: 0, width: 0, height: 0 },
+	containerSize: { width: 0, height: 0 },
+	videoSize: { width: 0, height: 0 },
+	aspectRatio: "",
+});
 
 // Video ve ses dosyalarını yükle
 const loadMedia = async (filePath, type = "video") => {
@@ -208,7 +221,29 @@ const saveVideo = async () => {
 		});
 
 		if (filePath) {
-			await electron?.ipcRenderer.invoke("COPY_FILE", videoUrl.value, filePath);
+			// Kırpma bilgilerini hazırla
+			const cropInfo = {
+				x: Math.round(cropState.value.cropArea.x),
+				y: Math.round(cropState.value.cropArea.y),
+				width: Math.round(cropState.value.cropArea.width),
+				height: Math.round(cropState.value.cropArea.height),
+				scale: cropState.value.scale,
+				position: cropState.value.position,
+				aspectRatio: cropState.value.aspectRatio,
+			};
+
+			// Video blob'unu al
+			const response = await fetch(videoUrl.value);
+			const blob = await response.blob();
+			const arrayBuffer = await blob.arrayBuffer();
+
+			// Video ve kırpma bilgilerini main process'e gönder
+			await electron?.ipcRenderer.invoke(
+				"SAVE_VIDEO_FILE",
+				arrayBuffer,
+				filePath,
+				cropInfo
+			);
 			console.log("[editor.vue] Video kaydedildi:", filePath);
 		}
 	} catch (error) {
@@ -258,6 +293,26 @@ const toggleTrimMode = () => {
 const onSegmentUpdate = ({ type, segments }) => {
 	console.log(`[editor.vue] ${type} segmentleri güncellendi:`, segments);
 	// Burada segmentleri işleyebilir ve videoyu/sesi buna göre düzenleyebilirsiniz
+};
+
+// Kırpma değişikliklerini işle
+const onCropChange = (cropData) => {
+	cropState.value = { ...cropData };
+	console.log("[editor.vue] Kırpma durumu güncellendi:", cropState.value);
+};
+
+// Aspect ratio değişikliğini işle
+const onAspectRatioChange = (ratio) => {
+	if (mediaPlayerRef.value) {
+		selectedRatio.value = ratio;
+		mediaPlayerRef.value.updateAspectRatio(ratio);
+
+		// Kırpma durumunu güncelle
+		const cropData = mediaPlayerRef.value.getCropData();
+		if (cropData) {
+			onCropChange(cropData);
+		}
+	}
 };
 
 onMounted(() => {
