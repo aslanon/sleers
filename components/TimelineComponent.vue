@@ -259,7 +259,7 @@ const timeMarkers = computed(() => {
 		markers.push({
 			time: i,
 			label,
-			position: (i / maxDuration.value) * 25,
+			position: (i / maxDuration.value) * 100,
 			isHour: i % 3600 === 0,
 			isMinute: i % 60 === 0,
 			isHalfMinute: i % 30 === 0,
