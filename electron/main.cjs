@@ -913,3 +913,84 @@ ipcMain.on("OPEN_EDITOR", (event, videoData) => {
 		}, 1000);
 	}
 });
+
+// Ekran kaydı başlat
+ipcMain.on("START_RECORDING", async () => {
+	try {
+		const sources = await desktopCapturer.getSources({
+			types: ["screen", "window"],
+			thumbnailSize: { width: 0, height: 0 },
+			fetchWindowIcons: true,
+		});
+
+		// Kayıt dizinini oluştur
+		const recordingDir = path.join(
+			app.getPath("temp"),
+			"screen-studio-recordings"
+		);
+		if (!fs.existsSync(recordingDir)) {
+			fs.mkdirSync(recordingDir, { recursive: true });
+		}
+
+		const timestamp = new Date().getTime();
+		const videoPath = path.join(recordingDir, `video_${timestamp}.webm`);
+		const audioPath = path.join(recordingDir, `audio_${timestamp}.webm`);
+		const systemAudioPath = path.join(
+			recordingDir,
+			`system_audio_${timestamp}.webm`
+		);
+
+		// Ekran kaydı için MediaRecorder ayarları
+		const videoConstraints = {
+			audio: false,
+			video: {
+				mandatory: {
+					chromeMediaSource: "desktop",
+					chromeMediaSourceId: sources[0].id,
+				},
+			},
+		};
+
+		// Mikrofon kaydı için MediaRecorder ayarları
+		const audioConstraints = {
+			audio: {
+				mandatory: {
+					echoCancellation: true,
+					noiseSuppression: true,
+					autoGainControl: true,
+				},
+			},
+			video: false,
+		};
+
+		// Sistem sesi kaydı için MediaRecorder ayarları
+		const systemAudioConstraints = {
+			audio: {
+				mandatory: {
+					chromeMediaSource: "desktop",
+				},
+			},
+			video: false,
+		};
+
+		// Kayıt işlemini başlat
+		mainWindow.webContents.send("START_RECORDING", {
+			videoConstraints,
+			audioConstraints,
+			systemAudioConstraints,
+			videoPath,
+			audioPath,
+			systemAudioPath,
+		});
+
+		currentRecording = {
+			videoPath,
+			audioPath,
+			systemAudioPath,
+			timestamp,
+		};
+	} catch (error) {
+		console.error("Kayıt başlatma hatası:", error);
+		mainWindow.webContents.send("RECORDING_ERROR", error.message);
+	}
+});

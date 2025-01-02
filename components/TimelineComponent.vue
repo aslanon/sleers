@@ -39,12 +39,12 @@
 		>
 			<div
 				ref="timelineRef"
-				class="timeline-ruler px-8 relative h-full min-h-[256px] select-none"
+				class="timeline-ruler px-8 relative h-full min-h-[200px] select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 			>
 				<div
-					class="timeline-content relative h-[500px] transition-all ease-linear duration-300"
+					class="timeline-content relative h-[200px] transition-all ease-linear duration-300"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -86,7 +86,7 @@
 							<div
 								v-for="(segment, index) in props.segments"
 								:key="index"
-								class="absolute h-12 bg-yellow-300 rounded-xl"
+								class="absolute h-12 bg-[#ffb322] rounded-xl"
 								:style="getSegmentStyle(segment, index)"
 								@click="handleSegmentClick(index, $event)"
 							>
@@ -126,13 +126,6 @@
 					</div>
 				</div>
 			</div>
-		</div>
-		<!-- Timeline Footer -->
-		<div
-			class="flex justify-between items-center px-4 py-2 text-xs text-gray-400"
-		>
-			<span>Current Time: {{ formatTime(props.currentTime) }}</span>
-			<span>Total Duration: {{ formatTime(props.duration) }}</span>
 		</div>
 	</div>
 </template>
@@ -300,6 +293,8 @@ const getSegmentStyle = (segment, index) => {
 	return {
 		left: `${position}%`,
 		width: `${width}%`,
+		boxShadow:
+			"0px 0px 0px 1px inset #ffffff61, 0px 0px 25px 0px inset #0000008f",
 
 		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
 	};

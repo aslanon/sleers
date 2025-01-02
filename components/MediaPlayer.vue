@@ -188,44 +188,82 @@ const onVideoEnded = () => {
 	if (audio) audio.pause();
 };
 
-// Props izleme
+// Video ve ses senkronizasyonu için watch
 watch(
 	() => props.isPlaying,
 	(newValue) => {
 		if (newValue) {
-			play();
+			Promise.all([videoRef.value?.play(), audioRef.value?.play()]).catch(
+				(error) => {
+					console.error("[MediaPlayer] Oynatma hatası:", error);
+					emit("error", error);
+				}
+			);
 		} else {
-			pause();
+			videoRef.value?.pause();
+			audioRef.value?.pause();
 		}
 	}
 );
 
+// Ses ve video senkronizasyonu için timeupdate
 watch(
 	() => props.currentTime,
 	(newValue) => {
-		if (!videoRef.value) return;
+		if (!videoRef.value || !audioRef.value) return;
+
+		// Ses ve video arasındaki fark 0.1 saniyeden fazlaysa senkronize et
 		if (Math.abs(videoRef.value.currentTime - newValue) > 0.1) {
-			seek(newValue);
+			videoRef.value.currentTime = newValue;
+		}
+		if (Math.abs(audioRef.value.currentTime - newValue) > 0.1) {
+			audioRef.value.currentTime = newValue;
 		}
 	}
 );
+
+// Ses seviyesi kontrolü
+const setVolume = (volume) => {
+	if (audioRef.value) {
+		audioRef.value.volume = volume;
+	}
+	if (videoRef.value) {
+		videoRef.value.volume = volume;
+	}
+};
 
 // Component mount olduğunda
 onMounted(() => {
 	const video = videoRef.value;
+	const audio = audioRef.value;
+
 	if (video) {
 		video.addEventListener("ended", onVideoEnded);
 		video.addEventListener("pause", () => {
 			emit("videoPaused");
+			audio?.pause();
 		});
 	}
+
+	if (audio) {
+		audio.addEventListener("error", onAudioError);
+	}
+
+	// Varsayılan ses seviyesini ayarla
+	setVolume(1.0);
 });
 
 // Component unmount olduğunda
 onUnmounted(() => {
 	const video = videoRef.value;
+	const audio = audioRef.value;
+
 	if (video) {
 		video.removeEventListener("ended", onVideoEnded);
+	}
+
+	if (audio) {
+		audio.removeEventListener("error", onAudioError);
 	}
 });
 
@@ -234,6 +272,7 @@ defineExpose({
 	play,
 	pause,
 	seek,
+	setVolume,
 });
 </script>
 
