@@ -18,18 +18,21 @@
 </template>
 
 <script setup>
-defineProps({
+const props = defineProps({
 	duration: {
 		type: Number,
-		default: 0,
+		required: true,
+		validator: (value) => value >= 0,
 	},
 	width: {
 		type: Number,
-		default: 0,
+		required: true,
+		default: 1920,
 	},
 	height: {
 		type: Number,
-		default: 0,
+		required: true,
+		default: 1080,
 	},
 });
 

@@ -137,7 +137,7 @@ const props = defineProps({
 	duration: {
 		type: Number,
 		required: true,
-		validator: (value) => value > 0,
+		validator: (value) => value >= 0,
 	},
 	currentTime: {
 		type: Number,
@@ -151,7 +151,7 @@ const props = defineProps({
 			segments.every(
 				(segment) =>
 					segment.start >= 0 &&
-					segment.end > segment.start &&
+					segment.end >= segment.start &&
 					typeof segment.start === "number" &&
 					typeof segment.end === "number"
 			),

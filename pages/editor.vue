@@ -67,38 +67,61 @@
 		<TimelineComponent
 			:duration="videoDuration"
 			:current-time="currentTime"
-			:segments="videoSegments"
+			:segments="segments"
 			@time-update="onTimelineUpdate"
 		/>
 	</div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import MediaPlayer from "~/components/MediaPlayer.vue";
 import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
+
+// Yardımcı fonksiyonlar
+const generateId = () => {
+	return "id-" + Math.random().toString(36).substr(2, 9);
+};
 
 const electron = window.electron;
 const mediaPlayerRef = ref(null);
 const videoUrl = ref("");
 const audioUrl = ref("");
 const videoDuration = ref(0);
-const videoWidth = ref(0);
-const videoHeight = ref(0);
+const currentTime = ref(0);
+const currentVideoTime = ref(0);
 const videoType = ref("video/mp4");
 const audioType = ref("audio/webm");
 const videoBlob = ref(null);
 const audioBlob = ref(null);
 const isPlaying = ref(false);
-const currentTime = ref(0);
 const isTrimMode = ref(false);
 const selectedRatio = ref("");
-const videoSegments = ref([
+
+// Video boyutları
+const videoSize = ref({
+	width: 1920,
+	height: 1080,
+});
+
+// Video boyutları için computed değerler
+const videoWidth = computed(() => videoSize.value?.width || 1920);
+const videoHeight = computed(() => videoSize.value?.height || 1080);
+
+// Segment state'i
+const segments = ref([
 	{
-		start: 0,
-		end: 0,
+		id: generateId(),
+		startTime: 0,
+		endTime: 0,
+		startPosition: "0%",
+		width: "100%",
+		type: "video",
+		layer: 0,
+		selected: false,
+		locked: false,
 	},
 ]);
 
@@ -170,34 +193,46 @@ const togglePlayback = () => {
 };
 
 // Video yüklendiğinde
-const onVideoLoaded = ({ duration, width, height }) => {
-	console.log("[editor.vue] Video yüklendi:", { duration, width, height });
-	videoDuration.value = duration;
-	videoWidth.value = width;
-	videoHeight.value = height;
+const onVideoLoaded = (data) => {
+	try {
+		console.log("[editor.vue] Video yüklendi, gelen data:", data);
 
-	// İlk segment'i video süresine göre ayarla
-	videoSegments.value = [
-		{
-			start: 0,
-			end: duration,
-			type: "video",
-		},
-	];
+		// Video bilgilerini kaydet
+		if (data && typeof data.duration === "number") {
+			videoDuration.value = Math.max(0, data.duration);
+			videoSize.value = {
+				width: data.width || 1920,
+				height: data.height || 1080,
+			};
 
-	console.log("[editor.vue] Segment oluşturuldu:", {
-		segment: videoSegments.value[0],
-		duration,
-		startPosition: `${(0 / duration) * 100}%`,
-		width: `${(duration / duration) * 100}%`,
-	});
+			// Mevcut segment'i güncelle
+			if (segments.value.length > 0) {
+				const duration = videoDuration.value;
+				segments.value[0] = {
+					...segments.value[0],
+					start: 0,
+					end: duration,
+					startTime: 0,
+					endTime: duration,
+					startPosition: "0%",
+					width: "100%",
+					source: videoUrl.value,
+				};
 
-	electron?.ipcRenderer.send("EDITOR_STATUS_UPDATE", {
-		status: "ready",
-		duration: videoDuration.value,
-		width: videoWidth.value,
-		height: videoHeight.value,
-	});
+				console.log("[editor.vue] Segment güncellendi:", {
+					duration,
+					segment: segments.value[0],
+				});
+			}
+
+			// Segment pozisyonlarını güncelle
+			updateSegments();
+		} else {
+			console.warn("[editor.vue] Video süresi geçersiz:", data);
+		}
+	} catch (error) {
+		console.error("[editor.vue] Video yükleme hatası:", error);
+	}
 };
 
 // Video bittiğinde
@@ -271,16 +306,21 @@ const startNewRecording = () => {
 	}
 };
 
-// Video zamanı güncellendiğinde (video'dan gelen)
+// Video zamanı güncellendiğinde
 const onTimeUpdate = (time) => {
-	currentTime.value = time;
+	if (!isNaN(time)) {
+		currentTime.value = time;
+		currentVideoTime.value = time;
+		// Her zaman güncellemesinde segmentleri de güncelle
+		updateSegments();
+	}
 };
 
 // Timeline'dan gelen zaman güncellemesi
 const onTimelineUpdate = (time) => {
 	currentTime.value = time;
-	if (mediaPlayerRef.value?.videoRef?.value) {
-		mediaPlayerRef.value.videoRef.value.currentTime = time;
+	if (mediaPlayerRef.value) {
+		mediaPlayerRef.value.seek(time);
 	}
 };
 
@@ -313,6 +353,29 @@ const onAspectRatioChange = (ratio) => {
 			onCropChange(cropData);
 		}
 	}
+};
+
+// Timeline segment'lerini güncelle
+const updateSegments = () => {
+	if (!segments.value?.length) return;
+
+	segments.value = segments.value.map((segment) => {
+		// Yüzdeleri hesapla
+		const startPercent =
+			(segment.startTime / Math.max(0.1, videoDuration.value)) * 100;
+		const endPercent =
+			(segment.endTime / Math.max(0.1, videoDuration.value)) * 100;
+
+		return {
+			...segment,
+			start: segment.startTime,
+			end: segment.endTime,
+			startPosition: `${startPercent}%`,
+			width: `${endPercent - startPercent}%`,
+		};
+	});
+
+	console.log("[editor.vue] Segmentler güncellendi:", segments.value);
 };
 
 onMounted(() => {

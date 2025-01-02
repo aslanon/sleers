@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-defineProps({
+const props = defineProps({
 	isPlaying: {
 		type: Boolean,
 		default: false,
@@ -114,7 +114,11 @@ defineProps({
 	},
 });
 
-defineEmits(["togglePlayback", "toggleTrimMode", "update:selectedRatio"]);
+const emit = defineEmits([
+	"toggle-playback",
+	"toggle-trim-mode",
+	"update:selected-ratio",
+]);
 
 const formatTime = (seconds) => {
 	if (!seconds || isNaN(seconds)) return "00:00:00";
@@ -126,6 +130,11 @@ const formatTime = (seconds) => {
 	return `${minutes.toString().padStart(2, "0")}:${secs
 		.toString()
 		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
+};
+
+// Aspect ratio değişikliği
+const onAspectRatioChange = (ratio) => {
+	emit("update:selected-ratio", ratio);
 };
 </script>
 
