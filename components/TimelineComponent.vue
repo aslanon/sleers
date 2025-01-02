@@ -393,7 +393,7 @@ const handleContainerWheel = (e) => {
 		// Yatay scroll - hızı artırıldı
 		const container = scrollContainerRef.value;
 		if (container) {
-			container.scrollLeft += e.deltaY * 3; // Scroll hızını 3 katına çıkardık
+			container.scrollLeft += e.deltaY * 10; // Scroll hızını 3 katına çıkardık
 		}
 	}
 };
