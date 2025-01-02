@@ -263,8 +263,43 @@ const onSegmentUpdate = ({ type, segments }) => {
 onMounted(() => {
 	console.log("[editor.vue] Component mount edildi");
 
+	// Video işleme durumunu kontrol et
+	electron?.ipcRenderer
+		.invoke("CHECK_PROCESSING_STATUS")
+		.then((status) => {
+			console.log("[editor.vue] Video işleme durumu:", status);
+
+			if (status.isProcessing) {
+				console.log("[editor.vue] Video işleniyor, tamamlanmasını bekliyoruz");
+
+				// Video işleme tamamlandığında tetiklenecek event listener
+				electron?.ipcRenderer.once("PROCESSING_COMPLETE", async (paths) => {
+					console.log(
+						"[editor.vue] Video işleme tamamlandı, medya yükleniyor:",
+						paths
+					);
+					if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+					if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
+				});
+			} else {
+				// Video işleme tamamlanmışsa direkt path'leri al
+				electron?.ipcRenderer.invoke("GET_MEDIA_PATHS").then(async (paths) => {
+					console.log("[editor.vue] Media paths alındı:", paths);
+					if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+					if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
+				});
+			}
+		})
+		.catch((error) => {
+			console.error(
+				"[editor.vue] Video işleme durumu kontrol edilirken hata:",
+				error
+			);
+		});
+
+	// Diğer event listener'lar
 	electron?.ipcRenderer.on("MEDIA_PATHS", async (paths) => {
-		console.log("[editor.vue] Media paths alındı:", paths);
+		console.log("[editor.vue] MEDIA_PATHS eventi alındı:", paths);
 		if (paths.videoPath) await loadMedia(paths.videoPath, "video");
 		if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 	});
@@ -282,6 +317,7 @@ onUnmounted(() => {
 	if (window.electron) {
 		window.electron.ipcRenderer.removeAllListeners("MEDIA_PATHS");
 		window.electron.ipcRenderer.removeAllListeners("START_EDITING");
+		window.electron.ipcRenderer.removeAllListeners("PROCESSING_COMPLETE");
 	}
 });
 </script>
