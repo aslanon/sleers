@@ -150,7 +150,7 @@ const initVideo = () => {
 		// Yeni video elementi oluştur
 		videoElement = document.createElement("video");
 		videoElement.crossOrigin = "anonymous";
-		videoElement.muted = true;
+		videoElement.muted = false;
 		videoElement.playsInline = true;
 		videoElement.preload = "metadata";
 		videoElement.volume = videoState.value.volume;
@@ -369,6 +369,11 @@ const play = async () => {
 	if (!videoElement) return;
 	try {
 		await videoElement.play();
+		// Ses elementini de oynat
+		if (audioRef.value) {
+			audioRef.value.currentTime = videoElement.currentTime;
+			await audioRef.value.play();
+		}
 		if (!animationFrame) {
 			animationFrame = requestAnimationFrame(updateCanvas);
 		}
@@ -381,6 +386,10 @@ const pause = async () => {
 	if (!videoElement) return;
 	try {
 		await videoElement.pause();
+		// Ses elementini de durdur
+		if (audioRef.value) {
+			await audioRef.value.pause();
+		}
 		if (animationFrame) {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = null;
@@ -413,6 +422,13 @@ const toggleFullscreen = async (e) => {
 const onTimeUpdate = () => {
 	if (!videoElement) return;
 	videoState.value.currentTime = videoElement.currentTime;
+	// Ses zamanını da senkronize et
+	if (
+		audioRef.value &&
+		Math.abs(audioRef.value.currentTime - videoElement.currentTime) > 0.1
+	) {
+		audioRef.value.currentTime = videoElement.currentTime;
+	}
 	emit("timeUpdate", videoElement.currentTime);
 };
 

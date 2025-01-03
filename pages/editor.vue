@@ -283,14 +283,25 @@ const saveVideo = async () => {
 			const blob = await response.blob();
 			const arrayBuffer = await blob.arrayBuffer();
 
-			console.log("[editor.vue] Video verisi hazırlandı, kaydetme başlıyor...");
+			// Ses blob'unu al
+			let audioArrayBuffer = null;
+			if (audioUrl.value) {
+				const audioResponse = await fetch(audioUrl.value);
+				const audioBlob = await audioResponse.blob();
+				audioArrayBuffer = await audioBlob.arrayBuffer();
+			}
 
-			// Video ve kırpma bilgilerini main process'e gönder
+			console.log(
+				"[editor.vue] Video ve ses verisi hazırlandı, kaydetme başlıyor..."
+			);
+
+			// Video, ses ve kırpma bilgilerini main process'e gönder
 			const result = await electron?.ipcRenderer.invoke(
 				"SAVE_VIDEO_FILE",
 				arrayBuffer,
 				filePath,
-				cropInfo
+				cropInfo,
+				audioArrayBuffer
 			);
 
 			console.log("[editor.vue] Video kaydedildi, sonuç:", result);

@@ -275,7 +275,18 @@ const startRecording = async () => {
 
 		// Kayıt başlat
 		console.log("2. Stream başlatılıyor...");
-		const { screenStream, cameraStream } = await startMediaStream({});
+		const { screenStream, cameraStream } = await startMediaStream({
+			audio: {
+				mandatory: {
+					chromeMediaSource: "desktop",
+				},
+			},
+			video: {
+				mandatory: {
+					chromeMediaSource: "desktop",
+				},
+			},
+		});
 		console.log("3. Stream başlatıldı");
 
 		// Her stream için ayrı MediaRecorder oluştur
