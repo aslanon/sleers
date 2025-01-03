@@ -1,5 +1,5 @@
 <template>
-	<div class="media-player-settings w-80 ml-4 rounded-lg p-4">
+	<div class="media-player-settings bg-white/10 w-80 ml-4 rounded-lg p-4">
 		<h2 class="text-xl font-bold mb-4">Video Ayarları</h2>
 
 		<!-- Video Bilgileri -->

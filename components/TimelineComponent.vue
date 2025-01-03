@@ -83,24 +83,41 @@
 
 					<!-- Video Track -->
 					<div class="absolute left-0 right-0 top-14 flex items-center px-2">
-						<div class="timeline-layer-bar w-full rounded-xl">
-							<!-- Video Segments -->
-							<div
-								v-for="(segment, index) in props.segments"
-								:key="index"
-								class="absolute h-12 bg-[#ffb322] rounded-xl"
-								:style="getSegmentStyle(segment, index)"
-								@click="handleSegmentClick(index, $event)"
-							>
+						<div class="timeline-layer-bar w-full rounded-xl relative">
+							<!-- Video Segments Container -->
+							<div class="flex flex-row h-12 relative w-full">
+								<!-- Video Segments -->
 								<div
-									class="absolute inset-0 flex items-end p-2 justify-between px-2 text-xs text-black"
-									:class="{
-										'opacity-0':
-											(segment.end - segment.start) * currentZoom.value < 12,
-									}"
+									v-for="(segment, index) in props.segments"
+									:key="segment.id || index"
+									class="h-full bg-[#ffb322] rounded-xl relative"
+									:style="getSegmentStyle(segment, index)"
+									@click="handleSegmentClick(index, $event)"
+									@mousemove="handleSegmentMouseMove($event, index)"
+									@mouseleave="handleSegmentMouseLeave"
+									@mousedown="
+										isSplitMode
+											? handleSegmentSplit($event, index)
+											: handleSegmentDragStart(index, $event)
+									"
 								>
-									<span>{{ formatTime(segment.start) }}</span>
-									<span>{{ formatTime(segment.end) }}</span>
+									<!-- Split Mode Indicator -->
+									<div
+										v-if="isSplitMode && mousePosition.segmentIndex === index"
+										class="absolute top-0 bottom-0 w-[1px] bg-white"
+										:style="{ left: mousePosition.x + 'px' }"
+									></div>
+
+									<div
+										class="absolute inset-0 flex items-end p-2 justify-between px-2 text-xs text-black"
+										:class="{
+											'opacity-0':
+												(segment.end - segment.start) * currentZoom.value < 12,
+										}"
+									>
+										<span>{{ formatTime(segment.start) }}</span>
+										<span>{{ formatTime(segment.end) }}</span>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -166,9 +183,18 @@ const props = defineProps({
 		type: Number,
 		default: 20,
 	},
+	isSplitMode: {
+		type: Boolean,
+		default: false,
+	},
 });
 
-const emit = defineEmits(["timeUpdate", "segmentUpdate", "segmentSelect"]);
+const emit = defineEmits([
+	"timeUpdate",
+	"segmentUpdate",
+	"segmentSelect",
+	"splitSegment",
+]);
 
 // Referanslar ve state
 const scrollContainerRef = ref(null);
@@ -177,6 +203,12 @@ const currentZoom = ref(3);
 const isDragging = ref(false);
 const startDragX = ref(0);
 const startScrollLeft = ref(0);
+const startSegmentStart = ref(0);
+
+// Yardımcı fonksiyonlar
+const generateId = () => {
+	return "segment-" + Math.random().toString(36).substring(2, 11);
+};
 
 // Zoom sabitleri
 const minZoom = 0.1; // Minimum zoom değeri artırıldı
@@ -293,20 +325,17 @@ const getSegmentStyle = (segment, index) => {
 	const start = segment.start || 0;
 	const end = segment.end || 0;
 
-	// Pozisyon ve genişlik hesapla
-	const position = (segment.start / maxDuration.value) * 100;
+	// Genişlik hesapla
 	const width = ((segment.end - segment.start) / maxDuration.value) * 100;
 
 	console.log("[TimelineComponent] Segment stil hesaplaması:", {
 		start,
 		end,
 		maxDuration: maxDuration.value,
-		position,
 		width,
 	});
 
 	return {
-		left: `${position}%`,
 		width: `${width}%`,
 		boxShadow:
 			"0px 0px 0px 1px inset #ffffff61, 0px 0px 25px 0px inset #0000008f",
@@ -329,6 +358,37 @@ const handleSegmentDragStart = (index, event) => {
 	activeSegmentIndex.value = index;
 	startDragX.value = event.clientX;
 	startSegmentStart.value = props.segments[index].start;
+
+	// Mouse event'lerini dinle
+	window.addEventListener("mousemove", handleSegmentDrag);
+	window.addEventListener("mouseup", handleSegmentDragEnd);
+};
+
+const handleSegmentDrag = (event) => {
+	if (!isDragging.value || activeSegmentIndex.value === null) return;
+
+	const segment = props.segments[activeSegmentIndex.value];
+	if (!segment) return;
+
+	const dx = event.clientX - startDragX.value;
+	const timeChange = (dx / timelineWidth.value) * maxDuration.value;
+	const newStart = Math.max(0, startSegmentStart.value + timeChange);
+
+	// Segment süresini koru
+	const duration = segment.end - segment.start;
+	const newEnd = Math.min(props.duration, newStart + duration);
+
+	emit("segmentUpdate", {
+		index: activeSegmentIndex.value,
+		start: newStart,
+		end: newEnd,
+	});
+};
+
+const handleSegmentDragEnd = () => {
+	isDragging.value = false;
+	window.removeEventListener("mousemove", handleSegmentDrag);
+	window.removeEventListener("mouseup", handleSegmentDragEnd);
 };
 
 // Timeline tıklama ve playhead güncelleme
@@ -340,19 +400,9 @@ const handleTimelineClick = (e) => {
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	// Segment sınırları içinde olup olmadığını kontrol et
+	// Sadece geçerli zaman aralığında olmasını kontrol et
 	const validTime = Math.max(0, Math.min(props.duration, time));
-	const activeSegment = props.segments[activeSegmentIndex.value];
-
-	if (activeSegment) {
-		const clampedTime = Math.max(
-			activeSegment.start,
-			Math.min(activeSegment.end, validTime)
-		);
-		emit("timeUpdate", clampedTime);
-	} else {
-		emit("timeUpdate", validTime);
-	}
+	emit("timeUpdate", validTime);
 };
 
 const startDragging = (e) => {
@@ -416,6 +466,73 @@ const formatTime = (seconds) => {
 	return `${minutes.toString().padStart(2, "0")}:${secs
 		.toString()
 		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
+};
+
+// Segment üzerinde mouse pozisyonu
+const mousePosition = ref({ x: 0, segmentIndex: null });
+
+// Segment üzerinde mouse hareketi
+const handleSegmentMouseMove = (event, index) => {
+	if (!props.isSplitMode) return;
+
+	const segment = event.currentTarget;
+	const rect = segment.getBoundingClientRect();
+	const x = event.clientX - rect.left;
+	mousePosition.value = { x, segmentIndex: index };
+};
+
+// Segment üzerinden mouse ayrıldığında
+const handleSegmentMouseLeave = () => {
+	mousePosition.value = { x: 0, segmentIndex: null };
+};
+
+// Segment bölme işlemi
+const handleSegmentSplit = (event, index) => {
+	if (!props.isSplitMode) return;
+	event.stopPropagation();
+
+	const segment = props.segments[index];
+	if (!segment) return;
+
+	const segmentEl = event.currentTarget;
+	const rect = segmentEl.getBoundingClientRect();
+	const x = event.clientX - rect.left;
+	const ratio = x / rect.width;
+
+	// Bölme noktasındaki zamanı hesapla
+	const splitTime = segment.start + (segment.end - segment.start) * ratio;
+
+	// İlk segment (sol taraf)
+	const leftSegment = {
+		...segment,
+		id: generateId(), // Yeni ID
+		end: splitTime,
+		endTime: splitTime,
+		width: `${((splitTime - segment.start) / maxDuration.value) * 100}%`,
+	};
+
+	// İkinci segment (sağ taraf)
+	const rightSegment = {
+		...segment,
+		id: generateId(), // Yeni ID
+		start: splitTime,
+		startTime: splitTime,
+		width: `${((segment.end - splitTime) / maxDuration.value) * 100}%`,
+	};
+
+	console.log("[TimelineComponent] Segment bölünüyor:", {
+		originalSegment: segment,
+		splitTime,
+		leftSegment,
+		rightSegment,
+	});
+
+	// Bölünmüş segmentleri emit et
+	emit("splitSegment", {
+		index,
+		segments: [leftSegment, rightSegment],
+		splitTime,
+	});
 };
 
 // Component mount/unmount

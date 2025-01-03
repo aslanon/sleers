@@ -54,10 +54,12 @@
 					:is-trim-mode="isTrimMode"
 					:selected-ratio="selectedRatio"
 					:is-muted="isMuted"
+					:is-split-mode="isSplitMode"
 					@toggle-playback="togglePlayback"
 					@toggle-trim-mode="toggleTrimMode"
 					@update:selected-ratio="onAspectRatioChange"
 					@toggle-mute="toggleMute"
+					@toggle-split-mode="toggleSplitMode"
 				/>
 			</div>
 
@@ -72,7 +74,9 @@
 			:duration="videoDuration"
 			:current-time="currentTime"
 			:segments="segments"
+			:is-split-mode="isSplitMode"
 			@time-update="onTimelineUpdate"
+			@split-segment="handleSegmentSplit"
 		/>
 	</div>
 </template>
@@ -105,6 +109,7 @@ const isTrimMode = ref(false);
 const selectedRatio = ref("");
 const selectedArea = ref(null);
 const isMuted = ref(false);
+const isSplitMode = ref(false);
 
 // Video boyutları
 const videoSize = ref({
@@ -290,14 +295,19 @@ const saveVideo = async () => {
 
 			// Ses blob'unu al
 			let audioArrayBuffer = null;
-			if (audioUrl.value) {
+			if (audioUrl.value && !isMuted.value) {
+				// Ses açıksa ve ses dosyası varsa
 				const audioResponse = await fetch(audioUrl.value);
 				const audioBlob = await audioResponse.blob();
 				audioArrayBuffer = await audioBlob.arrayBuffer();
 			}
 
 			console.log(
-				"[editor.vue] Video ve ses verisi hazırlandı, kaydetme başlıyor..."
+				"[editor.vue] Video ve ses verisi hazırlandı, kaydetme başlıyor...",
+				{
+					hasAudio: !!audioArrayBuffer,
+					isMuted: isMuted.value,
+				}
 			);
 
 			// Video, ses ve kırpma bilgilerini main process'e gönder
@@ -487,6 +497,31 @@ const updateSegments = () => {
 // Ses kontrolü
 const toggleMute = () => {
 	isMuted.value = !isMuted.value;
+};
+
+// Segment bölme işlemi
+const handleSegmentSplit = ({ index, segments: newSegments, splitTime }) => {
+	const segment = segments.value[index];
+	if (!segment) return;
+
+	console.log("[editor.vue] Segment bölme işlemi başlıyor:", {
+		originalSegment: segment,
+		newSegments,
+		splitTime,
+	});
+
+	// Orijinal segmenti kaldır ve yerine yeni segmentleri ekle
+	segments.value.splice(index, 1, ...newSegments);
+
+	// Segmentleri güncelle
+	updateSegments();
+
+	console.log("[editor.vue] Segmentler güncellendi:", segments.value);
+};
+
+// Toggle split mode
+const toggleSplitMode = () => {
+	isSplitMode.value = !isSplitMode.value;
 };
 
 onMounted(() => {

@@ -120,6 +120,29 @@
 					/>
 				</svg>
 			</button>
+
+			<!-- Segment Bölme Butonu -->
+			<button
+				@click="$emit('toggleSplitMode')"
+				class="px-4 py-2 rounded-lg flex items-center"
+				:class="{ 'bg-purple-600': isSplitMode }"
+				type="button"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-6 w-6"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243zm8.486-.486a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"
+					/>
+				</svg>
+			</button>
 		</div>
 	</div>
 </template>
@@ -150,6 +173,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	isSplitMode: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const emit = defineEmits([
@@ -157,6 +184,7 @@ const emit = defineEmits([
 	"toggle-trim-mode",
 	"update:selected-ratio",
 	"toggle-mute",
+	"toggle-split-mode",
 ]);
 
 const formatTime = (seconds) => {
