@@ -99,6 +99,7 @@ const audioBlob = ref(null);
 const isPlaying = ref(false);
 const isTrimMode = ref(false);
 const selectedRatio = ref("");
+const selectedArea = ref(null);
 
 // Video boyutları
 const videoSize = ref({
@@ -252,25 +253,55 @@ const saveVideo = async () => {
 		});
 
 		if (filePath) {
-			// Merkezi state'ten crop bilgilerini al
-			const cropInfo = await electron?.ipcRenderer.invoke("GET_CROP_INFO");
+			// Debug: selectedArea değerini kontrol et
+			console.log("[editor.vue] Mevcut selectedArea:", selectedArea.value);
+
+			// Kırpma bilgilerini basitleştirilmiş formatta hazırla
+			let cropInfo = null;
+
+			if (selectedArea.value) {
+				cropInfo = {
+					x: parseInt(selectedArea.value.x) || 0,
+					y: parseInt(selectedArea.value.y) || 0,
+					width: parseInt(selectedArea.value.width) || videoWidth.value,
+					height: parseInt(selectedArea.value.height) || videoHeight.value,
+					scale: 1,
+				};
+			} else {
+				// Main process'ten kırpma bilgisini al
+				try {
+					cropInfo = await electron?.ipcRenderer.invoke("GET_CROP_INFO");
+				} catch (err) {
+					console.warn("[editor.vue] Kırpma bilgisi alınamadı:", err);
+				}
+			}
+
+			console.log("[editor.vue] Hazırlanan kırpma bilgileri:", cropInfo);
 
 			// Video blob'unu al
 			const response = await fetch(videoUrl.value);
 			const blob = await response.blob();
 			const arrayBuffer = await blob.arrayBuffer();
 
+			console.log("[editor.vue] Video verisi hazırlandı, kaydetme başlıyor...");
+
 			// Video ve kırpma bilgilerini main process'e gönder
-			await electron?.ipcRenderer.invoke(
+			const result = await electron?.ipcRenderer.invoke(
 				"SAVE_VIDEO_FILE",
 				arrayBuffer,
 				filePath,
 				cropInfo
 			);
-			console.log("[editor.vue] Video kaydedildi:", filePath);
+
+			console.log("[editor.vue] Video kaydedildi, sonuç:", result);
+			console.log("[editor.vue] Video başarıyla kaydedildi:", filePath);
 		}
 	} catch (error) {
 		console.error("[editor.vue] Video kaydedilirken hata:", error);
+		console.error("[editor.vue] Hata detayları:", {
+			message: error.message,
+			stack: error.stack,
+		});
 		alert("Videoyu kaydederken bir hata oluştu: " + error.message);
 	}
 };
@@ -325,25 +356,81 @@ const onSegmentUpdate = ({ type, segments }) => {
 };
 
 // Kırpma değişikliklerini işle
-const onCropChange = (cropData) => {
-	cropState.value = { ...cropData };
-	console.log("[editor.vue] Kırpma durumu güncellendi:", cropState.value);
+const onCropChange = (cropArea) => {
+	try {
+		if (!cropArea) {
+			selectedArea.value = null;
+			// Seçilen alanı sıfırla
+			window.electron.ipcRenderer.send("UPDATE_SELECTED_AREA", null);
+			console.log("[editor.vue] Kırpma alanı sıfırlandı");
+			return;
+		}
 
-	// Merkezi state'i güncelle
-	electron?.ipcRenderer.send("UPDATE_CROP_INFO", cropState.value);
+		// cropArea'dan sadece gerekli değerleri al ve yeni bir obje oluştur
+		const safeArea = {
+			x: typeof cropArea.x === "number" ? Math.round(cropArea.x) : 0,
+			y: typeof cropArea.y === "number" ? Math.round(cropArea.y) : 0,
+			width:
+				typeof cropArea.width === "number"
+					? Math.round(cropArea.width)
+					: videoWidth.value,
+			height:
+				typeof cropArea.height === "number"
+					? Math.round(cropArea.height)
+					: videoHeight.value,
+			devicePixelRatio: window.devicePixelRatio || 1,
+		};
+
+		// Değerlerin geçerliliğini kontrol et
+		if (safeArea.width <= 0 || safeArea.height <= 0) {
+			console.warn("[editor.vue] Geçersiz kırpma boyutları:", safeArea);
+			return;
+		}
+
+		// Video boyutlarını aşmadığından emin ol
+		safeArea.width = Math.min(safeArea.width, videoWidth.value);
+		safeArea.height = Math.min(safeArea.height, videoHeight.value);
+		safeArea.x = Math.min(
+			Math.max(0, safeArea.x),
+			videoWidth.value - safeArea.width
+		);
+		safeArea.y = Math.min(
+			Math.max(0, safeArea.y),
+			videoHeight.value - safeArea.height
+		);
+
+		console.log("[editor.vue] Kırpma alanı hazırlandı:", safeArea);
+
+		// State'i güncelle
+		selectedArea.value = safeArea;
+
+		// Main process'e gönder
+		window.electron.ipcRenderer.send("UPDATE_SELECTED_AREA", safeArea);
+		console.log("[editor.vue] Kırpma alanı main process'e gönderildi");
+	} catch (error) {
+		console.error("[editor.vue] Kırpma alanı güncellenirken hata:", error);
+	}
 };
 
 // Aspect ratio değişikliğini işle
 const onAspectRatioChange = (ratio) => {
-	if (mediaPlayerRef.value) {
-		selectedRatio.value = ratio;
-		mediaPlayerRef.value.updateAspectRatio(ratio);
+	try {
+		if (mediaPlayerRef.value) {
+			selectedRatio.value = ratio;
+			mediaPlayerRef.value.updateAspectRatio(ratio);
 
-		// Kırpma durumunu güncelle
-		const cropData = mediaPlayerRef.value.getCropData();
-		if (cropData) {
-			onCropChange(cropData);
+			// Kırpma durumunu güncelle
+			const cropData = mediaPlayerRef.value.getCropData();
+			if (cropData) {
+				console.log(
+					"[editor.vue] Yeni aspect ratio için kırpma verisi:",
+					cropData
+				);
+				onCropChange(cropData);
+			}
 		}
+	} catch (error) {
+		console.error("[editor.vue] Aspect ratio güncellenirken hata:", error);
 	}
 };
 

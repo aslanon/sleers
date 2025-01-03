@@ -123,6 +123,12 @@ ipcMain.handle(
 	"SAVE_VIDEO_FILE",
 	async (event, arrayBuffer, filePath, cropInfo) => {
 		try {
+			console.log("[main.cjs] Video kaydetme başlıyor:", {
+				filePath,
+				hasCropInfo: !!cropInfo,
+				cropDetails: cropInfo,
+			});
+
 			// Önce geçici bir dosyaya kaydet
 			const tempDir = path.join(app.getPath("temp"), "sleer-temp");
 			if (!fs.existsSync(tempDir)) {
@@ -139,30 +145,31 @@ ipcMain.handle(
 			const buffer = Buffer.from(arrayBuffer);
 			await fs.promises.writeFile(tempInputPath, buffer);
 
+			console.log("[main.cjs] Geçici dosya oluşturuldu:", tempInputPath);
+
 			// FFmpeg ile videoyu kırp ve kaydet
 			await new Promise((resolve, reject) => {
 				let command = ffmpeg(tempInputPath);
 
 				// Kırpma parametreleri varsa uygula
-				if (cropInfo && cropInfo.width && cropInfo.height) {
-					command = command.videoFilters([
-						{
-							filter: "crop",
-							options: {
-								w: cropInfo.width,
-								h: cropInfo.height,
-								x: cropInfo.x,
-								y: cropInfo.y,
-							},
+				if (
+					cropInfo &&
+					typeof cropInfo.width === "number" &&
+					typeof cropInfo.height === "number"
+				) {
+					console.log("[main.cjs] Kırpma filtresi uygulanıyor:", cropInfo);
+
+					const cropFilter = {
+						filter: "crop",
+						options: {
+							w: Math.round(cropInfo.width),
+							h: Math.round(cropInfo.height),
+							x: Math.round(cropInfo.x || 0),
+							y: Math.round(cropInfo.y || 0),
 						},
-						{
-							filter: "scale",
-							options: {
-								w: cropInfo.width * cropInfo.scale,
-								h: cropInfo.height * cropInfo.scale,
-							},
-						},
-					]);
+					};
+
+					command = command.videoFilters([cropFilter]);
 				}
 
 				command
@@ -173,12 +180,18 @@ ipcMain.handle(
 						"-movflags +faststart", // Hızlı başlatma
 					])
 					.toFormat("mp4")
+					.on("start", (cmdLine) => {
+						console.log("[main.cjs] FFmpeg komutu başlatıldı:", cmdLine);
+					})
+					.on("progress", (progress) => {
+						console.log("[main.cjs] İşlem durumu:", progress);
+					})
 					.on("end", () => {
-						console.log("Video dönüştürme tamamlandı");
+						console.log("[main.cjs] Video dönüştürme tamamlandı");
 						resolve();
 					})
 					.on("error", (err) => {
-						console.error("FFmpeg hatası:", err);
+						console.error("[main.cjs] FFmpeg hatası:", err);
 						reject(err);
 					})
 					.save(tempOutputPath);
@@ -186,13 +199,15 @@ ipcMain.handle(
 
 			// Dönüştürülen videoyu hedef konuma taşı
 			await fs.promises.copyFile(tempOutputPath, filePath);
+			console.log("[main.cjs] Video başarıyla kaydedildi:", filePath);
 
 			// Geçici dosyaları temizle
 			try {
 				fs.unlinkSync(tempInputPath);
 				fs.unlinkSync(tempOutputPath);
+				console.log("[main.cjs] Geçici dosyalar temizlendi");
 			} catch (err) {
-				console.error("Geçici dosyalar silinirken hata:", err);
+				console.error("[main.cjs] Geçici dosyalar silinirken hata:", err);
 			}
 
 			return true;
@@ -396,22 +411,28 @@ ipcMain.on("AREA_SELECTED", (event, area) => {
 		aspectRatio: area.aspectRatio || "free",
 	});
 
+	// Seçilen alanı global değişkende sakla
+	global.selectedArea = {
+		...area,
+		x: Math.round(area.x),
+		y: Math.round(area.y),
+		width: Math.round(area.width),
+		height: Math.round(area.height),
+		aspectRatio: area.aspectRatio || "free",
+		display: area.display,
+		devicePixelRatio: area.devicePixelRatio || 1,
+	};
+
 	if (mainWindow) {
-		mainWindow.webContents.send("AREA_SELECTED", {
-			...area,
-			x: Math.round(area.x),
-			y: Math.round(area.y),
-			width: Math.round(area.width),
-			height: Math.round(area.height),
-			aspectRatio: area.aspectRatio || "free",
-			display: area.display,
-			devicePixelRatio: area.devicePixelRatio || 1,
-		});
+		mainWindow.webContents.send("AREA_SELECTED", global.selectedArea);
 	}
 });
 
 // Yeni kayıt için temizlik
 ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
+	// Seçilen alanı sıfırla
+	global.selectedArea = null;
+
 	// Editor'ü gizle
 	if (editorManager) {
 		editorManager.hideEditorWindow();
@@ -508,13 +529,24 @@ ipcMain.handle(
 	"MERGE_VIDEOS",
 	async (
 		event,
-		{ screenPath, cameraPath, audioPath, outputPath, cropArea }
+		{ screenPath, cameraPath, audioPath, outputPath, cropInfo }
 	) => {
 		return new Promise((resolve, reject) => {
 			try {
 				console.log(
-					"Video birleştirme başlıyor. Detaylı kontroller yapılıyor..."
+					"Video birleştirme başlıyor. Detaylı kontroller yapılıyor...",
+					{
+						screenPath,
+						cameraPath,
+						audioPath,
+						outputPath,
+						cropInfo,
+						selectedArea: global.selectedArea, // Log selected area
+					}
 				);
+
+				// Kırpma bilgisini global.selectedArea'dan al eğer cropInfo yoksa
+				const finalCropInfo = cropInfo || global.selectedArea;
 
 				// Giriş dosyalarının detaylı kontrolü
 				const checkInputFile = (path, type) => {
@@ -579,12 +611,13 @@ ipcMain.handle(
 				let filterComplex = [];
 				let outputs = [];
 
-				// Ekran kaydı filtresi
-				if (cropArea) {
-					const filter = `[0:v]crop=${cropArea.width}:${cropArea.height}:${cropArea.x}:${cropArea.y}[main]`;
-					console.log("Ekran kırpma filtresi:", filter);
-					filterComplex.push(filter);
+				// Ekran kaydı filtresi - Kırpma işlemi
+				if (finalCropInfo && finalCropInfo.width && finalCropInfo.height) {
+					console.log("Kırpma filtresi uygulanıyor:", finalCropInfo);
+					const cropFilter = `[0:v]crop=${finalCropInfo.width}:${finalCropInfo.height}:${finalCropInfo.x}:${finalCropInfo.y}[main]`;
+					filterComplex.push(cropFilter);
 				} else {
+					console.log("Kırpma yapılmayacak, video olduğu gibi kullanılacak");
 					filterComplex.push(`[0:v]copy[main]`);
 				}
 
@@ -1091,19 +1124,43 @@ ipcMain.on("START_RECORDING", async () => {
 	}
 });
 
-// Video kaydetme ve kırpma için IPC handler
+// Kırpma bilgisi için IPC handler
 ipcMain.handle("GET_CROP_INFO", async (event) => {
 	try {
-		const { width, height } = mainWindow.getBounds();
-		return {
-			width,
-			height,
-			x: 0,
-			y: 0,
-			scale: 1,
-		};
+		// Seçilen alan bilgisini kontrol et
+		const selectedArea = global.selectedArea;
+		console.log(
+			"[main.cjs] GET_CROP_INFO çağrıldı, mevcut selectedArea:",
+			selectedArea
+		);
+
+		if (
+			selectedArea &&
+			typeof selectedArea.width === "number" &&
+			typeof selectedArea.height === "number"
+		) {
+			// Seçilen alan varsa, basitleştirilmiş formatı döndür
+			const cropInfo = {
+				x: Math.round(selectedArea.x || 0),
+				y: Math.round(selectedArea.y || 0),
+				width: Math.round(selectedArea.width),
+				height: Math.round(selectedArea.height),
+				scale: 1,
+			};
+			console.log("[main.cjs] Kırpma bilgisi döndürülüyor:", cropInfo);
+			return cropInfo;
+		}
+
+		console.log("[main.cjs] Kırpma bilgisi bulunamadı, null döndürülüyor");
+		return null;
 	} catch (error) {
 		console.error("[main.cjs] Kırpma bilgisi alınırken hata:", error);
-		throw error;
+		return null;
 	}
+});
+
+// Seçilen alan güncellemesi için IPC handler
+ipcMain.on("UPDATE_SELECTED_AREA", (event, area) => {
+	console.log("[main.cjs] Seçilen alan güncelleniyor:", area);
+	global.selectedArea = area;
 });

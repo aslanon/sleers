@@ -129,20 +129,36 @@ const exportVideo = async () => {
 
 		// Kırpma bilgilerini al
 		const cropInfo = await window.electron.recording.getCropInfo();
+		console.log("Kırpma bilgileri alındı:", cropInfo);
 
+		// Dışa aktarma verilerini hazırla
 		const exportData = {
 			videoPath: props.videoPath,
 			audioPath: props.audioPath,
 			systemAudioPath: props.systemAudioPath,
 			segments: segments.value,
-			cropInfo: cropInfo,
 		};
+
+		// Kırpma bilgisi varsa ekle
+		if (cropInfo) {
+			console.log("Kırpma bilgisi ekleniyor:", cropInfo);
+			// Kırpma bilgisini serileştirilebilir formatta ekle
+			exportData.cropInfo = {
+				x: Math.round(cropInfo.x),
+				y: Math.round(cropInfo.y),
+				width: Math.round(cropInfo.width),
+				height: Math.round(cropInfo.height),
+				devicePixelRatio: cropInfo.scale || window.devicePixelRatio || 1,
+			};
+		}
+
+		console.log("Dışa aktarma başlatılıyor:", exportData);
 
 		// Dışa aktarma işlemini başlat
 		const outputPath = await window.electron.project.export(exportData);
 
 		if (outputPath) {
-			// Başarılı dışa aktarma
+			console.log("Dışa aktarma başarılı:", outputPath);
 			emit("exported", outputPath);
 		} else {
 			throw new Error("Dışa aktarma başarısız oldu");

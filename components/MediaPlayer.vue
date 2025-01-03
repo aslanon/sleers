@@ -599,13 +599,50 @@ const updateAspectRatio = (ratio) => {
 };
 
 // Kırpma verilerini al
-const getCropData = () => ({
-	position: { ...position.value },
-	scale: scale.value,
-	rotation: rotation.value,
-	cropArea: { ...cropArea.value },
-	aspectRatio: selectedAspectRatio.value,
-});
+const getCropData = () => {
+	if (!containerRef.value || !videoElement) return null;
+
+	const container = containerRef.value.getBoundingClientRect();
+	const videoWidth = videoElement.videoWidth;
+	const videoHeight = videoElement.videoHeight;
+
+	// Seçilen alan yoksa null döndür
+	if (!selectedAspectRatio.value) return null;
+
+	// Canvas koordinatlarını video koordinatlarına dönüştür
+	const canvasToVideo = (canvasX, canvasY, canvasWidth, canvasHeight) => {
+		// Canvas'taki oranı hesapla
+		const scaleX = videoWidth / container.width;
+		const scaleY = videoHeight / container.height;
+
+		return {
+			x: Math.round(canvasX * scaleX),
+			y: Math.round(canvasY * scaleY),
+			width: Math.round(canvasWidth * scaleX),
+			height: Math.round(canvasHeight * scaleY),
+		};
+	};
+
+	// Kırpma alanını video koordinatlarına dönüştür
+	const videoCoords = canvasToVideo(
+		cropArea.value.x,
+		cropArea.value.y,
+		cropArea.value.width,
+		cropArea.value.height
+	);
+
+	console.log("[MediaPlayer] Kırpma verileri hesaplandı:", {
+		canvas: cropArea.value,
+		video: videoCoords,
+		container: container,
+		videoSize: { width: videoWidth, height: videoHeight },
+	});
+
+	return {
+		...videoCoords,
+		scale: 1, // Scale'i 1 olarak sabit tutuyoruz çünkü koordinatları zaten dönüştürdük
+	};
+};
 
 // Canvas güncelleme optimizasyonu
 const updateCanvas = (timestamp) => {
