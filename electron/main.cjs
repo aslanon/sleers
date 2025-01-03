@@ -155,6 +155,13 @@ ipcMain.handle(
 								y: cropInfo.y,
 							},
 						},
+						{
+							filter: "scale",
+							options: {
+								w: cropInfo.width * cropInfo.scale,
+								h: cropInfo.height * cropInfo.scale,
+							},
+						},
 					]);
 				}
 
@@ -1081,5 +1088,22 @@ ipcMain.on("START_RECORDING", async () => {
 	} catch (error) {
 		console.error("Kayıt başlatma hatası:", error);
 		mainWindow.webContents.send("RECORDING_ERROR", error.message);
+	}
+});
+
+// Video kaydetme ve kırpma için IPC handler
+ipcMain.handle("GET_CROP_INFO", async (event) => {
+	try {
+		const { width, height } = mainWindow.getBounds();
+		return {
+			width,
+			height,
+			x: 0,
+			y: 0,
+			scale: 1,
+		};
+	} catch (error) {
+		console.error("[main.cjs] Kırpma bilgisi alınırken hata:", error);
+		throw error;
 	}
 });

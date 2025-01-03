@@ -252,16 +252,8 @@ const saveVideo = async () => {
 		});
 
 		if (filePath) {
-			// Kırpma bilgilerini hazırla
-			const cropInfo = {
-				x: Math.round(cropState.value.cropArea.x),
-				y: Math.round(cropState.value.cropArea.y),
-				width: Math.round(cropState.value.cropArea.width),
-				height: Math.round(cropState.value.cropArea.height),
-				scale: cropState.value.scale,
-				position: cropState.value.position,
-				aspectRatio: cropState.value.aspectRatio,
-			};
+			// Merkezi state'ten crop bilgilerini al
+			const cropInfo = await electron?.ipcRenderer.invoke("GET_CROP_INFO");
 
 			// Video blob'unu al
 			const response = await fetch(videoUrl.value);
@@ -279,12 +271,13 @@ const saveVideo = async () => {
 		}
 	} catch (error) {
 		console.error("[editor.vue] Video kaydedilirken hata:", error);
+		alert("Videoyu kaydederken bir hata oluştu: " + error.message);
 	}
 };
 
 // Değişiklikleri iptal et
 const discardChanges = () => {
-	if (confirm("Değişiklikleri iptal etmek istediğinize emin misiniz?")) {
+	if (confirm("Değişiklikleri iptal etmek istediğinize emin misiniz ?")) {
 		closeWindow();
 	}
 };
@@ -335,6 +328,9 @@ const onSegmentUpdate = ({ type, segments }) => {
 const onCropChange = (cropData) => {
 	cropState.value = { ...cropData };
 	console.log("[editor.vue] Kırpma durumu güncellendi:", cropState.value);
+
+	// Merkezi state'i güncelle
+	electron?.ipcRenderer.send("UPDATE_CROP_INFO", cropState.value);
 };
 
 // Aspect ratio değişikliğini işle

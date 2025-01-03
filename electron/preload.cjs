@@ -28,4 +28,7 @@ contextBridge.exposeInMainWorld("electron", {
 		dragging: (position) => ipcRenderer.send("WINDOW_DRAGGING", position),
 		endDrag: () => ipcRenderer.send("END_WINDOW_DRAG"),
 	},
+	recording: {
+		getCropInfo: () => ipcRenderer.invoke("GET_CROP_INFO"),
+	},
 });

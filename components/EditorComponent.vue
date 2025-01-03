@@ -126,16 +126,26 @@ const saveProject = async () => {
 const exportVideo = async () => {
 	try {
 		isExporting.value = true;
+
+		// Kırpma bilgilerini al
+		const cropInfo = await window.electron.recording.getCropInfo();
+
 		const exportData = {
 			videoPath: props.videoPath,
 			audioPath: props.audioPath,
 			systemAudioPath: props.systemAudioPath,
 			segments: segments.value,
+			cropInfo: cropInfo,
 		};
 
+		// Dışa aktarma işlemini başlat
 		const outputPath = await window.electron.project.export(exportData);
+
 		if (outputPath) {
+			// Başarılı dışa aktarma
 			emit("exported", outputPath);
+		} else {
+			throw new Error("Dışa aktarma başarısız oldu");
 		}
 	} catch (error) {
 		console.error("Video dışa aktarılırken hata:", error);
