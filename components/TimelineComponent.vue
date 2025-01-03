@@ -82,7 +82,7 @@
 					</div>
 
 					<!-- Video Track -->
-					<div class="absolute left-0 right-0 top-8 flex items-center px-2">
+					<div class="absolute left-0 right-0 top-14 flex items-center px-2">
 						<div class="timeline-layer-bar w-full rounded-xl">
 							<!-- Video Segments -->
 							<div

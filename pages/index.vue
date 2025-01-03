@@ -1,7 +1,7 @@
 <template>
 	<!-- Üst Kontrol Çubuğu -->
 	<div
-		class="w-full flex items-center space-x-4 rounded-xl bg-[#1a1b26]/80 backdrop-blur-3xl p-4 text-white border border-gray-700 cursor-move"
+		class="w-full flex items-center space-x-4 rounded-xl bg-[#1a1b26]/90 backdrop-blur-3xl px-4 py-2 text-white border border-gray-700 cursor-move"
 		@mousedown="startDrag"
 		@mousemove="drag"
 		@mouseup="endDrag"
@@ -22,8 +22,10 @@
 					d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
 					clip-rule="evenodd"
 				/>
+				Kaydet
 			</svg>
 		</button>
+		<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
 
 		<!-- Kayıt Kontrolleri -->
 		<div class="flex items-center space-x-2">
@@ -90,10 +92,10 @@
 		</div>
 
 		<!-- Kamera ve Mikrofon Seçimi -->
-		<div class="flex items-center space-x-2 flex-wrap">
+		<div class="flex items-center space-x-4 flex-wrap">
 			<select
 				v-model="selectedVideoDevice"
-				class="bg-gray-700 h-[36px] max-w-32 text-white rounded-lg px-3 py-1 text-sm"
+				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
 			>
 				<option
 					v-for="device in videoDevices"
@@ -103,10 +105,9 @@
 					{{ device.label || `Kamera ${device.deviceId}` }}
 				</option>
 			</select>
-
 			<select
 				v-model="selectedAudioDevice"
-				class="bg-gray-700 max-w-32 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
+				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
 			>
 				<option
 					v-for="device in audioDevices"
@@ -117,10 +118,46 @@
 				</option>
 			</select>
 
-			<!-- Sistem Sesi Toggle -->
+			<!-- Mikrofon Ses Seviyesi -->
 			<button
-				class="p-2 hover:bg-gray-700 rounded-lg"
-				:class="{ 'bg-gray-700': systemAudioEnabled }"
+				class="flex flex-row opacity-50 items-center gap-2 p-2 hover:bg-gray-700 rounded-lg"
+				:class="{ '!opacity-100': microphoneEnabled }"
+				@click="toggleMicrophone"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						v-if="microphoneEnabled"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+					/>
+					<path
+						v-else
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+					/>
+				</svg>
+				<div class="w-12 h-1 rounded-full overflow-hidden">
+					<div
+						class="h-full bg-green-500 transition-all duration-75"
+						:style="{ width: `${microphoneEnabled ? microphoneLevel : 0}%` }"
+					></div>
+				</div>
+			</button>
+			<!-- Sistem Sesi -->
+
+			<button
+				class="flex flex-row opacity-50 items-center gap-2 p-2 text-white hover:bg-gray-700 rounded-lg"
+				:class="{ '!opacity-100': systemAudioEnabled }"
 				@click="toggleSystemAudio"
 			>
 				<svg
@@ -131,12 +168,21 @@
 					stroke="currentColor"
 				>
 					<path
+						v-if="systemAudioEnabled"
 						stroke-linecap="round"
 						stroke-linejoin="round"
 						stroke-width="2"
 						d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
 					/>
+					<path
+						v-else
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+					/>
 				</svg>
+				<span class="text-sm">Sistem Sesi</span>
 			</button>
 
 			<!-- Kayıt Toggle Butonu -->
@@ -164,6 +210,12 @@ let mediaRecorder = null;
 
 const selectedSource = ref("display");
 const systemAudioEnabled = ref(true);
+const microphoneEnabled = ref(true);
+const microphoneLevel = ref(0);
+let audioContext = null;
+let audioAnalyser = null;
+let dataArray = null;
+let animationFrame = null;
 
 const {
 	videoDevices,
@@ -212,6 +264,59 @@ watch(selectedVideoDevice, async (deviceLabel) => {
 	}
 });
 
+const toggleMicrophone = () => {
+	microphoneEnabled.value = !microphoneEnabled.value;
+};
+
+const initAudioAnalyser = async () => {
+	try {
+		if (!audioContext) {
+			audioContext = new (window.AudioContext || window.webkitAudioContext)();
+		}
+
+		const stream = await navigator.mediaDevices.getUserMedia({
+			audio: {
+				deviceId: selectedAudioDevice.value
+					? { exact: selectedAudioDevice.value }
+					: undefined,
+			},
+		});
+
+		const source = audioContext.createMediaStreamSource(stream);
+		audioAnalyser = audioContext.createAnalyser();
+		audioAnalyser.fftSize = 256;
+		source.connect(audioAnalyser);
+
+		dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+		updateMicrophoneLevel();
+	} catch (error) {
+		console.error("Mikrofon analiz hatası:", error);
+	}
+};
+
+const updateMicrophoneLevel = () => {
+	if (!audioAnalyser || !dataArray) return;
+
+	audioAnalyser.getByteFrequencyData(dataArray);
+	const average =
+		dataArray.reduce((acc, value) => acc + value, 0) / dataArray.length;
+	microphoneLevel.value = Math.min(100, (average / 255) * 100);
+
+	animationFrame = requestAnimationFrame(updateMicrophoneLevel);
+};
+
+// Mikrofon değişikliğini izle
+watch(selectedAudioDevice, async () => {
+	if (audioContext) {
+		audioContext.close();
+		audioContext = null;
+	}
+	if (animationFrame) {
+		cancelAnimationFrame(animationFrame);
+	}
+	await initAudioAnalyser();
+});
+
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
@@ -222,7 +327,12 @@ onMounted(async () => {
 
 		// Tray'den kayıt kontrolü için event listener'lar
 		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
-			startRecording();
+			// Tray'den başlatılan kayıtlarda mevcut ses ayarlarını kullan
+			startRecording({
+				systemAudio: systemAudioEnabled.value,
+				microphone: microphoneEnabled.value,
+				microphoneDeviceId: selectedAudioDevice.value,
+			});
 		});
 
 		electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
@@ -241,6 +351,8 @@ onMounted(async () => {
 		// Yeni kayıt için sıfırlama
 		electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 	}
+
+	await initAudioAnalyser();
 });
 
 // Kayıt durumu değiştiğinde tray'i güncelle
@@ -264,29 +376,61 @@ onUnmounted(() => {
 	document.removeEventListener("mousedown", handleMouseDown);
 	document.removeEventListener("mousemove", handleMouseMove);
 	document.removeEventListener("mouseup", handleMouseUp);
+
+	if (audioContext) {
+		audioContext.close();
+	}
+	if (animationFrame) {
+		cancelAnimationFrame(animationFrame);
+	}
 });
 
-const startRecording = async () => {
+const startRecording = async (options = null) => {
 	try {
 		isRecording.value = true;
 
 		// Kayıt başlamadan önce body'e recording sınıfını ekle
 		document.body.classList.add("recording");
 
-		// Kayıt başlat
-		console.log("2. Stream başlatılıyor...");
-		const { screenStream, cameraStream } = await startMediaStream({
-			audio: {
-				mandatory: {
-					chromeMediaSource: "desktop",
-				},
+		// Ses ayarlarını belirle (tray'den gelen veya mevcut ayarlar)
+		const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
+		const useMicrophone = options?.microphone ?? microphoneEnabled.value;
+		const micDeviceId =
+			options?.microphoneDeviceId ?? selectedAudioDevice.value;
+
+		// Ses yapılandırmasını oluştur
+		const audioConfig = {
+			mandatory: {
+				chromeMediaSource: useSystemAudio ? "desktop" : "none",
 			},
+		};
+
+		// Eğer mikrofon kullanılacaksa, mikrofon ayarlarını ekle
+		if (useMicrophone && micDeviceId) {
+			audioConfig.optional = [
+				{
+					deviceId: { exact: micDeviceId },
+				},
+			];
+		}
+
+		// Kayıt başlat
+		console.log("2. Stream başlatılıyor...", {
+			useSystemAudio,
+			useMicrophone,
+			micDeviceId,
+			audioConfig,
+		});
+
+		const { screenStream, cameraStream } = await startMediaStream({
+			audio: audioConfig,
 			video: {
 				mandatory: {
 					chromeMediaSource: "desktop",
 				},
 			},
 		});
+
 		console.log("3. Stream başlatıldı");
 
 		// Her stream için ayrı MediaRecorder oluştur
@@ -315,6 +459,12 @@ const startRecording = async () => {
 				audioRecorder = new MediaRecorder(audioStream, {
 					mimeType: "audio/webm;codecs=opus",
 					audioBitsPerSecond: 320000,
+				});
+
+				console.log("Ses kaydı yapılandırması:", {
+					systemAudio: useSystemAudio,
+					microphone: useMicrophone,
+					audioTracks: audioStream.getAudioTracks().length,
 				});
 			}
 

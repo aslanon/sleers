@@ -60,6 +60,10 @@ const props = defineProps({
 		type: String,
 		default: "",
 	},
+	systemAudioEnabled: {
+		type: Boolean,
+		default: true,
+	},
 });
 
 const emit = defineEmits([
@@ -150,7 +154,7 @@ const initVideo = () => {
 		// Yeni video elementi oluştur
 		videoElement = document.createElement("video");
 		videoElement.crossOrigin = "anonymous";
-		videoElement.muted = false;
+		videoElement.muted = !props.systemAudioEnabled;
 		videoElement.playsInline = true;
 		videoElement.preload = "metadata";
 		videoElement.volume = videoState.value.volume;
@@ -817,6 +821,16 @@ watch(
 );
 
 watch(() => props.selectedAspectRatio, updateAspectRatio);
+
+// Props değişikliklerini izle
+watch(
+	() => props.systemAudioEnabled,
+	(newValue) => {
+		if (videoElement) {
+			videoElement.muted = !newValue;
+		}
+	}
+);
 
 // Component metodlarını dışa aktar
 defineExpose({
