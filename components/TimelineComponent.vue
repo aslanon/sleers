@@ -85,20 +85,26 @@
 					<div class="absolute left-0 right-0 top-14 flex items-center px-2">
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
-							<div class="flex flex-row h-12 relative w-full">
+							<div
+								class="flex flex-row h-12 relative w-full"
+								@dragover.prevent
+								@drop.prevent="handleSegmentDrop"
+							>
 								<!-- Video Segments -->
 								<div
 									v-for="(segment, index) in props.segments"
 									:key="segment.id || index"
-									class="h-full bg-[#ffb322] rounded-xl relative"
+									class="h-full bg-[#ffb322] rounded-xl relative cursor-move"
 									:style="getSegmentStyle(segment, index)"
-									@click="handleSegmentClick(index, $event)"
+									draggable="true"
+									@dragstart="handleSegmentDragStart($event, index)"
+									@dragenter.prevent="handleSegmentDragEnter($event, index)"
+									@dragend="handleSegmentDragEnd"
+									@click.stop="handleSegmentClick(index, $event)"
 									@mousemove="handleSegmentMouseMove($event, index)"
 									@mouseleave="handleSegmentMouseLeave"
-									@mousedown="
-										isSplitMode
-											? handleSegmentSplit($event, index)
-											: handleSegmentDragStart(index, $event)
+									@mousedown.stop="
+										isSplitMode ? handleSegmentSplit($event, index) : null
 									"
 								>
 									<!-- Split Mode Indicator -->
@@ -194,6 +200,7 @@ const emit = defineEmits([
 	"segmentUpdate",
 	"segmentSelect",
 	"splitSegment",
+	"segmentsReordered",
 ]);
 
 // Referanslar ve state
@@ -321,25 +328,23 @@ const activeSegmentIndex = ref(null);
 
 // Segment pozisyonlama hesaplamaları
 const getSegmentStyle = (segment, index) => {
-	// Segment başlangıç ve bitiş zamanlarını doğrula
-	const start = segment.start || 0;
-	const end = segment.end || 0;
-
-	// Genişlik hesapla
-	const width = ((segment.end - segment.start) / maxDuration.value) * 100;
-
-	console.log("[TimelineComponent] Segment stil hesaplaması:", {
-		start,
-		end,
-		maxDuration: maxDuration.value,
-		width,
-	});
+	const start = segment.start || segment.startTime || 0;
+	const end = segment.end || segment.endTime || maxDuration.value;
+	const width = ((end - start) / maxDuration.value) * 100;
+	const isDragging = draggedSegmentIndex.value === index;
+	const isDragOver = dragOverSegmentIndex.value === index;
 
 	return {
 		width: `${width}%`,
+		left: `${(start / maxDuration.value) * 100}%`,
+		position: "absolute",
 		boxShadow:
 			"0px 0px 0px 1px inset #ffffff61, 0px 0px 25px 0px inset #0000008f",
 		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
+		opacity: isDragging ? "0.5" : "1",
+		transform: isDragOver ? "scale(1.02)" : "scale(1)",
+		transition: "transform 0.2s ease",
+		zIndex: isDragOver ? "10" : "1",
 	};
 };
 
@@ -351,44 +356,43 @@ const handleSegmentClick = (index, event) => {
 };
 
 // Segment sürükleme
-const handleSegmentDragStart = (index, event) => {
-	if (!props.segments[index]) return;
-
-	isDragging.value = true;
-	activeSegmentIndex.value = index;
-	startDragX.value = event.clientX;
-	startSegmentStart.value = props.segments[index].start;
-
-	// Mouse event'lerini dinle
-	window.addEventListener("mousemove", handleSegmentDrag);
-	window.addEventListener("mouseup", handleSegmentDragEnd);
+const handleSegmentDragStart = (event, index) => {
+	if (props.isSplitMode) {
+		event.preventDefault();
+		return;
+	}
+	draggedSegmentIndex.value = index;
+	event.dataTransfer.effectAllowed = "move";
 };
 
-const handleSegmentDrag = (event) => {
-	if (!isDragging.value || activeSegmentIndex.value === null) return;
-
-	const segment = props.segments[activeSegmentIndex.value];
-	if (!segment) return;
-
-	const dx = event.clientX - startDragX.value;
-	const timeChange = (dx / timelineWidth.value) * maxDuration.value;
-	const newStart = Math.max(0, startSegmentStart.value + timeChange);
-
-	// Segment süresini koru
-	const duration = segment.end - segment.start;
-	const newEnd = Math.min(props.duration, newStart + duration);
-
-	emit("segmentUpdate", {
-		index: activeSegmentIndex.value,
-		start: newStart,
-		end: newEnd,
-	});
+// Segment üzerine gelindiğinde
+const handleSegmentDragEnter = (event, index) => {
+	if (draggedSegmentIndex.value === null) return;
+	dragOverSegmentIndex.value = index;
 };
 
+// Segment bırakıldığında
+const handleSegmentDrop = () => {
+	if (draggedSegmentIndex.value === null || dragOverSegmentIndex.value === null)
+		return;
+
+	// Segmentlerin yeni sıralamasını oluştur
+	const newSegments = [...props.segments];
+	const [draggedSegment] = newSegments.splice(draggedSegmentIndex.value, 1);
+	newSegments.splice(dragOverSegmentIndex.value, 0, draggedSegment);
+
+	// Yeni segment sıralamasını emit et
+	emit("segmentsReordered", newSegments);
+
+	// State'leri temizle
+	draggedSegmentIndex.value = null;
+	dragOverSegmentIndex.value = null;
+};
+
+// Sürükleme bittiğinde
 const handleSegmentDragEnd = () => {
-	isDragging.value = false;
-	window.removeEventListener("mousemove", handleSegmentDrag);
-	window.removeEventListener("mouseup", handleSegmentDragEnd);
+	draggedSegmentIndex.value = null;
+	dragOverSegmentIndex.value = null;
 };
 
 // Timeline tıklama ve playhead güncelleme
@@ -504,28 +508,25 @@ const handleSegmentSplit = (event, index) => {
 
 	// İlk segment (sol taraf)
 	const leftSegment = {
-		...segment,
-		id: generateId(), // Yeni ID
+		id: generateId(),
+		start: segment.start,
 		end: splitTime,
+		startTime: segment.start,
 		endTime: splitTime,
-		width: `${((splitTime - segment.start) / maxDuration.value) * 100}%`,
+		type: segment.type,
+		layer: segment.layer,
 	};
 
 	// İkinci segment (sağ taraf)
 	const rightSegment = {
-		...segment,
-		id: generateId(), // Yeni ID
+		id: generateId(),
 		start: splitTime,
+		end: segment.end,
 		startTime: splitTime,
-		width: `${((segment.end - splitTime) / maxDuration.value) * 100}%`,
+		endTime: segment.end,
+		type: segment.type,
+		layer: segment.layer,
 	};
-
-	console.log("[TimelineComponent] Segment bölünüyor:", {
-		originalSegment: segment,
-		splitTime,
-		leftSegment,
-		rightSegment,
-	});
 
 	// Bölünmüş segmentleri emit et
 	emit("splitSegment", {
@@ -534,6 +535,10 @@ const handleSegmentSplit = (event, index) => {
 		splitTime,
 	});
 };
+
+// Sürükle-bırak state'leri
+const draggedSegmentIndex = ref(null);
+const dragOverSegmentIndex = ref(null);
 
 // Component mount/unmount
 onMounted(() => {

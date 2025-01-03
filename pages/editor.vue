@@ -40,10 +40,11 @@
 					:is-playing="isPlaying"
 					:current-time="currentTime"
 					:is-muted="isMuted"
+					:segments="segments"
 					@video-loaded="onVideoLoaded"
 					@video-ended="onVideoEnded"
 					@video-paused="isPlaying = false"
-					@time-update="onTimeUpdate"
+					@timeUpdate="onTimeUpdate"
 					@mute-change="isMuted = $event"
 				/>
 
@@ -75,8 +76,10 @@
 			:current-time="currentTime"
 			:segments="segments"
 			:is-split-mode="isSplitMode"
-			@time-update="onTimelineUpdate"
-			@split-segment="handleSegmentSplit"
+			@timeUpdate="handleTimeUpdate"
+			@segmentsReordered="handleSegmentsReordered"
+			@splitSegment="handleSegmentSplit"
+			ref="timelineRef"
 		/>
 	</div>
 </template>
@@ -357,16 +360,16 @@ const onTimeUpdate = (time) => {
 	if (!isNaN(time)) {
 		currentTime.value = time;
 		currentVideoTime.value = time;
-		// Her zaman güncellemesinde segmentleri de güncelle
-		updateSegments();
 	}
 };
 
 // Timeline'dan gelen zaman güncellemesi
-const onTimelineUpdate = (time) => {
-	currentTime.value = time;
-	if (mediaPlayerRef.value) {
-		mediaPlayerRef.value.seek(time);
+const handleTimeUpdate = (time) => {
+	if (!isNaN(time)) {
+		currentTime.value = time;
+		if (mediaPlayerRef.value) {
+			mediaPlayerRef.value.seek(time);
+		}
 	}
 };
 
@@ -465,33 +468,20 @@ const updateSegments = () => {
 	if (!segments.value?.length) return;
 
 	segments.value = segments.value.map((segment) => {
-		// Segment başlangıç ve bitiş zamanlarını doğru formata dönüştür
-		const start = segment.startTime || 0;
-		const end = segment.endTime || videoDuration.value;
-
-		// Yüzdeleri hesapla (videoDuration 0 veya undefined ise hata oluşmasını önle)
+		const start = segment.start || segment.startTime || 0;
+		const end = segment.end || segment.endTime || videoDuration.value;
 		const duration = videoDuration.value || 1;
-		const startPercent = (start / duration) * 100;
-		const endPercent = (end / duration) * 100;
-
-		console.log("[editor.vue] Segment hesaplaması:", {
-			start,
-			end,
-			duration,
-			startPercent,
-			endPercent,
-		});
 
 		return {
 			...segment,
 			start,
 			end,
-			startPosition: `${startPercent}%`,
-			width: `${endPercent - startPercent}%`,
+			startTime: start,
+			endTime: end,
+			startPosition: `${(start / duration) * 100}%`,
+			width: `${((end - start) / duration) * 100}%`,
 		};
 	});
-
-	console.log("[editor.vue] Segmentler güncellendi:", segments.value);
 };
 
 // Ses kontrolü
@@ -501,28 +491,27 @@ const toggleMute = () => {
 
 // Segment bölme işlemi
 const handleSegmentSplit = ({ index, segments: newSegments, splitTime }) => {
-	const segment = segments.value[index];
-	if (!segment) return;
-
-	console.log("[editor.vue] Segment bölme işlemi başlıyor:", {
-		originalSegment: segment,
-		newSegments,
-		splitTime,
-	});
-
 	// Orijinal segmenti kaldır ve yerine yeni segmentleri ekle
-	segments.value.splice(index, 1, ...newSegments);
+	const updatedSegments = [...segments.value];
+	updatedSegments.splice(index, 1, ...newSegments);
+	segments.value = updatedSegments;
 
-	// Segmentleri güncelle
+	// Timeline'ı güncelle
 	updateSegments();
-
-	console.log("[editor.vue] Segmentler güncellendi:", segments.value);
 };
 
 // Toggle split mode
 const toggleSplitMode = () => {
 	isSplitMode.value = !isSplitMode.value;
 };
+
+// Segment yönetimi
+const handleSegmentsReordered = (newSegments) => {
+	segments.value = newSegments;
+};
+
+// Video URL'lerini computed olarak yönet
+const videoSrc = computed(() => videoUrl.value || "");
 
 onMounted(() => {
 	console.log("[editor.vue] Component mount edildi");

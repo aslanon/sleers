@@ -68,6 +68,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	segments: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits([
@@ -125,6 +129,76 @@ const videoState = ref({
 	volume: 1,
 	playbackRate: 1,
 });
+
+// Segment oynatma mantığı
+const currentSegmentIndex = ref(0);
+const isPlayingSegments = ref(false);
+
+// Video zaman güncelleme
+const handleTimeUpdate = () => {
+	if (!videoElement) return;
+
+	const currentTime = videoElement.currentTime;
+
+	if (isPlayingSegments.value && props.segments && props.segments.length > 0) {
+		const currentSegment = props.segments[currentSegmentIndex.value];
+		if (!currentSegment) return;
+
+		const segmentEnd = currentSegment.end || currentSegment.endTime || 0;
+		const segmentStart = currentSegment.start || currentSegment.startTime || 0;
+
+		// Eğer segment dışına çıktıysa
+		if (currentTime < segmentStart || currentTime >= segmentEnd) {
+			// Sonraki segmente geç
+			if (currentSegmentIndex.value < props.segments.length - 1) {
+				currentSegmentIndex.value++;
+				const nextSegment = props.segments[currentSegmentIndex.value];
+				videoElement.currentTime =
+					nextSegment.start || nextSegment.startTime || 0;
+			} else {
+				// Tüm segmentler tamamlandı
+				isPlayingSegments.value = false;
+				videoElement.pause();
+				currentSegmentIndex.value = 0;
+				emit("videoEnded");
+			}
+		}
+	}
+
+	emit("timeUpdate", currentTime);
+};
+
+// Video oynatma kontrolü
+const togglePlay = () => {
+	if (!videoElement) return;
+
+	if (videoElement.paused) {
+		isPlayingSegments.value = true;
+		currentSegmentIndex.value = 0;
+
+		// İlk segmentin başlangıç zamanına git
+		if (props.segments && props.segments.length > 0) {
+			const firstSegment = props.segments[0];
+			const startTime = firstSegment.start || firstSegment.startTime || 0;
+			videoElement.currentTime = startTime;
+		}
+
+		videoElement
+			.play()
+			.then(() => {
+				emit("play");
+			})
+			.catch((error) => {
+				console.error("Video oynatma hatası:", error);
+				isPlayingSegments.value = false;
+				emit("pause");
+			});
+	} else {
+		isPlayingSegments.value = false;
+		videoElement.pause();
+		emit("pause");
+	}
+};
 
 // Video yükleme ve hazırlık
 const initVideo = () => {
@@ -754,6 +828,9 @@ onMounted(() => {
 	initVideo();
 	window.addEventListener("resize", handleResize);
 	document.addEventListener("fullscreenchange", onFullscreenChange);
+	if (videoElement) {
+		videoElement.addEventListener("timeupdate", handleTimeUpdate);
+	}
 });
 
 onUnmounted(() => {
@@ -778,6 +855,10 @@ onUnmounted(() => {
 	if (animationFrame) {
 		cancelAnimationFrame(animationFrame);
 		animationFrame = null;
+	}
+
+	if (videoElement) {
+		videoElement.removeEventListener("timeupdate", handleTimeUpdate);
 	}
 });
 
