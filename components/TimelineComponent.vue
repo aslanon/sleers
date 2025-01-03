@@ -36,12 +36,12 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll overflow-y-hidden scroll-smooth flex-1 h-full"
+			class="overflow-x-scroll overflow-y-hidden scroll-smooth"
 		>
 			<!-- @wheel.prevent="handleContainerWheel" -->
 			<div
 				ref="timelineRef"
-				class="timeline-ruler px-8 relative h-full min-h-[200px] select-none"
+				class="timeline-ruler relative h-full select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 			>
@@ -59,26 +59,16 @@
 							transform: 'translateX(-50%)',
 						}"
 					>
-						<div
-							class="w-0.5"
-							:class="{
-								'h-4 bg-gray-400': marker.isHour,
-								'h-3 bg-gray-500': !marker.isHour && marker.isMinute,
-								'h-2 bg-gray-600':
-									!marker.isHour && !marker.isMinute && marker.isHalfMinute,
-								'h-1.5 bg-gray-700':
-									!marker.isHour && !marker.isMinute && !marker.isHalfMinute,
-							}"
-						></div>
 						<span
-							v-if="shouldShowTime(marker.time)"
-							class="text-[10px] text-gray-400 mt-0.5"
+							v-if="marker.time != 0 && shouldShowTime(marker.time)"
+							class="text-[12px] text-white/20 mt-0.5"
 							:class="{
 								'font-medium': marker.isHour || marker.isMinute,
 							}"
 						>
 							{{ marker.label }}
 						</span>
+						<div v-if="marker.time != 0" class="w-1 h-1 bg-white/20"></div>
 					</div>
 
 					<!-- Video Track -->
@@ -96,8 +86,7 @@
 									:key="segment.id || index"
 									class="h-full relative cursor-move transition-all duration-200 group"
 									:class="{
-										'hover:ring-[0.5px] hover:ring-white/30 hover:scale-[1.02]':
-											!isDragging,
+										'hover:ring-[1px] hover:ring-white/80 ': !isDragging,
 									}"
 									:style="getSegmentStyle(segment, index)"
 									draggable="true"
@@ -137,7 +126,7 @@
 										class="absolute inset-0 flex flex-col items-center justify-center text-center"
 									>
 										<span
-											class="text-white/70 text-[10px] font-medium tracking-wide"
+											class="text-white/30 text-[12px] font-medium tracking-wide"
 											>Clip</span
 										>
 										<span
@@ -363,9 +352,9 @@ const getSegmentStyle = (segment, index) => {
 		opacity: isDragging ? "0.5" : "1",
 		transition: "all 0.2s ease",
 		zIndex: isDropTarget ? "10" : "1",
-		borderRadius: "12px",
-		background: "linear-gradient(180deg, #B08D57 0%, #8B6B3D 100%)",
-		border: "0.5px solid rgba(255, 255, 255, 0.2)",
+		borderRadius: "10px",
+		background: "linear-gradient(180deg, #b16b00 0%, #ce8515 100%)",
+		border: "1px solid rgba(255, 255, 255, 0.2)",
 		boxShadow: `
 			inset 0 1px 0 0 rgba(255,255,255,0.15),
 			0 1px 2px 0 rgba(0,0,0,0.05)
