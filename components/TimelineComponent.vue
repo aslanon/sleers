@@ -94,7 +94,11 @@
 								<div
 									v-for="(segment, index) in props.segments"
 									:key="segment.id || index"
-									class="h-full bg-[#ffb322] rounded-xl relative cursor-move"
+									class="h-full relative cursor-move transition-all duration-200 group"
+									:class="{
+										'hover:ring-[0.5px] hover:ring-white/30 hover:scale-[1.02]':
+											!isDragging,
+									}"
 									:style="getSegmentStyle(segment, index)"
 									draggable="true"
 									@dragstart="handleSegmentDragStart($event, index)"
@@ -108,25 +112,39 @@
 										isSplitMode ? handleSegmentSplit($event, index) : null
 									"
 								>
-									<!-- Drop Indicator -->
+									<!-- Sol Kenar İşaretleri -->
 									<div
-										v-if="dropTargetInfo.segmentIndex === index"
-										class="absolute top-0 bottom-0 w-[12px] bg-blue-500 rounded-full"
-										:style="{
-											left: dropTargetInfo.position === 'start' ? '0' : 'auto',
-											right: dropTargetInfo.position === 'end' ? '0' : 'auto',
-										}"
-									></div>
-
-									<div
-										class="absolute inset-0 flex items-end p-2 justify-between px-2 text-xs text-black"
-										:class="{
-											'opacity-0':
-												(segment.end - segment.start) * currentZoom.value < 12,
-										}"
+										class="absolute left-0 top-0 bottom-0 w-2 flex items-center justify-start opacity-80"
 									>
-										<span>{{ formatTime(segment.start) }}</span>
-										<span>{{ formatTime(segment.end) }}</span>
+										<div class="flex space-x-[2px]">
+											<div class="w-[2px] h-full bg-white"></div>
+											<div class="w-[2px] h-full bg-white"></div>
+										</div>
+									</div>
+
+									<!-- Sağ Kenar İşaretleri -->
+									<div
+										class="absolute right-0 top-0 bottom-0 w-2 flex items-center justify-end opacity-80"
+									>
+										<div class="flex space-x-[2px]">
+											<div class="w-[2px] h-full bg-white"></div>
+											<div class="w-[2px] h-full bg-white"></div>
+										</div>
+									</div>
+
+									<!-- Segment İçeriği -->
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center"
+									>
+										<span
+											class="text-white/70 text-[10px] font-medium tracking-wide"
+											>Clip</span
+										>
+										<span
+											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
+										>
+											{{ formatDuration(segment.end - segment.start) }} @ 1x
+										</span>
 									</div>
 								</div>
 							</div>
@@ -339,16 +357,19 @@ const getSegmentStyle = (segment, index) => {
 	const isDropTarget = dropTargetInfo.value.segmentIndex === index;
 
 	return {
-		width: `${width}%`,
+		width: `calc(${width}% - 1px)`,
 		left: `${(start / maxDuration.value) * 100}%`,
 		position: "absolute",
-		boxShadow:
-			"0px 0px 0px 1px inset #ffffff61, 0px 0px 25px 0px inset #0000008f",
-		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
 		opacity: isDragging ? "0.5" : "1",
-		transform: isDropTarget ? "scale(1.02)" : "scale(1)",
-		transition: "all 0.3s ease",
+		transition: "all 0.2s ease",
 		zIndex: isDropTarget ? "10" : "1",
+		borderRadius: "12px",
+		background: "linear-gradient(180deg, #B08D57 0%, #8B6B3D 100%)",
+		border: "0.5px solid rgba(255, 255, 255, 0.2)",
+		boxShadow: `
+			inset 0 1px 0 0 rgba(255,255,255,0.15),
+			0 1px 2px 0 rgba(0,0,0,0.05)
+		`,
 	};
 };
 
@@ -599,6 +620,12 @@ const dropTargetInfo = ref({
 	segmentIndex: null,
 	position: null, // 'start' veya 'end'
 });
+
+// Süre formatı güncellendi
+const formatDuration = (seconds) => {
+	const s = Math.floor(seconds);
+	return `${s}s`;
+};
 
 // Component mount/unmount
 onMounted(() => {
