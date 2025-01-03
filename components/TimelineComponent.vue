@@ -86,7 +86,7 @@
 									:key="segment.id || index"
 									class="h-full relative cursor-move transition-all duration-200 group"
 									:class="{
-										'hover:ring-[1px] hover:ring-white/80 ': !isDragging,
+										'hover:!ring-[1px] hover:!ring-white/80': !isDragging,
 									}"
 									:style="getSegmentStyle(segment, index)"
 									draggable="true"
@@ -101,24 +101,32 @@
 										isSplitMode ? handleSegmentSplit($event, index) : null
 									"
 								>
-									<!-- Sol Kenar İşaretleri -->
+									<!-- Sol Kenar İşareti -->
 									<div
-										class="absolute left-0 top-0 bottom-0 w-2 flex items-center justify-start opacity-80"
+										class="absolute left-2 top-0 bottom-0 w-1 flex items-center justify-start pointer-events-none opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80':
+												activeSegmentIndex === index ||
+												isDragging ||
+												dropTargetInfo.segmentIndex === index,
+											'group-hover:opacity-80': !isDragging,
+										}"
 									>
-										<div class="flex space-x-[2px]">
-											<div class="w-[2px] h-full bg-white"></div>
-											<div class="w-[2px] h-full bg-white"></div>
-										</div>
+										<div class="w-[3px] h-[24px] bg-white rounded-full"></div>
 									</div>
 
-									<!-- Sağ Kenar İşaretleri -->
+									<!-- Sağ Kenar İşareti -->
 									<div
-										class="absolute right-0 top-0 bottom-0 w-2 flex items-center justify-end opacity-80"
+										class="absolute right-2 top-0 bottom-0 w-1 flex items-center justify-end pointer-events-none opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80':
+												activeSegmentIndex === index ||
+												isDragging ||
+												dropTargetInfo.segmentIndex === index,
+											'group-hover:opacity-80': !isDragging,
+										}"
 									>
-										<div class="flex space-x-[2px]">
-											<div class="w-[2px] h-full bg-white"></div>
-											<div class="w-[2px] h-full bg-white"></div>
-										</div>
+										<div class="w-[3px] h-[24px] bg-white rounded-full"></div>
 									</div>
 
 									<!-- Segment İçeriği -->
@@ -354,10 +362,9 @@ const getSegmentStyle = (segment, index) => {
 		zIndex: isDropTarget ? "10" : "1",
 		borderRadius: "10px",
 		background: "linear-gradient(180deg, #b16b00 0%, #ce8515 100%)",
-		border: "1px solid rgba(255, 255, 255, 0.2)",
+		border: "0.5px solid rgba(255, 255, 255, 0.2)",
 		boxShadow: `
-			inset 0 1px 0 0 rgba(255,255,255,0.15),
-			0 1px 2px 0 rgba(0,0,0,0.05)
+			rgba(255, 255, 255, 0.05) 0px 0.5px 0px 0px inset,  rgba(0, 0, 0, 0.5) 0px 10px 30px 0px inset
 		`,
 	};
 };
