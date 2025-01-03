@@ -95,6 +95,17 @@
 										isSplitMode ? handleSegmentSplit($event, index) : null
 									"
 								>
+									<!-- Split Indicator -->
+									<div
+										v-if="isSplitMode && mousePosition.segmentIndex === index"
+										class="absolute top-0 bottom-0 w-[1px] bg-white pointer-events-none transition-all duration-75"
+										:style="{
+											left: `${mousePosition.x}px`,
+											opacity: 0.8,
+											height: '100%',
+										}"
+									></div>
+
 									<!-- Sol Kenar İşareti -->
 									<div
 										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
