@@ -44,7 +44,7 @@
 				@click="handleTimelineClick"
 			>
 				<div
-					class="timeline-content relative h-[200px] transition-all ease-linear duration-300"
+					class="timeline-content relative h-[220px] pt-6 transition-all ease-linear duration-300"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -70,11 +70,11 @@
 					</div>
 
 					<!-- Video Track -->
-					<div class="absolute left-0 right-0 top-14 flex items-center px-2">
+					<div class="absolute left-0 right-0 top-16 flex items-center px-2">
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
 							<div
-								class="flex flex-row h-12 relative w-full"
+								class="flex flex-row h-[50px] relative w-full"
 								@dragover.prevent
 								@drop.prevent="handleSegmentDrop"
 							>
@@ -82,9 +82,9 @@
 								<div
 									v-for="(segment, index) in props.segments"
 									:key="segment.id || index"
-									class="h-full relative transition-all duration-200 group"
+									class="h-full ring-inset relative transition-all duration-200 group"
 									:class="{
-										'hover:ring-[1px] hover:ring-white/30': !isResizing,
+										'hover:!ring-[1px] hover:!ring-white': !isResizing,
 									}"
 									:style="getSegmentStyle(segment, index)"
 									@click.stop="handleSegmentClick(index, $event)"
@@ -93,7 +93,7 @@
 								>
 									<!-- Sol Kenar İşareti -->
 									<div
-										class="absolute left-0 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
+										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
 										:class="{
 											'opacity-80': activeSegmentIndex === index,
 											'group-hover:opacity-80': !isResizing,
@@ -109,7 +109,7 @@
 
 									<!-- Sağ Kenar İşareti -->
 									<div
-										class="absolute right-0 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
+										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
 										:class="{
 											'opacity-80': activeSegmentIndex === index,
 											'group-hover:opacity-80': !isResizing,
@@ -353,10 +353,10 @@ const getSegmentStyle = (segment, index) => {
 		transition: "all 0.2s ease",
 		zIndex: activeSegmentIndex.value === index ? "10" : "1",
 		borderRadius: "10px",
-		background: "linear-gradient(180deg, #b16b00 0%, #ce8515 100%)",
-		border: "0.5px solid rgba(255, 255, 255, 0.2)",
-		boxShadow:
-			"rgba(255, 255, 255, 0.05) 0px 0.5px 0px 0px inset, rgba(0, 0, 0, 0.5) 0px 10px 30px 0px inset",
+		backgroundColor: "rgb(140,91,7)",
+		background:
+			"linear-gradient(180deg, rgba(140,91,7,1) 0%, rgba(205,141,30,1) 100%, rgba(254,168,19,1) 100%)",
+		border: "0.25px solid rgba(255, 255, 255, 0.1)",
 	};
 };
 

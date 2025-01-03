@@ -1,5 +1,5 @@
 <template>
-	<div class="media-player w-full max-h-[800px] p-4 rounded-lg overflow-hidden">
+	<div class="media-player w-full h-max p-4 rounded-lg overflow-hidden">
 		<div
 			ref="containerRef"
 			class="relative w-full h-full overflow-hidden bg-black"

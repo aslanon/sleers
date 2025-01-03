@@ -29,58 +29,60 @@
 			</div>
 		</div>
 		<!-- Ana İçerik -->
-		<div class="w-full flex-1 flex">
-			<div class="w-full p-4 flex-1 flex flex-col">
-				<MediaPlayer
-					ref="mediaPlayerRef"
-					:video-url="videoUrl"
-					:audio-url="audioUrl"
-					:video-type="videoType"
-					:audio-type="audioType"
-					:is-playing="isPlaying"
-					:current-time="currentTime"
-					:is-muted="isMuted"
-					:segments="segments"
-					@video-loaded="onVideoLoaded"
-					@video-ended="onVideoEnded"
-					@video-paused="isPlaying = false"
-					@timeUpdate="onTimeUpdate"
-					@mute-change="isMuted = $event"
-				/>
+		<div>
+			<div class="w-full flex">
+				<div class="w-full p-4 flex-1 flex flex-col">
+					<MediaPlayer
+						ref="mediaPlayerRef"
+						:video-url="videoUrl"
+						:audio-url="audioUrl"
+						:video-type="videoType"
+						:audio-type="audioType"
+						:is-playing="isPlaying"
+						:current-time="currentTime"
+						:is-muted="isMuted"
+						:segments="segments"
+						@video-loaded="onVideoLoaded"
+						@video-ended="onVideoEnded"
+						@video-paused="isPlaying = false"
+						@timeUpdate="onTimeUpdate"
+						@mute-change="isMuted = $event"
+					/>
 
-				<MediaPlayerControls
-					:is-playing="isPlaying"
-					:current-time="currentTime"
+					<MediaPlayerControls
+						:is-playing="isPlaying"
+						:current-time="currentTime"
+						:duration="videoDuration"
+						:is-trim-mode="isTrimMode"
+						:selected-ratio="selectedRatio"
+						:is-muted="isMuted"
+						:is-split-mode="isSplitMode"
+						@toggle-playback="togglePlayback"
+						@toggle-trim-mode="toggleTrimMode"
+						@update:selected-ratio="onAspectRatioChange"
+						@toggle-mute="toggleMute"
+						@toggle-split-mode="toggleSplitMode"
+					/>
+				</div>
+
+				<MediaPlayerSettings
 					:duration="videoDuration"
-					:is-trim-mode="isTrimMode"
-					:selected-ratio="selectedRatio"
-					:is-muted="isMuted"
-					:is-split-mode="isSplitMode"
-					@toggle-playback="togglePlayback"
-					@toggle-trim-mode="toggleTrimMode"
-					@update:selected-ratio="onAspectRatioChange"
-					@toggle-mute="toggleMute"
-					@toggle-split-mode="toggleSplitMode"
+					:width="videoWidth"
+					:height="videoHeight"
 				/>
 			</div>
 
-			<MediaPlayerSettings
+			<TimelineComponent
 				:duration="videoDuration"
-				:width="videoWidth"
-				:height="videoHeight"
+				:current-time="currentTime"
+				:segments="segments"
+				:is-split-mode="isSplitMode"
+				@timeUpdate="handleTimeUpdate"
+				@segmentsReordered="handleSegmentsReordered"
+				@splitSegment="handleSegmentSplit"
+				ref="timelineRef"
 			/>
 		</div>
-
-		<TimelineComponent
-			:duration="videoDuration"
-			:current-time="currentTime"
-			:segments="segments"
-			:is-split-mode="isSplitMode"
-			@timeUpdate="handleTimeUpdate"
-			@segmentsReordered="handleSegmentsReordered"
-			@splitSegment="handleSegmentSplit"
-			ref="timelineRef"
-		/>
 	</div>
 </template>
 
