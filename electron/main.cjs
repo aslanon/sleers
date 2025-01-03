@@ -7,6 +7,7 @@ const {
 	Menu,
 	nativeImage,
 	protocol,
+	screen,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -40,15 +41,165 @@ let dragOffset = { x: 0, y: 0 };
 // Editor Manager instance'ı
 let editorManager = null;
 
+let isRecording = false;
+let mouseEvents = [];
+
+function startMouseTracking() {
+	isRecording = true;
+	mouseEvents = [];
+
+	const startTime = Date.now();
+
+	// Mouse pozisyonunu takip et
+	const trackMouse = setInterval(() => {
+		if (!isRecording) {
+			clearInterval(trackMouse);
+			return;
+		}
+
+		const currentCursor = screen.getCursorScreenPoint();
+		mouseEvents.push({
+			type: "move",
+			x: currentCursor.x,
+			y: currentCursor.y,
+			timestamp: Date.now() - startTime,
+		});
+	}, 16); // 60fps için yaklaşık değer
+
+	// Mouse click eventlerini dinle
+	const mouseClickHandler = (event, input) => {
+		if (!isRecording) return;
+
+		const currentCursor = screen.getCursorScreenPoint();
+		mouseEvents.push({
+			type: input.mouseButton === "left" ? "click" : "rightClick",
+			x: currentCursor.x,
+			y: currentCursor.y,
+			timestamp: Date.now() - startTime,
+			button: input.mouseButton,
+		});
+	};
+
+	// Mouse down/up eventlerini dinle
+	const mouseDownHandler = (event, input) => {
+		if (!isRecording) return;
+
+		const currentCursor = screen.getCursorScreenPoint();
+		mouseEvents.push({
+			type: "mouseDown",
+			x: currentCursor.x,
+			y: currentCursor.y,
+			timestamp: Date.now() - startTime,
+			button: input.mouseButton,
+		});
+	};
+
+	const mouseUpHandler = (event, input) => {
+		if (!isRecording) return;
+
+		const currentCursor = screen.getCursorScreenPoint();
+		mouseEvents.push({
+			type: "mouseUp",
+			x: currentCursor.x,
+			y: currentCursor.y,
+			timestamp: Date.now() - startTime,
+			button: input.mouseButton,
+		});
+	};
+
+	// Event listener'ları ekle
+	ipcMain.on("mouse-click", mouseClickHandler);
+	ipcMain.on("mouse-down", mouseDownHandler);
+	ipcMain.on("mouse-up", mouseUpHandler);
+
+	// Cleanup fonksiyonunu döndür
+	return () => {
+		clearInterval(trackMouse);
+		ipcMain.removeListener("mouse-click", mouseClickHandler);
+		ipcMain.removeListener("mouse-down", mouseDownHandler);
+		ipcMain.removeListener("mouse-up", mouseUpHandler);
+	};
+}
+
+function stopMouseTracking() {
+	isRecording = false;
+	return mouseEvents;
+}
+
+// IPC handlers ekle
+ipcMain.handle("START_MOUSE_TRACKING", () => {
+	startMouseTracking();
+});
+
+ipcMain.handle("STOP_MOUSE_TRACKING", () => {
+	const events = stopMouseTracking();
+	return events;
+});
+
+// Mouse events'i almak için handler
+ipcMain.handle("GET_MOUSE_EVENTS", async (event, filePath) => {
+	try {
+		// mediaState'den mouse events dosya yolunu al
+		const mouseEventsPath = mediaState.mouseEventsPath;
+
+		if (!mouseEventsPath || !fs.existsSync(mouseEventsPath)) {
+			console.log(
+				"[main.cjs] Mouse events dosyası bulunamadı:",
+				mouseEventsPath
+			);
+			return [];
+		}
+
+		// JSON dosyasını oku
+		const mouseData = JSON.parse(fs.readFileSync(mouseEventsPath, "utf8"));
+		console.log("[main.cjs] Mouse events okundu:", {
+			path: mouseEventsPath,
+			eventCount: mouseData.length,
+		});
+
+		return mouseData;
+	} catch (error) {
+		console.error("[main.cjs] Mouse events okunurken hata:", error);
+		return [];
+	}
+});
+
 // IPC handler for recording status
 ipcMain.on("RECORDING_STATUS_CHANGED", async (event, status) => {
 	console.log("Kayıt durumu değişti:", status);
 
 	if (status) {
-		// Kayıt başladığında sadece ana pencereyi gizle
+		// Kayıt başladığında mouse tracking'i başlat
+		console.log("[main.cjs] Mouse tracking başlatılıyor...");
+		startMouseTracking();
+
+		// Sadece ana pencereyi gizle
 		if (mainWindow) mainWindow.hide();
 	} else {
-		// Kayıt bittiğinde mediaState'i güncelle
+		// Kayıt bittiğinde mouse tracking'i durdur ve verileri sakla
+		console.log("[main.cjs] Mouse tracking durduruluyor...");
+		const mouseData = stopMouseTracking();
+		console.log("[main.cjs] Kaydedilen mouse events:", mouseData);
+
+		// Mouse verilerini geçici bir dosyaya kaydet
+		try {
+			const mouseEventsPath = path.join(
+				app.getPath("temp"),
+				`mouse-events-${Date.now()}.json`
+			);
+			fs.writeFileSync(mouseEventsPath, JSON.stringify(mouseData));
+			console.log(
+				"[main.cjs] Mouse events dosyaya kaydedildi:",
+				mouseEventsPath
+			);
+
+			// Mouse events dosya yolunu mediaState'e ekle
+			mediaState.mouseEventsPath = mouseEventsPath;
+		} catch (error) {
+			console.error("[main.cjs] Mouse events kaydedilirken hata:", error);
+		}
+
+		// MediaState'i güncelle
 		mediaState.videoPath =
 			tempFiles.get("screen") || tempFiles.get("video") || null;
 		mediaState.audioPath = tempFiles.get("audio") || null;
@@ -58,7 +209,6 @@ ipcMain.on("RECORDING_STATUS_CHANGED", async (event, status) => {
 		// Kayıt bittiğinde editor'ü göster ve kamerayı gizle
 		if (cameraManager) cameraManager.closeCameraWindow();
 		if (editorManager) {
-			// Medya yollarını editor'e gönder
 			await editorManager.showEditorWindow();
 			console.log(
 				"Editor penceresi açıldı, mediaState gönderiliyor:",

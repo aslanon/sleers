@@ -157,8 +157,12 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-[1px] bg-red-500 z-10"
+						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-[2px] bg-red-500 z-10"
 						:style="{
+							background: 'rgb(7,31,140)',
+							background:
+								'linear-gradient(180deg, rgba(7,31,140,1) 0%, rgba(30,103,205,0) 100%)',
+
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
 						}"
@@ -166,7 +170,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute -top-1 w-3 h-5 transition-all ease-linear duration-300 cursor-pointer z-20"
+						class="absolute top-0 w-3 h-3 transition-all ease-linear duration-300 cursor-pointer z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -174,9 +178,12 @@
 						@mousedown="handlePlayheadDragStart"
 					>
 						<div
-							class="w-3 h-5 bg-red-500"
-							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+							:style="{
+								background: 'rgb(7,31,140)',
+							}"
+							class="w-3 h-3 rounded-full bg-red-500"
 						></div>
+						<!-- style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" -->
 					</div>
 				</div>
 			</div>

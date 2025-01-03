@@ -32,3 +32,39 @@ contextBridge.exposeInMainWorld("electron", {
 		getCropInfo: () => ipcRenderer.invoke("GET_CROP_INFO"),
 	},
 });
+
+contextBridge.exposeInMainWorld("api", {
+	startMouseTracking: () => {
+		console.log("[preload.cjs] Mouse tracking başlatılıyor");
+		return ipcRenderer.invoke("START_MOUSE_TRACKING");
+	},
+	stopMouseTracking: () => {
+		console.log("[preload.cjs] Mouse tracking durduruluyor");
+		return ipcRenderer.invoke("STOP_MOUSE_TRACKING");
+	},
+	getMouseEvents: (filePath) => {
+		console.log("[preload.cjs] Mouse events alınıyor, filePath:", filePath);
+		return ipcRenderer.invoke("GET_MOUSE_EVENTS", filePath);
+	},
+});
+
+// Mouse event listener'ları
+window.addEventListener("click", (e) => {
+	ipcRenderer.send("mouse-click", { mouseButton: "left" });
+});
+
+window.addEventListener("contextmenu", (e) => {
+	ipcRenderer.send("mouse-click", { mouseButton: "right" });
+});
+
+window.addEventListener("mousedown", (e) => {
+	ipcRenderer.send("mouse-down", {
+		mouseButton: e.button === 0 ? "left" : "right",
+	});
+});
+
+window.addEventListener("mouseup", (e) => {
+	ipcRenderer.send("mouse-up", {
+		mouseButton: e.button === 0 ? "left" : "right",
+	});
+});

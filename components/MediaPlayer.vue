@@ -72,6 +72,14 @@ const props = defineProps({
 		type: Array,
 		default: () => [],
 	},
+	mouseEvents: {
+		type: Array,
+		default: () => [],
+	},
+	currentVideoTime: {
+		type: Number,
+		default: 0,
+	},
 });
 
 const emit = defineEmits([
@@ -743,14 +751,58 @@ const getCropData = () => {
 	};
 };
 
-// Canvas güncelleme optimizasyonu
+// Mouse koordinatlarını dönüştürme yardımcı fonksiyonu
+const transformMouseCoords = (mouseX, mouseY) => {
+	if (!containerRef.value || !videoElement) return { x: 0, y: 0 };
+
+	const container = containerRef.value.getBoundingClientRect();
+	const videoWidth = videoElement.videoWidth;
+	const videoHeight = videoElement.videoHeight;
+
+	// Container'ın aspect ratio'sunu hesapla
+	const containerRatio = container.width / container.height;
+	const videoRatio = videoWidth / videoHeight;
+
+	let scaledWidth, scaledHeight, offsetX, offsetY;
+
+	if (containerRatio > videoRatio) {
+		// Container daha geniş, video yüksekliğe göre ölçeklenir
+		scaledHeight = container.height;
+		scaledWidth = scaledHeight * videoRatio;
+		offsetX = (container.width - scaledWidth) / 2;
+		offsetY = 0;
+	} else {
+		// Container daha dar, video genişliğe göre ölçeklenir
+		scaledWidth = container.width;
+		scaledHeight = scaledWidth / videoRatio;
+		offsetX = 0;
+		offsetY = (container.height - scaledHeight) / 2;
+	}
+
+	// Mouse koordinatlarını video koordinatlarına dönüştür
+	const x = (mouseX * scaledWidth) / videoWidth + offsetX;
+	const y = (mouseY * scaledHeight) / videoHeight + offsetY;
+
+	console.log("[MediaPlayer] Koordinat dönüşümü:", {
+		input: { mouseX, mouseY },
+		container: { width: container.width, height: container.height },
+		video: { width: videoWidth, height: videoHeight },
+		scaled: { width: scaledWidth, height: scaledHeight },
+		offset: { x: offsetX, y: offsetY },
+		output: { x, y },
+	});
+
+	return { x, y };
+};
+
+// Canvas güncelleme fonksiyonunu güncelle
 const updateCanvas = (timestamp) => {
 	if (!canvasRef.value || !videoElement || !ctx) return;
 
 	const canvas = canvasRef.value;
 	const container = containerRef.value;
 
-	// Canvas boyutlarını ayarla (sadece gerektiğinde)
+	// Canvas boyutlarını ayarla
 	if (
 		canvas.width !== container.clientWidth ||
 		canvas.height !== container.clientHeight
@@ -779,7 +831,64 @@ const updateCanvas = (timestamp) => {
 
 	ctx.restore();
 
-	// Kırpma alanı varsa overlay ve çerçeve çiz
+	// Mouse cursor'ı çiz
+	if (props.mouseEvents.length > 0) {
+		console.log("[MediaPlayer] Mouse events mevcut:", {
+			total: props.mouseEvents.length,
+			currentTime: props.currentVideoTime,
+			lastEvent: props.mouseEvents[props.mouseEvents.length - 1],
+		});
+
+		// Şu anki zamana en yakın mouse pozisyonunu bul
+		const currentEvent = props.mouseEvents.find(
+			(event) => Math.abs(event.timestamp - props.currentVideoTime) < 16
+		);
+
+		if (currentEvent) {
+			console.log("[MediaPlayer] Aktif mouse event:", currentEvent);
+
+			// Mouse koordinatlarını dönüştür
+			const { x, y } = transformMouseCoords(currentEvent.x, currentEvent.y);
+			console.log("[MediaPlayer] Dönüştürülmüş koordinatlar:", { x, y });
+
+			// Mouse imleci çiz - daha da büyük
+			ctx.save();
+			ctx.translate(x, y);
+
+			// Mouse imleci - çok daha büyük ve belirgin
+			ctx.beginPath();
+			ctx.moveTo(0, 0);
+			ctx.lineTo(32, 32); // 4 kat büyüttük
+			ctx.lineTo(16, 32); // Orantılı olarak ayarladık
+			ctx.lineTo(24, 48); // Orantılı olarak ayarladık
+			ctx.lineTo(16, 44); // Orantılı olarak ayarladık
+			ctx.lineTo(8, 56); // Orantılı olarak ayarladık
+			ctx.lineTo(8, 32); // Orantılı olarak ayarladık
+			ctx.lineTo(0, 0);
+			ctx.fillStyle = "rgba(255, 255, 255, 1)"; // Tam opak beyaz
+			ctx.strokeStyle = "rgba(0, 0, 0, 1)"; // Tam opak siyah
+			ctx.lineWidth = 3; // Daha kalın çizgi
+			ctx.fill();
+			ctx.stroke();
+
+			// Tıklama efekti - çok daha büyük
+			if (currentEvent.type === "mouseDown" || currentEvent.type === "click") {
+				ctx.beginPath();
+				ctx.arc(0, 0, 40, 0, 2 * Math.PI); // Yarıçapı 2 kat artırdık
+				ctx.strokeStyle = "rgba(255, 0, 0, 1)"; // Tam opak kırmızı
+				ctx.lineWidth = 4; // Daha kalın çizgi
+				ctx.stroke();
+			}
+
+			ctx.restore();
+		} else {
+			console.log("[MediaPlayer] Aktif mouse event bulunamadı");
+		}
+	} else {
+		console.log("[MediaPlayer] Mouse events yok");
+	}
+
+	// Kırpma alanı varsa çiz
 	if (selectedAspectRatio.value) {
 		// Kırpma alanı dışındaki bölgeleri karart (opaklık artırıldı)
 		ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Tam siyah overlay
@@ -817,7 +926,7 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
-	// Video oynatılıyorsa veya sürükleme/zoom yapılıyorsa animasyonu devam ettir
+	// Animasyonu devam ettir
 	if (videoState.value.isPlaying || isDragging.value) {
 		animationFrame = requestAnimationFrame(updateCanvas);
 	}
@@ -974,5 +1083,23 @@ canvas {
 	image-rendering: optimizeQuality;
 	-webkit-backface-visibility: hidden;
 	backface-visibility: hidden;
+}
+
+.video-container {
+	position: relative;
+	width: 100%;
+	height: 0;
+	padding-bottom: 56.25%; /* 16:9 aspect ratio */
+	background-color: black;
+	overflow: hidden;
+}
+
+.video-container video {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
 }
 </style>

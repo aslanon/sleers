@@ -32,22 +32,26 @@
 		<div>
 			<div class="w-full flex">
 				<div class="w-full p-4 flex-1 flex flex-col">
-					<MediaPlayer
-						ref="mediaPlayerRef"
-						:video-url="videoUrl"
-						:audio-url="audioUrl"
-						:video-type="videoType"
-						:audio-type="audioType"
-						:is-playing="isPlaying"
-						:current-time="currentTime"
-						:is-muted="isMuted"
-						:segments="segments"
-						@video-loaded="onVideoLoaded"
-						@video-ended="onVideoEnded"
-						@video-paused="isPlaying = false"
-						@timeUpdate="onTimeUpdate"
-						@mute-change="isMuted = $event"
-					/>
+					<div class="relative">
+						<MediaPlayer
+							ref="mediaPlayerRef"
+							:video-url="videoUrl"
+							:audio-url="audioUrl"
+							:video-type="videoType"
+							:audio-type="audioType"
+							:is-playing="isPlaying"
+							:current-time="currentTime"
+							:is-muted="isMuted"
+							:segments="segments"
+							:mouse-events="mouseEvents"
+							:current-video-time="currentVideoTime"
+							@video-loaded="onVideoLoaded"
+							@video-ended="onVideoEnded"
+							@video-paused="isPlaying = false"
+							@timeUpdate="onTimeUpdate"
+							@mute-change="isMuted = $event"
+						/>
+					</div>
 
 					<MediaPlayerControls
 						:is-playing="isPlaying"
@@ -115,6 +119,7 @@ const selectedRatio = ref("");
 const selectedArea = ref(null);
 const isMuted = ref(false);
 const isSplitMode = ref(false);
+const mouseEvents = ref([]);
 
 // Video boyutları
 const videoSize = ref({
@@ -198,6 +203,14 @@ const loadMedia = async (filePath, type = "video") => {
 			type: type === "video" ? videoType.value : audioType.value,
 			size: blob.size,
 		});
+
+		// Mouse event verilerini yükle
+		try {
+			const mouseData = await window.api.getMouseEvents(filePath);
+			mouseEvents.value = mouseData;
+		} catch (error) {
+			console.error("Mouse event verilerini yüklerken hata:", error);
+		}
 	} catch (error) {
 		console.error(`[editor.vue] ${type} yükleme hatası:`, error);
 	}
@@ -209,7 +222,7 @@ const togglePlayback = () => {
 };
 
 // Video yüklendiğinde
-const onVideoLoaded = (data) => {
+const onVideoLoaded = async (data) => {
 	try {
 		console.log("[editor.vue] Video yüklendi, gelen data:", data);
 
@@ -220,6 +233,15 @@ const onVideoLoaded = (data) => {
 				width: data.width || 1920,
 				height: data.height || 1080,
 			};
+
+			// Mouse event verilerini yükle
+			try {
+				const mouseData = await window.api.getMouseEvents(videoUrl.value);
+				console.log("[editor.vue] Mouse events yüklendi:", mouseData);
+				mouseEvents.value = mouseData;
+			} catch (error) {
+				console.error("[editor.vue] Mouse events yüklenirken hata:", error);
+			}
 
 			// Mevcut segment'i güncelle
 			if (segments.value.length > 0) {
@@ -572,6 +594,15 @@ onMounted(() => {
 		console.log("[editor.vue] MEDIA_PATHS eventi alındı:", paths);
 		if (paths.videoPath) await loadMedia(paths.videoPath, "video");
 		if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
+
+		// Mouse events'i yükle
+		try {
+			const mouseData = await window.api.getMouseEvents();
+			console.log("[editor.vue] Mouse events yüklendi:", mouseData);
+			mouseEvents.value = mouseData;
+		} catch (error) {
+			console.error("[editor.vue] Mouse events yüklenirken hata:", error);
+		}
 	});
 
 	electron?.ipcRenderer.on("START_EDITING", (videoData) => {
