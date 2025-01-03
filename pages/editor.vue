@@ -507,7 +507,22 @@ const toggleSplitMode = () => {
 
 // Segment yönetimi
 const handleSegmentsReordered = (newSegments) => {
+	// Yeni segment sıralamasını uygula
 	segments.value = newSegments;
+
+	// MediaPlayer'ı güncelle
+	if (mediaPlayerRef.value) {
+		// Eğer video oynatılıyorsa, mevcut segmentin başlangıç zamanına git
+		if (isPlaying.value) {
+			const currentSegment = newSegments.find(
+				(segment) =>
+					currentTime.value >= segment.start && currentTime.value <= segment.end
+			);
+			if (currentSegment) {
+				mediaPlayerRef.value.seek(currentSegment.start);
+			}
+		}
+	}
 };
 
 // Video URL'lerini computed olarak yönet

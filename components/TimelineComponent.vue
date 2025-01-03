@@ -111,7 +111,7 @@
 									<!-- Drop Indicator -->
 									<div
 										v-if="dropTargetInfo.segmentIndex === index"
-										class="absolute top-0 bottom-0 w-1 bg-blue-500"
+										class="absolute top-0 bottom-0 w-[12px] bg-blue-500 rounded-full"
 										:style="{
 											left: dropTargetInfo.position === 'start' ? '0' : 'auto',
 											right: dropTargetInfo.position === 'end' ? '0' : 'auto',
@@ -347,7 +347,7 @@ const getSegmentStyle = (segment, index) => {
 		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
 		opacity: isDragging ? "0.5" : "1",
 		transform: isDropTarget ? "scale(1.02)" : "scale(1)",
-		transition: "transform 0.2s ease",
+		transition: "all 0.3s ease",
 		zIndex: isDropTarget ? "10" : "1",
 	};
 };
@@ -406,8 +406,8 @@ const handleSegmentDrop = (event) => {
 
 	const newSegments = [...props.segments];
 	const [draggedSegment] = newSegments.splice(draggedSegmentIndex.value, 1);
-
 	let targetIndex = dropTargetInfo.value.segmentIndex;
+
 	if (dropTargetInfo.value.position === "end") {
 		targetIndex++;
 	}
@@ -415,8 +415,25 @@ const handleSegmentDrop = (event) => {
 		targetIndex--;
 	}
 
+	// Yeni segmentleri oluştur ve zamanları güncelle
 	newSegments.splice(targetIndex, 0, draggedSegment);
-	emit("segmentsReordered", newSegments);
+
+	// Segmentlerin zamanlarını sırayla güncelle
+	let currentTime = 0;
+	const updatedSegments = newSegments.map((segment) => {
+		const duration = segment.end - segment.start;
+		const updatedSegment = {
+			...segment,
+			start: currentTime,
+			end: currentTime + duration,
+			startTime: currentTime,
+			endTime: currentTime + duration,
+		};
+		currentTime += duration;
+		return updatedSegment;
+	});
+
+	emit("segmentsReordered", updatedSegments);
 
 	// State'leri temizle
 	draggedSegmentIndex.value = null;
