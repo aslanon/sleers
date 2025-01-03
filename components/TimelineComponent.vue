@@ -1,8 +1,10 @@
 <template>
-	<div class="timeline-container relative flex flex-col text-white">
+	<div
+		class="timeline-container min-h-[300px] flex-1 relative flex flex-col text-white"
+	>
 		<!-- Timeline Header -->
 		<div class="flex justify-between items-center px-4 py-2">
-			<!-- <div class="text-sm font-medium text-gray-300">Timeline</div> -->
+			<div class="text-sm font-medium text-gray-300"></div>
 			<div class="flex gap-1">
 				<button
 					class="p-1.5 rounded hover:bg-gray-800"
@@ -171,7 +173,7 @@ const emit = defineEmits(["timeUpdate", "segmentUpdate", "segmentSelect"]);
 // Referanslar ve state
 const scrollContainerRef = ref(null);
 const timelineRef = ref(null);
-const currentZoom = ref(10);
+const currentZoom = ref(3);
 const isDragging = ref(false);
 const startDragX = ref(0);
 const startScrollLeft = ref(0);
