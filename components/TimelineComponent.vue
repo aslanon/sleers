@@ -82,49 +82,43 @@
 								<div
 									v-for="(segment, index) in props.segments"
 									:key="segment.id || index"
-									class="h-full relative cursor-move transition-all duration-200 group"
+									class="h-full relative transition-all duration-200 group"
 									:class="{
-										'hover:!ring-[1px] hover:!ring-white/80': !isDragging,
+										'hover:ring-[1px] hover:ring-white/30': !isResizing,
 									}"
 									:style="getSegmentStyle(segment, index)"
-									draggable="true"
-									@dragstart="handleSegmentDragStart($event, index)"
-									@dragover="handleSegmentDragOver($event, index)"
-									@dragleave="handleSegmentDragLeave($event)"
-									@dragend="handleSegmentDragEnd"
 									@click.stop="handleSegmentClick(index, $event)"
 									@mousemove="handleSegmentMouseMove($event, index)"
 									@mouseleave="handleSegmentMouseLeave"
-									@mousedown.stop="
-										isSplitMode ? handleSegmentSplit($event, index) : null
-									"
 								>
 									<!-- Sol Kenar İşareti -->
 									<div
-										class="absolute left-2 top-0 bottom-0 w-1 flex items-center justify-start pointer-events-none opacity-0 transition-opacity duration-200"
+										class="absolute left-0 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
 										:class="{
-											'opacity-80':
-												activeSegmentIndex === index ||
-												isDragging ||
-												dropTargetInfo.segmentIndex === index,
-											'group-hover:opacity-80': !isDragging,
+											'opacity-80': activeSegmentIndex === index,
+											'group-hover:opacity-80': !isResizing,
 										}"
 									>
-										<div class="w-[3px] h-[24px] bg-white rounded-full"></div>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
+											@mousedown.stop="
+												handleResizeStart($event, index, 'start')
+											"
+										></div>
 									</div>
 
 									<!-- Sağ Kenar İşareti -->
 									<div
-										class="absolute right-2 top-0 bottom-0 w-1 flex items-center justify-end pointer-events-none opacity-0 transition-opacity duration-200"
+										class="absolute right-0 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
 										:class="{
-											'opacity-80':
-												activeSegmentIndex === index ||
-												isDragging ||
-												dropTargetInfo.segmentIndex === index,
-											'group-hover:opacity-80': !isDragging,
+											'opacity-80': activeSegmentIndex === index,
+											'group-hover:opacity-80': !isResizing,
 										}"
 									>
-										<div class="w-[3px] h-[24px] bg-white rounded-full"></div>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
+											@mousedown.stop="handleResizeStart($event, index, 'end')"
+										></div>
 									</div>
 
 									<!-- Segment İçeriği -->
@@ -132,7 +126,7 @@
 										class="absolute inset-0 flex flex-col items-center justify-center text-center"
 									>
 										<span
-											class="text-white/30 text-[12px] font-medium tracking-wide"
+											class="text-white/70 text-[10px] font-medium tracking-wide"
 											>Clip</span
 										>
 										<span
@@ -157,14 +151,17 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute top-0 w-3 h-3 transition-all ease-linear duration-300 cursor-pointer z-20"
+						class="absolute -top-1 w-3 h-5 transition-all ease-linear duration-300 cursor-pointer z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
 						}"
-						@mousedown="handleSegmentDragStart(index, $event)"
+						@mousedown="handlePlayheadDragStart"
 					>
-						<div class="w-3 h-3 bg-red-500 rounded-full"></div>
+						<div
+							class="w-3 h-5 bg-red-500"
+							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+						></div>
 					</div>
 				</div>
 			</div>
@@ -348,22 +345,18 @@ const getSegmentStyle = (segment, index) => {
 	const start = segment.start || segment.startTime || 0;
 	const end = segment.end || segment.endTime || maxDuration.value;
 	const width = ((end - start) / maxDuration.value) * 100;
-	const isDragging = draggedSegmentIndex.value === index;
-	const isDropTarget = dropTargetInfo.value.segmentIndex === index;
 
 	return {
 		width: `calc(${width}% - 1px)`,
 		left: `${(start / maxDuration.value) * 100}%`,
 		position: "absolute",
-		opacity: isDragging ? "0.5" : "1",
 		transition: "all 0.2s ease",
-		zIndex: isDropTarget ? "10" : "1",
+		zIndex: activeSegmentIndex.value === index ? "10" : "1",
 		borderRadius: "10px",
 		background: "linear-gradient(180deg, #b16b00 0%, #ce8515 100%)",
 		border: "0.5px solid rgba(255, 255, 255, 0.2)",
-		boxShadow: `
-			rgba(255, 255, 255, 0.05) 0px 0.5px 0px 0px inset,  rgba(0, 0, 0, 0.5) 0px 10px 30px 0px inset
-		`,
+		boxShadow:
+			"rgba(255, 255, 255, 0.05) 0px 0.5px 0px 0px inset, rgba(0, 0, 0, 0.5) 0px 10px 30px 0px inset",
 	};
 };
 
@@ -631,6 +624,75 @@ onUnmounted(() => {
 	window.removeEventListener("mouseup", stopDragging);
 	window.removeEventListener("mousemove", handleDrag);
 });
+
+// Resize state'leri
+const isResizing = ref(false);
+const resizingSegmentIndex = ref(null);
+const resizingEdge = ref(null); // 'start' veya 'end'
+const originalSegment = ref(null);
+const startResizeX = ref(0);
+
+// Resize başlatma
+const handleResizeStart = (event, index, edge) => {
+	event.stopPropagation();
+	isResizing.value = true;
+	resizingSegmentIndex.value = index;
+	resizingEdge.value = edge;
+	originalSegment.value = { ...props.segments[index] };
+	startResizeX.value = event.clientX;
+
+	window.addEventListener("mousemove", handleResize);
+	window.addEventListener("mouseup", handleResizeEnd);
+};
+
+// Resize işlemi
+const handleResize = (event) => {
+	if (!isResizing.value || resizingSegmentIndex.value === null) return;
+
+	const segment = props.segments[resizingSegmentIndex.value];
+	const timeline = timelineRef.value;
+	const timelineRect = timeline.getBoundingClientRect();
+
+	const dx = event.clientX - startResizeX.value;
+	const timeChange = (dx / timelineRect.width) * maxDuration.value;
+
+	const newSegments = [...props.segments];
+	const updatedSegment = { ...segment };
+
+	if (resizingEdge.value === "start") {
+		const newStart = Math.max(
+			originalSegment.value.start - maxDuration.value,
+			Math.min(
+				originalSegment.value.start + timeChange,
+				segment.end - 1 // En az 1 saniyelik segment
+			)
+		);
+		updatedSegment.start = newStart;
+	} else {
+		const newEnd = Math.max(
+			segment.start + 1, // En az 1 saniyelik segment
+			Math.min(
+				originalSegment.value.end + timeChange,
+				originalSegment.value.end + maxDuration.value
+			)
+		);
+		updatedSegment.end = newEnd;
+	}
+
+	newSegments[resizingSegmentIndex.value] = updatedSegment;
+	emit("segmentUpdate", newSegments);
+};
+
+// Resize bitirme
+const handleResizeEnd = () => {
+	isResizing.value = false;
+	resizingSegmentIndex.value = null;
+	resizingEdge.value = null;
+	originalSegment.value = null;
+
+	window.removeEventListener("mousemove", handleResize);
+	window.removeEventListener("mouseup", handleResizeEnd);
+};
 </script>
 
 <style scoped>
