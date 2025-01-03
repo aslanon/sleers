@@ -481,10 +481,10 @@ const updateCropArea = () => {
 			let width, height;
 
 			if (container.width / container.height > targetRatio) {
-				height = container.height * 0.8; // Biraz daha küçük tut
+				height = container.height; // Maksimum yükseklik
 				width = height * targetRatio;
 			} else {
-				width = container.width * 0.8; // Biraz daha küçük tut
+				width = container.width; // Maksimum genişlik
 				height = width / targetRatio;
 			}
 
@@ -698,8 +698,8 @@ const updateCanvas = (timestamp) => {
 
 	// Kırpma alanı varsa overlay ve çerçeve çiz
 	if (selectedAspectRatio.value) {
-		// Kırpma alanı dışındaki bölgeleri karart
-		ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+		// Kırpma alanı dışındaki bölgeleri karart (opaklık artırıldı)
+		ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Tam siyah overlay
 
 		// Üst bölge
 		ctx.fillRect(0, 0, canvas.width, cropArea.value.y);

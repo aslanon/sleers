@@ -91,7 +91,7 @@
 								@click="handleSegmentClick(index, $event)"
 							>
 								<div
-									class="absolute inset-0 flex items-end p-2 justify-between px-2 text-xs text-white/40"
+									class="absolute inset-0 flex items-end p-2 justify-between px-2 text-xs text-black"
 									:class="{
 										'opacity-0':
 											(segment.end - segment.start) * currentZoom.value < 12,
@@ -158,7 +158,7 @@ const props = defineProps({
 	},
 	minZoom: {
 		type: Number,
-		default: 0.01,
+		default: 10,
 	},
 	maxZoom: {
 		type: Number,
@@ -171,7 +171,7 @@ const emit = defineEmits(["timeUpdate", "segmentUpdate", "segmentSelect"]);
 // Referanslar ve state
 const scrollContainerRef = ref(null);
 const timelineRef = ref(null);
-const currentZoom = ref(1);
+const currentZoom = ref(10);
 const isDragging = ref(false);
 const startDragX = ref(0);
 const startScrollLeft = ref(0);
