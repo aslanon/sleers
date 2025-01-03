@@ -98,7 +98,8 @@
 									:style="getSegmentStyle(segment, index)"
 									draggable="true"
 									@dragstart="handleSegmentDragStart($event, index)"
-									@dragenter.prevent="handleSegmentDragEnter($event, index)"
+									@dragover="handleSegmentDragOver($event, index)"
+									@dragleave="handleSegmentDragLeave($event)"
 									@dragend="handleSegmentDragEnd"
 									@click.stop="handleSegmentClick(index, $event)"
 									@mousemove="handleSegmentMouseMove($event, index)"
@@ -107,11 +108,14 @@
 										isSplitMode ? handleSegmentSplit($event, index) : null
 									"
 								>
-									<!-- Split Mode Indicator -->
+									<!-- Drop Indicator -->
 									<div
-										v-if="isSplitMode && mousePosition.segmentIndex === index"
-										class="absolute top-0 bottom-0 w-[1px] bg-white"
-										:style="{ left: mousePosition.x + 'px' }"
+										v-if="dropTargetInfo.segmentIndex === index"
+										class="absolute top-0 bottom-0 w-1 bg-blue-500"
+										:style="{
+											left: dropTargetInfo.position === 'start' ? '0' : 'auto',
+											right: dropTargetInfo.position === 'end' ? '0' : 'auto',
+										}"
 									></div>
 
 									<div
@@ -332,7 +336,7 @@ const getSegmentStyle = (segment, index) => {
 	const end = segment.end || segment.endTime || maxDuration.value;
 	const width = ((end - start) / maxDuration.value) * 100;
 	const isDragging = draggedSegmentIndex.value === index;
-	const isDragOver = dragOverSegmentIndex.value === index;
+	const isDropTarget = dropTargetInfo.value.segmentIndex === index;
 
 	return {
 		width: `${width}%`,
@@ -342,9 +346,9 @@ const getSegmentStyle = (segment, index) => {
 			"0px 0px 0px 1px inset #ffffff61, 0px 0px 25px 0px inset #0000008f",
 		backgroundColor: activeSegmentIndex.value === index ? "#f97316" : "#fdba74",
 		opacity: isDragging ? "0.5" : "1",
-		transform: isDragOver ? "scale(1.02)" : "scale(1)",
+		transform: isDropTarget ? "scale(1.02)" : "scale(1)",
 		transition: "transform 0.2s ease",
-		zIndex: isDragOver ? "10" : "1",
+		zIndex: isDropTarget ? "10" : "1",
 	};
 };
 
@@ -365,34 +369,70 @@ const handleSegmentDragStart = (event, index) => {
 	event.dataTransfer.effectAllowed = "move";
 };
 
-// Segment üzerine gelindiğinde
-const handleSegmentDragEnter = (event, index) => {
-	if (draggedSegmentIndex.value === null) return;
-	dragOverSegmentIndex.value = index;
+// Segment üzerinde sürükleme
+const handleSegmentDragOver = (event, index) => {
+	event.preventDefault();
+	if (draggedSegmentIndex.value === null || draggedSegmentIndex.value === index)
+		return;
+
+	const segment = event.currentTarget;
+	const rect = segment.getBoundingClientRect();
+	const mouseX = event.clientX - rect.left;
+	const isFirstHalf = mouseX < rect.width / 2;
+
+	dropTargetInfo.value = {
+		segmentIndex: index,
+		position: isFirstHalf ? "start" : "end",
+	};
+};
+
+// Segment dışına sürükleme
+const handleSegmentDragLeave = (event) => {
+	event.preventDefault();
+	dropTargetInfo.value = {
+		segmentIndex: null,
+		position: null,
+	};
 };
 
 // Segment bırakıldığında
-const handleSegmentDrop = () => {
-	if (draggedSegmentIndex.value === null || dragOverSegmentIndex.value === null)
+const handleSegmentDrop = (event) => {
+	event.preventDefault();
+	if (
+		draggedSegmentIndex.value === null ||
+		dropTargetInfo.value.segmentIndex === null
+	)
 		return;
 
-	// Segmentlerin yeni sıralamasını oluştur
 	const newSegments = [...props.segments];
 	const [draggedSegment] = newSegments.splice(draggedSegmentIndex.value, 1);
-	newSegments.splice(dragOverSegmentIndex.value, 0, draggedSegment);
 
-	// Yeni segment sıralamasını emit et
+	let targetIndex = dropTargetInfo.value.segmentIndex;
+	if (dropTargetInfo.value.position === "end") {
+		targetIndex++;
+	}
+	if (draggedSegmentIndex.value < targetIndex) {
+		targetIndex--;
+	}
+
+	newSegments.splice(targetIndex, 0, draggedSegment);
 	emit("segmentsReordered", newSegments);
 
 	// State'leri temizle
 	draggedSegmentIndex.value = null;
-	dragOverSegmentIndex.value = null;
+	dropTargetInfo.value = {
+		segmentIndex: null,
+		position: null,
+	};
 };
 
 // Sürükleme bittiğinde
 const handleSegmentDragEnd = () => {
 	draggedSegmentIndex.value = null;
-	dragOverSegmentIndex.value = null;
+	dropTargetInfo.value = {
+		segmentIndex: null,
+		position: null,
+	};
 };
 
 // Timeline tıklama ve playhead güncelleme
@@ -538,7 +578,10 @@ const handleSegmentSplit = (event, index) => {
 
 // Sürükle-bırak state'leri
 const draggedSegmentIndex = ref(null);
-const dragOverSegmentIndex = ref(null);
+const dropTargetInfo = ref({
+	segmentIndex: null,
+	position: null, // 'start' veya 'end'
+});
 
 // Component mount/unmount
 onMounted(() => {
