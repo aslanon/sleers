@@ -1,7 +1,5 @@
 <template>
-	<div
-		class="timeline-container min-h-[300px] flex-1 relative flex flex-col text-white"
-	>
+	<div class="timeline-container flex-1 relative flex flex-col text-white">
 		<!-- Timeline Header -->
 		<div class="flex justify-between items-center px-4 py-2">
 			<div class="text-sm font-medium text-gray-300"></div>
@@ -150,7 +148,7 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-0.5 bg-red-500 z-10"
+						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-[1px] bg-red-500 z-10"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
