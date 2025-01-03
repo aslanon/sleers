@@ -2,19 +2,21 @@
 	<div
 		class="media-player-controls mt-4 flex justify-center items-center space-x-4"
 	>
-		<!-- Aspect Ratio Seçimi -->
-		<select
-			:value="selectedRatio"
-			class="bg-gray-800 text-white px-3 py-1 rounded-lg"
-			@change="$emit('update:selectedRatio', $event.target.value)"
-		>
-			<option value="">Serbest Kırpma</option>
-			<option value="1:1">1:1 Kare</option>
-			<option value="4:3">4:3 Klasik</option>
-			<option value="3:4">3:4 Klasik</option>
-			<option value="16:9">16:9 Geniş</option>
-			<option value="9:16">9:16 Dikey</option>
-		</select>
+		<div class="flex flex-row space-x-4">
+			<!-- Aspect Ratio Seçimi -->
+			<select
+				:value="selectedRatio"
+				class="bg-gray-800 text-white px-3 py-1 rounded-lg"
+				@change="$emit('update:selectedRatio', $event.target.value)"
+			>
+				<option value="">Serbest Kırpma</option>
+				<option value="1:1">1:1 Kare</option>
+				<option value="4:3">4:3 Klasik</option>
+				<option value="3:4">3:4 Klasik</option>
+				<option value="16:9">16:9 Geniş</option>
+				<option value="9:16">9:16 Dikey</option>
+			</select>
+		</div>
 
 		<div class="w-full flex justify-center items-center space-x-4">
 			<div class="text-sm text-gray-300">{{ formatTime(currentTime) }}</div>
@@ -87,6 +89,38 @@
 			</button>
 			<div class="text-sm text-gray-300">{{ formatTime(duration) }}</div>
 		</div>
+
+		<div class="flex flex-row space-x-4">
+			<!-- Ses Kontrol Butonu -->
+			<button
+				@click="$emit('toggleMute')"
+				class="px-4 py-2 rounded-lg flex items-center"
+				type="button"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-6 w-6"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						v-if="!isMuted"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
+					/>
+					<path
+						v-else
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+					/>
+				</svg>
+			</button>
+		</div>
 	</div>
 </template>
 
@@ -112,12 +146,17 @@ const props = defineProps({
 		type: String,
 		default: "",
 	},
+	isMuted: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const emit = defineEmits([
 	"toggle-playback",
 	"toggle-trim-mode",
 	"update:selected-ratio",
+	"toggle-mute",
 ]);
 
 const formatTime = (seconds) => {

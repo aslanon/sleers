@@ -64,6 +64,10 @@ const props = defineProps({
 		type: Boolean,
 		default: true,
 	},
+	isMuted: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const emit = defineEmits([
@@ -79,6 +83,7 @@ const emit = defineEmits([
 	"rateChange",
 	"volumeChange",
 	"fullscreenChange",
+	"muteChange",
 ]);
 
 // Referanslar
@@ -832,6 +837,20 @@ watch(
 	}
 );
 
+// Ses durumu değişikliğini izle
+watch(
+	() => props.isMuted,
+	(newValue) => {
+		if (videoElement) {
+			videoElement.muted = newValue;
+			if (audioRef.value) {
+				audioRef.value.muted = newValue;
+			}
+			emit("muteChange", newValue);
+		}
+	}
+);
+
 // Component metodlarını dışa aktar
 defineExpose({
 	play,
@@ -854,6 +873,14 @@ defineExpose({
 	getState: () => ({ ...videoState.value }),
 	updateAspectRatio,
 	getCropData,
+	toggleMute: () => {
+		if (!videoElement) return;
+		videoElement.muted = !videoElement.muted;
+		if (audioRef.value) {
+			audioRef.value.muted = videoElement.muted;
+		}
+		emit("muteChange", videoElement.muted);
+	},
 });
 </script>
 

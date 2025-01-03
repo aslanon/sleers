@@ -39,10 +39,12 @@
 					:audio-type="audioType"
 					:is-playing="isPlaying"
 					:current-time="currentTime"
+					:is-muted="isMuted"
 					@video-loaded="onVideoLoaded"
 					@video-ended="onVideoEnded"
 					@video-paused="isPlaying = false"
 					@time-update="onTimeUpdate"
+					@mute-change="isMuted = $event"
 				/>
 
 				<MediaPlayerControls
@@ -51,9 +53,11 @@
 					:duration="videoDuration"
 					:is-trim-mode="isTrimMode"
 					:selected-ratio="selectedRatio"
+					:is-muted="isMuted"
 					@toggle-playback="togglePlayback"
 					@toggle-trim-mode="toggleTrimMode"
 					@update:selected-ratio="onAspectRatioChange"
+					@toggle-mute="toggleMute"
 				/>
 			</div>
 
@@ -100,6 +104,7 @@ const isPlaying = ref(false);
 const isTrimMode = ref(false);
 const selectedRatio = ref("");
 const selectedArea = ref(null);
+const isMuted = ref(false);
 
 // Video boyutları
 const videoSize = ref({
@@ -477,6 +482,11 @@ const updateSegments = () => {
 	});
 
 	console.log("[editor.vue] Segmentler güncellendi:", segments.value);
+};
+
+// Ses kontrolü
+const toggleMute = () => {
+	isMuted.value = !isMuted.value;
 };
 
 onMounted(() => {
