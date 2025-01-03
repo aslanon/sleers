@@ -34,7 +34,8 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll overflow-y-hidden scroll-smooth"
+			class="overflow-x-scroll overflow-y-hidden"
+			@wheel="handleZoom"
 		>
 			<!-- @wheel.prevent="handleContainerWheel" -->
 			<div
@@ -90,6 +91,9 @@
 									@click.stop="handleSegmentClick(index, $event)"
 									@mousemove="handleSegmentMouseMove($event, index)"
 									@mouseleave="handleSegmentMouseLeave"
+									@mousedown.stop="
+										isSplitMode ? handleSegmentSplit($event, index) : null
+									"
 								>
 									<!-- Sol Kenar İşareti -->
 									<div
@@ -232,9 +236,9 @@ const generateId = () => {
 };
 
 // Zoom sabitleri
-const minZoom = 0.1; // Minimum zoom değeri artırıldı
-const maxZoom = 10; // Maximum zoom değeri artırıldı
-const zoomStep = 0.4; // Zoom adımı artırıldı
+const minZoom = 0.1;
+const maxZoom = 10;
+const zoomStep = 0.8;
 
 // Timeline sabitleri
 const maxDuration = computed(() => Math.max(props.duration, 600)); // Minimum 10 dakika
@@ -491,9 +495,11 @@ const handleDrag = (e) => {
 	timelineRef.value.scrollLeft = startScrollLeft.value - dx;
 };
 
-// Mouse wheel ile zoom ve scroll
-const handleContainerWheel = (e) => {
+// Zoom işlemi
+const handleZoom = (e) => {
+	// Sadece Cmd/Ctrl basılıyken zoom işlemi yap
 	if (e.ctrlKey || e.metaKey) {
+		e.preventDefault();
 		// Zoom işlemi
 		const delta = -Math.sign(e.deltaY) * zoomStep;
 		const newZoom = Math.max(
@@ -516,12 +522,6 @@ const handleContainerWheel = (e) => {
 				container.scrollLeft =
 					mouseX * (scale - 1) + scrollLeftBeforeZoom * scale;
 			});
-		}
-	} else {
-		// Yatay scroll - hızı artırıldı
-		const container = scrollContainerRef.value;
-		if (container) {
-			container.scrollLeft += e.deltaY * 10; // Scroll hızını 3 katına çıkardık
 		}
 	}
 };
