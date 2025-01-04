@@ -80,7 +80,6 @@
 - `START_AREA_SELECTION`: Alan seçimi başlatıldığında
 - `AREA_SELECTED`: Alan seçimi tamamlandığında
 - `WINDOW_CLOSE`: Pencere kapatma isteği
-- `NAVIGATE_TO_EDITOR`: Editör sayfasına geçiş
 
 ### Main Process -> Renderer
 
