@@ -74,6 +74,9 @@
 
 ### Renderer -> Main Process
 
+gereksiz event kullanımından kaçın, eğer var olan eventler yetiyorsa onları
+genişlet.
+
 - `CAMERA_DEVICE_CHANGED`: Kamera cihazı değiştiğinde
 - `CAMERA_STATUS_UPDATE`: Kamera durumu güncellendiğinde
 - `RECORDING_STATUS_CHANGED`: Kayıt durumu değiştiğinde
