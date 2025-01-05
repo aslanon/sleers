@@ -482,15 +482,19 @@ const toggleFullscreen = async (e) => {
 // Video zamanı güncellendiğinde
 const onTimeUpdate = () => {
 	if (!videoElement) return;
-	videoState.value.currentTime = videoElement.currentTime;
-	// Ses zamanını da senkronize et
-	if (
-		audioRef.value &&
-		Math.abs(audioRef.value.currentTime - videoElement.currentTime) > 0.1
-	) {
-		audioRef.value.currentTime = videoElement.currentTime;
+
+	// Sadece video oynatılıyorsa veya seeking yapılıyorsa zamanı güncelle
+	if (videoState.value.isPlaying || videoState.value.isSeeking) {
+		videoState.value.currentTime = videoElement.currentTime;
+		// Ses zamanını da senkronize et
+		if (
+			audioRef.value &&
+			Math.abs(audioRef.value.currentTime - videoElement.currentTime) > 0.1
+		) {
+			audioRef.value.currentTime = videoElement.currentTime;
+		}
+		emit("timeUpdate", videoElement.currentTime);
 	}
-	emit("timeUpdate", videoElement.currentTime);
 };
 
 // Pencere boyutu değiştiğinde
@@ -916,14 +920,23 @@ watch(
 	(newValue) => {
 		if (!videoElement || newValue === null) return;
 
-		// Eğer video oynatılmıyorsa önizleme zamanını güncelle
-		if (!videoState.value.isPlaying) {
-			videoElement.currentTime = newValue;
-			if (audioRef.value) {
-				audioRef.value.currentTime = newValue;
+		// Eğer video oynatılmıyorsa ve seeking işlemi yapılmıyorsa önizleme zamanını güncelle
+		if (!videoState.value.isPlaying && !videoState.value.isSeeking) {
+			// Ses elementini durdur
+			if (audioRef.value && !audioRef.value.paused) {
+				audioRef.value.pause();
 			}
+
+			// Video zamanını güncelle
+			videoElement.currentTime = newValue;
+
+			// Canvas'ı güncelle
+			requestAnimationFrame(() => {
+				updateCanvas(performance.now());
+			});
 		}
-	}
+	},
+	{ flush: "post" } // Vue'nun DOM güncellemelerinden sonra çalıştır
 );
 
 // Component metodlarını dışa aktar
