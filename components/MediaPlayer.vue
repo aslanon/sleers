@@ -56,6 +56,10 @@ const props = defineProps({
 		type: Number,
 		default: 0,
 	},
+	previewTime: {
+		type: Number,
+		default: null,
+	},
 	selectedAspectRatio: {
 		type: String,
 		default: "",
@@ -902,6 +906,22 @@ watch(
 				audioRef.value.muted = newValue;
 			}
 			emit("muteChange", newValue);
+		}
+	}
+);
+
+// Preview zamanı değiştiğinde
+watch(
+	() => props.previewTime,
+	(newValue) => {
+		if (!videoElement || newValue === null) return;
+
+		// Eğer video oynatılmıyorsa önizleme zamanını güncelle
+		if (!videoState.value.isPlaying) {
+			videoElement.currentTime = newValue;
+			if (audioRef.value) {
+				audioRef.value.currentTime = newValue;
+			}
 		}
 	}
 );

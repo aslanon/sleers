@@ -40,6 +40,7 @@
 						:audio-type="audioType"
 						:is-playing="isPlaying"
 						:current-time="currentTime"
+						:preview-time="previewTime"
 						:is-muted="isMuted"
 						:segments="segments"
 						@video-loaded="onVideoLoaded"
@@ -78,6 +79,7 @@
 				:segments="segments"
 				:is-split-mode="isSplitMode"
 				@timeUpdate="handleTimeUpdate"
+				@previewTimeUpdate="handlePreviewTimeUpdate"
 				@segmentsReordered="handleSegmentsReordered"
 				@splitSegment="handleSegmentSplit"
 				ref="timelineRef"
@@ -550,6 +552,14 @@ const handleSegmentsReordered = (newSegments) => {
 
 // Video URL'lerini computed olarak yönet
 const videoSrc = computed(() => videoUrl.value || "");
+
+// Preview time state'i
+const previewTime = ref(null);
+
+// Preview time güncelleme
+const handlePreviewTimeUpdate = (time) => {
+	previewTime.value = time;
+};
 
 onMounted(() => {
 	console.log("[editor.vue] Component mount edildi");

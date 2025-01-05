@@ -43,6 +43,8 @@
 				class="timeline-ruler relative h-full select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
+				@mousemove="handleTimelineMouseMove"
+				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
 					class="timeline-content relative h-[220px] pt-6 transition-all ease-linear duration-300"
@@ -155,9 +157,34 @@
 						</div>
 					</div>
 
+					<!-- Preview Playhead -->
+					<div
+						v-show="previewPlayheadPosition !== null"
+						class="absolute top-0 bottom-0 transition-all ease-linear duration-75 w-[1px] bg-red-500/50 z-30"
+						:style="{
+							left: `${previewPlayheadPosition}%`,
+							transform: 'translateX(-50%)',
+						}"
+					></div>
+
+					<!-- Preview Playhead Handle -->
+					<div
+						v-show="previewPlayheadPosition !== null"
+						class="absolute -top-1 w-3 h-5 transition-all ease-linear duration-75 z-30"
+						:style="{
+							left: `${previewPlayheadPosition}%`,
+							transform: 'translateX(-50%)',
+						}"
+					>
+						<div
+							class="w-3 h-5 bg-red-500/50"
+							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+						></div>
+					</div>
+
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-[1px] bg-red-500 z-10"
+						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-[1px] bg-red-500 z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -230,6 +257,7 @@ const emit = defineEmits([
 	"segmentSelect",
 	"splitSegment",
 	"segmentsReordered",
+	"previewTimeUpdate",
 ]);
 
 // Referanslar ve state
@@ -360,10 +388,11 @@ const getSegmentStyle = (segment, index) => {
 	const start = segment.start || segment.startTime || 0;
 	const end = segment.end || segment.endTime || maxDuration.value;
 	const width = ((end - start) / maxDuration.value) * 100;
+	const left = (start / maxDuration.value) * 100;
 
 	return {
-		width: `calc(${width}% - 1px)`,
-		left: `${(start / maxDuration.value) * 100}%`,
+		width: `${width}%`,
+		left: `${left}%`,
 		position: "absolute",
 		transition: "all 0.2s ease",
 		zIndex: activeSegmentIndex.value === index ? "10" : "1",
@@ -372,6 +401,7 @@ const getSegmentStyle = (segment, index) => {
 		background:
 			"linear-gradient(180deg, rgba(140,91,7,1) 0%, rgba(205,141,30,1) 100%, rgba(254,168,19,1) 100%)",
 		border: "0.25px solid rgba(255, 255, 255, 0.1)",
+		height: "100%",
 	};
 };
 
@@ -475,16 +505,16 @@ const handleSegmentDragEnd = () => {
 	};
 };
 
-// Timeline tıklama ve playhead güncelleme
+// Timeline tıklama
 const handleTimelineClick = (e) => {
-	if (isDragging.value) return;
+	if (isDragging.value || isResizing.value) return;
 
 	const container = timelineRef.value;
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	// Sadece geçerli zaman aralığında olmasını kontrol et
+	// Geçerli zaman aralığında olmasını kontrol et
 	const validTime = Math.max(0, Math.min(props.duration, time));
 	emit("timeUpdate", validTime);
 };
@@ -703,6 +733,33 @@ const handleResizeEnd = () => {
 
 	window.removeEventListener("mousemove", handleResize);
 	window.removeEventListener("mouseup", handleResizeEnd);
+};
+
+// Preview playhead state'i
+const previewPlayheadPosition = ref(null);
+
+// Timeline üzerinde mouse hareketi
+const handleTimelineMouseMove = (e) => {
+	if (isDragging.value || isResizing.value) {
+		previewPlayheadPosition.value = null;
+		return;
+	}
+
+	const container = timelineRef.value;
+	const rect = container.getBoundingClientRect();
+	const x = e.clientX - rect.left + container.scrollLeft;
+	const time = (x / timelineWidth.value) * maxDuration.value;
+
+	// Geçerli zaman aralığında olmasını kontrol et
+	const validTime = Math.max(0, Math.min(props.duration, time));
+	previewPlayheadPosition.value = (validTime / maxDuration.value) * 100;
+	emit("previewTimeUpdate", validTime);
+};
+
+// Timeline'dan mouse çıkınca preview'i gizle
+const handleTimelineMouseLeave = () => {
+	previewPlayheadPosition.value = null;
+	emit("previewTimeUpdate", null);
 };
 </script>
 
