@@ -15,6 +15,8 @@ const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
 const ffmpeg = require("fluent-ffmpeg");
 
+let globalState = {};
+
 const TrayManager = require("./trayManager.cjs");
 const CameraManager = require("./cameraManager.cjs");
 const EditorManager = require("./editorManager.cjs");
@@ -243,9 +245,9 @@ async function createWindow() {
 		webPreferences: {
 			nodeIntegration: true,
 			contextIsolation: true,
-			preload: path.join(__dirname, "preload.cjs"),
-			webSecurity: false,
 			allowRunningInsecureContent: true,
+			preload: path.join(__dirname, "preload.cjs"),
+			webSecurity: true,
 			webviewTag: true,
 			additionalArguments: ["--disable-site-isolation-trials"],
 		},
@@ -719,4 +721,20 @@ ipcMain.handle("GET_CROP_INFO", async (event) => {
 ipcMain.on("UPDATE_SELECTED_AREA", (event, area) => {
 	console.log("[main.cjs] Seçilen alan güncelleniyor:", area);
 	global.selectedArea = area;
+});
+
+//// yeniler burada
+
+ipcMain.handle("GET_GLOBAL_STATE", () => globalState);
+
+// Global state'i güncellemek için bir handler
+ipcMain.handle("UPDATE_GLOBAL_STATE", (event, updatedState) => {
+	globalState = { ...globalState, ...updatedState };
+
+	// Güncellenen state'i diğer Renderer Process'lere ilet
+	BrowserWindow.getAllWindows().forEach((window) => {
+		window.webContents.send("GLOBAL_STATE_UPDATED", globalState);
+	});
+
+	return globalState; // Güncellenmiş state'i döndür
 });

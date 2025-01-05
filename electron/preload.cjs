@@ -31,4 +31,13 @@ contextBridge.exposeInMainWorld("electron", {
 	recording: {
 		getCropInfo: () => ipcRenderer.invoke("GET_CROP_INFO"),
 	},
+	globalState: {
+		get: () => ipcRenderer.invoke("GET_GLOBAL_STATE"),
+		update: (newState) => ipcRenderer.invoke("UPDATE_GLOBAL_STATE", newState),
+		listen: (callback) => {
+			ipcRenderer.on("GLOBAL_STATE_UPDATED", (event, updatedState) => {
+				callback(updatedState); // Callback'i tetikle
+			});
+		},
+	},
 });

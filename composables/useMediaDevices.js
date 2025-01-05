@@ -1,42 +1,39 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 
-export const useMediaDevices = () => {
+export const useMediaDevices = async () => {
 	const router = useRouter();
-	const cameraDevices = ref([]);
-	const microphoneDevices = ref([]);
-	const selectedCameraDevice = ref("");
-	const selectedMicrophoneDevice = ref("");
-	const mediaStream = ref(null);
-	const isRecording = ref(false);
+	let { state, get, update, listen } = useGlobalState();
 
 	const getDevices = async () => {
 		try {
 			const devices = await navigator.mediaDevices.enumerateDevices();
-			cameraDevices.value = devices.filter(
-				(device) => device.kind === "videoinput"
-			);
-			microphoneDevices.value = devices.filter(
-				(device) => device.kind === "audioinput"
-			);
 
-			if (cameraDevices.value.length > 0) {
-				selectedCameraDevice.value = cameraDevices.value[0].deviceId;
-			}
-			if (microphoneDevices.value.length > 0) {
-				selectedMicrophoneDevice.value = microphoneDevices.value[0].deviceId;
-			}
+			let cameraDevices = devices
+				.filter((device) => device.kind === "videoinput")
+				.map((device) => ({
+					deviceId: device.deviceId,
+					label: device.label,
+				}));
+
+			let microphoneDevices = devices
+				.filter((device) => device.kind === "audioinput")
+				.map((device) => ({
+					deviceId: device.deviceId,
+					label: device.label,
+				}));
+
+			update({
+				cameraDevices,
+				microphoneDevices,
+				selectedCameraDevice: cameraDevices[0].deviceId,
+				selectedMicrophoneDevice: microphoneDevices[0].deviceId,
+				mediaStream: null,
+				isRecording: false,
+			});
 		} catch (error) {
 			console.error("Cihazlar listelenirken hata oluştu:", error);
 		}
-	};
-
-	const updateSelectedCameraDevice = (deviceId) => {
-		selectedCameraDevice.value = deviceId;
-	};
-
-	const updateSelectedMicrophoneDevice = (deviceId) => {
-		selectedMicrophoneDevice.value = deviceId;
 	};
 
 	const startRecording = async (streamOptions) => {
@@ -76,11 +73,11 @@ export const useMediaDevices = () => {
 
 			// Ses yakalama (isteğe bağlı)
 			let audioStream = null;
-			if (selectedMicrophoneDevice.value) {
+			if (state.selectedMicrophoneDevice) {
 				try {
 					audioStream = await navigator.mediaDevices.getUserMedia({
 						audio: {
-							deviceId: { exact: selectedMicrophoneDevice.value },
+							deviceId: { exact: state.selectedMicrophoneDevice },
 							echoCancellation: true,
 							noiseSuppression: true,
 						},
@@ -202,16 +199,10 @@ export const useMediaDevices = () => {
 		}
 	};
 
+	await getDevices();
+
 	return {
-		cameraDevices,
-		microphoneDevices,
-		selectedCameraDevice,
-		selectedMicrophoneDevice,
-		mediaStream,
-		isRecording,
 		getDevices,
-		updateSelectedCameraDevice,
-		updateSelectedMicrophoneDevice,
 		startRecording,
 		stopRecording,
 		saveRecording,

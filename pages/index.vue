@@ -94,12 +94,12 @@
 		<!-- Kamera ve Mikrofon Seçimi -->
 		<div class="flex items-center space-x-4 flex-wrap">
 			<select
-				v-model="selectedCameraDevice"
+				v-model="state.selectedCameraDevice"
 				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
 				@change="(e) => updateSelectedCameraDevice(e.target.value)"
 			>
 				<option
-					v-for="device in cameraDevices"
+					v-for="device in state.cameraDevices"
 					:key="device.deviceId"
 					:value="device.deviceId"
 				>
@@ -107,12 +107,12 @@
 				</option>
 			</select>
 			<select
-				v-model="selectedMicrophoneDevice"
+				v-model="state.selectedMicrophoneDevice"
 				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
 				@change="(e) => updateSelectedMicrophoneDevice(e.target.value)"
 			>
 				<option
-					v-for="device in microphoneDevices"
+					v-for="device in state.microphoneDevices"
 					:key="device.deviceId"
 					:value="device.deviceId"
 				>
@@ -189,24 +189,47 @@
 
 			<!-- Kayıt Toggle Butonu -->
 			<button
-				@click="isRecording ? stopRecording() : startRecording()"
+				@click="state.isRecording ? stopRecording() : startRecording()"
 				class="flex items-center space-x-2 h-[36px] px-4 py-2 rounded-lg"
 				:class="
-					isRecording
+					state.isRecording
 						? 'bg-red-600 hover:bg-red-700'
 						: 'bg-gray-700 hover:bg-gray-600'
 				"
 			>
-				<span class="w-2 h-2 rounded-full bg-white" v-if="isRecording"></span>
-				<span>{{ isRecording ? "Durdur" : "Kaydet" }}</span>
+				<span
+					class="w-2 h-2 rounded-full bg-white"
+					v-if="state.isRecording"
+				></span>
+
+				<span>{{ state.isRecording ? "Durdur" : "Kaydet" }}</span>
 			</button>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
-import { useMediaDevices } from "~/composables/useMediaDevices";
+let { state, get, update, listen } = useGlobalState();
+await useMediaDevices();
+
+listen((newState) => {
+	state = newState;
+	console.log(11111, state);
+});
+// const {
+// 	cameraDevices,
+// 	microphoneDevices,
+// 	selectedCameraDevice,
+// 	selectedMicrophoneDevice,
+// 	getDevices,
+// 	isRecording,
+// 	mediaStream,
+// 	startRecording: startMediaStream,
+// 	stopRecording: stopMediaStream,
+// 	saveRecording,
+// 	updateSelectedCameraDevice,
+// 	updateSelectedMicrophoneDevice,
+// } = useMediaDevices();
 
 let mediaRecorder = null;
 
@@ -218,21 +241,6 @@ let audioContext = null;
 let audioAnalyser = null;
 let dataArray = null;
 let animationFrame = null;
-
-const {
-	cameraDevices,
-	microphoneDevices,
-	selectedCameraDevice,
-	selectedMicrophoneDevice,
-	getDevices,
-	isRecording,
-	mediaStream,
-	startRecording: startMediaStream,
-	stopRecording: stopMediaStream,
-	saveRecording,
-	updateSelectedCameraDevice,
-	updateSelectedMicrophoneDevice,
-} = useMediaDevices();
 
 const electron = window.electron;
 
@@ -292,46 +300,55 @@ const updateMicrophoneLevel = () => {
 	animationFrame = requestAnimationFrame(updateMicrophoneLevel);
 };
 
-onMounted(async () => {
-	// Cihazları yükle
-	await getDevices();
+// onMounted(async () => {
+// 	// Cihazları yükle
 
-	// Electron API'si yüklendiyse event listener'ları ekle
-	if (electron) {
-		// Alan seçimi event listener'ı
+// 	await getDevices();
 
-		// Tray'den kayıt kontrolü için event listener'lar
-		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
-			// Tray'den başlatılan kayıtlarda mevcut ses ayarlarını kullan
-			startRecording({
-				systemAudio: systemAudioEnabled.value,
-				microphone: microphoneEnabled.value,
-				microphoneDeviceId: selectedMicrophoneDevice.value,
-			});
-		});
+// 	// Electron API'si yüklendiyse event listener'ları ekle
+// 	if (electron) {
+// 		// Alan seçimi event listener'ı
 
-		electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
-			stopRecording();
-		});
+// 		setTimeout(() => {
+// 			update({ key: "value" });
+// 		}, 2000);
 
-		// Kamera durumunu dinle
-		electron.ipcRenderer.on("CAMERA_STATUS_CHANGED", (event, statusData) => {
-			if (statusData.status === "active") {
-				console.log("Kamera aktif:", statusData.deviceId);
-			} else if (statusData.status === "error") {
-				console.error("Kamera hatası:", statusData.error);
-			}
-		});
+// 		listen((state) => {
+// 			console.log(2222, state);
+// 		});
 
-		// Yeni kayıt için sıfırlama
-		electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
-	}
+// 		// Tray'den kayıt kontrolü için event listener'lar
+// 		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
+// 			// Tray'den başlatılan kayıtlarda mevcut ses ayarlarını kullan
+// 			startRecording({
+// 				systemAudio: systemAudioEnabled.value,
+// 				microphone: microphoneEnabled.value,
+// 				microphoneDeviceId: selectedMicrophoneDevice.value,
+// 			});
+// 		});
 
-	await initAudioAnalyser();
-});
+// 		electron.ipcRenderer.on("STOP_RECORDING_FROM_TRAY", () => {
+// 			stopRecording();
+// 		});
+
+// 		// Kamera durumunu dinle
+// 		electron.ipcRenderer.on("CAMERA_STATUS_CHANGED", (event, statusData) => {
+// 			if (statusData.status === "active") {
+// 				console.log("Kamera aktif:", statusData.deviceId);
+// 			} else if (statusData.status === "error") {
+// 				console.error("Kamera hatası:", statusData.error);
+// 			}
+// 		});
+
+// 		// Yeni kayıt için sıfırlama
+// 		electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
+// 	}
+
+// 	await initAudioAnalyser();
+// });
 
 // Kayıt durumu değiştiğinde tray'i güncelle
-watch(isRecording, (newValue) => {
+watch(state.isRecording, (newValue) => {
 	electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", newValue);
 });
 
