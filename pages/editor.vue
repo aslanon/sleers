@@ -186,6 +186,11 @@ const loadMedia = async (filePath, type = "video") => {
 			videoBlob.value = URL.createObjectURL(blob);
 			videoUrl.value = videoBlob.value;
 			videoType.value = mimeType;
+
+			// Video yüklendikten sonra ilk frame'i göster
+			if (mediaPlayerRef.value) {
+				mediaPlayerRef.value.seek(0);
+			}
 		} else {
 			if (audioBlob.value) URL.revokeObjectURL(audioBlob.value);
 			audioBlob.value = URL.createObjectURL(blob);
@@ -221,8 +226,24 @@ const onVideoLoaded = (data) => {
 				height: data.height || 1080,
 			};
 
-			// Mevcut segment'i güncelle
-			if (segments.value.length > 0) {
+			// İlk segment'i oluştur veya güncelle
+			if (segments.value.length === 0) {
+				segments.value = [
+					{
+						id: generateId(),
+						startTime: 0,
+						endTime: videoDuration.value,
+						start: 0,
+						end: videoDuration.value,
+						startPosition: "0%",
+						width: "100%",
+						type: "video",
+						layer: 0,
+						selected: false,
+						locked: false,
+					},
+				];
+			} else {
 				segments.value[0] = {
 					...segments.value[0],
 					startTime: 0,
@@ -230,15 +251,15 @@ const onVideoLoaded = (data) => {
 					start: 0,
 					end: videoDuration.value,
 				};
-
-				console.log("[editor.vue] Segment güncellendi:", {
-					duration: videoDuration.value,
-					segment: segments.value[0],
-				});
-
-				// Segment pozisyonlarını güncelle
-				updateSegments();
 			}
+
+			console.log("[editor.vue] Segment güncellendi:", {
+				duration: videoDuration.value,
+				segment: segments.value[0],
+			});
+
+			// Segment pozisyonlarını güncelle
+			updateSegments();
 		} else {
 			console.warn("[editor.vue] Video süresi geçersiz:", data);
 		}

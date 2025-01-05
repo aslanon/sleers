@@ -210,32 +210,12 @@ const initVideo = () => {
 			return;
 		}
 
-		if (videoElement) {
-			// Önceki video varsa temizle
-			videoElement.removeEventListener("loadedmetadata", onVideoMetadataLoaded);
-			videoElement.removeEventListener("loadeddata", onVideoDataLoaded);
-			videoElement.removeEventListener("durationchange", onDurationChange);
-			videoElement.removeEventListener("timeupdate", onTimeUpdate);
-			videoElement.removeEventListener("ended", onVideoEnded);
-			videoElement.removeEventListener("error", onVideoError);
-			videoElement.removeEventListener("play", onVideoPlay);
-			videoElement.removeEventListener("pause", onVideoPause);
-			videoElement.removeEventListener("seeking", onVideoSeeking);
-			videoElement.removeEventListener("seeked", onVideoSeeked);
-			videoElement.removeEventListener("ratechange", onVideoRateChange);
-			videoElement.removeEventListener("volumechange", onVideoVolumeChange);
-			videoElement.pause();
-			videoElement.src = "";
-			videoElement.load();
-			videoElement = null;
-		}
-
 		// Yeni video elementi oluştur
 		videoElement = document.createElement("video");
 		videoElement.crossOrigin = "anonymous";
 		videoElement.muted = !props.systemAudioEnabled;
 		videoElement.playsInline = true;
-		videoElement.preload = "metadata";
+		videoElement.preload = "auto";
 		videoElement.volume = videoState.value.volume;
 		videoElement.playbackRate = videoState.value.playbackRate;
 
@@ -256,6 +236,9 @@ const initVideo = () => {
 		// Video URL'ini set et ve yüklemeyi başlat
 		videoElement.src = props.videoUrl;
 		videoElement.load();
+
+		// İlk frame'i göster
+		videoElement.currentTime = 0;
 
 		console.log("[MediaPlayer] Video element oluşturuldu ve yükleniyor:", {
 			src: videoElement.src,
@@ -278,12 +261,6 @@ const onVideoMetadataLoaded = () => {
 			duration: videoElement.duration,
 			readyState: videoElement.readyState,
 		});
-
-		// Video hazır değilse bekle
-		if (videoElement.readyState < 1) {
-			console.log("[MediaPlayer] Video henüz hazır değil, bekleniyor...");
-			return;
-		}
 
 		// Context'i oluştur
 		ctx = canvasRef.value.getContext("2d", {
@@ -317,14 +294,14 @@ const onVideoMetadataLoaded = () => {
 				height,
 			});
 
+			// İlk frame'i göster
+			videoElement.currentTime = 0;
+
 			console.log("[MediaPlayer] Video metadata yüklendi:", {
 				width,
 				height,
 				duration,
 			});
-		} else {
-			// Duration henüz hazır değil, durationchange event'ini bekle
-			console.log("[MediaPlayer] Duration henüz hazır değil, bekleniyor...");
 		}
 	} catch (error) {
 		console.error("[MediaPlayer] Metadata yükleme hatası:", error);
@@ -343,12 +320,6 @@ const onVideoDataLoaded = () => {
 			readyState: videoElement.readyState,
 		});
 
-		// Video hazır değilse bekle
-		if (videoElement.readyState < 2) {
-			console.log("[MediaPlayer] Video data henüz hazır değil, bekleniyor...");
-			return;
-		}
-
 		const width = videoElement.videoWidth || 1920;
 		const height = videoElement.videoHeight || 1080;
 		const duration = isFinite(videoElement.duration)
@@ -361,6 +332,9 @@ const onVideoDataLoaded = () => {
 			width,
 			height,
 		});
+
+		// İlk frame'i göster
+		videoElement.currentTime = 0;
 
 		console.log("[MediaPlayer] Video data yüklendi:", {
 			width,
