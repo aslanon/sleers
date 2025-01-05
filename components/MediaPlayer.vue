@@ -173,249 +173,7 @@ const handleTimeUpdate = () => {
 };
 
 // Video oynatma kontrolü
-const togglePlay = () => {
-	if (!videoElement) return;
-
-	if (videoElement.paused) {
-		isPlayingSegments.value = true;
-		currentSegmentIndex.value = 0;
-
-		// İlk segmentin başlangıç zamanına git
-		if (props.segments && props.segments.length > 0) {
-			const firstSegment = props.segments[0];
-			const startTime = firstSegment.start || firstSegment.startTime || 0;
-			videoElement.currentTime = startTime;
-		}
-
-		videoElement
-			.play()
-			.then(() => {
-				emit("play");
-			})
-			.catch((error) => {
-				console.error("Video oynatma hatası:", error);
-				isPlayingSegments.value = false;
-				emit("pause");
-			});
-	} else {
-		isPlayingSegments.value = false;
-		videoElement.pause();
-		emit("pause");
-	}
-};
-
-// Video yükleme ve hazırlık
-const initVideo = () => {
-	try {
-		console.log("[MediaPlayer] Video yükleniyor, URL:", props.videoUrl);
-
-		if (!props.videoUrl) {
-			console.warn("[MediaPlayer] Video URL'i boş!");
-			return;
-		}
-
-		// Yeni video elementi oluştur
-		videoElement = document.createElement("video");
-		videoElement.crossOrigin = "anonymous";
-		videoElement.muted = !props.systemAudioEnabled;
-		videoElement.playsInline = true;
-		videoElement.preload = "auto";
-		videoElement.volume = videoState.value.volume;
-		videoElement.playbackRate = videoState.value.playbackRate;
-
-		// Event listener'ları ekle
-		videoElement.addEventListener("loadedmetadata", onVideoMetadataLoaded);
-		videoElement.addEventListener("loadeddata", onVideoDataLoaded);
-		videoElement.addEventListener("durationchange", onDurationChange);
-		videoElement.addEventListener("timeupdate", onTimeUpdate);
-		videoElement.addEventListener("ended", onVideoEnded);
-		videoElement.addEventListener("error", onVideoError);
-		videoElement.addEventListener("play", onVideoPlay);
-		videoElement.addEventListener("pause", onVideoPause);
-		videoElement.addEventListener("seeking", onVideoSeeking);
-		videoElement.addEventListener("seeked", onVideoSeeked);
-		videoElement.addEventListener("ratechange", onVideoRateChange);
-		videoElement.addEventListener("volumechange", onVideoVolumeChange);
-
-		// Video URL'ini set et ve yüklemeyi başlat
-		videoElement.src = props.videoUrl;
-		videoElement.load();
-
-		// İlk frame'i göster
-		videoElement.currentTime = 0;
-
-		console.log("[MediaPlayer] Video element oluşturuldu ve yükleniyor:", {
-			src: videoElement.src,
-			readyState: videoElement.readyState,
-			networkState: videoElement.networkState,
-		});
-	} catch (error) {
-		console.error("[MediaPlayer] Video yükleme hatası:", error);
-	}
-};
-
-// Video metadata ve data yükleme işleyicileri
-const onVideoMetadataLoaded = () => {
-	if (!videoElement || !canvasRef.value) return;
-
-	try {
-		console.log("[MediaPlayer] Video metadata yükleniyor:", {
-			videoWidth: videoElement.videoWidth,
-			videoHeight: videoElement.videoHeight,
-			duration: videoElement.duration,
-			readyState: videoElement.readyState,
-		});
-
-		// Context'i oluştur
-		ctx = canvasRef.value.getContext("2d", {
-			alpha: true,
-			desynchronized: true,
-			willReadFrequently: false,
-		});
-
-		// Render kalitesi ayarları
-		ctx.imageSmoothingEnabled = true;
-		ctx.imageSmoothingQuality = "high";
-
-		// Video boyutlarını kaydet
-		const width = videoElement.videoWidth || 1920;
-		const height = videoElement.videoHeight || 1080;
-		videoSize.value = { width, height };
-
-		// İlk render
-		handleResize();
-		updateCanvas(performance.now());
-
-		// Duration değerini kontrol et ve güncelle
-		if (videoElement.duration && videoElement.duration !== Infinity) {
-			const duration = videoElement.duration;
-			videoState.value.duration = duration;
-
-			// Video hazır event'i
-			emit("videoLoaded", {
-				duration,
-				width,
-				height,
-			});
-
-			// İlk frame'i göster
-			videoElement.currentTime = 0;
-
-			console.log("[MediaPlayer] Video metadata yüklendi:", {
-				width,
-				height,
-				duration,
-			});
-		}
-	} catch (error) {
-		console.error("[MediaPlayer] Metadata yükleme hatası:", error);
-	}
-};
-
-// Video data yüklendiğinde
-const onVideoDataLoaded = () => {
-	if (!videoElement) return;
-
-	try {
-		console.log("[MediaPlayer] Video data yükleniyor:", {
-			videoWidth: videoElement.videoWidth,
-			videoHeight: videoElement.videoHeight,
-			duration: videoElement.duration,
-			readyState: videoElement.readyState,
-		});
-
-		const width = videoElement.videoWidth || 1920;
-		const height = videoElement.videoHeight || 1080;
-		const duration = isFinite(videoElement.duration)
-			? videoElement.duration
-			: 0;
-
-		// Video hazır event'i
-		emit("videoLoaded", {
-			duration,
-			width,
-			height,
-		});
-
-		// İlk frame'i göster
-		videoElement.currentTime = 0;
-
-		console.log("[MediaPlayer] Video data yüklendi:", {
-			width,
-			height,
-			duration,
-		});
-	} catch (error) {
-		console.error("[MediaPlayer] Video data yükleme hatası:", error);
-	}
-};
-
-// Duration değişikliğini izle
-const onDurationChange = () => {
-	if (!videoElement) return;
-
-	try {
-		// Duration değerini kontrol et
-		if (videoElement.duration && videoElement.duration !== Infinity) {
-			const duration = videoElement.duration;
-			videoState.value.duration = duration;
-
-			// Eğer metadata yüklenmiş ama duration henüz emit edilmemişse
-			if (videoElement.readyState >= 1) {
-				emit("videoLoaded", {
-					duration,
-					width: videoSize.value.width,
-					height: videoSize.value.height,
-				});
-			}
-
-			console.log("[MediaPlayer] Video süresi güncellendi:", duration);
-		} else {
-			console.log(
-				"[MediaPlayer] Geçersiz duration değeri:",
-				videoElement.duration
-			);
-		}
-	} catch (error) {
-		console.error("[MediaPlayer] Süre güncelleme hatası:", error);
-	}
-};
-
-// Video event handlers
-const onVideoPlay = () => {
-	videoState.value.isPlaying = true;
-	videoState.value.isPaused = false;
-	emit("play", videoState.value);
-};
-
-const onVideoPause = () => {
-	videoState.value.isPlaying = false;
-	videoState.value.isPaused = true;
-	emit("pause", videoState.value);
-};
-
-const onVideoSeeking = () => {
-	videoState.value.isSeeking = true;
-	emit("seeking", videoState.value);
-};
-
-const onVideoSeeked = () => {
-	videoState.value.isSeeking = false;
-	emit("seeked", videoState.value);
-};
-
-const onVideoRateChange = () => {
-	videoState.value.playbackRate = videoElement.playbackRate;
-	emit("rateChange", videoState.value);
-};
-
-const onVideoVolumeChange = () => {
-	videoState.value.volume = videoElement.volume;
-	emit("volumeChange", videoState.value);
-};
-
-// Oynatma kontrolü
-const togglePlayback = async (e) => {
+const togglePlay = async (e) => {
 	e.preventDefault();
 	e.stopPropagation();
 
@@ -429,12 +187,19 @@ const togglePlayback = async (e) => {
 const play = async () => {
 	if (!videoElement) return;
 	try {
+		// Mevcut zamanı koru
+		const startTime = videoState.value.currentTime;
+
+		// Video ve ses elementlerini başlat
+		videoElement.currentTime = startTime;
 		await videoElement.play();
+
 		// Ses elementini de oynat
 		if (audioRef.value) {
-			audioRef.value.currentTime = videoElement.currentTime;
+			audioRef.value.currentTime = startTime;
 			await audioRef.value.play();
 		}
+
 		if (!animationFrame) {
 			animationFrame = requestAnimationFrame(updateCanvas);
 		}
@@ -483,17 +248,19 @@ const toggleFullscreen = async (e) => {
 const onTimeUpdate = () => {
 	if (!videoElement) return;
 
-	// Sadece video oynatılıyorsa veya seeking yapılıyorsa zamanı güncelle
-	if (videoState.value.isPlaying || videoState.value.isSeeking) {
-		videoState.value.currentTime = videoElement.currentTime;
+	// Sadece video oynatılıyorsa zamanı güncelle
+	if (videoState.value.isPlaying) {
+		const currentTime = videoElement.currentTime;
+		videoState.value.currentTime = currentTime;
+
 		// Ses zamanını da senkronize et
 		if (
 			audioRef.value &&
-			Math.abs(audioRef.value.currentTime - videoElement.currentTime) > 0.1
+			Math.abs(audioRef.value.currentTime - currentTime) > 0.1
 		) {
-			audioRef.value.currentTime = videoElement.currentTime;
+			audioRef.value.currentTime = currentTime;
 		}
-		emit("timeUpdate", videoElement.currentTime);
+		emit("timeUpdate", currentTime);
 	}
 };
 
@@ -805,6 +572,207 @@ const updateCanvas = (timestamp) => {
 	}
 };
 
+// Video yükleme ve hazırlık
+const initVideo = () => {
+	try {
+		console.log("[MediaPlayer] Video yükleniyor, URL:", props.videoUrl);
+
+		if (!props.videoUrl) {
+			console.warn("[MediaPlayer] Video URL'i boş!");
+			return;
+		}
+
+		// Yeni video elementi oluştur
+		videoElement = document.createElement("video");
+		videoElement.crossOrigin = "anonymous";
+		videoElement.muted = !props.systemAudioEnabled;
+		videoElement.playsInline = true;
+		videoElement.preload = "auto";
+		videoElement.volume = videoState.value.volume;
+		videoElement.playbackRate = videoState.value.playbackRate;
+
+		// Event listener'ları ekle
+		videoElement.addEventListener("loadedmetadata", onVideoMetadataLoaded);
+		videoElement.addEventListener("loadeddata", onVideoDataLoaded);
+		videoElement.addEventListener("durationchange", onDurationChange);
+		videoElement.addEventListener("timeupdate", onTimeUpdate);
+		videoElement.addEventListener("ended", onVideoEnded);
+		videoElement.addEventListener("error", onVideoError);
+		videoElement.addEventListener("play", onVideoPlay);
+		videoElement.addEventListener("pause", onVideoPause);
+		videoElement.addEventListener("seeking", onVideoSeeking);
+		videoElement.addEventListener("seeked", onVideoSeeked);
+		videoElement.addEventListener("ratechange", onVideoRateChange);
+		videoElement.addEventListener("volumechange", onVideoVolumeChange);
+
+		// Video URL'ini set et ve yüklemeyi başlat
+		videoElement.src = props.videoUrl;
+		videoElement.load();
+
+		console.log("[MediaPlayer] Video element oluşturuldu ve yükleniyor:", {
+			src: videoElement.src,
+			readyState: videoElement.readyState,
+			networkState: videoElement.networkState,
+		});
+	} catch (error) {
+		console.error("[MediaPlayer] Video yükleme hatası:", error);
+	}
+};
+
+// Video metadata ve data yükleme işleyicileri
+const onVideoMetadataLoaded = () => {
+	if (!videoElement || !canvasRef.value) return;
+
+	try {
+		console.log("[MediaPlayer] Video metadata yükleniyor:", {
+			videoWidth: videoElement.videoWidth,
+			videoHeight: videoElement.videoHeight,
+			duration: videoElement.duration,
+			readyState: videoElement.readyState,
+		});
+
+		// Context'i oluştur
+		ctx = canvasRef.value.getContext("2d", {
+			alpha: true,
+			desynchronized: true,
+			willReadFrequently: false,
+		});
+
+		// Render kalitesi ayarları
+		ctx.imageSmoothingEnabled = true;
+		ctx.imageSmoothingQuality = "high";
+
+		// Video boyutlarını kaydet
+		const width = videoElement.videoWidth || 1920;
+		const height = videoElement.videoHeight || 1080;
+		videoSize.value = { width, height };
+
+		// İlk render
+		handleResize();
+		updateCanvas(performance.now());
+
+		// Duration değerini kontrol et ve güncelle
+		if (videoElement.duration && videoElement.duration !== Infinity) {
+			const duration = videoElement.duration;
+			videoState.value.duration = duration;
+
+			// Video hazır event'i
+			emit("videoLoaded", {
+				duration,
+				width,
+				height,
+			});
+
+			console.log("[MediaPlayer] Video metadata yüklendi:", {
+				width,
+				height,
+				duration,
+			});
+		}
+	} catch (error) {
+		console.error("[MediaPlayer] Metadata yükleme hatası:", error);
+	}
+};
+
+// Video data yüklendiğinde
+const onVideoDataLoaded = () => {
+	if (!videoElement) return;
+
+	try {
+		console.log("[MediaPlayer] Video data yükleniyor:", {
+			videoWidth: videoElement.videoWidth,
+			videoHeight: videoElement.videoHeight,
+			duration: videoElement.duration,
+			readyState: videoElement.readyState,
+		});
+
+		const width = videoElement.videoWidth || 1920;
+		const height = videoElement.videoHeight || 1080;
+		const duration = isFinite(videoElement.duration)
+			? videoElement.duration
+			: 0;
+
+		// Video hazır event'i
+		emit("videoLoaded", {
+			duration,
+			width,
+			height,
+		});
+
+		console.log("[MediaPlayer] Video data yüklendi:", {
+			width,
+			height,
+			duration,
+		});
+	} catch (error) {
+		console.error("[MediaPlayer] Video data yükleme hatası:", error);
+	}
+};
+
+// Duration değişikliğini izle
+const onDurationChange = () => {
+	if (!videoElement) return;
+
+	try {
+		// Duration değerini kontrol et
+		if (videoElement.duration && videoElement.duration !== Infinity) {
+			const duration = videoElement.duration;
+			videoState.value.duration = duration;
+
+			// Eğer metadata yüklenmiş ama duration henüz emit edilmemişse
+			if (videoElement.readyState >= 1) {
+				emit("videoLoaded", {
+					duration,
+					width: videoSize.value.width,
+					height: videoSize.value.height,
+				});
+			}
+
+			console.log("[MediaPlayer] Video süresi güncellendi:", duration);
+		} else {
+			console.log(
+				"[MediaPlayer] Geçersiz duration değeri:",
+				videoElement.duration
+			);
+		}
+	} catch (error) {
+		console.error("[MediaPlayer] Süre güncelleme hatası:", error);
+	}
+};
+
+// Video event handlers
+const onVideoPlay = () => {
+	videoState.value.isPlaying = true;
+	videoState.value.isPaused = false;
+	emit("play", videoState.value);
+};
+
+const onVideoPause = () => {
+	videoState.value.isPlaying = false;
+	videoState.value.isPaused = true;
+	emit("pause", videoState.value);
+};
+
+const onVideoSeeking = () => {
+	videoState.value.isSeeking = true;
+	emit("seeking", videoState.value);
+};
+
+const onVideoSeeked = () => {
+	videoState.value.isSeeking = false;
+	emit("seeked", videoState.value);
+};
+
+const onVideoRateChange = () => {
+	videoState.value.playbackRate = videoElement.playbackRate;
+	emit("rateChange", videoState.value);
+};
+
+const onVideoVolumeChange = () => {
+	videoState.value.volume = videoElement.volume;
+	emit("volumeChange", videoState.value);
+};
+
 // Component lifecycle
 onMounted(() => {
 	initVideo();
@@ -882,8 +850,13 @@ watch(
 	() => props.currentTime,
 	(newValue) => {
 		if (!videoElement) return;
-		if (Math.abs(videoElement.currentTime - newValue) > 0.1) {
+
+		// Sadece video oynatılmıyorsa ve preview yapılmıyorsa zamanı güncelle
+		if (!videoState.value.isPlaying && props.previewTime === null) {
 			videoElement.currentTime = newValue;
+			if (audioRef.value) {
+				audioRef.value.currentTime = newValue;
+			}
 		}
 	}
 );
@@ -920,23 +893,22 @@ watch(
 	(newValue) => {
 		if (!videoElement || newValue === null) return;
 
-		// Eğer video oynatılmıyorsa ve seeking işlemi yapılmıyorsa önizleme zamanını güncelle
-		if (!videoState.value.isPlaying && !videoState.value.isSeeking) {
+		// Eğer video oynatılmıyorsa preview zamanını güncelle
+		if (!videoState.value.isPlaying) {
 			// Ses elementini durdur
 			if (audioRef.value && !audioRef.value.paused) {
 				audioRef.value.pause();
 			}
 
-			// Video zamanını güncelle
+			// Preview için video zamanını güncelle ama timeUpdate emit etme
 			videoElement.currentTime = newValue;
+			videoState.value.currentTime = newValue; // State'i de güncelle
 
-			// Canvas'ı güncelle
-			requestAnimationFrame(() => {
-				updateCanvas(performance.now());
-			});
+			// Canvas'ı hemen güncelle
+			updateCanvas(performance.now());
 		}
 	},
-	{ flush: "post" } // Vue'nun DOM güncellemelerinden sonra çalıştır
+	{ flush: "sync" } // 'post' yerine 'sync' kullanarak daha hızlı güncelleme sağla
 );
 
 // Component metodlarını dışa aktar
