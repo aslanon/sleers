@@ -346,6 +346,7 @@ ipcMain.on("WINDOW_CLOSE", () => {
 	if (mainWindow) {
 		mainWindow.close();
 		cameraManager.cleanup();
+		app.quit();
 	}
 });
 
