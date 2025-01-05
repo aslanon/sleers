@@ -29,67 +29,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
-
-const electron = window.electron;
 const videoRef = ref(null);
-let stream = null;
-
-// Kamerayı başlat
-const startCamera = async () => {
-	try {
-		if (stream) {
-			stopCamera();
-		}
-
-		stream = await navigator.mediaDevices.getUserMedia({
-			video: {
-				width: { ideal: 1920 },
-				height: { ideal: 1080 },
-			},
-		});
-
-		if (videoRef.value) {
-			videoRef.value.srcObject = stream;
-		}
-	} catch (error) {
-		console.error("Kamera başlatılırken hata:", error);
-	}
-};
-
-// Kamerayı durdur
-const stopCamera = () => {
-	if (stream) {
-		stream.getTracks().forEach((track) => track.stop());
-		stream = null;
-	}
-	if (videoRef.value) {
-		videoRef.value.srcObject = null;
-	}
-};
-
-// Component mount olduğunda
-onMounted(() => {
-	startCamera();
-
-	// Kamera kontrol mesajlarını dinle
-	electron?.ipcRenderer.on("STOP_CAMERA", () => {
-		stopCamera();
-	});
-
-	electron?.ipcRenderer.on("START_CAMERA", () => {
-		startCamera();
-	});
-});
-
-// Component unmount olduğunda
-onUnmounted(() => {
-	stopCamera();
-	if (window.electron) {
-		window.electron.ipcRenderer.removeAllListeners("STOP_CAMERA");
-		window.electron.ipcRenderer.removeAllListeners("START_CAMERA");
-	}
-});
 </script>
 
 <style scoped>

@@ -28,7 +28,7 @@
 		<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
 
 		<!-- Kayıt Kontrolleri -->
-		<div class="flex items-center space-x-2">
+		<!-- <div class="flex items-center space-x-2">
 			<button
 				class="p-2 hover:bg-gray-700 rounded-lg"
 				:class="{ 'bg-gray-700': selectedSource === 'display' }"
@@ -89,32 +89,34 @@
 					/>
 				</svg>
 			</button>
-		</div>
+		</div> -->
 
 		<!-- Kamera ve Mikrofon Seçimi -->
 		<div class="flex items-center space-x-4 flex-wrap">
 			<select
-				v-model="selectedVideoDevice"
+				v-model="selectedCameraDevice"
 				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
+				@change="(e) => updateSelectedCameraDevice(e.target.value)"
 			>
 				<option
-					v-for="device in videoDevices"
-					:key="device.deviceId"
-					:value="device.label"
-				>
-					{{ device.label || `Kamera ${device.deviceId}` }}
-				</option>
-			</select>
-			<select
-				v-model="selectedAudioDevice"
-				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
-			>
-				<option
-					v-for="device in audioDevices"
+					v-for="device in cameraDevices"
 					:key="device.deviceId"
 					:value="device.deviceId"
 				>
-					{{ device.label || `Mikrofon ${device.deviceId}` }}
+					{{ device.label }}
+				</option>
+			</select>
+			<select
+				v-model="selectedMicrophoneDevice"
+				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
+				@change="(e) => updateSelectedMicrophoneDevice(e.target.value)"
+			>
+				<option
+					v-for="device in microphoneDevices"
+					:key="device.deviceId"
+					:value="device.deviceId"
+				>
+					{{ device.label }}
 				</option>
 			</select>
 
@@ -218,16 +220,18 @@ let dataArray = null;
 let animationFrame = null;
 
 const {
-	videoDevices,
-	audioDevices,
-	selectedVideoDevice,
-	selectedAudioDevice,
+	cameraDevices,
+	microphoneDevices,
+	selectedCameraDevice,
+	selectedMicrophoneDevice,
 	getDevices,
 	isRecording,
 	mediaStream,
 	startRecording: startMediaStream,
 	stopRecording: stopMediaStream,
 	saveRecording,
+	updateSelectedCameraDevice,
+	updateSelectedMicrophoneDevice,
 } = useMediaDevices();
 
 const electron = window.electron;
@@ -240,29 +244,12 @@ const toggleSystemAudio = () => {
 	systemAudioEnabled.value = !systemAudioEnabled.value;
 };
 
-const selectSource = (source) => {
-	selectedSource.value = source;
-	if (source === "area") {
-		electron?.ipcRenderer.send("START_AREA_SELECTION");
-	}
-};
-
-// Kamera değişikliği izleyicisi
-watch(selectedVideoDevice, async (deviceLabel) => {
-	if (deviceLabel) {
-		try {
-			console.log("[index.vue] Seçilen kamera label:", deviceLabel);
-			// Kamera değişikliğini main process'e bildir
-			electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", deviceLabel);
-			console.log(
-				"[index.vue] Kamera değişikliği main process'e gönderildi:",
-				deviceLabel
-			);
-		} catch (error) {
-			console.error("[index.vue] Kamera değişikliği sırasında hata:", error);
-		}
-	}
-});
+// const selectSource = (source) => {
+// 	selectedSource.value = source;
+// 	if (source === "area") {
+// 		electron?.ipcRenderer.send("START_AREA_SELECTION");
+// 	}
+// };
 
 const toggleMicrophone = () => {
 	microphoneEnabled.value = !microphoneEnabled.value;
@@ -276,8 +263,8 @@ const initAudioAnalyser = async () => {
 
 		const stream = await navigator.mediaDevices.getUserMedia({
 			audio: {
-				deviceId: selectedAudioDevice.value
-					? { exact: selectedAudioDevice.value }
+				deviceId: selectedMicrophoneDevice.value
+					? { exact: selectedMicrophoneDevice.value }
 					: undefined,
 			},
 		});
@@ -305,18 +292,6 @@ const updateMicrophoneLevel = () => {
 	animationFrame = requestAnimationFrame(updateMicrophoneLevel);
 };
 
-// Mikrofon değişikliğini izle
-watch(selectedAudioDevice, async () => {
-	if (audioContext) {
-		audioContext.close();
-		audioContext = null;
-	}
-	if (animationFrame) {
-		cancelAnimationFrame(animationFrame);
-	}
-	await initAudioAnalyser();
-});
-
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
@@ -331,7 +306,7 @@ onMounted(async () => {
 			startRecording({
 				systemAudio: systemAudioEnabled.value,
 				microphone: microphoneEnabled.value,
-				microphoneDeviceId: selectedAudioDevice.value,
+				microphoneDeviceId: selectedMicrophoneDevice.value,
 			});
 		});
 
@@ -396,7 +371,7 @@ const startRecording = async (options = null) => {
 		const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
 		const useMicrophone = options?.microphone ?? microphoneEnabled.value;
 		const micDeviceId =
-			options?.microphoneDeviceId ?? selectedAudioDevice.value;
+			options?.microphoneDeviceId ?? selectedMicrophoneDevice.value;
 
 		// Ses yapılandırmasını oluştur
 		const audioConfig = {
@@ -556,7 +531,6 @@ const stopRecording = async () => {
 	document.body.classList.remove("recording");
 };
 
-// Pencere sürükleme işleyicileri
 const handleMouseDown = (e) => {
 	electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
 };
@@ -569,25 +543,6 @@ const handleMouseUp = () => {
 	electron?.windowControls.endDrag();
 };
 
-// Mikrofon değişikliğini izle
-watch(selectedAudioDevice, async (newDeviceId) => {
-	if (newDeviceId) {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: {
-					deviceId: { exact: newDeviceId },
-				},
-			});
-
-			// Yeni ses stream'ini kayıt için sakla
-			currentAudioStream.value = stream;
-		} catch (error) {
-			console.error("Mikrofon değiştirme hatası:", error);
-		}
-	}
-});
-
-// Pencere sürükleme fonksiyonları
 const startDrag = (event) => {
 	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
 		x: event.screenX,
