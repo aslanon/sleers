@@ -31,6 +31,9 @@ const tempFiles = new Map();
 let mediaState = {
 	videoPath: null,
 	audioPath: null,
+	systemAudioPath: null,
+	lastRecordingTime: null,
+	isEditing: false,
 };
 
 // Pencere sürükleme için değişkenler
@@ -40,42 +43,39 @@ let dragOffset = { x: 0, y: 0 };
 // Editor Manager instance'ı
 let editorManager = null;
 
+// State'i renderer process'e gönderen fonksiyon
+function sendMediaStateToRenderer(window) {
+	if (window && !window.isDestroyed()) {
+		window.webContents.send("MEDIA_STATE_UPDATE", mediaState);
+	}
+}
+
 // IPC handler for recording status
 ipcMain.on("RECORDING_STATUS_CHANGED", async (event, status) => {
 	console.log("Kayıt durumu değişti:", status);
 
 	if (status) {
-		// Kayıt başladığında sadece ana pencereyi gizle
 		if (mainWindow) mainWindow.hide();
 	} else {
 		// Kayıt bittiğinde mediaState'i güncelle
-		mediaState.videoPath =
-			tempFiles.get("screen") || tempFiles.get("video") || null;
-		mediaState.audioPath = tempFiles.get("audio") || null;
+		mediaState = {
+			...mediaState,
+			videoPath: tempFiles.get("screen") || tempFiles.get("video") || null,
+			audioPath: tempFiles.get("audio") || null,
+			lastRecordingTime: new Date().toISOString(),
+			isEditing: true,
+		};
 
 		console.log("MediaState güncellendi:", mediaState);
 
 		// Kayıt bittiğinde editor'ü göster ve kamerayı gizle
 		if (cameraManager) cameraManager.closeCameraWindow();
 		if (editorManager) {
-			// Medya yollarını editor'e gönder
 			await editorManager.showEditorWindow();
-			console.log(
-				"Editor penceresi açıldı, mediaState gönderiliyor:",
-				mediaState
-			);
-
-			setTimeout(() => {
-				if (editorManager.editorWindow) {
-					editorManager.editorWindow.webContents.send(
-						"MEDIA_PATHS",
-						mediaState
-					);
-					console.log("MediaState editöre gönderildi");
-				} else {
-					console.error("Editor penceresi bulunamadı");
-				}
-			}, 2000);
+			// State'i hemen gönder
+			if (editorManager.editorWindow) {
+				sendMediaStateToRenderer(editorManager.editorWindow);
+			}
 		}
 	}
 
@@ -83,6 +83,22 @@ ipcMain.on("RECORDING_STATUS_CHANGED", async (event, status) => {
 	if (trayManager) {
 		trayManager.setRecordingStatus(status);
 	}
+});
+
+// Editor penceresi kapandığında state'i temizle
+ipcMain.on("EDITOR_CLOSED", () => {
+	mediaState = {
+		videoPath: null,
+		audioPath: null,
+		systemAudioPath: null,
+		lastRecordingTime: null,
+		isEditing: false,
+	};
+});
+
+// State'i isteyen renderer process'lere gönder
+ipcMain.handle("GET_MEDIA_STATE", () => {
+	return mediaState;
 });
 
 // Kamera değişikliği için IPC handler
