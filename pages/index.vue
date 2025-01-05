@@ -210,7 +210,9 @@
 
 <script setup>
 let { state, get, update } = useGlobalState();
-await useMediaDevices();
+let { getDevices } = await useMediaDevices();
+
+await getDevices();
 
 // const {
 // 	cameraDevices,

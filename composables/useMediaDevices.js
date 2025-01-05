@@ -211,8 +211,6 @@ export const useMediaDevices = async () => {
 		}
 	};
 
-	await getDevices();
-
 	return {
 		getDevices,
 		startRecording,

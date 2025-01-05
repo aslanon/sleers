@@ -388,7 +388,7 @@ ipcMain.on("START_AREA_SELECTION", () => {
 		skipTaskbar: true,
 		resizable: false,
 		webPreferences: {
-			nodeIntegration: false,
+			nodeIntegration: true,
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.cjs"),
 		},
