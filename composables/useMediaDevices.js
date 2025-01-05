@@ -3,7 +3,7 @@ import { useRouter } from "vue-router";
 
 export const useMediaDevices = async () => {
 	const router = useRouter();
-	let { state, get, update, listen } = useGlobalState();
+	let { state, update } = useGlobalState();
 
 	const getDevices = async () => {
 		try {
@@ -34,6 +34,18 @@ export const useMediaDevices = async () => {
 		} catch (error) {
 			console.error("Cihazlar listelenirken hata oluştu:", error);
 		}
+	};
+
+	const getCameraStream = async () => {
+		const stream = await navigator.mediaDevices.getUserMedia({
+			video: { deviceId: state.selectedCameraDevice },
+		});
+
+		update({
+			mediaStream: stream,
+		});
+
+		return stream;
 	};
 
 	const startRecording = async (streamOptions) => {

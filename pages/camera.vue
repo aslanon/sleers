@@ -9,9 +9,9 @@
 		></video>
 
 		<div
-			v-if="false"
 			class="absolute max-w-[220px] bottom-6 text-xl text-white bg-purple-600 text-center rounded-full rounded-tl-none px-4 py-2"
 		>
+			{{ state.selectedCameraDevice }}
 			aslanon
 		</div>
 		<svg v-if="false" class="circular-text" viewBox="0 0 100 100">
@@ -30,6 +30,7 @@
 </template>
 
 <script setup>
+let { state, get, update } = useGlobalState();
 const videoRef = ref(null);
 </script>
 

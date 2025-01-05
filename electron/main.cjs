@@ -729,6 +729,7 @@ ipcMain.handle("GET_GLOBAL_STATE", () => globalState);
 
 // Global state'i güncellemek için bir handler
 ipcMain.handle("UPDATE_GLOBAL_STATE", (event, updatedState) => {
+	console.log(updatedState);
 	globalState = { ...globalState, ...updatedState };
 
 	// Güncellenen state'i diğer Renderer Process'lere ilet

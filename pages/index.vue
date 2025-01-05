@@ -96,7 +96,7 @@
 			<select
 				v-model="state.selectedCameraDevice"
 				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
-				@change="(e) => updateSelectedCameraDevice(e.target.value)"
+				@change="(e) => update({ selectedCameraDevice: e.target.value })"
 			>
 				<option
 					v-for="device in state.cameraDevices"
@@ -109,7 +109,7 @@
 			<select
 				v-model="state.selectedMicrophoneDevice"
 				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
-				@change="(e) => updateSelectedMicrophoneDevice(e.target.value)"
+				@change="(e) => update({ selectedMicrophoneDevice: e.target.value })"
 			>
 				<option
 					v-for="device in state.microphoneDevices"
@@ -209,13 +209,9 @@
 </template>
 
 <script setup>
-let { state, get, update, listen } = useGlobalState();
+let { state, get, update } = useGlobalState();
 await useMediaDevices();
 
-listen((newState) => {
-	state = newState;
-	console.log(11111, state);
-});
 // const {
 // 	cameraDevices,
 // 	microphoneDevices,

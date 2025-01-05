@@ -1,32 +1,10 @@
-// export const useGlobalState = () => {
-// 	if (window && window.electron) {
-// 		const get = () => {
-// 			return window.electron.globalState.get();
-// 		};
-
-// 		const update = (newState) => {
-// 			return window.electron.globalState.update(newState);
-// 		};
-
-// 		const listen = (func) => {
-// 			return window.electron.globalState.listen(func);
-// 		};
-
-// 		return {
-// 			get,
-// 			update,
-// 			listen,
-// 		};
-// 	}
-
-// 	return null;
-// };
 import { ref, onUnmounted } from "vue";
 
 export const useGlobalState = () => {
 	if (window && window.electron && window.electron.globalState) {
-		const state = ref({}); // Tepkisel global state
-		let listener = null; // Tek bir listener'ı saklamak için
+		// Tek bir reaktif state tanımlanır
+		const state = ref({});
+		let isListening = false; // Dinleyicinin kurulu olup olmadığını kontrol eder
 
 		// Global state'i preload API'den al ve güncelle
 		const get = async () => {
@@ -50,42 +28,30 @@ export const useGlobalState = () => {
 			}
 		};
 
-		// Global state güncellemelerini dinle
-		const listen = (callback) => {
-			if (listener) {
-				// Zaten bir listener varsa, önce temizle
-				window.electron.globalState.removeListener(
-					"GLOBAL_STATE_UPDATED",
-					listener
-				);
+		// Tek bir dinleyici kur
+		const setupListener = () => {
+			if (!isListening) {
+				window.electron.globalState.listen((updatedState) => {
+					state.value = updatedState; // Tepkisel state'i güncelle
+				});
+				isListening = true; // Dinleyicinin kurulu olduğunu işaretle
 			}
-
-			listener = (updatedState) => {
-				state.value = updatedState; // Tepkisel state'i güncelle
-				if (callback) callback(updatedState); // Kullanıcı callback'ini çağır
-			};
-
-			window.electron.globalState.listen(listener);
 		};
 
-		// Bileşen unmount edildiğinde dinleyiciyi temizle
+		// Bileşen unmount edildiğinde temizle (isteğe bağlı)
 		onUnmounted(() => {
-			if (listener) {
-				window.electron.globalState.removeListener(
-					"GLOBAL_STATE_UPDATED",
-					listener
-				);
-			}
+			// Eğer dinleyici kaldırılmak istenirse buraya bir `removeListener` eklenebilir
+			isListening = false; // Gerekirse dinleyici durumunu sıfırla
 		});
 
-		// Başlangıçta state'i yükle
+		// İlk kurulumda global state'i al ve dinleyiciyi ayarla
 		get();
+		setupListener();
 
 		return {
 			state, // Tepkisel state
 			get,
 			update,
-			listen,
 		};
 	} else {
 		console.warn("Electron veya globalState API'si mevcut değil!");

@@ -34,10 +34,11 @@ contextBridge.exposeInMainWorld("electron", {
 	globalState: {
 		get: () => ipcRenderer.invoke("GET_GLOBAL_STATE"),
 		update: (newState) => ipcRenderer.invoke("UPDATE_GLOBAL_STATE", newState),
-		listen: (callback) => {
-			ipcRenderer.on("GLOBAL_STATE_UPDATED", (event, updatedState) => {
-				callback(updatedState); // Callback'i tetikle
-			});
-		},
+		listen: (callback) =>
+			ipcRenderer.on("GLOBAL_STATE_UPDATED", (event, updatedState) =>
+				callback(updatedState)
+			),
+		removeListener: (eventName, listener) =>
+			ipcRenderer.removeListener(eventName, listener),
 	},
 });
