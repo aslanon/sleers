@@ -206,6 +206,9 @@
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 
+// IPC event isimlerini al
+const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
+
 let mediaRecorder = null;
 
 const selectedSource = ref("display");
@@ -216,6 +219,9 @@ let audioContext = null;
 let audioAnalyser = null;
 let dataArray = null;
 let animationFrame = null;
+
+// Ses stream'i için ref
+const currentAudioStream = ref(null);
 
 const {
 	videoDevices,
@@ -236,9 +242,75 @@ const closeWindow = () => {
 	electron?.windowControls.close();
 };
 
+// Ses ayarlarını güncelle
+const updateAudioSettings = (settings) => {
+	if (!electron?.ipcRenderer || !IPC_EVENTS?.UPDATE_AUDIO_SETTINGS) {
+		console.warn("[index.vue] Electron veya IPC_EVENTS tanımlı değil");
+		return;
+	}
+	try {
+		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, settings);
+	} catch (error) {
+		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
+	}
+};
+
+// Mikrofon durumu değiştiğinde
+const toggleMicrophone = () => {
+	microphoneEnabled.value = !microphoneEnabled.value;
+	updateAudioSettings({
+		microphoneEnabled: microphoneEnabled.value,
+	});
+};
+
+// Sistem sesi durumu değiştiğinde
 const toggleSystemAudio = () => {
 	systemAudioEnabled.value = !systemAudioEnabled.value;
+	updateAudioSettings({
+		systemAudioEnabled: systemAudioEnabled.value,
+	});
 };
+
+// Mikrofon seviyesi güncellendiğinde
+const updateMicrophoneLevel = () => {
+	if (!audioAnalyser || !dataArray) return;
+
+	audioAnalyser.getByteFrequencyData(dataArray);
+	const average =
+		dataArray.reduce((acc, value) => acc + value, 0) / dataArray.length;
+	microphoneLevel.value = Math.min(100, (average / 255) * 100);
+
+	// MediaState'e mikrofon seviyesini gönder
+	updateAudioSettings({
+		microphoneLevel: microphoneLevel.value,
+	});
+
+	animationFrame = requestAnimationFrame(updateMicrophoneLevel);
+};
+
+// Mikrofon değişikliğini izle
+watch(selectedAudioDevice, async (newDeviceId) => {
+	if (newDeviceId) {
+		try {
+			// MediaState'e yeni mikrofon cihazını bildir
+			updateAudioSettings({
+				selectedAudioDevice: newDeviceId,
+			});
+
+			// Ses stream'ini güncelle
+			if (audioContext) {
+				audioContext.close();
+				audioContext = null;
+			}
+			if (animationFrame) {
+				cancelAnimationFrame(animationFrame);
+			}
+			await initAudioAnalyser();
+		} catch (error) {
+			console.error("[index.vue] Mikrofon değiştirme hatası:", error);
+		}
+	}
+});
 
 const selectSource = (source) => {
 	selectedSource.value = source;
@@ -264,70 +336,38 @@ watch(selectedVideoDevice, async (deviceLabel) => {
 	}
 });
 
-const toggleMicrophone = () => {
-	microphoneEnabled.value = !microphoneEnabled.value;
-};
-
-const initAudioAnalyser = async () => {
-	try {
-		if (!audioContext) {
-			audioContext = new (window.AudioContext || window.webkitAudioContext)();
-		}
-
-		const stream = await navigator.mediaDevices.getUserMedia({
-			audio: {
-				deviceId: selectedAudioDevice.value
-					? { exact: selectedAudioDevice.value }
-					: undefined,
-			},
-		});
-
-		const source = audioContext.createMediaStreamSource(stream);
-		audioAnalyser = audioContext.createAnalyser();
-		audioAnalyser.fftSize = 256;
-		source.connect(audioAnalyser);
-
-		dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-		updateMicrophoneLevel();
-	} catch (error) {
-		console.error("Mikrofon analiz hatası:", error);
-	}
-};
-
-const updateMicrophoneLevel = () => {
-	if (!audioAnalyser || !dataArray) return;
-
-	audioAnalyser.getByteFrequencyData(dataArray);
-	const average =
-		dataArray.reduce((acc, value) => acc + value, 0) / dataArray.length;
-	microphoneLevel.value = Math.min(100, (average / 255) * 100);
-
-	animationFrame = requestAnimationFrame(updateMicrophoneLevel);
-};
-
-// Mikrofon değişikliğini izle
-watch(selectedAudioDevice, async () => {
-	if (audioContext) {
-		audioContext.close();
-		audioContext = null;
-	}
-	if (animationFrame) {
-		cancelAnimationFrame(animationFrame);
-	}
-	await initAudioAnalyser();
-});
-
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
 
 	// Electron API'si yüklendiyse event listener'ları ekle
 	if (electron) {
-		// Alan seçimi event listener'ı
+		// MediaState'i al ve ses durumlarını güncelle
+		const mediaState = await electron.ipcRenderer.invoke(
+			IPC_EVENTS.GET_MEDIA_STATE
+		);
+		if (mediaState?.audioSettings) {
+			microphoneEnabled.value = mediaState.audioSettings.microphoneEnabled;
+			systemAudioEnabled.value = mediaState.audioSettings.systemAudioEnabled;
+			if (mediaState.audioSettings.selectedAudioDevice) {
+				selectedAudioDevice.value =
+					mediaState.audioSettings.selectedAudioDevice;
+			}
+		}
+
+		// MediaState güncellemelerini dinle
+		electron.ipcRenderer.on(IPC_EVENTS.MEDIA_STATE_UPDATE, (state) => {
+			if (state?.audioSettings) {
+				microphoneEnabled.value = state.audioSettings.microphoneEnabled;
+				systemAudioEnabled.value = state.audioSettings.systemAudioEnabled;
+				if (state.audioSettings.selectedAudioDevice) {
+					selectedAudioDevice.value = state.audioSettings.selectedAudioDevice;
+				}
+			}
+		});
 
 		// Tray'den kayıt kontrolü için event listener'lar
 		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
-			// Tray'den başlatılan kayıtlarda mevcut ses ayarlarını kullan
 			startRecording({
 				systemAudio: systemAudioEnabled.value,
 				microphone: microphoneEnabled.value,
@@ -604,6 +644,35 @@ const drag = (event) => {
 
 const endDrag = () => {
 	electron?.ipcRenderer.send("END_WINDOW_DRAG");
+};
+
+const initAudioAnalyser = async () => {
+	try {
+		if (!audioContext) {
+			audioContext = new (window.AudioContext || window.webkitAudioContext)();
+		}
+
+		const stream = await navigator.mediaDevices.getUserMedia({
+			audio: {
+				deviceId: selectedAudioDevice.value
+					? { exact: selectedAudioDevice.value }
+					: undefined,
+			},
+		});
+
+		// Stream'i sakla
+		currentAudioStream.value = stream;
+
+		const source = audioContext.createMediaStreamSource(stream);
+		audioAnalyser = audioContext.createAnalyser();
+		audioAnalyser.fftSize = 256;
+		source.connect(audioAnalyser);
+
+		dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+		updateMicrophoneLevel();
+	} catch (error) {
+		console.error("[index.vue] Mikrofon analiz hatası:", error);
+	}
 };
 </script>
 

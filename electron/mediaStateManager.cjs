@@ -13,6 +13,12 @@ class MediaStateManager {
 			isEditing: false,
 			isRecording: false,
 			recordingStartTime: null,
+			audioSettings: {
+				microphoneEnabled: true,
+				systemAudioEnabled: true,
+				selectedAudioDevice: null,
+				microphoneLevel: 0,
+			},
 			processingStatus: {
 				isProcessing: false,
 				progress: 0,
@@ -227,6 +233,12 @@ class MediaStateManager {
 			isEditing: false,
 			isRecording: false,
 			recordingStartTime: null,
+			audioSettings: {
+				microphoneEnabled: true,
+				systemAudioEnabled: true,
+				selectedAudioDevice: null,
+				microphoneLevel: 0,
+			},
 			processingStatus: {
 				isProcessing: false,
 				progress: 0,
@@ -369,6 +381,54 @@ class MediaStateManager {
 		if (this.recordingCheckInterval) {
 			clearInterval(this.recordingCheckInterval);
 		}
+	}
+
+	updateAudioSettings(settings) {
+		console.log("[MediaStateManager] Ses ayarları güncelleniyor:", settings);
+		this.updateState({
+			audioSettings: {
+				...this.state.audioSettings,
+				...settings,
+			},
+		});
+	}
+
+	updateMicrophoneLevel(level) {
+		if (this.state.audioSettings.microphoneEnabled) {
+			this.updateState({
+				audioSettings: {
+					...this.state.audioSettings,
+					microphoneLevel: level,
+				},
+			});
+		}
+	}
+
+	toggleMicrophone() {
+		this.updateState({
+			audioSettings: {
+				...this.state.audioSettings,
+				microphoneEnabled: !this.state.audioSettings.microphoneEnabled,
+			},
+		});
+	}
+
+	toggleSystemAudio() {
+		this.updateState({
+			audioSettings: {
+				...this.state.audioSettings,
+				systemAudioEnabled: !this.state.audioSettings.systemAudioEnabled,
+			},
+		});
+	}
+
+	setAudioDevice(deviceId) {
+		this.updateState({
+			audioSettings: {
+				...this.state.audioSettings,
+				selectedAudioDevice: deviceId,
+			},
+		});
 	}
 }
 

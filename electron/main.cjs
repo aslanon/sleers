@@ -279,6 +279,20 @@ function setupIpcHandlers() {
 		if (cameraManager) cameraManager.showCameraWindow();
 		tempFileManager.cleanupAllFiles();
 	});
+
+	// Audio Settings
+	ipcMain.on(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, (event, settings) => {
+		if (mediaStateManager) {
+			mediaStateManager.updateAudioSettings(settings);
+		}
+	});
+
+	ipcMain.handle(IPC_EVENTS.GET_AUDIO_SETTINGS, () => {
+		if (mediaStateManager) {
+			return mediaStateManager.state.audioSettings;
+		}
+		return null;
+	});
 }
 
 async function createWindow() {
