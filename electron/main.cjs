@@ -18,11 +18,12 @@ const ffmpeg = require("fluent-ffmpeg");
 const TrayManager = require("./trayManager.cjs");
 const CameraManager = require("./cameraManager.cjs");
 const EditorManager = require("./editorManager.cjs");
+const SelectionManager = require("./selectionManager.cjs");
 
 let trayManager = null;
 let cameraManager = null;
+let selectionManager = null;
 let mainWindow = null;
-let selectionWindow = null;
 let tempVideoPath = null;
 // Geçici dosyaları saklamak için bir Map
 const tempFiles = new Map();
@@ -271,6 +272,7 @@ async function createWindow() {
 
 	trayManager = new TrayManager(mainWindow);
 	cameraManager = new CameraManager(mainWindow);
+	selectionManager = new SelectionManager(mainWindow);
 
 	trayManager.createTray();
 	cameraManager.createCameraWindow();
@@ -326,6 +328,9 @@ app.on("before-quit", () => {
 	if (cameraManager) {
 		cameraManager.cleanup();
 	}
+	if (selectionManager) {
+		selectionManager.cleanup();
+	}
 });
 
 // IPC handlers for desktop capturer
@@ -352,86 +357,49 @@ ipcMain.on("WINDOW_CLOSE", () => {
 
 // IPC handlers for area selection
 ipcMain.on("START_AREA_SELECTION", () => {
-	const { screen } = require("electron");
-	const displays = screen.getAllDisplays();
-	const primaryDisplay = screen.getPrimaryDisplay();
-
-	let totalWidth = 0;
-	let totalHeight = 0;
-	let minX = 0;
-	let minY = 0;
-
-	displays.forEach((display) => {
-		const { bounds } = display;
-		minX = Math.min(minX, bounds.x);
-		minY = Math.min(minY, bounds.y);
-		totalWidth = Math.max(totalWidth, bounds.x + bounds.width);
-		totalHeight = Math.max(totalHeight, bounds.y + bounds.height);
-	});
-
-	if (selectionWindow) {
-		selectionWindow.close();
-		selectionWindow = null;
-	}
-
-	selectionWindow = new BrowserWindow({
-		width: totalWidth - minX,
-		height: totalHeight - minY,
-		x: minX,
-		y: minY,
-		transparent: true,
-		frame: false,
-		fullscreen: false,
-		alwaysOnTop: true,
-		skipTaskbar: true,
-		resizable: false,
-		webPreferences: {
-			nodeIntegration: false,
-			contextIsolation: true,
-			preload: path.join(__dirname, "preload.cjs"),
-		},
-	});
-
-	selectionWindow.setVisibleOnAllWorkspaces(true);
-	selectionWindow.setAlwaysOnTop(true, "screen-saver");
-
-	if (isDev) {
-		selectionWindow.loadURL("http://127.0.0.1:3000/selection");
-	} else {
-		selectionWindow.loadFile(
-			path.join(__dirname, "../.output/public/selection/index.html")
-		);
+	if (selectionManager) {
+		selectionManager.startAreaSelection();
 	}
 });
 
-// IPC handlers for area selection completion
 ipcMain.on("AREA_SELECTED", (event, area) => {
-	console.log("Seçilen alan:", {
-		...area,
-		aspectRatio: area.aspectRatio || "free",
-	});
-
-	// Seçilen alanı global değişkende sakla
-	global.selectedArea = {
-		...area,
-		x: Math.round(area.x),
-		y: Math.round(area.y),
-		width: Math.round(area.width),
-		height: Math.round(area.height),
-		aspectRatio: area.aspectRatio || "free",
-		display: area.display,
-		devicePixelRatio: area.devicePixelRatio || 1,
-	};
-
-	if (mainWindow) {
-		mainWindow.webContents.send("AREA_SELECTED", global.selectedArea);
+	if (selectionManager) {
+		selectionManager.handleAreaSelected(area);
 	}
+});
+
+ipcMain.on("UPDATE_SELECTED_AREA", (event, area) => {
+	if (selectionManager) {
+		selectionManager.updateSelectedArea(area);
+	}
+});
+
+ipcMain.handle("GET_CROP_INFO", async (event) => {
+	if (selectionManager) {
+		const selectedArea = selectionManager.getSelectedArea();
+		if (
+			selectedArea &&
+			typeof selectedArea.width === "number" &&
+			typeof selectedArea.height === "number"
+		) {
+			return {
+				x: Math.round(selectedArea.x || 0),
+				y: Math.round(selectedArea.y || 0),
+				width: Math.round(selectedArea.width),
+				height: Math.round(selectedArea.height),
+				scale: 1,
+			};
+		}
+	}
+	return null;
 });
 
 // Yeni kayıt için temizlik
 ipcMain.on("RESET_FOR_NEW_RECORDING", () => {
 	// Seçilen alanı sıfırla
-	global.selectedArea = null;
+	if (selectionManager) {
+		selectionManager.resetSelection();
+	}
 
 	// Editor'ü gizle
 	if (editorManager) {
@@ -563,45 +531,4 @@ ipcMain.on("CLOSE_EDITOR_WINDOW", () => {
 	if (editorManager) {
 		editorManager.closeEditorWindow();
 	}
-});
-
-// Kırpma bilgisi için IPC handler
-ipcMain.handle("GET_CROP_INFO", async (event) => {
-	try {
-		// Seçilen alan bilgisini kontrol et
-		const selectedArea = global.selectedArea;
-		console.log(
-			"[main.cjs] GET_CROP_INFO çağrıldı, mevcut selectedArea:",
-			selectedArea
-		);
-
-		if (
-			selectedArea &&
-			typeof selectedArea.width === "number" &&
-			typeof selectedArea.height === "number"
-		) {
-			// Seçilen alan varsa, basitleştirilmiş formatı döndür
-			const cropInfo = {
-				x: Math.round(selectedArea.x || 0),
-				y: Math.round(selectedArea.y || 0),
-				width: Math.round(selectedArea.width),
-				height: Math.round(selectedArea.height),
-				scale: 1,
-			};
-			console.log("[main.cjs] Kırpma bilgisi döndürülüyor:", cropInfo);
-			return cropInfo;
-		}
-
-		console.log("[main.cjs] Kırpma bilgisi bulunamadı, null döndürülüyor");
-		return null;
-	} catch (error) {
-		console.error("[main.cjs] Kırpma bilgisi alınırken hata:", error);
-		return null;
-	}
-});
-
-// Seçilen alan güncellemesi için IPC handler
-ipcMain.on("UPDATE_SELECTED_AREA", (event, area) => {
-	console.log("[main.cjs] Seçilen alan güncelleniyor:", area);
-	global.selectedArea = area;
 });
