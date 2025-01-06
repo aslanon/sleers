@@ -31,8 +31,21 @@
 
 <script setup>
 let { state, update } = useGlobalState();
-const { getCameraStream } = await useMediaDevices();
+const { getCameraStream, stopRecording } = await useMediaDevices();
 const videoRef = ref(null);
+
+watch(
+	() => state.value.selectedCameraDevice,
+	async (newState) => {
+		videoRef.value.srcObject = null;
+		stopRecording();
+		setTimeout(async () => {
+			let stream = await getCameraStream(newState);
+
+			videoRef.value.srcObject = stream;
+		}, 2000);
+	}
+);
 
 onMounted(async () => {
 	let stream = await getCameraStream();

@@ -3,6 +3,8 @@ import { useRouter } from "vue-router";
 
 export const useMediaDevices = async () => {
 	const router = useRouter();
+	let mediaStream = ref(null);
+	let isRecording = ref(false);
 	let { state, update } = useGlobalState();
 
 	const getDevices = async () => {
@@ -36,13 +38,21 @@ export const useMediaDevices = async () => {
 		}
 	};
 
-	const getCameraStream = async () => {
+	const getCameraStream = async (id) => {
 		const stream = await navigator.mediaDevices.getUserMedia({
-			video: { deviceId: state.selectedCameraDevice },
+			video: { deviceId: id || state.selectedCameraDevice },
 		});
 
+		mediaStream.value = stream;
 		update({
-			mediaStream: stream,
+			mediaStream: {
+				active: stream.active,
+				id: stream.id,
+				onactive: stream.onactive,
+				onaddtrack: stream.onaddtrack,
+				oninactive: stream.oninactive,
+				onremovetrack: stream.onremovetrack,
+			},
 		});
 
 		return stream;
@@ -124,6 +134,9 @@ export const useMediaDevices = async () => {
 			});
 			mediaStream.value = null;
 			isRecording.value = false;
+			update({
+				mediaStream: null,
+			});
 		}
 	};
 
