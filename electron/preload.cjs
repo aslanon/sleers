@@ -1,14 +1,23 @@
 // Valid channels
 
 const { contextBridge, ipcRenderer } = require("electron");
+const { IPC_EVENTS } = require("./constants.cjs");
 
 contextBridge.exposeInMainWorld("electron", {
 	ipcRenderer: {
-		send: (channel, ...args) => ipcRenderer.send(channel, ...args),
+		IPC_EVENTS,
 		on: (channel, func) => {
 			ipcRenderer.on(channel, (event, ...args) => func(...args));
 		},
-		invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+		once: (channel, func) => {
+			ipcRenderer.once(channel, (event, ...args) => func(...args));
+		},
+		send: (channel, ...args) => {
+			ipcRenderer.send(channel, ...args);
+		},
+		invoke: (channel, ...args) => {
+			return ipcRenderer.invoke(channel, ...args);
+		},
 		removeAllListeners: (channel) => {
 			ipcRenderer.removeAllListeners(channel);
 		},

@@ -39,20 +39,91 @@ function setupIpcHandlers() {
 	// Recording status
 	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_CHANGED, async (event, status) => {
 		console.log("Kayıt durumu değişti:", status);
-		mediaStateManager.handleRecordingStatusChange(status, tempFileManager);
 
-		if (!status) {
-			if (cameraManager) cameraManager.closeCameraWindow();
-			if (editorManager) {
-				await editorManager.showEditorWindow();
-				if (editorManager.editorWindow) {
-					mediaStateManager.notifyRenderers(editorManager.editorWindow);
+		try {
+			const result = await mediaStateManager.handleRecordingStatusChange(
+				status,
+				tempFileManager
+			);
+
+			if (!status) {
+				// Kayıt durdurulduğunda
+				if (cameraManager) {
+					cameraManager.closeCameraWindow();
+				}
+
+				// Medya dosyaları hazır olduğunda editor'ü aç
+				if (result && editorManager) {
+					try {
+						// Editor'ü açmadan önce son bir kez daha medya dosyalarını kontrol et
+						if (!mediaStateManager.isMediaReady()) {
+							throw new Error("Medya dosyaları hazır değil");
+						}
+
+						await editorManager.showEditorWindow();
+
+						if (editorManager.editorWindow) {
+							// Editor'ün yüklenmesini bekle
+							await new Promise((resolve, reject) => {
+								const timeout = setTimeout(() => {
+									reject(new Error("Editor yükleme zaman aşımı"));
+								}, 10000);
+
+								editorManager.editorWindow.webContents.once(
+									"did-finish-load",
+									() => {
+										clearTimeout(timeout);
+										resolve();
+									}
+								);
+							});
+
+							// Editor'e medya durumunu gönder
+							mediaStateManager.notifyRenderers(editorManager.editorWindow);
+
+							// Editor hazır olduğunu bildir
+							editorManager.editorWindow.webContents.send(
+								IPC_EVENTS.EDITOR_READY
+							);
+						}
+					} catch (error) {
+						console.error("Editor açılırken hata:", error);
+
+						// Hata durumunda ana pencereyi göster ve kullanıcıyı bilgilendir
+						if (mainWindow) {
+							mainWindow.show();
+							mainWindow.webContents.send(
+								IPC_EVENTS.EDITOR_LOAD_ERROR,
+								error.message
+							);
+						}
+
+						// State'i sıfırla
+						mediaStateManager.resetState();
+					}
+				} else {
+					console.error(
+						"Medya dosyaları hazırlanamadı veya editor yüklenemedi"
+					);
+					if (mainWindow) {
+						mainWindow.show();
+						mainWindow.webContents.send(
+							IPC_EVENTS.RECORDING_ERROR,
+							"Kayıt işlemi tamamlanamadı"
+						);
+					}
 				}
 			}
-		}
 
-		if (trayManager) {
-			trayManager.setRecordingStatus(status);
+			if (trayManager) {
+				trayManager.setRecordingStatus(status);
+			}
+		} catch (error) {
+			console.error("Kayıt işlemi sırasında hata:", error);
+			if (mainWindow) {
+				mainWindow.show();
+				mainWindow.webContents.send(IPC_EVENTS.RECORDING_ERROR, error.message);
+			}
 		}
 	});
 
@@ -143,6 +214,42 @@ function setupIpcHandlers() {
 	// File operations
 	ipcMain.handle(IPC_EVENTS.SAVE_TEMP_VIDEO, async (event, data, type) => {
 		return await tempFileManager.saveTempVideo(data, type);
+	});
+
+	ipcMain.handle(IPC_EVENTS.READ_VIDEO_FILE, async (event, filePath) => {
+		try {
+			if (!filePath || !fs.existsSync(filePath)) {
+				console.error("[main.cjs] Dosya bulunamadı:", filePath);
+				return null;
+			}
+
+			const stats = fs.statSync(filePath);
+			if (stats.size === 0) {
+				console.error("[main.cjs] Dosya boş:", filePath);
+				return null;
+			}
+
+			console.log("[main.cjs] Video dosyası okunuyor:", {
+				path: filePath,
+				size: stats.size,
+				sizeInMB: (stats.size / (1024 * 1024)).toFixed(2) + "MB",
+			});
+
+			const buffer = await fs.promises.readFile(filePath);
+			return buffer.toString("base64");
+		} catch (error) {
+			console.error("[main.cjs] Video dosyası okunurken hata:", error);
+			return null;
+		}
+	});
+
+	ipcMain.handle(IPC_EVENTS.GET_MEDIA_PATHS, () => {
+		return {
+			videoPath:
+				tempFileManager.getFilePath("screen") ||
+				tempFileManager.getFilePath("video"),
+			audioPath: tempFileManager.getFilePath("audio"),
+		};
 	});
 
 	ipcMain.handle(IPC_EVENTS.SHOW_SAVE_DIALOG, async (event, options) => {
@@ -293,6 +400,7 @@ app.on("activate", () => {
 
 app.on("before-quit", () => {
 	app.isQuitting = true;
+	if (mediaStateManager) mediaStateManager.cleanup();
 	if (tempFileManager) tempFileManager.cleanupAllFiles();
 	if (cameraManager) cameraManager.cleanup();
 	if (selectionManager) selectionManager.cleanup();

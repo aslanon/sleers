@@ -95,6 +95,9 @@ import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
 
+// IPC event isimlerini al
+const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
+
 // Yardımcı fonksiyonlar
 const generateId = () => {
 	return "id-" + Math.random().toString(36).substr(2, 9);
@@ -156,13 +159,16 @@ const cropState = ref({
 // Video ve ses dosyalarını yükle
 const loadMedia = async (filePath, type = "video") => {
 	try {
+		console.log(`[editor.vue] ${type} yükleniyor:`, filePath);
+
 		const base64Data = await electron?.ipcRenderer.invoke(
-			"READ_VIDEO_FILE",
+			IPC_EVENTS.READ_VIDEO_FILE,
 			filePath
 		);
+
 		if (!base64Data) {
-			console.error(`[editor.vue] ${type} dosyası okunamadı`);
-			return;
+			console.error(`[editor.vue] ${type} dosyası okunamadı:`, filePath);
+			throw new Error(`${type} dosyası okunamadı`);
 		}
 
 		const extension = filePath.split(".").pop()?.toLowerCase();
@@ -204,9 +210,11 @@ const loadMedia = async (filePath, type = "video") => {
 			url: type === "video" ? videoUrl.value : audioUrl.value,
 			type: type === "video" ? videoType.value : audioType.value,
 			size: blob.size,
+			mimeType,
 		});
 	} catch (error) {
 		console.error(`[editor.vue] ${type} yükleme hatası:`, error);
+		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
 	}
 };
 
@@ -561,54 +569,67 @@ const handlePreviewTimeUpdate = (time) => {
 	previewTime.value = time;
 };
 
-onMounted(() => {
-	console.log("[editor.vue] Component mount edildi");
+onMounted(async () => {
+	try {
+		// İlk olarak mevcut media state'i al
+		const mediaState = await electron?.ipcRenderer.invoke(
+			IPC_EVENTS.GET_MEDIA_STATE
+		);
+		console.log("[editor.vue] Başlangıç media state:", mediaState);
 
-	// Video işleme durumunu kontrol et
-	electron?.ipcRenderer
-		.invoke("CHECK_PROCESSING_STATUS")
-		.then((status) => {
-			console.log("[editor.vue] Video işleme durumu:", status);
-
-			if (status.isProcessing) {
-				console.log("[editor.vue] Video işleniyor, tamamlanmasını bekliyoruz");
-
-				// Video işleme tamamlandığında tetiklenecek event listener
-				electron?.ipcRenderer.once("PROCESSING_COMPLETE", async (paths) => {
-					console.log(
-						"[editor.vue] Video işleme tamamlandı, medya yükleniyor:",
-						paths
-					);
-					if (paths.videoPath) await loadMedia(paths.videoPath, "video");
-					if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
-				});
+		if (mediaState) {
+			if (mediaState.videoPath) {
+				console.log(
+					"[editor.vue] Video dosyası yükleniyor:",
+					mediaState.videoPath
+				);
+				await loadMedia(mediaState.videoPath, "video");
 			} else {
-				// Video işleme tamamlanmışsa direkt path'leri al
-				electron?.ipcRenderer.invoke("GET_MEDIA_PATHS").then(async (paths) => {
-					console.log("[editor.vue] Media paths alındı:", paths);
-					if (paths.videoPath) await loadMedia(paths.videoPath, "video");
-					if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
-				});
+				console.error("[editor.vue] Video dosyası bulunamadı");
+				electron?.ipcRenderer.send(
+					IPC_EVENTS.EDITOR_LOAD_ERROR,
+					"Video dosyası bulunamadı"
+				);
+				return;
 			}
-		})
-		.catch((error) => {
-			console.error(
-				"[editor.vue] Video işleme durumu kontrol edilirken hata:",
-				error
-			);
+
+			if (mediaState.audioPath) {
+				console.log(
+					"[editor.vue] Ses dosyası yükleniyor:",
+					mediaState.audioPath
+				);
+				await loadMedia(mediaState.audioPath, "audio");
+			}
+		}
+
+		// Media state güncellemelerini dinle
+		electron?.ipcRenderer.on(IPC_EVENTS.MEDIA_STATE_UPDATE, async (state) => {
+			console.log("[editor.vue] Media state güncellendi:", state);
+			if (state.videoPath && state.videoPath !== videoUrl.value) {
+				await loadMedia(state.videoPath, "video");
+			}
+			if (state.audioPath && state.audioPath !== audioUrl.value) {
+				await loadMedia(state.audioPath, "audio");
+			}
 		});
 
-	// Diğer event listener'lar
-	electron?.ipcRenderer.on("MEDIA_PATHS", async (paths) => {
-		console.log("[editor.vue] MEDIA_PATHS eventi alındı:", paths);
-		if (paths.videoPath) await loadMedia(paths.videoPath, "video");
-		if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
-	});
+		// Processing complete event'ini dinle
+		electron?.ipcRenderer.on(IPC_EVENTS.PROCESSING_COMPLETE, async (paths) => {
+			console.log("[editor.vue] Processing complete:", paths);
+			if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
+		});
 
-	electron?.ipcRenderer.on("START_EDITING", (videoData) => {
-		console.log("[editor.vue] START_EDITING eventi alındı:", videoData);
-		startEditing(videoData);
-	});
+		// Media paths event'ini dinle
+		electron?.ipcRenderer.on(IPC_EVENTS.MEDIA_PATHS, async (paths) => {
+			console.log("[editor.vue] Media paths güncellendi:", paths);
+			if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
+		});
+	} catch (error) {
+		console.error("[editor.vue] Başlangıç hatası:", error);
+		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
+	}
 });
 
 onUnmounted(() => {
