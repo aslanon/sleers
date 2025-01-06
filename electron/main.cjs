@@ -530,5 +530,6 @@ ipcMain.on("END_WINDOW_DRAG", () => {
 ipcMain.on("CLOSE_EDITOR_WINDOW", () => {
 	if (editorManager) {
 		editorManager.closeEditorWindow();
+		app.quit();
 	}
 });
