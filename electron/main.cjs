@@ -293,6 +293,66 @@ function setupIpcHandlers() {
 		}
 		return null;
 	});
+
+	// Video kaydetme işlemi
+	ipcMain.handle(
+		IPC_EVENTS.SAVE_VIDEO_FILE,
+		async (event, arrayBuffer, filePath, cropInfo, audioArrayBuffer) => {
+			try {
+				console.log("[main] Video kaydetme işlemi başlatıldı");
+
+				// ArrayBuffer'ı Buffer'a çevir
+				const videoBuffer = Buffer.from(arrayBuffer);
+				const audioBuffer = audioArrayBuffer
+					? Buffer.from(audioArrayBuffer)
+					: null;
+
+				// Geçici dosya oluştur
+				const tempVideoPath = path.join(app.getPath("temp"), "temp_video.mp4");
+				const tempAudioPath = audioBuffer
+					? path.join(app.getPath("temp"), "temp_audio.mp3")
+					: null;
+
+				// Dosyaları geçici olarak kaydet
+				await fs.promises.writeFile(tempVideoPath, videoBuffer);
+				if (audioBuffer) {
+					await fs.promises.writeFile(tempAudioPath, audioBuffer);
+				}
+
+				// FFmpeg ile video işleme
+				return new Promise((resolve, reject) => {
+					let command = ffmpeg(tempVideoPath);
+
+					if (audioBuffer) {
+						command = command.input(tempAudioPath);
+					}
+
+					if (cropInfo) {
+						command = command.videoFilters([
+							`crop=${cropInfo.width}:${cropInfo.height}:${cropInfo.x}:${cropInfo.y}`,
+						]);
+					}
+
+					command
+						.on("end", () => {
+							// Geçici dosyaları temizle
+							fs.unlinkSync(tempVideoPath);
+							if (tempAudioPath) fs.unlinkSync(tempAudioPath);
+							console.log("[main] Video başarıyla kaydedildi:", filePath);
+							resolve({ success: true, path: filePath });
+						})
+						.on("error", (err) => {
+							console.error("[main] Video kaydedilirken hata:", err);
+							reject(err);
+						})
+						.save(filePath);
+				});
+			} catch (error) {
+				console.error("[main] Video kaydetme hatası:", error);
+				throw error;
+			}
+		}
+	);
 }
 
 async function createWindow() {
