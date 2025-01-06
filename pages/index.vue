@@ -209,7 +209,7 @@
 </template>
 
 <script setup>
-let { state, get, update } = useGlobalState();
+let { state, update } = useGlobalState();
 let { getDevices } = await useMediaDevices();
 
 await getDevices();

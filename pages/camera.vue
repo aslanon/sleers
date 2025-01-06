@@ -30,8 +30,15 @@
 </template>
 
 <script setup>
-let { state, get, update } = useGlobalState();
+let { state, update } = useGlobalState();
+const { getCameraStream } = await useMediaDevices();
 const videoRef = ref(null);
+
+onMounted(async () => {
+	let stream = await getCameraStream();
+
+	videoRef.value.srcObject = stream;
+});
 </script>
 
 <style scoped>

@@ -211,8 +211,18 @@ export const useMediaDevices = async () => {
 		}
 	};
 
+	watch(
+		() => state.selectedCameraDevice,
+		async (newCameraId) => {
+			if (newCameraId) {
+				console.log("Seçili kamera değişti:", newCameraId);
+			}
+		}
+	);
+
 	return {
 		getDevices,
+		getCameraStream,
 		startRecording,
 		stopRecording,
 		saveRecording,
