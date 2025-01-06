@@ -30,6 +30,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { useMacCursor } from "~/composables/useMacCursor";
 
 const props = defineProps({
 	videoUrl: {
@@ -98,6 +99,8 @@ const emit = defineEmits([
 const containerRef = ref(null);
 const canvasRef = ref(null);
 const audioRef = ref(null);
+const videoRef = ref(null);
+const { drawCursor } = useMacCursor();
 
 // Context
 let ctx = null;
@@ -566,6 +569,9 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
+	// Cursor'ı ortaya çiz
+	drawCursor(ctx, canvas.width / 2, canvas.height / 2);
+
 	// Video oynatılıyorsa veya sürükleme/zoom yapılıyorsa animasyonu devam ettir
 	if (videoState.value.isPlaying || isDragging.value) {
 		animationFrame = requestAnimationFrame(updateCanvas);
@@ -781,6 +787,9 @@ onMounted(() => {
 	if (videoElement) {
 		videoElement.addEventListener("timeupdate", handleTimeUpdate);
 	}
+	if (videoRef.value && canvasRef.value) {
+		renderVideo();
+	}
 });
 
 onUnmounted(() => {
@@ -810,6 +819,10 @@ onUnmounted(() => {
 	if (videoElement) {
 		videoElement.removeEventListener("timeupdate", handleTimeUpdate);
 	}
+
+	// Video ve canvas referanslarını temizle
+	videoRef.value = null;
+	canvasRef.value = null;
 });
 
 // Tam ekran değişikliği
@@ -910,6 +923,28 @@ watch(
 	},
 	{ flush: "sync" } // 'post' yerine 'sync' kullanarak daha hızlı güncelleme sağla
 );
+
+// Video render fonksiyonu
+const renderVideo = () => {
+	if (!canvasRef.value || !videoRef.value) return;
+
+	const canvas = canvasRef.value;
+	const ctx = canvas.getContext("2d");
+	const video = videoRef.value;
+
+	// Canvas boyutlarını ayarla
+	canvas.width = containerRef.value.clientWidth;
+	canvas.height = containerRef.value.clientHeight;
+
+	// Videoyu çiz
+	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+	// Cursor'ı ortaya çiz
+	drawCursor(ctx, canvas.width / 2, canvas.height / 2);
+
+	// Bir sonraki frame'i iste
+	requestAnimationFrame(renderVideo);
+};
 
 // Component metodlarını dışa aktar
 defineExpose({
