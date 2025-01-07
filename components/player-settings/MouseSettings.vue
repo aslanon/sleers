@@ -1,100 +1,38 @@
 <template>
-	<div class="space-y-4">
-		<h2 class="text-xl font-bold mb-4">Mouse Ayarları</h2>
-		<div>
-			<label class="block text-sm font-medium mb-2">Mouse Boyutu</label>
-			<div class="flex items-center space-x-2">
-				<input
-					type="range"
-					v-model="localMouseSize"
-					min="20"
-					max="100"
-					step="1"
-					class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
-				/>
-				<span class="text-sm text-gray-300 w-8">{{ localMouseSize }}</span>
-			</div>
+	<div class="flex flex-col gap-4">
+		<div class="flex flex-col gap-2">
+			<label class="text-sm text-gray-500">Mouse Size</label>
+			<input
+				type="range"
+				:min="20"
+				:max="100"
+				:step="1"
+				:value="mouseSize"
+				@input="updateMouseSize($event.target.value)"
+				class="w-full"
+			/>
+			<div class="text-xs text-gray-400">{{ mouseSize }}px</div>
 		</div>
-		<div>
-			<label class="block text-sm font-medium mb-2">Motion Blur</label>
-			<div class="flex items-center space-x-2">
-				<input
-					type="range"
-					v-model="localMotionBlur"
-					min="0"
-					max="200"
-					step="1"
-					class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
-				/>
-				<span class="text-sm text-gray-300 w-8">{{ localMotionBlur }}</span>
-			</div>
+
+		<div class="flex flex-col gap-2">
+			<label class="text-sm text-gray-500">Motion Blur</label>
+			<input
+				type="range"
+				:min="0"
+				:max="10"
+				:step="0.1"
+				:value="motionBlurValue"
+				@input="updateMotionBlur($event.target.value)"
+				class="w-full"
+			/>
+			<div class="text-xs text-gray-400">{{ motionBlurValue }}</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
-const props = defineProps({
-	mouseSize: {
-		type: Number,
-		default: 42,
-	},
-	motionBlurValue: {
-		type: Number,
-		default: 100,
-	},
-});
-
-const emit = defineEmits(["update:mouseSize", "update:motionBlurValue"]);
-
-// Yerel state'ler
-const localMouseSize = ref(props.mouseSize);
-const localMotionBlur = ref(props.motionBlurValue);
-
-// Props değişikliklerini izle
-watch(
-	() => props.mouseSize,
-	(newValue) => {
-		localMouseSize.value = newValue;
-	}
-);
-
-watch(
-	() => props.motionBlurValue,
-	(newValue) => {
-		localMotionBlur.value = newValue;
-	}
-);
-
-// Yerel değişiklikleri parent'a ilet
-watch(localMouseSize, (newValue) => {
-	emit("update:mouseSize", Number(newValue));
-});
-
-watch(localMotionBlur, (newValue) => {
-	emit("update:motionBlurValue", Number(newValue));
-});
+const { mouseSize, motionBlurValue, updateMouseSize, updateMotionBlur } =
+	usePlayerSettings();
 </script>
-
-<style scoped>
-/* Range input stil */
-input[type="range"]::-webkit-slider-thumb {
-	-webkit-appearance: none;
-	appearance: none;
-	width: 16px;
-	height: 16px;
-	background: white;
-	border-radius: 50%;
-	cursor: pointer;
-}
-
-input[type="range"]::-moz-range-thumb {
-	width: 16px;
-	height: 16px;
-	background: white;
-	border-radius: 50%;
-	cursor: pointer;
-	border: none;
-}
-</style>

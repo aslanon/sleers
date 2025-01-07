@@ -1,12 +1,9 @@
 <template>
 	<div class="media-player w-full h-max p-4 rounded-lg overflow-hidden">
-		<div
-			ref="containerRef"
-			class="relative w-full h-full overflow-hidden bg-black"
-		>
+		<div ref="containerRef" class="relative w-full h-full overflow-hidden">
 			<canvas
 				ref="canvasRef"
-				class="absolute top-0 left-0 w-full h-full"
+				class="absolute inset-0 w-full h-full"
 				:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
 				@mousedown="startDragging"
 				@mousemove="onDragging"
@@ -31,6 +28,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import cursorSvg from "~/assets/cursors/default.svg";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
 	videoUrl: {
@@ -86,14 +84,6 @@ const props = defineProps({
 			);
 		},
 	},
-	mouseSize: {
-		type: Number,
-		default: 42,
-	},
-	motionBlurValue: {
-		type: Number,
-		default: 0,
-	},
 	cropInfo: {
 		type: Object,
 		default: () => ({
@@ -105,6 +95,10 @@ const props = defineProps({
 		}),
 	},
 });
+
+// Player settings'i al
+const { mouseSize, motionBlurValue, backgroundColor, padding } =
+	usePlayerSettings();
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -308,30 +302,37 @@ const handleResize = () => {
 	const container = containerRef.value.getBoundingClientRect();
 	const video = videoElement;
 
+	// Kullanılabilir alanı hesapla (padding'i çıkar)
+	const availableWidth = container.width - padding.value * 2;
+	const availableHeight = container.height - padding.value * 2;
+
 	// Container oranını hesapla
-	const containerRatio = container.width / container.height;
+	const containerRatio = availableWidth / availableHeight;
 	const videoRatio = video.videoWidth / video.videoHeight;
 
 	let newScale;
 	if (containerRatio > videoRatio) {
 		// Container daha geniş, yüksekliğe göre ölçekle
-		newScale = container.height / video.videoHeight;
+		newScale = availableHeight / video.videoHeight;
 	} else {
 		// Container daha dar, genişliğe göre ölçekle
-		newScale = container.width / video.videoWidth;
+		newScale = availableWidth / video.videoWidth;
 	}
 
 	// Yeni ölçeği uygula
 	scale.value = newScale;
 
-	// Videoyu ortala
+	// Videoyu ortala (padding'i hesaba katarak)
 	position.value = {
-		x: (container.width - video.videoWidth * newScale) / 2,
-		y: (container.height - video.videoHeight * newScale) / 2,
+		x: (availableWidth - video.videoWidth * newScale) / 2,
+		y: (availableHeight - video.videoHeight * newScale) / 2,
 	};
 
 	// Kırpma alanını güncelle
 	updateCropArea();
+
+	// Canvas'ı hemen güncelle
+	requestAnimationFrame(() => updateCanvas(performance.now()));
 };
 
 // Kırpma alanını güncelle
@@ -533,10 +534,18 @@ const getCropData = () => {
 const updateCanvas = (timestamp) => {
 	if (!canvasRef.value || !videoElement) return;
 
+	// FPS kontrolü
+	const elapsed = timestamp - lastFrameTime;
+	if (elapsed < frameInterval) {
+		animationFrame = requestAnimationFrame(updateCanvas);
+		return;
+	}
+	lastFrameTime = timestamp;
+
 	const canvas = canvasRef.value;
 	const container = containerRef.value;
 
-	// Canvas boyutlarını ayarla (sadece gerektiğinde)
+	// Canvas boyutlarını sadece değiştiğinde güncelle
 	if (
 		canvas.width !== container.clientWidth ||
 		canvas.height !== container.clientHeight
@@ -545,12 +554,34 @@ const updateCanvas = (timestamp) => {
 		canvas.height = container.clientHeight;
 	}
 
-	const ctx = canvas.getContext("2d");
-	ctx.clearRect(0, 0, canvas.width, canvas.height);
+	const ctx = canvas.getContext("2d", {
+		alpha: false, // Alpha kanalını devre dışı bırak
+		desynchronized: true, // Daha hızlı render
+	});
+
+	// Render kalitesi ayarları
+	ctx.imageSmoothingEnabled = true;
+	ctx.imageSmoothingQuality = "medium"; // high yerine medium kullanalım
+
+	// Önce tüm canvas'ı arkaplan rengiyle doldur
+	ctx.fillStyle = backgroundColor.value;
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	// Video için kullanılabilir alanı hesapla (padding'i çıkar)
+	const availableWidth = canvas.width - padding.value * 2;
+	const availableHeight = canvas.height - padding.value * 2;
+
+	// Video alanını kırp
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(padding.value, padding.value, availableWidth, availableHeight);
+	ctx.clip();
 
 	// Transform işlemleri
-	ctx.save();
-	ctx.translate(position.value.x, position.value.y);
+	ctx.translate(
+		position.value.x + padding.value,
+		position.value.y + padding.value
+	);
 	ctx.scale(scale.value, scale.value);
 	ctx.rotate(rotation.value);
 
@@ -565,51 +596,61 @@ const updateCanvas = (timestamp) => {
 
 	ctx.restore();
 
-	// Kırpma alanı varsa overlay ve çerçeve çiz
+	// Kırpma alanını sadece gerektiğinde çiz
 	if (selectedAspectRatio.value) {
-		// Kırpma alanı dışındaki bölgeleri karart (opaklık artırıldı)
-		ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Tam siyah overlay
-
-		// Üst bölge
-		ctx.fillRect(0, 0, canvas.width, cropArea.value.y);
-
-		// Sol bölge
-		ctx.fillRect(0, cropArea.value.y, cropArea.value.x, cropArea.value.height);
-
-		// Sağ bölge
-		ctx.fillRect(
-			cropArea.value.x + cropArea.value.width,
-			cropArea.value.y,
-			canvas.width - (cropArea.value.x + cropArea.value.width),
-			cropArea.value.height
-		);
-
-		// Alt bölge
-		ctx.fillRect(
-			0,
-			cropArea.value.y + cropArea.value.height,
-			canvas.width,
-			canvas.height - (cropArea.value.y + cropArea.value.height)
-		);
-
-		// Kırpma çerçevesi
-		ctx.strokeStyle = "white";
-		ctx.lineWidth = 2;
-		ctx.strokeRect(
-			cropArea.value.x,
-			cropArea.value.y,
-			cropArea.value.width,
-			cropArea.value.height
-		);
+		drawCropOverlay(ctx, canvas.width, canvas.height);
 	}
 
 	// Mouse pozisyonunu çiz
-	drawMousePosition(ctx, videoElement.currentTime);
-
-	// Her frame'de güncelleme yapılacak
-	if (!isPaused.value || isDragging.value) {
-		animationFrame = requestAnimationFrame(updateCanvas);
+	if (props.mousePositions?.length > 0) {
+		drawMousePosition(ctx, videoElement.currentTime);
 	}
+
+	// Her durumda sürekli güncelleme yap
+	animationFrame = requestAnimationFrame(updateCanvas);
+};
+
+// Kırpma overlay'ini ayrı bir fonksiyona taşıyalım
+const drawCropOverlay = (ctx, canvasWidth, canvasHeight) => {
+	// Kırpma alanı dışındaki bölgeleri karart
+	ctx.fillStyle = backgroundColor.value;
+
+	// Üst bölge
+	ctx.fillRect(0, 0, canvasWidth, cropArea.value.y + padding.value);
+
+	// Sol bölge
+	ctx.fillRect(
+		0,
+		cropArea.value.y + padding.value,
+		cropArea.value.x + padding.value,
+		cropArea.value.height
+	);
+
+	// Sağ bölge
+	ctx.fillRect(
+		cropArea.value.x + cropArea.value.width + padding.value,
+		cropArea.value.y + padding.value,
+		canvasWidth - (cropArea.value.x + cropArea.value.width + padding.value),
+		cropArea.value.height
+	);
+
+	// Alt bölge
+	ctx.fillRect(
+		0,
+		cropArea.value.y + cropArea.value.height + padding.value,
+		canvasWidth,
+		canvasHeight - (cropArea.value.y + cropArea.value.height + padding.value)
+	);
+
+	// Kırpma çerçevesi
+	ctx.strokeStyle = "white";
+	ctx.lineWidth = 2;
+	ctx.strokeRect(
+		cropArea.value.x + padding.value,
+		cropArea.value.y + padding.value,
+		cropArea.value.width,
+		cropArea.value.height
+	);
 };
 
 // Tüm prop değişikliklerini izle ve canvas'ı güncelle
@@ -624,46 +665,15 @@ const forceCanvasUpdate = () => {
 watch(
 	() => ({ ...props }),
 	() => {
-		forceCanvasUpdate();
+		// Props değiştiğinde sadece aspect ratio ve resize gibi özel durumları handle et
+		if (props.selectedAspectRatio) {
+			updateAspectRatio(props.selectedAspectRatio);
+		}
+		if (props.padding) {
+			handleResize();
+		}
 	},
 	{ deep: true, immediate: true }
-);
-
-// Mouse size değişikliğini özel olarak izle
-watch(
-	() => props.mouseSize,
-	() => {
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	}
-);
-
-// Aspect ratio değişikliğini izle
-watch(
-	() => props.selectedAspectRatio,
-	() => {
-		updateAspectRatio(props.selectedAspectRatio);
-		forceCanvasUpdate();
-	},
-	{ immediate: true }
-);
-
-// Mouse positions değişikliğini izle ve previousPositions'ı temizle
-watch(
-	() => props.mousePositions,
-	() => {
-		previousPositions.value = []; // Trail'i temizle
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	},
-	{ deep: true }
-);
-
-// Crop info değişikliğini izle
-watch(
-	() => props.cropInfo,
-	() => {
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	},
-	{ deep: true }
 );
 
 // Preview zamanı değişikliğini izle
@@ -673,9 +683,17 @@ watch(
 		if (!videoElement || newValue === null) return;
 		videoElement.currentTime = newValue;
 		videoState.value.currentTime = newValue;
-		forceCanvasUpdate();
 	},
 	{ immediate: true }
+);
+
+// Mouse positions değişikliğini izle ve previousPositions'ı temizle
+watch(
+	() => props.mousePositions,
+	() => {
+		previousPositions.value = []; // Trail'i temizle
+	},
+	{ deep: true }
 );
 
 // Video yükleme ve hazırlık
@@ -1071,7 +1089,7 @@ defineExpose({
 const currentMousePos = ref({ x: 0, y: 0 });
 const targetMousePos = ref({ x: 0, y: 0 });
 const previousPositions = ref([]);
-const MAX_TRAIL_LENGTH = 30;
+const MAX_TRAIL_LENGTH = 15; // 30'dan 15'e düşürelim
 
 // Lerp (Linear interpolation) fonksiyonu
 const lerp = (start, end, factor) => {
@@ -1119,14 +1137,9 @@ const drawMousePosition = (ctx, currentTime) => {
 	const nextPos = mousePos[nextFrame];
 	if (!currentPos || !nextPos) return;
 
-	// Canvas ve container boyutlarını al
-	const canvas = canvasRef.value;
-	const container = containerRef.value;
-	const rect = container.getBoundingClientRect();
-
-	// Video boyutlarını al
-	const videoWidth = videoElement.videoWidth;
-	const videoHeight = videoElement.videoHeight;
+	// Video boyutlarını al (cache'lenmiş değerleri kullan)
+	const videoWidth = videoSize.value.width;
+	const videoHeight = videoSize.value.height;
 
 	// İki pozisyon arasında cubic interpolasyon yap
 	const t = framePart;
@@ -1145,48 +1158,37 @@ const drawMousePosition = (ctx, currentTime) => {
 	const currentVideoWidth = videoWidth * scale.value;
 	const currentVideoHeight = videoHeight * scale.value;
 
-	// Video'nun canvas içindeki başlangıç pozisyonunu hesapla
-	const videoLeft = position.value.x;
-	const videoTop = position.value.y;
-
 	// Mouse pozisyonunu canvas koordinatlarına dönüştür
-	const canvasX = videoLeft + normalizedX * currentVideoWidth;
-	const canvasY = videoTop + normalizedY * currentVideoHeight;
+	const canvasX = position.value.x + normalizedX * currentVideoWidth;
+	const canvasY = position.value.y + normalizedY * currentVideoHeight;
 
 	// Yeni pozisyonu kaydet
-	const newPosition = { x: canvasX, y: canvasY, time: currentTime };
-	previousPositions.value.push(newPosition);
-
-	// Trail uzunluğunu sınırla
-	if (previousPositions.value.length > MAX_TRAIL_LENGTH) {
+	if (previousPositions.value.length >= MAX_TRAIL_LENGTH) {
 		previousPositions.value.shift();
 	}
+	previousPositions.value.push({ x: canvasX, y: canvasY, time: currentTime });
 
 	// Motion blur efekti için önceki pozisyonları çiz
-	if (props.motionBlurValue > 0) {
+	const blurValue = motionBlurValue.value;
+	if (blurValue > 0) {
 		const trailLength = previousPositions.value.length;
-		const blurStrength = props.motionBlurValue / 50;
+		const positions = [...previousPositions.value].reverse();
 
-		// Trail'i tersten çiz (en eski pozisyondan başla)
-		[...previousPositions.value].reverse().forEach((pos, index) => {
-			// Alpha değerini daha yüksek tut ve daha yumuşak bir geçiş sağla
-			const normalizedIndex = index / trailLength;
-			const alpha = Math.pow(1 - normalizedIndex, 0.5) * blurStrength;
+		// Batch drawing için path kullan
+		ctx.save();
+		for (let i = 0; i < positions.length; i++) {
+			const pos = positions[i];
+			const normalizedIndex = i / trailLength;
+			const alpha = Math.pow(1 - normalizedIndex, 0.5) * blurValue;
 
-			ctx.save();
 			ctx.globalAlpha = Math.min(0.9, alpha);
 			ctx.translate(pos.x, pos.y);
 
 			// Trail için cursor boyutunu hesapla
-			const baseCursorSize = props.mouseSize;
-			const cursorScale = 2;
-			// Trail boyutunu pozisyona göre küçült
 			const sizeMultiplier = 1 - normalizedIndex * 0.3;
-			const cursorSize =
-				baseCursorSize * cursorScale * scale.value * sizeMultiplier;
+			const cursorSize = mouseSize.value * 2 * scale.value * sizeMultiplier;
 
-			// Blur efekti uygula
-			ctx.filter = `blur(${props.motionBlurValue / 20}px)`;
+			ctx.filter = `blur(${blurValue}px)`;
 
 			try {
 				ctx.drawImage(
@@ -1200,8 +1202,9 @@ const drawMousePosition = (ctx, currentTime) => {
 				console.error("[MediaPlayer] Trail cursor drawing error:", error);
 			}
 
-			ctx.restore();
-		});
+			ctx.translate(-pos.x, -pos.y);
+		}
+		ctx.restore();
 	}
 
 	// Ana cursor'ı çiz
@@ -1210,13 +1213,11 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.translate(canvasX, canvasY);
 
 	// Ana cursor boyutunu ayarla
-	const baseCursorSize = props.mouseSize;
-	const cursorScale = 2;
-	const cursorSize = baseCursorSize * cursorScale * scale.value;
+	const cursorSize = mouseSize.value * 2 * scale.value;
 
 	// Ana cursor'a da blur efekti uygula
-	if (props.motionBlurValue > 0) {
-		ctx.filter = `blur(${props.motionBlurValue / 40}px)`; // Ana cursor için daha az blur
+	if (blurValue > 0) {
+		ctx.filter = `blur(${blurValue / 10}px)`; // Ana cursor için daha az blur
 	}
 
 	try {
@@ -1239,44 +1240,8 @@ watch(
 	() => props.selectedAspectRatio,
 	() => {
 		updateAspectRatio(props.selectedAspectRatio);
-		requestAnimationFrame(() => updateCanvas(performance.now()));
 	},
 	{ immediate: true }
-);
-
-// Mouse size değişikliğini izle
-watch(
-	() => props.mouseSize,
-	() => {
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	}
-);
-
-// Motion blur değişikliğini izle
-watch(
-	() => props.motionBlurValue,
-	() => {
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	}
-);
-
-// Mouse positions değişikliğini izle ve previousPositions'ı temizle
-watch(
-	() => props.mousePositions,
-	() => {
-		previousPositions.value = []; // Trail'i temizle
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	},
-	{ deep: true }
-);
-
-// Crop info değişikliğini izle
-watch(
-	() => props.cropInfo,
-	() => {
-		requestAnimationFrame(() => updateCanvas(performance.now()));
-	},
-	{ deep: true }
 );
 </script>
 
