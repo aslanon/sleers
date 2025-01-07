@@ -599,14 +599,80 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
-	// Mouse pozisyonunu çiz - videoElement.currentTime ile senkronize et
+	// Mouse pozisyonunu çiz
 	drawMousePosition(ctx, videoElement.currentTime);
 
-	// Video oynatılıyorsa veya sürükleme/zoom yapılıyorsa animasyonu devam ettir
+	// Her frame'de güncelleme yapılacak
 	if (!isPaused.value || isDragging.value) {
 		animationFrame = requestAnimationFrame(updateCanvas);
 	}
 };
+
+// Tüm prop değişikliklerini izle ve canvas'ı güncelle
+const forceCanvasUpdate = () => {
+	if (animationFrame) {
+		cancelAnimationFrame(animationFrame);
+	}
+	animationFrame = requestAnimationFrame(() => updateCanvas(performance.now()));
+};
+
+// Props'ları izle
+watch(
+	() => ({ ...props }),
+	() => {
+		forceCanvasUpdate();
+	},
+	{ deep: true, immediate: true }
+);
+
+// Mouse size değişikliğini özel olarak izle
+watch(
+	() => props.mouseSize,
+	() => {
+		forceCanvasUpdate();
+	},
+	{ immediate: true }
+);
+
+// Aspect ratio değişikliğini izle
+watch(
+	() => props.selectedAspectRatio,
+	() => {
+		updateAspectRatio(props.selectedAspectRatio);
+		forceCanvasUpdate();
+	},
+	{ immediate: true }
+);
+
+// Mouse positions değişikliğini izle
+watch(
+	() => props.mousePositions,
+	() => {
+		forceCanvasUpdate();
+	},
+	{ deep: true }
+);
+
+// Crop info değişikliğini izle
+watch(
+	() => props.cropInfo,
+	() => {
+		forceCanvasUpdate();
+	},
+	{ deep: true }
+);
+
+// Preview zamanı değişikliğini izle
+watch(
+	() => props.previewTime,
+	(newValue) => {
+		if (!videoElement || newValue === null) return;
+		videoElement.currentTime = newValue;
+		videoState.value.currentTime = newValue;
+		forceCanvasUpdate();
+	},
+	{ immediate: true }
+);
 
 // Video yükleme ve hazırlık
 const initVideo = () => {
@@ -936,22 +1002,14 @@ watch(
 	(newValue) => {
 		if (!videoElement || newValue === null) return;
 
-		// Eğer video oynatılmıyorsa preview zamanını güncelle
-		if (!videoState.value.isPlaying) {
-			// Ses elementini durdur
-			if (audioRef.value && !audioRef.value.paused) {
-				audioRef.value.pause();
-			}
+		// Preview zamanını güncelle
+		videoElement.currentTime = newValue;
+		videoState.value.currentTime = newValue;
 
-			// Preview için video zamanını güncelle ama timeUpdate emit etme
-			videoElement.currentTime = newValue;
-			videoState.value.currentTime = newValue; // State'i de güncelle
-
-			// Canvas'ı hemen güncelle
-			updateCanvas(performance.now());
-		}
+		// Canvas'ı hemen güncelle
+		requestAnimationFrame(() => updateCanvas(performance.now()));
 	},
-	{ flush: "sync" } // 'post' yerine 'sync' kullanarak daha hızlı güncelleme sağla
+	{ immediate: true }
 );
 
 // Video render fonksiyonu
@@ -1115,6 +1173,34 @@ const drawMousePosition = (ctx, currentTime) => {
 
 	ctx.restore();
 };
+
+// Aspect ratio değişikliğini izle
+watch(
+	() => props.selectedAspectRatio,
+	() => {
+		updateAspectRatio(props.selectedAspectRatio);
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	},
+	{ immediate: true }
+);
+
+// Mouse positions değişikliğini izle
+watch(
+	() => props.mousePositions,
+	() => {
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	},
+	{ deep: true }
+);
+
+// Crop info değişikliğini izle
+watch(
+	() => props.cropInfo,
+	() => {
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	},
+	{ deep: true }
+);
 </script>
 
 <style scoped>
