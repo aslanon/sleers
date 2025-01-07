@@ -997,6 +997,30 @@ defineExpose({
 
 const drawMousePosition = (ctx, currentTime) => {
 	const mousePos = props.mousePositions;
+	if (!mousePos || mousePos.length === 0) return;
+
+	let pos = mousePos.find((pos) => {
+		console.log(pos.timestamp / 1000, currentTime);
+		return pos.timestamp / 1000 === currentTime.toFixed(3);
+	});
+	if (!pos) return;
+	ctx.save();
+
+	// Cursor stilini ayarla
+	ctx.fillStyle = "rgba(255, 0, 0, 1)";
+	ctx.strokeStyle = "white";
+	ctx.lineWidth = 2;
+
+	// Cursor boyutunu ayarla
+	const cursorSize = 10;
+
+	// Cursor'ı çiz
+	ctx.beginPath();
+	ctx.arc(pos.x, pos.y, cursorSize, 0, Math.PI * 2);
+	ctx.fill();
+	ctx.stroke();
+
+	ctx.restore();
 };
 </script>
 

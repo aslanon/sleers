@@ -499,15 +499,16 @@ app.on("before-quit", () => {
 
 function startMouseTracking() {
 	console.log(44444);
+	let time = 0;
 	if (!mouseTrackingInterval) {
 		mouseTrackingInterval = setInterval(() => {
 			const mousePos = screen.getCursorScreenPoint();
-			const timestamp = Date.now();
-			console.log("xxxxxx", mousePos, timestamp);
+			time = time + 1;
+			console.log("xxxxxx", mousePos, time);
 			mousePositions.push({
 				x: mousePos.x,
 				y: mousePos.y,
-				timestamp,
+				timestamp: time,
 			});
 		}, 16); // ~60fps
 	}
