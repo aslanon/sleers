@@ -51,6 +51,7 @@ export const useMediaDevices = () => {
 				video: {
 					// @ts-ignore
 					mandatory: {
+						cursor: "none",
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: sources[0].id,
 						minWidth: streamOptions?.width || 1280,
