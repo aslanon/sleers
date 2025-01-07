@@ -995,28 +995,88 @@ defineExpose({
 	},
 });
 
+// Mouse animasyonu için state
+const currentMousePos = ref({ x: 0, y: 0 });
+const targetMousePos = ref({ x: 0, y: 0 });
+const isAnimating = ref(false);
+
+// Lerp (Linear interpolation) fonksiyonu
+const lerp = (start, end, factor) => start + (end - start) * factor;
+
 const drawMousePosition = (ctx, currentTime) => {
 	const mousePos = props.mousePositions;
-	if (!mousePos || mousePos.length === 0) return;
+	if (!mousePos || mousePos.length === 0 || !canvasRef.value || !videoElement)
+		return;
 
-	let pos = mousePos.find((pos) => {
-		console.log(pos.timestamp / 1000, currentTime);
-		return pos.timestamp / 1000 === currentTime.toFixed(3);
-	});
-	if (!pos) return;
+	const currentTimeMs = currentTime * 1000;
+
+	// Canvas ve video boyutlarını al
+	const canvas = canvasRef.value;
+	const canvasWidth = canvas.width;
+	const canvasHeight = canvas.height;
+	const videoWidth = videoElement.videoWidth;
+	const videoHeight = videoElement.videoHeight;
+
+	// Ölçekleme oranlarını hesapla
+	const scaleX = canvasWidth / videoWidth;
+	const scaleY = canvasHeight / videoHeight;
+
+	// Mevcut zamana göre hedef pozisyonu bul
+	let targetPos = null;
+	for (let i = 0; i < mousePos.length; i++) {
+		if (mousePos[i].timestamp > currentTimeMs) {
+			if (i > 0) {
+				targetPos = mousePos[i - 1];
+			}
+			break;
+		}
+	}
+
+	if (!targetPos) return;
+
+	// Mouse pozisyonlarını canvas boyutlarına göre ölçekle
+	const scaledX = targetPos.x * scaleX;
+	const scaledY = targetPos.y * scaleY;
+
+	// Hedef pozisyonu güncelle
+	targetMousePos.value = {
+		x: Math.min(Math.max(0, scaledX), canvasWidth),
+		y: Math.min(Math.max(0, scaledY), canvasHeight),
+	};
+
+	// Eğer animasyon başlamamışsa başlat
+	if (!isAnimating.value) {
+		currentMousePos.value = { ...targetMousePos.value };
+		isAnimating.value = true;
+	}
+
+	// Pozisyonu yumuşak bir şekilde güncelle
+	currentMousePos.value.x = lerp(
+		currentMousePos.value.x,
+		targetMousePos.value.x,
+		0.1
+	);
+	currentMousePos.value.y = lerp(
+		currentMousePos.value.y,
+		targetMousePos.value.y,
+		0.1
+	);
+
+	// Cursor'ı çiz
 	ctx.save();
-
-	// Cursor stilini ayarla
-	ctx.fillStyle = "rgba(255, 0, 0, 1)";
+	ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
 	ctx.strokeStyle = "white";
 	ctx.lineWidth = 2;
 
-	// Cursor boyutunu ayarla
 	const cursorSize = 10;
-
-	// Cursor'ı çiz
 	ctx.beginPath();
-	ctx.arc(pos.x, pos.y, cursorSize, 0, Math.PI * 2);
+	ctx.arc(
+		currentMousePos.value.x,
+		currentMousePos.value.y,
+		cursorSize,
+		0,
+		Math.PI * 2
+	);
 	ctx.fill();
 	ctx.stroke();
 
