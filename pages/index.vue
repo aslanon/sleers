@@ -400,14 +400,14 @@ watch(selectedVideoDevice, async (deviceLabel) => {
 
 // Delay yönetimi için state
 const isSettingsOpen = ref(false);
-const delayOptions = [1000, 3000, 5000]; // 1sn, 3sn, 5sn
-const selectedDelay = ref(1000); // Varsayılan 1sn
+const delayOptions = [0, 1000, 3000, 5000]; // 1sn, 3sn, 5sn
+const selectedDelay = ref(0); // Varsayılan 1sn
 
 // Pencere boyutunu ayarla
 const updateWindowSize = (isOpen) => {
 	if (electron?.ipcRenderer) {
 		electron.ipcRenderer.send("UPDATE_WINDOW_SIZE", {
-			height: isOpen ? 250 : 70, // Ayarlar açıkken 250px, kapalıyken 70px
+			height: isOpen ? 300 : 70, // Ayarlar açıkken 250px, kapalıyken 70px
 		});
 	}
 };
@@ -419,9 +419,12 @@ watch(isSettingsOpen, (newValue) => {
 
 // Delay değişikliği
 const handleDelayChange = (delay) => {
-	selectedDelay.value = delay;
+	selectedDelay.value = parseInt(delay);
 	// Main process'e delay değerini gönder
-	electron?.ipcRenderer.send(IPC_EVENTS.UPDATE_RECORDING_DELAY, delay);
+	electron?.ipcRenderer.send(
+		IPC_EVENTS.UPDATE_RECORDING_DELAY,
+		parseInt(delay)
+	);
 };
 
 onMounted(async () => {
@@ -530,7 +533,7 @@ const startRecording = async (options = null) => {
 		// Geri sayım başlat
 		const countdownElement = document.createElement("div");
 		countdownElement.className =
-			"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-white bg-black/50 rounded-full w-32 h-32 flex items-center justify-center z-50";
+			"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-3xl !text-white bg-black/80 rounded-full w-20 h-20 flex items-center justify-center z-50";
 		document.body.appendChild(countdownElement);
 
 		let countdown = selectedDelay.value / 1000;
