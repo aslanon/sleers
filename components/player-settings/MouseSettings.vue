@@ -6,14 +6,29 @@
 			<div class="flex items-center space-x-2">
 				<input
 					type="range"
-					:value="modelValue"
-					@input="updateValue($event.target.value)"
+					:value="mouseSize"
+					@input="updateMouseSize($event.target.value)"
 					min="20"
 					max="100"
 					step="1"
 					class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
 				/>
-				<span class="text-sm text-gray-300 w-8">{{ modelValue }}</span>
+				<span class="text-sm text-gray-300 w-8">{{ mouseSize }}</span>
+			</div>
+		</div>
+		<div>
+			<label class="block text-sm font-medium mb-2">Motion Blur</label>
+			<div class="flex items-center space-x-2">
+				<input
+					type="range"
+					:value="motionBlurValue"
+					@input="updateMotionBlur($event.target.value)"
+					min="0"
+					max="100"
+					step="1"
+					class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+				/>
+				<span class="text-sm text-gray-300 w-8">{{ motionBlurValue }}</span>
 			</div>
 		</div>
 	</div>
@@ -21,16 +36,24 @@
 
 <script setup>
 const props = defineProps({
-	modelValue: {
+	mouseSize: {
 		type: Number,
 		default: 42,
 	},
+	motionBlurValue: {
+		type: Number,
+		default: 50,
+	},
 });
 
-const emit = defineEmits(["update:modelValue"]);
+const emit = defineEmits(["update:mouseSize", "update:motionBlurValue"]);
 
-const updateValue = (value) => {
-	emit("update:modelValue", Number(value));
+const updateMouseSize = (value) => {
+	emit("update:mouseSize", Number(value));
+};
+
+const updateMotionBlur = (value) => {
+	emit("update:motionBlurValue", Number(value));
 };
 </script>
 

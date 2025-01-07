@@ -90,6 +90,10 @@ const props = defineProps({
 		type: Number,
 		default: 42,
 	},
+	motionBlur: {
+		type: Number,
+		default: 0,
+	},
 	cropInfo: {
 		type: Object,
 		default: () => ({
@@ -1066,6 +1070,8 @@ defineExpose({
 // Mouse animasyonu için state
 const currentMousePos = ref({ x: 0, y: 0 });
 const targetMousePos = ref({ x: 0, y: 0 });
+const previousPositions = ref([]);
+const MAX_TRAIL_LENGTH = 10;
 
 // Lerp (Linear interpolation) fonksiyonu
 const lerp = (start, end, factor) => {
@@ -1147,18 +1153,55 @@ const drawMousePosition = (ctx, currentTime) => {
 	const canvasX = videoLeft + normalizedX * currentVideoWidth;
 	const canvasY = videoTop + normalizedY * currentVideoHeight;
 
-	// SVG cursor çizimi
-	ctx.save();
+	// Yeni pozisyonu kaydet
+	const newPosition = { x: canvasX, y: canvasY, time: currentTime };
+	previousPositions.value.push(newPosition);
 
-	// Cursor pozisyonuna git
+	// Trail uzunluğunu sınırla
+	if (previousPositions.value.length > MAX_TRAIL_LENGTH) {
+		previousPositions.value.shift();
+	}
+
+	// Motion blur efekti için önceki pozisyonları çiz
+	if (props.motionBlur > 0) {
+		const trailLength = previousPositions.value.length;
+		previousPositions.value.forEach((pos, index) => {
+			const alpha = (index / trailLength) * (props.motionBlur / 100);
+			ctx.save();
+			ctx.globalAlpha = alpha;
+			ctx.translate(pos.x, pos.y);
+
+			// Cursor boyutunu ayarla
+			const baseCursorSize = props.mouseSize;
+			const cursorScale = 2;
+			const cursorSize = baseCursorSize * cursorScale * scale.value;
+
+			try {
+				ctx.drawImage(
+					cursorImage,
+					-cursorSize / 4,
+					-cursorSize / 4,
+					cursorSize,
+					cursorSize
+				);
+			} catch (error) {
+				console.error("[MediaPlayer] Trail cursor drawing error:", error);
+			}
+
+			ctx.restore();
+		});
+	}
+
+	// Ana cursor'ı çiz
+	ctx.save();
+	ctx.globalAlpha = 1;
 	ctx.translate(canvasX, canvasY);
 
-	// Cursor boyutunu ayarla (zoom ile orantılı sabit boyut)
+	// Cursor boyutunu ayarla
 	const baseCursorSize = props.mouseSize;
 	const cursorScale = 2;
 	const cursorSize = baseCursorSize * cursorScale * scale.value;
 
-	// Cursor'ı çiz
 	try {
 		ctx.drawImage(
 			cursorImage,
@@ -1168,7 +1211,7 @@ const drawMousePosition = (ctx, currentTime) => {
 			cursorSize
 		);
 	} catch (error) {
-		console.error("[MediaPlayer] Cursor drawing error:", error);
+		console.error("[MediaPlayer] Main cursor drawing error:", error);
 	}
 
 	ctx.restore();
