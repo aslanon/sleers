@@ -80,6 +80,11 @@ const props = defineProps({
 	mousePositions: {
 		type: Array,
 		default: () => [],
+		validator: (value) => {
+			return value.every(
+				(pos) => typeof pos.x === "number" && typeof pos.y === "number"
+			);
+		},
 	},
 	cropInfo: {
 		type: Object,
@@ -1003,10 +1008,11 @@ defineExpose({
 // Mouse animasyonu için state
 const currentMousePos = ref({ x: 0, y: 0 });
 const targetMousePos = ref({ x: 0, y: 0 });
-const isAnimating = ref(false);
 
 // Lerp (Linear interpolation) fonksiyonu
-const lerp = (start, end, factor) => start + (end - start) * factor;
+const lerp = (start, end, factor) => {
+	return start + (end - start) * factor;
+};
 
 const drawMousePosition = (ctx, currentTime) => {
 	const mousePos = props.mousePositions;
@@ -1023,12 +1029,13 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Her frame'in süresini hesapla (video süresi / toplam frame)
 	const frameTime = videoDuration / totalFrames;
 
-	// Şu anki frame indeksini hesapla
-	const currentFrame = Math.floor(currentTime / frameTime);
+	// Şu anki frame indeksini hesapla (daha hassas)
+	const exactFrame = currentTime / frameTime;
+	const currentFrame = Math.floor(exactFrame);
 	const nextFrame = Math.min(currentFrame + 1, totalFrames - 1);
 
-	// Frame'ler arası interpolasyon faktörünü hesapla
-	const framePart = (currentTime % frameTime) / frameTime;
+	// Frame'ler arası interpolasyon faktörünü hesapla (0-1 arası)
+	const framePart = exactFrame - currentFrame;
 
 	// İki frame arasında interpolasyon yap
 	const currentPos = mousePos[currentFrame];
@@ -1048,9 +1055,14 @@ const drawMousePosition = (ctx, currentTime) => {
 	const scaleRatioX = canvasWidth / videoWidth;
 	const scaleRatioY = canvasHeight / videoHeight;
 
-	// İki pozisyon arasında interpolasyon yap
-	const interpolatedX = currentPos.x + (nextPos.x - currentPos.x) * framePart;
-	const interpolatedY = currentPos.y + (nextPos.y - currentPos.y) * framePart;
+	// İki pozisyon arasında cubic interpolasyon yap (daha yumuşak hareket için)
+	const t = framePart;
+	const t2 = t * t;
+	const t3 = t2 * t;
+	const interpolatedX =
+		currentPos.x + (nextPos.x - currentPos.x) * (3 * t2 - 2 * t3);
+	const interpolatedY =
+		currentPos.y + (nextPos.y - currentPos.y) * (3 * t2 - 2 * t3);
 
 	// Video koordinatlarını canvas koordinatlarına dönüştür
 	const canvasX = interpolatedX * scaleRatioX;
@@ -1059,6 +1071,28 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Transform'u uygula
 	const transformedX = canvasX * scale.value + position.value.x;
 	const transformedY = canvasY * scale.value + position.value.y;
+
+	// Hedef pozisyonu güncelle
+	targetMousePos.value = {
+		x: transformedX,
+		y: transformedY,
+	};
+
+	// Pozisyonu yumuşak bir şekilde güncelle
+	if (!currentMousePos.value.x && !currentMousePos.value.y) {
+		currentMousePos.value = { ...targetMousePos.value };
+	} else {
+		currentMousePos.value.x = lerp(
+			currentMousePos.value.x,
+			targetMousePos.value.x,
+			0.3
+		);
+		currentMousePos.value.y = lerp(
+			currentMousePos.value.y,
+			targetMousePos.value.y,
+			0.3
+		);
+	}
 
 	// Cursor'ı çiz
 	ctx.save();
@@ -1072,23 +1106,17 @@ const drawMousePosition = (ctx, currentTime) => {
 
 	// Cursor'ı çiz
 	ctx.beginPath();
-	ctx.arc(transformedX, transformedY, cursorSize, 0, Math.PI * 2);
+	ctx.arc(
+		currentMousePos.value.x,
+		currentMousePos.value.y,
+		cursorSize,
+		0,
+		Math.PI * 2
+	);
 	ctx.fill();
 	ctx.stroke();
 
 	ctx.restore();
-
-	// Debug için pozisyonları logla
-	console.log("Cursor Position:", {
-		videoTime: currentTime,
-		currentFrame,
-		nextFrame,
-		framePart,
-		original: { x: interpolatedX, y: interpolatedY },
-		transformed: { x: transformedX, y: transformedY },
-		scale: scale.value,
-		position: position.value,
-	});
 };
 </script>
 
