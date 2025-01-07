@@ -6,14 +6,13 @@
 			<div class="flex items-center space-x-2">
 				<input
 					type="range"
-					:value="mouseSize"
-					@input="updateMouseSize($event.target.value)"
+					v-model="localMouseSize"
 					min="20"
 					max="100"
 					step="1"
 					class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
 				/>
-				<span class="text-sm text-gray-300 w-8">{{ mouseSize }}</span>
+				<span class="text-sm text-gray-300 w-8">{{ localMouseSize }}</span>
 			</div>
 		</div>
 		<div>
@@ -21,20 +20,21 @@
 			<div class="flex items-center space-x-2">
 				<input
 					type="range"
-					:value="motionBlurValue"
-					@input="updateMotionBlur($event.target.value)"
+					v-model="localMotionBlur"
 					min="0"
-					max="100"
+					max="200"
 					step="1"
 					class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
 				/>
-				<span class="text-sm text-gray-300 w-8">{{ motionBlurValue }}</span>
+				<span class="text-sm text-gray-300 w-8">{{ localMotionBlur }}</span>
 			</div>
 		</div>
 	</div>
 </template>
 
 <script setup>
+import { ref, watch } from "vue";
+
 const props = defineProps({
 	mouseSize: {
 		type: Number,
@@ -42,19 +42,39 @@ const props = defineProps({
 	},
 	motionBlurValue: {
 		type: Number,
-		default: 50,
+		default: 100,
 	},
 });
 
 const emit = defineEmits(["update:mouseSize", "update:motionBlurValue"]);
 
-const updateMouseSize = (value) => {
-	emit("update:mouseSize", Number(value));
-};
+// Yerel state'ler
+const localMouseSize = ref(props.mouseSize);
+const localMotionBlur = ref(props.motionBlurValue);
 
-const updateMotionBlur = (value) => {
-	emit("update:motionBlurValue", Number(value));
-};
+// Props değişikliklerini izle
+watch(
+	() => props.mouseSize,
+	(newValue) => {
+		localMouseSize.value = newValue;
+	}
+);
+
+watch(
+	() => props.motionBlurValue,
+	(newValue) => {
+		localMotionBlur.value = newValue;
+	}
+);
+
+// Yerel değişiklikleri parent'a ilet
+watch(localMouseSize, (newValue) => {
+	emit("update:mouseSize", Number(newValue));
+});
+
+watch(localMotionBlur, (newValue) => {
+	emit("update:motionBlurValue", Number(newValue));
+});
 </script>
 
 <style scoped>

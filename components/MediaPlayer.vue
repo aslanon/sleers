@@ -90,7 +90,7 @@ const props = defineProps({
 		type: Number,
 		default: 42,
 	},
-	motionBlur: {
+	motionBlurValue: {
 		type: Number,
 		default: 0,
 	},
@@ -1071,7 +1071,7 @@ defineExpose({
 const currentMousePos = ref({ x: 0, y: 0 });
 const targetMousePos = ref({ x: 0, y: 0 });
 const previousPositions = ref([]);
-const MAX_TRAIL_LENGTH = 10;
+const MAX_TRAIL_LENGTH = 30;
 
 // Lerp (Linear interpolation) fonksiyonu
 const lerp = (start, end, factor) => {
@@ -1163,18 +1163,27 @@ const drawMousePosition = (ctx, currentTime) => {
 	}
 
 	// Motion blur efekti için önceki pozisyonları çiz
-	if (props.motionBlur > 0) {
+	if (props.motionBlurValue > 0) {
 		const trailLength = previousPositions.value.length;
-		previousPositions.value.forEach((pos, index) => {
-			const alpha = (index / trailLength) * (props.motionBlur / 100);
+		const blurStrength = props.motionBlurValue / 50;
+
+		// Trail'i tersten çiz (en eski pozisyondan başla)
+		[...previousPositions.value].reverse().forEach((pos, index) => {
+			// Alpha değerini daha yüksek tut ve daha yumuşak bir geçiş sağla
+			const normalizedIndex = index / trailLength;
+			const alpha = Math.pow(1 - normalizedIndex, 0.5) * blurStrength;
+
 			ctx.save();
-			ctx.globalAlpha = alpha;
+			ctx.globalAlpha = Math.min(0.9, alpha);
 			ctx.translate(pos.x, pos.y);
 
-			// Cursor boyutunu ayarla
+			// Trail için cursor boyutunu hesapla
 			const baseCursorSize = props.mouseSize;
 			const cursorScale = 2;
-			const cursorSize = baseCursorSize * cursorScale * scale.value;
+			// Trail boyutunu pozisyona göre küçült
+			const sizeMultiplier = 1 - normalizedIndex * 0.3;
+			const cursorSize =
+				baseCursorSize * cursorScale * scale.value * sizeMultiplier;
 
 			try {
 				ctx.drawImage(
@@ -1197,7 +1206,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.globalAlpha = 1;
 	ctx.translate(canvasX, canvasY);
 
-	// Cursor boyutunu ayarla
+	// Ana cursor boyutunu ayarla
 	const baseCursorSize = props.mouseSize;
 	const cursorScale = 2;
 	const cursorSize = baseCursorSize * cursorScale * scale.value;
