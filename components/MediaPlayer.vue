@@ -1021,22 +1021,39 @@ const drawMousePosition = (ctx, currentTime) => {
 	const scaleX = canvasWidth / videoWidth;
 	const scaleY = canvasHeight / videoHeight;
 
-	// Mevcut zamana göre hedef pozisyonu bul
-	let targetPos = null;
-	for (let i = 0; i < mousePos.length; i++) {
-		if (mousePos[i].timestamp > currentTimeMs) {
-			if (i > 0) {
-				targetPos = mousePos[i - 1];
-			}
+	// Mevcut zamana göre hedef pozisyonu ve interpolasyon faktörünü bul
+	let currentIndex = 0;
+	let nextIndex = 0;
+	for (let i = 0; i < mousePos.length - 1; i++) {
+		if (
+			mousePos[i].timestamp <= currentTimeMs &&
+			mousePos[i + 1].timestamp > currentTimeMs
+		) {
+			currentIndex = i;
+			nextIndex = i + 1;
 			break;
 		}
 	}
 
-	if (!targetPos) return;
+	const currentPos = mousePos[currentIndex];
+	const nextPos = mousePos[nextIndex];
+
+	if (!currentPos || !nextPos) return;
+
+	// İki pozisyon arasındaki interpolasyon faktörünü hesapla
+	const timeDiff = nextPos.timestamp - currentPos.timestamp;
+	const progress = Math.min(
+		Math.max(0, (currentTimeMs - currentPos.timestamp) / timeDiff),
+		1
+	);
+
+	// İki pozisyon arasında interpolasyon yap
+	const interpolatedX = currentPos.x + (nextPos.x - currentPos.x) * progress;
+	const interpolatedY = currentPos.y + (nextPos.y - currentPos.y) * progress;
 
 	// Mouse pozisyonlarını canvas boyutlarına göre ölçekle
-	const scaledX = targetPos.x * scaleX;
-	const scaledY = targetPos.y * scaleY;
+	const scaledX = interpolatedX * scaleX;
+	const scaledY = interpolatedY * scaleY;
 
 	// Hedef pozisyonu güncelle
 	targetMousePos.value = {
@@ -1050,16 +1067,16 @@ const drawMousePosition = (ctx, currentTime) => {
 		isAnimating.value = true;
 	}
 
-	// Pozisyonu yumuşak bir şekilde güncelle
+	// Pozisyonu daha yumuşak bir şekilde güncelle (lerp faktörünü düşürdük)
 	currentMousePos.value.x = lerp(
 		currentMousePos.value.x,
 		targetMousePos.value.x,
-		0.1
+		0.05
 	);
 	currentMousePos.value.y = lerp(
 		currentMousePos.value.y,
 		targetMousePos.value.y,
-		0.1
+		0.05
 	);
 
 	// Cursor'ı çiz
