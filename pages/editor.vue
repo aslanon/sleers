@@ -43,6 +43,7 @@
 						:preview-time="previewTime"
 						:is-muted="isMuted"
 						:segments="segments"
+						:mouse-positions="mousePositions"
 						@video-loaded="onVideoLoaded"
 						@video-ended="onVideoEnded"
 						@video-paused="isPlaying = false"
@@ -568,6 +569,25 @@ const previewTime = ref(null);
 const handlePreviewTimeUpdate = (time) => {
 	previewTime.value = time;
 };
+
+let mousePositions = ref([]);
+
+onMounted(() => {
+	// Listen for mouse position updates
+	electron.ipcRenderer.on(
+		electron.ipcRenderer.IPC_EVENTS.MOUSE_POSITION_UPDATED,
+		(data) => {
+			mousePositions = data;
+		}
+	);
+});
+
+onUnmounted(() => {
+	// Clean up listener
+	electron.ipcRenderer.removeAllListeners(
+		electron.ipcRenderer.IPC_EVENTS.MOUSE_POSITION_UPDATED
+	);
+});
 
 onMounted(async () => {
 	try {

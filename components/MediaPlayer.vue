@@ -77,6 +77,10 @@ const props = defineProps({
 		type: Array,
 		default: () => [],
 	},
+	mousePositions: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits([
@@ -137,7 +141,10 @@ const videoState = ref({
 	playbackRate: 1,
 });
 
-// Segment oynatma mantığı
+// Add isPaused computed
+const isPaused = computed(() => videoState.value.isPaused);
+
+// Video state yönetimi
 const currentSegmentIndex = ref(0);
 const isPlayingSegments = ref(false);
 
@@ -497,7 +504,7 @@ const getCropData = () => {
 
 // Canvas güncelleme optimizasyonu
 const updateCanvas = (timestamp) => {
-	if (!canvasRef.value || !videoElement || !ctx) return;
+	if (!canvasRef.value || !videoElement) return;
 
 	const canvas = canvasRef.value;
 	const container = containerRef.value;
@@ -511,7 +518,7 @@ const updateCanvas = (timestamp) => {
 		canvas.height = container.clientHeight;
 	}
 
-	// Canvas'ı temizle
+	const ctx = canvas.getContext("2d");
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 	// Transform işlemleri
@@ -569,11 +576,11 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
-	// Cursor'ı ortaya çiz
-	drawCursor(ctx, canvas.width / 2, canvas.height / 2);
+	// Mouse pozisyonunu çiz
+	drawMousePosition(ctx, videoElement.currentTime);
 
 	// Video oynatılıyorsa veya sürükleme/zoom yapılıyorsa animasyonu devam ettir
-	if (videoState.value.isPlaying || isDragging.value) {
+	if (!isPaused.value || isDragging.value) {
 		animationFrame = requestAnimationFrame(updateCanvas);
 	}
 };
@@ -977,6 +984,27 @@ defineExpose({
 		emit("muteChange", videoElement.muted);
 	},
 });
+
+const drawMousePosition = (ctx, currentTime) => {
+	if (!props.mousePositions.length) return;
+
+	// Find the mouse position closest to the current video time
+	const currentTimeMs = currentTime * 1000;
+	const mousePos = props.mousePositions.find((pos) => {
+		return Math.abs(pos.timestamp - currentTimeMs) < 16; // Within one frame
+	});
+	console.log(1111, mousePos);
+	if (mousePos) {
+		// Convert screen coordinates to canvas coordinates
+		const canvasX =
+			(mousePos.x - props.cropInfo.x) * scale.value + position.value.x;
+		const canvasY =
+			(mousePos.y - props.cropInfo.y) * scale.value + position.value.y;
+
+		// Draw the cursor
+		drawCursor(ctx, canvasX, canvasY);
+	}
+};
 </script>
 
 <style scoped>

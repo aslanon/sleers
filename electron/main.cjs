@@ -7,6 +7,7 @@ const {
 	Menu,
 	nativeImage,
 	protocol,
+	screen,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -34,11 +35,23 @@ let mediaStateManager = null;
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 
+let mouseTrackingInterval = null;
+let mousePositions = [];
+
 // IPC event handlers
 function setupIpcHandlers() {
 	// Recording status
 	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_CHANGED, async (event, status) => {
-		console.log("Kayıt durumu değişti:", status);
+		console.log("********Kayıt durumu değişti:", status);
+		if (status) {
+			// Start mouse position tracking when recording starts
+			console.log(1232);
+			startMouseTracking();
+		} else {
+			console.log(423);
+			// Stop mouse position tracking when recording stops
+			stopMouseTracking();
+		}
 
 		try {
 			const result = await mediaStateManager.handleRecordingStatusChange(
@@ -81,10 +94,13 @@ function setupIpcHandlers() {
 							// Editor'e medya durumunu gönder
 							mediaStateManager.notifyRenderers(editorManager.editorWindow);
 
-							// Editor hazır olduğunu bildir
-							editorManager.editorWindow.webContents.send(
-								IPC_EVENTS.EDITOR_READY
-							);
+							setTimeout(() => {
+								// Mouse position'ı editor'e gönder
+								editorManager.editorWindow.webContents.send(
+									IPC_EVENTS.MOUSE_POSITION_UPDATED,
+									mousePositions
+								);
+							}, 3000);
 						}
 					} catch (error) {
 						console.error("Editor açılırken hata:", error);
@@ -474,8 +490,32 @@ app.on("activate", () => {
 
 app.on("before-quit", () => {
 	app.isQuitting = true;
+	stopMouseTracking();
 	if (mediaStateManager) mediaStateManager.cleanup();
 	if (tempFileManager) tempFileManager.cleanupAllFiles();
 	if (cameraManager) cameraManager.cleanup();
 	if (selectionManager) selectionManager.cleanup();
 });
+
+function startMouseTracking() {
+	console.log(44444);
+	if (!mouseTrackingInterval) {
+		mouseTrackingInterval = setInterval(() => {
+			const mousePos = screen.getCursorScreenPoint();
+			const timestamp = Date.now();
+			console.log("xxxxxx", mousePos, timestamp);
+			mousePositions.push({
+				x: mousePos.x,
+				y: mousePos.y,
+				timestamp,
+			});
+		}, 16); // ~60fps
+	}
+}
+
+function stopMouseTracking() {
+	if (mouseTrackingInterval) {
+		clearInterval(mouseTrackingInterval);
+		mouseTrackingInterval = null;
+	}
+}
