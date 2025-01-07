@@ -42,7 +42,8 @@
 						<div class="flex items-center space-x-2">
 							<input
 								type="range"
-								v-model="mouseSize"
+								:value="mouseSize"
+								@input="updateMouseSize($event.target.value)"
 								min="20"
 								max="100"
 								step="1"
@@ -58,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, watch } from "vue";
 
 const props = defineProps({
 	duration: {
@@ -76,9 +77,13 @@ const props = defineProps({
 		required: true,
 		default: 1080,
 	},
+	modelValue: {
+		type: Number,
+		default: 42,
+	},
 });
 
-const emit = defineEmits(["update:mouseSize"]);
+const emit = defineEmits(["update:modelValue"]);
 
 // Tab yönetimi
 const tabs = [
@@ -88,12 +93,25 @@ const tabs = [
 const currentTab = ref("video");
 
 // Mouse ayarları
-const mouseSize = ref(42);
+const mouseSize = ref(props.modelValue);
 
-// Mouse size değişikliğini izle
-watch(mouseSize, (newSize) => {
-	emit("update:mouseSize", newSize);
-});
+// Mouse size güncelleme fonksiyonu
+const updateMouseSize = (value) => {
+	const numValue = Number(value);
+	mouseSize.value = numValue;
+	emit("update:modelValue", numValue);
+};
+
+// Prop değişikliğini izle ve local state'i güncelle
+watch(
+	() => props.modelValue,
+	(newValue) => {
+		if (newValue !== mouseSize.value) {
+			mouseSize.value = newValue;
+		}
+	},
+	{ immediate: true }
+);
 
 // Süre formatı
 const formatDuration = (seconds) => {

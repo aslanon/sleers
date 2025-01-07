@@ -72,7 +72,7 @@
 					:duration="videoDuration"
 					:width="videoWidth"
 					:height="videoHeight"
-					v-model:mouse-size="mouseSize"
+					v-model="mouseSize"
 				/>
 			</div>
 
@@ -92,7 +92,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 import MediaPlayer from "~/components/MediaPlayer.vue";
 import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
@@ -667,4 +667,13 @@ onUnmounted(() => {
 
 // Mouse ayarları
 const mouseSize = ref(42);
+
+// Mouse size değişikliğini izle
+watch(
+	mouseSize,
+	(newSize) => {
+		console.log("[editor.vue] Mouse size güncellendi:", newSize);
+	},
+	{ immediate: true }
+);
 </script>
