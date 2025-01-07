@@ -44,6 +44,7 @@
 						:is-muted="isMuted"
 						:segments="segments"
 						:mouse-positions="mousePositions"
+						:mouse-size="mouseSize"
 						@video-loaded="onVideoLoaded"
 						@video-ended="onVideoEnded"
 						@video-paused="isPlaying = false"
@@ -71,6 +72,7 @@
 					:duration="videoDuration"
 					:width="videoWidth"
 					:height="videoHeight"
+					v-model:mouse-size="mouseSize"
 				/>
 			</div>
 
@@ -662,4 +664,7 @@ onUnmounted(() => {
 		window.electron.ipcRenderer.removeAllListeners("PROCESSING_COMPLETE");
 	}
 });
+
+// Mouse ayarları
+const mouseSize = ref(42);
 </script>

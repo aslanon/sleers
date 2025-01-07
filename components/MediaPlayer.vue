@@ -86,6 +86,10 @@ const props = defineProps({
 			);
 		},
 	},
+	mouseSize: {
+		type: Number,
+		default: 42,
+	},
 	cropInfo: {
 		type: Object,
 		default: () => ({
@@ -1092,7 +1096,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.translate(canvasX, canvasY);
 
 	// Cursor boyutunu ayarla (zoom ile orantılı sabit boyut)
-	const baseCursorSize = 42;
+	const baseCursorSize = props.mouseSize;
 	const cursorScale = 2;
 	const cursorSize = baseCursorSize * cursorScale * scale.value;
 
