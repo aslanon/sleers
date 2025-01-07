@@ -1096,9 +1096,10 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Cursor pozisyonuna git
 	ctx.translate(canvasX, canvasY);
 
-	// Cursor boyutunu ayarla
-	const cursorScale = 1.5;
-	const cursorSize = 28 * cursorScale;
+	// Cursor boyutunu ayarla (zoom ile orantılı sabit boyut)
+	const baseCursorSize = 42;
+	const cursorScale = 2;
+	const cursorSize = baseCursorSize * cursorScale * scale.value;
 
 	// Cursor'ı çiz
 	try {
