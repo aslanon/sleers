@@ -633,9 +633,8 @@ watch(
 watch(
 	() => props.mouseSize,
 	() => {
-		forceCanvasUpdate();
-	},
-	{ immediate: true }
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	}
 );
 
 // Aspect ratio değişikliğini izle
@@ -648,11 +647,12 @@ watch(
 	{ immediate: true }
 );
 
-// Mouse positions değişikliğini izle
+// Mouse positions değişikliğini izle ve previousPositions'ı temizle
 watch(
 	() => props.mousePositions,
 	() => {
-		forceCanvasUpdate();
+		previousPositions.value = []; // Trail'i temizle
+		requestAnimationFrame(() => updateCanvas(performance.now()));
 	},
 	{ deep: true }
 );
@@ -661,7 +661,7 @@ watch(
 watch(
 	() => props.cropInfo,
 	() => {
-		forceCanvasUpdate();
+		requestAnimationFrame(() => updateCanvas(performance.now()));
 	},
 	{ deep: true }
 );
@@ -1185,6 +1185,9 @@ const drawMousePosition = (ctx, currentTime) => {
 			const cursorSize =
 				baseCursorSize * cursorScale * scale.value * sizeMultiplier;
 
+			// Blur efekti uygula
+			ctx.filter = `blur(${props.motionBlurValue / 20}px)`;
+
 			try {
 				ctx.drawImage(
 					cursorImage,
@@ -1211,6 +1214,11 @@ const drawMousePosition = (ctx, currentTime) => {
 	const cursorScale = 2;
 	const cursorSize = baseCursorSize * cursorScale * scale.value;
 
+	// Ana cursor'a da blur efekti uygula
+	if (props.motionBlurValue > 0) {
+		ctx.filter = `blur(${props.motionBlurValue / 40}px)`; // Ana cursor için daha az blur
+	}
+
 	try {
 		ctx.drawImage(
 			cursorImage,
@@ -1236,10 +1244,27 @@ watch(
 	{ immediate: true }
 );
 
-// Mouse positions değişikliğini izle
+// Mouse size değişikliğini izle
+watch(
+	() => props.mouseSize,
+	() => {
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	}
+);
+
+// Motion blur değişikliğini izle
+watch(
+	() => props.motionBlurValue,
+	() => {
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	}
+);
+
+// Mouse positions değişikliğini izle ve previousPositions'ı temizle
 watch(
 	() => props.mousePositions,
 	() => {
+		previousPositions.value = []; // Trail'i temizle
 		requestAnimationFrame(() => updateCanvas(performance.now()));
 	},
 	{ deep: true }
