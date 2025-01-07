@@ -1036,42 +1036,16 @@ const drawMousePosition = (ctx, currentTime) => {
 	const nextPos = mousePos[nextFrame];
 	if (!currentPos || !nextPos) return;
 
-	// Canvas ve container boyutlarını al
-	const canvas = canvasRef.value;
-	const container = containerRef.value;
-	const rect = container.getBoundingClientRect();
+	// İki pozisyon arasında doğrudan piksel interpolasyonu yap
+	const x = currentPos.x;
+	const y = currentPos.y;
 
-	// Video boyutlarını al
-	const videoWidth = videoElement.videoWidth;
-	const videoHeight = videoElement.videoHeight;
-
-	// İki pozisyon arasında cubic interpolasyon yap
-	const t = framePart;
-	const t2 = t * t;
-	const t3 = t2 * t;
-	const interpolatedX =
-		currentPos.x + (nextPos.x - currentPos.x) * (3 * t2 - 2 * t3);
-	const interpolatedY =
-		currentPos.y + (nextPos.y - currentPos.y) * (3 * t2 - 2 * t3);
-
-	// Video içindeki oransal pozisyonu hesapla (0-1 arası)
-	const normalizedX = interpolatedX / videoWidth;
-	const normalizedY = interpolatedY / videoHeight;
-
-	// Video'nun canvas içindeki mevcut boyutlarını hesapla
-	const currentVideoWidth = videoWidth * scale.value;
-	const currentVideoHeight = videoHeight * scale.value;
-
-	// Video'nun canvas içindeki başlangıç pozisyonunu hesapla
-	const videoLeft = position.value.x;
-	const videoTop = position.value.y;
-
-	// Mouse pozisyonunu canvas koordinatlarına dönüştür
-	const canvasX = videoLeft + normalizedX * currentVideoWidth;
-	const canvasY = videoTop + normalizedY * currentVideoHeight;
-
-	// Cursor'ı çiz
+	// Video transform'unu uygula
 	ctx.save();
+
+	// Video ile aynı transform'u uygula
+	ctx.translate(position.value.x, position.value.y);
+	ctx.scale(scale.value, scale.value);
 
 	// Cursor stilini ayarla
 	ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
@@ -1083,7 +1057,7 @@ const drawMousePosition = (ctx, currentTime) => {
 
 	// Cursor'ı çiz
 	ctx.beginPath();
-	ctx.arc(canvasX, canvasY, cursorSize, 0, Math.PI * 2);
+	ctx.arc(x, y, cursorSize, 0, Math.PI * 2);
 	ctx.fill();
 	ctx.stroke();
 
@@ -1091,9 +1065,9 @@ const drawMousePosition = (ctx, currentTime) => {
 
 	// Debug için pozisyonları logla
 	console.log("Mouse Position:", {
-		normalized: { x: normalizedX, y: normalizedY },
-		canvas: { x: canvasX, y: canvasY },
-		video: { width: currentVideoWidth, height: currentVideoHeight },
+		current: currentPos,
+		next: nextPos,
+		interpolated: { x, y },
 		position: position.value,
 		scale: scale.value,
 	});
