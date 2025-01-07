@@ -1025,37 +1025,27 @@ const drawMousePosition = (ctx, currentTime) => {
 
 	// Mouse pozisyonları için toplam frame sayısı
 	const totalFrames = mousePos.length;
-
-	// Her frame'in süresini hesapla (video süresi / toplam frame)
 	const frameTime = videoDuration / totalFrames;
-
-	// Şu anki frame indeksini hesapla (daha hassas)
 	const exactFrame = currentTime / frameTime;
 	const currentFrame = Math.floor(exactFrame);
 	const nextFrame = Math.min(currentFrame + 1, totalFrames - 1);
-
-	// Frame'ler arası interpolasyon faktörünü hesapla (0-1 arası)
 	const framePart = exactFrame - currentFrame;
 
 	// İki frame arasında interpolasyon yap
 	const currentPos = mousePos[currentFrame];
 	const nextPos = mousePos[nextFrame];
-
 	if (!currentPos || !nextPos) return;
 
-	// Canvas ve video boyutlarını al
+	// Canvas ve container boyutlarını al
 	const canvas = canvasRef.value;
 	const container = containerRef.value;
-	const canvasWidth = canvas.width;
-	const canvasHeight = canvas.height;
+	const rect = container.getBoundingClientRect();
+
+	// Video boyutlarını al
 	const videoWidth = videoElement.videoWidth;
 	const videoHeight = videoElement.videoHeight;
 
-	// Video-canvas ölçekleme oranlarını hesapla
-	const scaleRatioX = canvasWidth / videoWidth;
-	const scaleRatioY = canvasHeight / videoHeight;
-
-	// İki pozisyon arasında cubic interpolasyon yap (daha yumuşak hareket için)
+	// İki pozisyon arasında cubic interpolasyon yap
 	const t = framePart;
 	const t2 = t * t;
 	const t3 = t2 * t;
@@ -1064,35 +1054,21 @@ const drawMousePosition = (ctx, currentTime) => {
 	const interpolatedY =
 		currentPos.y + (nextPos.y - currentPos.y) * (3 * t2 - 2 * t3);
 
-	// Video koordinatlarını canvas koordinatlarına dönüştür
-	const canvasX = interpolatedX * scaleRatioX;
-	const canvasY = interpolatedY * scaleRatioY;
+	// Video içindeki oransal pozisyonu hesapla (0-1 arası)
+	const normalizedX = interpolatedX / videoWidth;
+	const normalizedY = interpolatedY / videoHeight;
 
-	// Transform'u uygula
-	const transformedX = canvasX * scale.value + position.value.x;
-	const transformedY = canvasY * scale.value + position.value.y;
+	// Video'nun canvas içindeki mevcut boyutlarını hesapla
+	const currentVideoWidth = videoWidth * scale.value;
+	const currentVideoHeight = videoHeight * scale.value;
 
-	// Hedef pozisyonu güncelle
-	targetMousePos.value = {
-		x: transformedX,
-		y: transformedY,
-	};
+	// Video'nun canvas içindeki başlangıç pozisyonunu hesapla
+	const videoLeft = position.value.x;
+	const videoTop = position.value.y;
 
-	// Pozisyonu yumuşak bir şekilde güncelle
-	if (!currentMousePos.value.x && !currentMousePos.value.y) {
-		currentMousePos.value = { ...targetMousePos.value };
-	} else {
-		currentMousePos.value.x = lerp(
-			currentMousePos.value.x,
-			targetMousePos.value.x,
-			0.3
-		);
-		currentMousePos.value.y = lerp(
-			currentMousePos.value.y,
-			targetMousePos.value.y,
-			0.3
-		);
-	}
+	// Mouse pozisyonunu canvas koordinatlarına dönüştür
+	const canvasX = videoLeft + normalizedX * currentVideoWidth;
+	const canvasY = videoTop + normalizedY * currentVideoHeight;
 
 	// Cursor'ı çiz
 	ctx.save();
@@ -1102,21 +1078,25 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.strokeStyle = "white";
 	ctx.lineWidth = 2;
 
+	// Sabit boyutlu cursor
 	const cursorSize = 10;
 
 	// Cursor'ı çiz
 	ctx.beginPath();
-	ctx.arc(
-		currentMousePos.value.x,
-		currentMousePos.value.y,
-		cursorSize,
-		0,
-		Math.PI * 2
-	);
+	ctx.arc(canvasX, canvasY, cursorSize, 0, Math.PI * 2);
 	ctx.fill();
 	ctx.stroke();
 
 	ctx.restore();
+
+	// Debug için pozisyonları logla
+	console.log("Mouse Position:", {
+		normalized: { x: normalizedX, y: normalizedY },
+		canvas: { x: canvasX, y: canvasY },
+		video: { width: currentVideoWidth, height: currentVideoHeight },
+		position: position.value,
+		scale: scale.value,
+	});
 };
 </script>
 
