@@ -1008,6 +1008,7 @@ defineExpose({
 // Mouse animasyonu için state
 const currentMousePos = ref({ x: 0, y: 0 });
 const targetMousePos = ref({ x: 0, y: 0 });
+const lastFrameIndex = ref(-1);
 
 // Lerp (Linear interpolation) fonksiyonu
 const lerp = (start, end, factor) => {
@@ -1036,41 +1037,55 @@ const drawMousePosition = (ctx, currentTime) => {
 	const nextPos = mousePos[nextFrame];
 	if (!currentPos || !nextPos) return;
 
-	// İki pozisyon arasında doğrudan piksel interpolasyonu yap
-	const x = currentPos.x;
-	const y = currentPos.y;
+	// Frame değiştiğinde pozisyonu sıfırla
+	if (currentFrame !== lastFrameIndex.value) {
+		currentMousePos.value = { ...currentPos };
+		lastFrameIndex.value = currentFrame;
+	}
+
+	// İki pozisyon arasında smooth interpolasyon yap
+	const targetX = lerp(currentPos.x, nextPos.x, framePart);
+	const targetY = lerp(currentPos.y, nextPos.y, framePart);
+
+	// Hedef pozisyonu güncelle
+	targetMousePos.value = { x: targetX, y: targetY };
+
+	// Mevcut pozisyonu hedef pozisyona doğru yumuşak bir şekilde hareket ettir
+	currentMousePos.value = {
+		x: lerp(currentMousePos.value.x, targetMousePos.value.x, 0.2),
+		y: lerp(currentMousePos.value.y, targetMousePos.value.y, 0.2),
+	};
 
 	// Video transform'unu uygula
 	ctx.save();
 
-	// Video ile aynı transform'u uygula
+	// Önce pozisyonu ayarla
 	ctx.translate(position.value.x, position.value.y);
+
+	// Sonra scale'i uygula
 	ctx.scale(scale.value, scale.value);
 
 	// Cursor stilini ayarla
 	ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
 	ctx.strokeStyle = "white";
-	ctx.lineWidth = 2;
+	ctx.lineWidth = 2 / scale.value; // Scale'e göre line width'i ayarla
 
-	// Sabit boyutlu cursor
-	const cursorSize = 10;
+	// Sabit boyutlu cursor (scale'e göre ayarlanmış)
+	const cursorSize = 10 / scale.value;
 
 	// Cursor'ı çiz
 	ctx.beginPath();
-	ctx.arc(x, y, cursorSize, 0, Math.PI * 2);
+	ctx.arc(
+		currentMousePos.value.x,
+		currentMousePos.value.y,
+		cursorSize,
+		0,
+		Math.PI * 2
+	);
 	ctx.fill();
 	ctx.stroke();
 
 	ctx.restore();
-
-	// Debug için pozisyonları logla
-	console.log("Mouse Position:", {
-		current: currentPos,
-		next: nextPos,
-		interpolated: { x, y },
-		position: position.value,
-		scale: scale.value,
-	});
 };
 </script>
 
