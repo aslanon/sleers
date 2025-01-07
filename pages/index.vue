@@ -54,98 +54,9 @@
 					/>
 				</svg>
 			</button>
-
-			<!-- Ayarlar Popover -->
-			<div
-				v-if="isSettingsOpen"
-				class="absolute top-full mt-2 right-0 bg-[#1a1b26] border border-gray-700 rounded-lg p-4 shadow-lg z-50 min-w-[200px]"
-			>
-				<div class="flex flex-col space-y-3">
-					<div class="text-sm font-medium text-gray-300">Kayıt Gecikmesi</div>
-					<div class="flex flex-wrap gap-2">
-						<button
-							v-for="delay in delayOptions"
-							:key="delay"
-							@click="selectDelay(delay)"
-							class="px-3 py-1 rounded-lg text-sm"
-							:class="
-								selectedDelay === delay
-									? 'bg-blue-600'
-									: 'bg-gray-700 hover:bg-gray-600'
-							"
-						>
-							{{ delay / 1000 }}sn
-						</button>
-					</div>
-				</div>
-			</div>
 		</div>
 
 		<!-- Kayıt Kontrolleri -->
-		<div class="flex items-center space-x-2">
-			<button
-				class="p-2 hover:bg-gray-700 rounded-lg"
-				:class="{ 'bg-gray-700': selectedSource === 'display' }"
-				@click="selectSource('display')"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-					/>
-				</svg>
-			</button>
-			<button
-				class="p-2 hover:bg-gray-700 rounded-lg"
-				:class="{ 'bg-gray-700': selectedSource === 'window' }"
-				@click="selectSource('window')"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M4 6h16M4 10h16M4 14h16M4 18h16"
-					/>
-				</svg>
-			</button>
-			<button
-				class="p-2 hover:bg-gray-700 rounded-lg"
-				:class="{ 'bg-gray-700': selectedSource === 'area' }"
-				@click="selectSource('area')"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-					/>
-				</svg>
-			</button>
-		</div>
-
-		<!-- Kamera ve Mikrofon Seçimi -->
 		<div class="flex items-center space-x-4 flex-wrap">
 			<select
 				v-model="selectedVideoDevice"
@@ -254,11 +165,22 @@
 			</button>
 		</div>
 	</div>
+
+	<!-- Ayarlar Paneli -->
+	<RecordSettings
+		v-if="isSettingsOpen"
+		:delay-options="delayOptions"
+		v-model:selected-delay="selectedDelay"
+		v-model:selected-source="selectedSource"
+		@update:selected-delay="handleDelayChange"
+		@update:selected-source="selectSource"
+	/>
 </template>
 
 <script setup>
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
+import RecordSettings from "~/components/record-settings/index.vue";
 
 // Click outside direktifi
 const vClickOutside = {
@@ -280,7 +202,8 @@ const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
 
 let mediaRecorder = null;
 
-const selectedSource = ref("display");
+// Varsayılan değerler
+const selectedSource = ref("display"); // Varsayılan kaynak tipi
 const systemAudioEnabled = ref(true);
 const microphoneEnabled = ref(true);
 const microphoneLevel = ref(0);
@@ -450,6 +373,7 @@ const toggleSystemAudio = () => {
 	});
 };
 
+// Kaynak seçimi
 const selectSource = (source) => {
 	selectedSource.value = source;
 	if (source === "area") {
@@ -483,22 +407,21 @@ const selectedDelay = ref(1000); // Varsayılan 1sn
 const updateWindowSize = (isOpen) => {
 	if (electron?.ipcRenderer) {
 		electron.ipcRenderer.send("UPDATE_WINDOW_SIZE", {
-			height: isOpen ? 300 : 70, // Popover açıkken 180px, kapalıyken 70px
+			height: isOpen ? 250 : 70, // Ayarlar açıkken 250px, kapalıyken 70px
 		});
 	}
 };
 
-// Popover durumunu izle
+// Ayarlar durumunu izle
 watch(isSettingsOpen, (newValue) => {
 	updateWindowSize(newValue);
 });
 
-// Delay seçimi
-const selectDelay = (delay) => {
+// Delay değişikliği
+const handleDelayChange = (delay) => {
 	selectedDelay.value = delay;
 	// Main process'e delay değerini gönder
 	electron?.ipcRenderer.send(IPC_EVENTS.UPDATE_RECORDING_DELAY, delay);
-	isSettingsOpen.value = false;
 };
 
 onMounted(async () => {
