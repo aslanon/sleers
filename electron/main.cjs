@@ -38,6 +38,18 @@ let dragOffset = { x: 0, y: 0 };
 let mouseTrackingInterval = null;
 let mousePositions = [];
 
+// Delay yönetimi için state
+let recordingDelay = 1000; // Varsayılan 1sn
+
+// IPC handlers'a eklenecek
+ipcMain.on(IPC_EVENTS.UPDATE_RECORDING_DELAY, (event, delay) => {
+	recordingDelay = delay;
+});
+
+ipcMain.handle(IPC_EVENTS.GET_RECORDING_DELAY, () => {
+	return recordingDelay;
+});
+
 // IPC event handlers
 function setupIpcHandlers() {
 	// Recording status
@@ -369,6 +381,14 @@ function setupIpcHandlers() {
 			}
 		}
 	);
+
+	// Pencere boyutu güncelleme
+	ipcMain.on("UPDATE_WINDOW_SIZE", (event, { height }) => {
+		if (mainWindow) {
+			const [width] = mainWindow.getSize();
+			mainWindow.setSize(width, height);
+		}
+	});
 }
 
 async function createWindow() {
@@ -498,20 +518,22 @@ app.on("before-quit", () => {
 });
 
 function startMouseTracking() {
-	console.log(44444);
-	let time = 0;
-	if (!mouseTrackingInterval) {
-		mouseTrackingInterval = setInterval(() => {
-			const mousePos = screen.getCursorScreenPoint();
-			time = time + 1;
-			console.log("xxxxxx", mousePos, time);
-			mousePositions.push({
-				x: mousePos.x,
-				y: mousePos.y,
-				timestamp: time,
-			});
-		}, 16); // ~60fps
-	}
+	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
+	setTimeout(() => {
+		console.log("Mouse tracking başladı");
+		let time = 0;
+		if (!mouseTrackingInterval) {
+			mouseTrackingInterval = setInterval(() => {
+				const mousePos = screen.getCursorScreenPoint();
+				time = time + 1;
+				mousePositions.push({
+					x: mousePos.x,
+					y: mousePos.y,
+					timestamp: time,
+				});
+			}, 16); // ~60fps
+		}
+	}, recordingDelay);
 }
 
 function stopMouseTracking() {

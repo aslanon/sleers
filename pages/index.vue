@@ -22,10 +22,64 @@
 					d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
 					clip-rule="evenodd"
 				/>
-				Kaydet
 			</svg>
 		</button>
 		<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
+
+		<!-- Ayarlar Butonu -->
+		<div class="relative">
+			<button
+				@click="isSettingsOpen = !isSettingsOpen"
+				class="p-2 hover:bg-gray-700 rounded-lg"
+				:class="{ 'bg-gray-700': isSettingsOpen }"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+					/>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+					/>
+				</svg>
+			</button>
+
+			<!-- Ayarlar Popover -->
+			<div
+				v-if="isSettingsOpen"
+				class="absolute top-full mt-2 right-0 bg-[#1a1b26] border border-gray-700 rounded-lg p-4 shadow-lg z-50 min-w-[200px]"
+			>
+				<div class="flex flex-col space-y-3">
+					<div class="text-sm font-medium text-gray-300">Kayıt Gecikmesi</div>
+					<div class="flex flex-wrap gap-2">
+						<button
+							v-for="delay in delayOptions"
+							:key="delay"
+							@click="selectDelay(delay)"
+							class="px-3 py-1 rounded-lg text-sm"
+							:class="
+								selectedDelay === delay
+									? 'bg-blue-600'
+									: 'bg-gray-700 hover:bg-gray-600'
+							"
+						>
+							{{ delay / 1000 }}sn
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
 
 		<!-- Kayıt Kontrolleri -->
 		<div class="flex items-center space-x-2">
@@ -205,6 +259,21 @@
 <script setup>
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
+
+// Click outside direktifi
+const vClickOutside = {
+	mounted: (el, binding) => {
+		el._clickOutside = (event) => {
+			if (!(el === event.target || el.contains(event.target))) {
+				binding.value(event);
+			}
+		};
+		document.addEventListener("click", el._clickOutside);
+	},
+	unmounted: (el) => {
+		document.removeEventListener("click", el._clickOutside);
+	},
+};
 
 // IPC event isimlerini al
 const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
@@ -405,6 +474,33 @@ watch(selectedVideoDevice, async (deviceLabel) => {
 	}
 });
 
+// Delay yönetimi için state
+const isSettingsOpen = ref(false);
+const delayOptions = [1000, 3000, 5000]; // 1sn, 3sn, 5sn
+const selectedDelay = ref(1000); // Varsayılan 1sn
+
+// Pencere boyutunu ayarla
+const updateWindowSize = (isOpen) => {
+	if (electron?.ipcRenderer) {
+		electron.ipcRenderer.send("UPDATE_WINDOW_SIZE", {
+			height: isOpen ? 300 : 70, // Popover açıkken 180px, kapalıyken 70px
+		});
+	}
+};
+
+// Popover durumunu izle
+watch(isSettingsOpen, (newValue) => {
+	updateWindowSize(newValue);
+});
+
+// Delay seçimi
+const selectDelay = (delay) => {
+	selectedDelay.value = delay;
+	// Main process'e delay değerini gönder
+	electron?.ipcRenderer.send(IPC_EVENTS.UPDATE_RECORDING_DELAY, delay);
+	isSettingsOpen.value = false;
+};
+
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
@@ -462,6 +558,16 @@ onMounted(async () => {
 	}
 
 	await initAudioAnalyser();
+
+	// Kayıtlı delay değerini al
+	if (electron?.ipcRenderer) {
+		const delay = await electron.ipcRenderer.invoke(
+			IPC_EVENTS.GET_RECORDING_DELAY
+		);
+		if (delay) {
+			selectedDelay.value = delay;
+		}
+	}
 });
 
 // Kayıt durumu değiştiğinde tray'i güncelle
@@ -498,145 +604,167 @@ onUnmounted(() => {
 
 const startRecording = async (options = null) => {
 	try {
-		isRecording.value = true;
+		// Geri sayım başlat
+		const countdownElement = document.createElement("div");
+		countdownElement.className =
+			"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-white bg-black/50 rounded-full w-32 h-32 flex items-center justify-center z-50";
+		document.body.appendChild(countdownElement);
 
-		// Kayıt başlamadan önce body'e recording sınıfını ekle
-		document.body.classList.add("recording");
+		let countdown = selectedDelay.value / 1000;
+		return new Promise((resolve) => {
+			const countdownInterval = setInterval(() => {
+				countdown--;
+				countdownElement.textContent = countdown;
 
-		// Ses ayarlarını belirle (tray'den gelen veya mevcut ayarlar)
-		const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
-		const useMicrophone = options?.microphone ?? microphoneEnabled.value;
-		const micDeviceId =
-			options?.microphoneDeviceId ?? selectedAudioDevice.value;
+				if (countdown <= 0) {
+					clearInterval(countdownInterval);
+					document.body.removeChild(countdownElement);
+					resolve();
+				}
+			}, 1000);
+		}).then(async () => {
+			isRecording.value = true;
 
-		// Ses yapılandırmasını oluştur
-		const audioConfig = {
-			mandatory: {
-				chromeMediaSource: useSystemAudio ? "desktop" : "none",
-			},
-		};
+			// Kayıt başlamadan önce body'e recording sınıfını ekle
+			document.body.classList.add("recording");
 
-		// Eğer mikrofon kullanılacaksa, mikrofon ayarlarını ekle
-		if (useMicrophone && micDeviceId) {
-			audioConfig.optional = [
-				{
-					deviceId: { exact: micDeviceId },
-				},
-			];
-		}
+			// Ses ayarlarını belirle (tray'den gelen veya mevcut ayarlar)
+			const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
+			const useMicrophone = options?.microphone ?? microphoneEnabled.value;
+			const micDeviceId =
+				options?.microphoneDeviceId ?? selectedAudioDevice.value;
 
-		// Kayıt başlat
-		console.log("2. Stream başlatılıyor...", {
-			useSystemAudio,
-			useMicrophone,
-			micDeviceId,
-			audioConfig,
-		});
-
-		const { screenStream, cameraStream } = await startMediaStream({
-			audio: audioConfig,
-			video: {
+			// Ses yapılandırmasını oluştur
+			const audioConfig = {
 				mandatory: {
-					chromeMediaSource: "desktop",
+					chromeMediaSource: useSystemAudio ? "desktop" : "none",
 				},
-			},
-		});
+			};
 
-		console.log("3. Stream başlatıldı");
+			// Eğer mikrofon kullanılacaksa, mikrofon ayarlarını ekle
+			if (useMicrophone && micDeviceId) {
+				audioConfig.optional = [
+					{
+						deviceId: { exact: micDeviceId },
+					},
+				];
+			}
 
-		// Her stream için ayrı MediaRecorder oluştur
-		if (mediaStream.value) {
-			console.log("4. MediaRecorder'lar oluşturuluyor");
-
-			// Ekran kaydı için recorder
-			const screenRecorder = new MediaRecorder(screenStream, {
-				mimeType: "video/webm;codecs=vp9",
-				videoBitsPerSecond: 50000000,
+			// Kayıt başlat
+			console.log("2. Stream başlatılıyor...", {
+				useSystemAudio,
+				useMicrophone,
+				micDeviceId,
+				audioConfig,
 			});
 
-			// Kamera kaydı için recorder (eğer varsa)
-			let cameraRecorder = null;
-			if (cameraStream) {
-				cameraRecorder = new MediaRecorder(cameraStream, {
-					mimeType: "video/webm;codecs=vp9",
-					videoBitsPerSecond: 8000000,
-				});
-			}
-
-			// Ses kaydı için recorder
-			let audioRecorder = null;
-			if (mediaStream.value.getAudioTracks().length > 0) {
-				const audioStream = new MediaStream(mediaStream.value.getAudioTracks());
-				audioRecorder = new MediaRecorder(audioStream, {
-					mimeType: "audio/webm;codecs=opus",
-					audioBitsPerSecond: 320000,
-				});
-
-				console.log("Ses kaydı yapılandırması:", {
-					systemAudio: useSystemAudio,
-					microphone: useMicrophone,
-					audioTracks: audioStream.getAudioTracks().length,
-				});
-			}
-
-			// Ekran kaydı chunks
-			const screenChunks = [];
-			screenRecorder.ondataavailable = (event) => {
-				if (event.data.size > 0) {
-					screenChunks.push(event.data);
-				}
-			};
-
-			// Kamera kaydı chunks
-			const cameraChunks = [];
-			if (cameraRecorder) {
-				cameraRecorder.ondataavailable = (event) => {
-					if (event.data.size > 0) {
-						cameraChunks.push(event.data);
-					}
-				};
-			}
-
-			// Ses kaydı chunks
-			const audioChunks = [];
-			if (audioRecorder) {
-				audioRecorder.ondataavailable = (event) => {
-					if (event.data.size > 0) {
-						audioChunks.push(event.data);
-					}
-				};
-			}
-
-			// Tüm recorder'ları başlat
-			screenRecorder.start(1000);
-			if (cameraRecorder) cameraRecorder.start(1000);
-			if (audioRecorder) audioRecorder.start(1000);
-
-			// Global mediaRecorder referansını güncelle
-			mediaRecorder = {
-				screen: screenRecorder,
-				camera: cameraRecorder,
-				audio: audioRecorder,
-				stop: async () => {
-					// Kayıt durduğunda recording sınıfını kaldır
-					document.body.classList.remove("recording");
-
-					screenRecorder.stop();
-					if (cameraRecorder) cameraRecorder.stop();
-					if (audioRecorder) audioRecorder.stop();
-
-					// Tüm kayıtlar bittiğinde editör sayfasına yönlendir
-					await saveRecording({
-						screen: screenChunks,
-						camera: cameraChunks,
-						audio: audioChunks,
-					});
+			const { screenStream, cameraStream } = await startMediaStream({
+				audio: audioConfig,
+				video: {
+					mandatory: {
+						chromeMediaSource: "desktop",
+					},
 				},
-			};
+			});
 
-			console.log("8. Tüm MediaRecorder'lar başlatıldı");
-			isRecording.value = true;
-		}
+			console.log("3. Stream başlatıldı");
+
+			// Her stream için ayrı MediaRecorder oluştur
+			if (mediaStream.value) {
+				console.log("4. MediaRecorder'lar oluşturuluyor");
+
+				// Ekran kaydı için recorder
+				const screenRecorder = new MediaRecorder(screenStream, {
+					mimeType: "video/webm;codecs=vp9",
+					videoBitsPerSecond: 50000000,
+				});
+
+				// Kamera kaydı için recorder (eğer varsa)
+				let cameraRecorder = null;
+				if (cameraStream) {
+					cameraRecorder = new MediaRecorder(cameraStream, {
+						mimeType: "video/webm;codecs=vp9",
+						videoBitsPerSecond: 8000000,
+					});
+				}
+
+				// Ses kaydı için recorder
+				let audioRecorder = null;
+				if (mediaStream.value.getAudioTracks().length > 0) {
+					const audioStream = new MediaStream(
+						mediaStream.value.getAudioTracks()
+					);
+					audioRecorder = new MediaRecorder(audioStream, {
+						mimeType: "audio/webm;codecs=opus",
+						audioBitsPerSecond: 320000,
+					});
+
+					console.log("Ses kaydı yapılandırması:", {
+						systemAudio: useSystemAudio,
+						microphone: useMicrophone,
+						audioTracks: audioStream.getAudioTracks().length,
+					});
+				}
+
+				// Ekran kaydı chunks
+				const screenChunks = [];
+				screenRecorder.ondataavailable = (event) => {
+					if (event.data.size > 0) {
+						screenChunks.push(event.data);
+					}
+				};
+
+				// Kamera kaydı chunks
+				const cameraChunks = [];
+				if (cameraRecorder) {
+					cameraRecorder.ondataavailable = (event) => {
+						if (event.data.size > 0) {
+							cameraChunks.push(event.data);
+						}
+					};
+				}
+
+				// Ses kaydı chunks
+				const audioChunks = [];
+				if (audioRecorder) {
+					audioRecorder.ondataavailable = (event) => {
+						if (event.data.size > 0) {
+							audioChunks.push(event.data);
+						}
+					};
+				}
+
+				// Tüm recorder'ları başlat
+				screenRecorder.start(1000);
+				if (cameraRecorder) cameraRecorder.start(1000);
+				if (audioRecorder) audioRecorder.start(1000);
+
+				// Global mediaRecorder referansını güncelle
+				mediaRecorder = {
+					screen: screenRecorder,
+					camera: cameraRecorder,
+					audio: audioRecorder,
+					stop: async () => {
+						// Kayıt durduğunda recording sınıfını kaldır
+						document.body.classList.remove("recording");
+
+						screenRecorder.stop();
+						if (cameraRecorder) cameraRecorder.stop();
+						if (audioRecorder) audioRecorder.stop();
+
+						// Tüm kayıtlar bittiğinde editör sayfasına yönlendir
+						await saveRecording({
+							screen: screenChunks,
+							camera: cameraChunks,
+							audio: audioChunks,
+						});
+					},
+				};
+
+				console.log("8. Tüm MediaRecorder'lar başlatıldı");
+				isRecording.value = true;
+			}
+		});
 	} catch (error) {
 		console.error("Kayıt başlatılırken hata:", error);
 		// Hata durumunda recording sınıfını kaldır
@@ -733,5 +861,21 @@ function throttle(func, limit) {
 <style>
 .camera-preview {
 	pointer-events: none;
+}
+
+/* Geri sayım animasyonu */
+@keyframes countdown {
+	from {
+		transform: scale(1.2);
+		opacity: 0;
+	}
+	to {
+		transform: scale(1);
+		opacity: 1;
+	}
+}
+
+.countdown-number {
+	animation: countdown 0.5s ease-out;
 }
 </style>
