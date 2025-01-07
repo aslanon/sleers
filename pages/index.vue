@@ -242,19 +242,6 @@ const closeWindow = () => {
 	electron?.windowControls.close();
 };
 
-// Ses ayarlarını güncelle
-const updateAudioSettings = (settings) => {
-	if (!electron?.ipcRenderer || !IPC_EVENTS?.UPDATE_AUDIO_SETTINGS) {
-		console.warn("[index.vue] Electron veya IPC_EVENTS tanımlı değil");
-		return;
-	}
-	try {
-		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, settings);
-	} catch (error) {
-		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
-	}
-};
-
 // Ses analizi için state
 const isAudioAnalyserActive = ref(false);
 
@@ -330,11 +317,7 @@ const updateMicrophoneLevel = () => {
 			dataArray.reduce((acc, value) => acc + value, 0) / dataArray.length;
 		microphoneLevel.value = Math.min(100, (average / 255) * 100);
 
-		// MediaState'e mikrofon seviyesini gönder
-		updateAudioSettings({
-			microphoneLevel: microphoneLevel.value,
-		});
-
+		// Sadece UI'da göstermek için kullanılacak, her frame'de main process'e göndermemize gerek yok
 		if (isAudioAnalyserActive.value) {
 			animationFrame = requestAnimationFrame(updateMicrophoneLevel);
 		}
@@ -344,12 +327,25 @@ const updateMicrophoneLevel = () => {
 	}
 };
 
+// Throttled updateAudioSettings fonksiyonu
+const throttledUpdateAudioSettings = throttle((settings) => {
+	if (!electron?.ipcRenderer || !IPC_EVENTS?.UPDATE_AUDIO_SETTINGS) {
+		console.warn("[index.vue] Electron veya IPC_EVENTS tanımlı değil");
+		return;
+	}
+	try {
+		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, settings);
+	} catch (error) {
+		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
+	}
+}, 1000); // Her 1 saniyede bir güncelleme yap
+
 // Mikrofon değişikliğini izle
 watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 	if (newDeviceId && newDeviceId !== oldDeviceId) {
 		try {
 			// MediaState'e yeni mikrofon cihazını bildir
-			updateAudioSettings({
+			throttledUpdateAudioSettings({
 				selectedAudioDevice: newDeviceId,
 			});
 
@@ -364,7 +360,7 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 // Mikrofon durumu değiştiğinde
 const toggleMicrophone = () => {
 	microphoneEnabled.value = !microphoneEnabled.value;
-	updateAudioSettings({
+	throttledUpdateAudioSettings({
 		microphoneEnabled: microphoneEnabled.value,
 	});
 
@@ -380,7 +376,7 @@ const toggleMicrophone = () => {
 // Sistem sesi durumu değiştiğinde
 const toggleSystemAudio = () => {
 	systemAudioEnabled.value = !systemAudioEnabled.value;
-	updateAudioSettings({
+	throttledUpdateAudioSettings({
 		systemAudioEnabled: systemAudioEnabled.value,
 	});
 };
@@ -720,6 +716,18 @@ const drag = (event) => {
 const endDrag = () => {
 	electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
+
+// Throttle fonksiyonu
+function throttle(func, limit) {
+	let inThrottle;
+	return function (...args) {
+		if (!inThrottle) {
+			func.apply(this, args);
+			inThrottle = true;
+			setTimeout(() => (inThrottle = false), limit);
+		}
+	};
+}
 </script>
 
 <style>
