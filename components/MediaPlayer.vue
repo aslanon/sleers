@@ -81,6 +81,16 @@ const props = defineProps({
 		type: Array,
 		default: () => [],
 	},
+	cropInfo: {
+		type: Object,
+		default: () => ({
+			x: 0,
+			y: 0,
+			width: 0,
+			height: 0,
+			scale: 1,
+		}),
+	},
 });
 
 const emit = defineEmits([
@@ -986,24 +996,7 @@ defineExpose({
 });
 
 const drawMousePosition = (ctx, currentTime) => {
-	if (!props.mousePositions.length) return;
-
-	// Find the mouse position closest to the current video time
-	const currentTimeMs = currentTime * 1000;
-	const mousePos = props.mousePositions.find((pos) => {
-		return Math.abs(pos.timestamp - currentTimeMs) < 16; // Within one frame
-	});
-	console.log(1111, mousePos);
-	if (mousePos) {
-		// Convert screen coordinates to canvas coordinates
-		const canvasX =
-			(mousePos.x - props.cropInfo.x) * scale.value + position.value.x;
-		const canvasY =
-			(mousePos.y - props.cropInfo.y) * scale.value + position.value.y;
-
-		// Draw the cursor
-		drawCursor(ctx, canvasX, canvasY);
-	}
+	const mousePos = props.mousePositions;
 };
 </script>
 
