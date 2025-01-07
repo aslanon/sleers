@@ -538,7 +538,10 @@ const updateCanvas = (timestamp) => {
 		canvas.height = container.clientHeight;
 	}
 
-	const ctx = canvas.getContext("2d");
+	const ctx = canvas.getContext("2d", { alpha: false });
+	ctx.imageSmoothingEnabled = true;
+	ctx.imageSmoothingQuality = "high";
+
 	ctx.clearRect(0, 0, canvas.width, canvas.height);
 
 	// Transform işlemleri
@@ -561,7 +564,7 @@ const updateCanvas = (timestamp) => {
 	// Kırpma alanı varsa overlay ve çerçeve çiz
 	if (selectedAspectRatio.value) {
 		// Kırpma alanı dışındaki bölgeleri karart (opaklık artırıldı)
-		ctx.fillStyle = "rgba(0, 0, 0, 1)"; // Tam siyah overlay
+		ctx.fillStyle = "rgba(0, 0, 0, 1)";
 
 		// Üst bölge
 		ctx.fillRect(0, 0, canvas.width, cropArea.value.y);
@@ -1045,14 +1048,34 @@ const drawMousePosition = (ctx, currentTime) => {
 	const videoWidth = videoElement.videoWidth;
 	const videoHeight = videoElement.videoHeight;
 
-	// İki pozisyon arasında cubic interpolasyon yap
+	// Cubic bezier interpolasyon için kontrol noktaları
+	const cp1 = {
+		x: currentPos.x + (nextPos.x - currentPos.x) * 0.33,
+		y: currentPos.y + (nextPos.y - currentPos.y) * 0.33,
+	};
+	const cp2 = {
+		x: currentPos.x + (nextPos.x - currentPos.x) * 0.66,
+		y: currentPos.y + (nextPos.y - currentPos.y) * 0.66,
+	};
+
+	// Cubic bezier interpolasyon
 	const t = framePart;
 	const t2 = t * t;
 	const t3 = t2 * t;
+	const mt = 1 - t;
+	const mt2 = mt * mt;
+	const mt3 = mt2 * mt;
+
 	const interpolatedX =
-		currentPos.x + (nextPos.x - currentPos.x) * (3 * t2 - 2 * t3);
+		currentPos.x * mt3 +
+		3 * cp1.x * mt2 * t +
+		3 * cp2.x * mt * t2 +
+		nextPos.x * t3;
 	const interpolatedY =
-		currentPos.y + (nextPos.y - currentPos.y) * (3 * t2 - 2 * t3);
+		currentPos.y * mt3 +
+		3 * cp1.y * mt2 * t +
+		3 * cp2.y * mt * t2 +
+		nextPos.y * t3;
 
 	// Video içindeki oransal pozisyonu hesapla (0-1 arası)
 	const normalizedX = interpolatedX / videoWidth;
@@ -1088,15 +1111,6 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.stroke();
 
 	ctx.restore();
-
-	// Debug için pozisyonları logla
-	console.log("Mouse Position:", {
-		normalized: { x: normalizedX, y: normalizedY },
-		canvas: { x: canvasX, y: canvasY },
-		video: { width: currentVideoWidth, height: currentVideoHeight },
-		position: position.value,
-		scale: scale.value,
-	});
 };
 </script>
 

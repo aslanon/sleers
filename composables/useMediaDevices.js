@@ -54,10 +54,16 @@ export const useMediaDevices = () => {
 						cursor: "none",
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: sources[0].id,
-						minWidth: streamOptions?.width || 1280,
-						maxWidth: streamOptions?.width || 1920,
-						minHeight: streamOptions?.height || 720,
-						maxHeight: streamOptions?.height || 1080,
+						...(streamOptions?.width && {
+							minWidth: streamOptions.width,
+							maxWidth: streamOptions.width,
+							width: streamOptions.width,
+						}),
+						...(streamOptions?.height && {
+							minHeight: streamOptions.height,
+							maxHeight: streamOptions.height,
+							height: streamOptions.height,
+						}),
 						...(streamOptions?.x &&
 							streamOptions?.y && {
 								x: streamOptions.x,
