@@ -33,6 +33,9 @@ export const useMediaDevices = () => {
 
 	const startRecording = async (streamOptions) => {
 		try {
+			// 500ms timeout ekle
+			await new Promise((resolve) => setTimeout(resolve, 500));
+
 			// Ekran seçimi için kaynakları al
 			const sources = await window.electron?.desktopCapturer.getSources({
 				types: ["window", "screen"],
