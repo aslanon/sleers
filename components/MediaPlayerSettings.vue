@@ -20,39 +20,16 @@
 
 			<!-- Tab içerikleri -->
 			<div class="w-2/3 pl-4">
-				<!-- Video Bilgileri Tab -->
-				<div v-if="currentTab === 'video'" class="space-y-4">
-					<h2 class="text-xl font-bold mb-4">Video Ayarları</h2>
-					<div>
-						<label class="block text-sm font-medium mb-1">Video Süresi</label>
-						<span class="text-gray-300">{{ formatDuration(duration) }}</span>
-					</div>
-
-					<div>
-						<label class="block text-sm font-medium mb-1">Boyut</label>
-						<span class="text-gray-300">{{ width }}x{{ height }}</span>
-					</div>
-				</div>
+				<!-- Video Ayarları Tab -->
+				<VideoSettings
+					v-if="currentTab === 'video'"
+					:duration="duration"
+					:width="width"
+					:height="height"
+				/>
 
 				<!-- Mouse Ayarları Tab -->
-				<div v-if="currentTab === 'mouse'" class="space-y-4">
-					<h2 class="text-xl font-bold mb-4">Mouse Ayarları</h2>
-					<div>
-						<label class="block text-sm font-medium mb-2">Mouse Boyutu</label>
-						<div class="flex items-center space-x-2">
-							<input
-								type="range"
-								:value="mouseSize"
-								@input="updateMouseSize($event.target.value)"
-								min="20"
-								max="100"
-								step="1"
-								class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
-							/>
-							<span class="text-sm text-gray-300 w-8">{{ mouseSize }}</span>
-						</div>
-					</div>
-				</div>
+				<MouseSettings v-if="currentTab === 'mouse'" v-model="mouseSize" />
 			</div>
 		</div>
 	</div>
@@ -60,6 +37,8 @@
 
 <script setup>
 import { ref, watch } from "vue";
+import VideoSettings from "./player-settings/VideoSettings.vue";
+import MouseSettings from "./player-settings/MouseSettings.vue";
 
 const props = defineProps({
 	duration: {
@@ -95,12 +74,10 @@ const currentTab = ref("video");
 // Mouse ayarları
 const mouseSize = ref(props.modelValue);
 
-// Mouse size güncelleme fonksiyonu
-const updateMouseSize = (value) => {
-	const numValue = Number(value);
-	mouseSize.value = numValue;
-	emit("update:modelValue", numValue);
-};
+// Mouse size değişikliğini izle
+watch(mouseSize, (newValue) => {
+	emit("update:modelValue", newValue);
+});
 
 // Prop değişikliğini izle ve local state'i güncelle
 watch(
@@ -112,33 +89,4 @@ watch(
 	},
 	{ immediate: true }
 );
-
-// Süre formatı
-const formatDuration = (seconds) => {
-	const minutes = Math.floor(seconds / 60);
-	const remainingSeconds = Math.floor(seconds % 60);
-	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
-};
 </script>
-
-<style scoped>
-/* Range input stil */
-input[type="range"]::-webkit-slider-thumb {
-	-webkit-appearance: none;
-	appearance: none;
-	width: 16px;
-	height: 16px;
-	background: white;
-	border-radius: 50%;
-	cursor: pointer;
-}
-
-input[type="range"]::-moz-range-thumb {
-	width: 16px;
-	height: 16px;
-	background: white;
-	border-radius: 50%;
-	cursor: pointer;
-	border: none;
-}
-</style>
