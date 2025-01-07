@@ -30,7 +30,6 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { useMacCursor } from "~/composables/useMacCursor";
 import cursorSvg from "~/assets/cursors/default.svg";
 
 const props = defineProps({
@@ -120,7 +119,6 @@ const containerRef = ref(null);
 const canvasRef = ref(null);
 const audioRef = ref(null);
 const videoRef = ref(null);
-const { drawCursor } = useMacCursor();
 
 // Context
 let ctx = null;
@@ -966,9 +964,6 @@ const renderVideo = () => {
 
 	// Videoyu çiz
 	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-	// Cursor'ı ortaya çiz
-	drawCursor(ctx, canvas.width / 2, canvas.height / 2);
 
 	// Bir sonraki frame'i iste
 	requestAnimationFrame(renderVideo);
