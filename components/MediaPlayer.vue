@@ -31,6 +31,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useMacCursor } from "~/composables/useMacCursor";
+import cursorSvg from "~/assets/cursors/default.svg";
 
 const props = defineProps({
 	videoUrl: {
@@ -1014,9 +1015,28 @@ const lerp = (start, end, factor) => {
 	return start + (end - start) * factor;
 };
 
+// Cursor image yükleme
+const cursorImage = new Image();
+cursorImage.src = cursorSvg;
+
+// Cursor'ın yüklendiğinden emin olmak için
+cursorImage.onload = () => {
+	console.log("[MediaPlayer] Cursor image loaded successfully");
+};
+
+cursorImage.onerror = (error) => {
+	console.error("[MediaPlayer] Cursor image loading error:", error);
+};
+
 const drawMousePosition = (ctx, currentTime) => {
 	const mousePos = props.mousePositions;
-	if (!mousePos || mousePos.length === 0 || !canvasRef.value || !videoElement)
+	if (
+		!mousePos ||
+		mousePos.length === 0 ||
+		!canvasRef.value ||
+		!videoElement ||
+		!cursorImage.complete
+	)
 		return;
 
 	// Video süresini al
@@ -1070,33 +1090,30 @@ const drawMousePosition = (ctx, currentTime) => {
 	const canvasX = videoLeft + normalizedX * currentVideoWidth;
 	const canvasY = videoTop + normalizedY * currentVideoHeight;
 
-	// Cursor'ı çiz
+	// SVG cursor çizimi
 	ctx.save();
 
-	// Cursor stilini ayarla
-	ctx.fillStyle = "rgba(255, 0, 0, 0.7)";
-	ctx.strokeStyle = "white";
-	ctx.lineWidth = 2;
+	// Cursor pozisyonuna git
+	ctx.translate(canvasX, canvasY);
 
-	// Sabit boyutlu cursor
-	const cursorSize = 10;
+	// Cursor boyutunu ayarla
+	const cursorScale = 1.5;
+	const cursorSize = 28 * cursorScale;
 
 	// Cursor'ı çiz
-	ctx.beginPath();
-	ctx.arc(canvasX, canvasY, cursorSize, 0, Math.PI * 2);
-	ctx.fill();
-	ctx.stroke();
+	try {
+		ctx.drawImage(
+			cursorImage,
+			-cursorSize / 4,
+			-cursorSize / 4,
+			cursorSize,
+			cursorSize
+		);
+	} catch (error) {
+		console.error("[MediaPlayer] Cursor drawing error:", error);
+	}
 
 	ctx.restore();
-
-	// Debug için pozisyonları logla
-	console.log("Mouse Position:", {
-		normalized: { x: normalizedX, y: normalizedY },
-		canvas: { x: canvasX, y: canvasY },
-		video: { width: currentVideoWidth, height: currentVideoHeight },
-		position: position.value,
-		scale: scale.value,
-	});
 };
 </script>
 
