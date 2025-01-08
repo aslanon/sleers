@@ -65,9 +65,9 @@ export const useMediaDevices = () => {
 				audio: false,
 				video: {
 					// @ts-ignore
-					cursor: "none",
+					cursor: "never",
 					mandatory: {
-						cursor: "none",
+						cursor: "never",
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: selectedSource.id,
 						...(streamOptions?.width && {
