@@ -1,11 +1,13 @@
 <template>
-	<div class="media-player w-full rounded-lg overflow-hidden bg-black/80">
+	<div
+		class="media-player w-full h-full rounded-lg overflow-hidden bg-black/80"
+	>
 		<div
 			ref="containerRef"
-			class="relative w-full overflow-hidden flex items-center justify-center"
+			class="relative w-full h-full overflow-hidden flex items-center justify-center"
 			:style="{
 				aspectRatio: currentAspectRatio,
-				maxHeight: '80vh',
+				maxHeight: '100%',
 			}"
 		>
 			<div

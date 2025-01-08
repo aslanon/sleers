@@ -6,7 +6,8 @@
 			<!-- Aspect Ratio Seçimi -->
 			<div class="relative">
 				<button
-					@click="isAspectRatioOpen = !isAspectRatioOpen"
+					ref="dropdownButton"
+					@click="toggleDropdown"
 					class="aspect-ratio-button px-3 py-1.5 w-[150px] rounded bg-black/80 border border-white/5 transition-all flex items-center space-x-2 hover:border-white/10"
 				>
 					<span class="text-sm text-white/90">{{
@@ -32,12 +33,13 @@
 				<!-- Dropdown Menu -->
 				<div
 					v-show="isAspectRatioOpen"
-					class="fixed inset-0 z-40"
+					class="fixed inset-0 z-50"
 					@click="isAspectRatioOpen = false"
 				></div>
 				<div
 					v-show="isAspectRatioOpen"
-					class="absolute top-full left-0 mt-1 w-40 bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 py-1 z-50 shadow-xl"
+					class="fixed mt-1 w-40 bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 py-1 z-[60] shadow-xl"
+					:style="dropdownStyle"
 				>
 					<button
 						v-for="ratio in aspectRatios"
@@ -238,8 +240,24 @@ const props = defineProps({
 
 const { cropRatio, updateCropRatio } = usePlayerSettings();
 
-// Dropdown state
+// Refs
+const dropdownButton = ref(null);
 const isAspectRatioOpen = ref(false);
+
+// Dropdown style
+const dropdownStyle = computed(() => {
+	if (!dropdownButton.value) return {};
+	const rect = dropdownButton.value.getBoundingClientRect();
+	return {
+		top: `${rect.bottom + 4}px`,
+		left: `${rect.left}px`,
+	};
+});
+
+// Toggle dropdown
+const toggleDropdown = () => {
+	isAspectRatioOpen.value = !isAspectRatioOpen.value;
+};
 
 // Aspect ratio seçenekleri
 const aspectRatios = [

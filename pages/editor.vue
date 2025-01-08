@@ -32,9 +32,9 @@
 		</div>
 		<!-- Ana İçerik -->
 		<div class="flex-1 flex flex-col min-h-0">
-			<div class="w-full flex flex-1 overflow-hidden">
+			<div class="w-full flex flex-1">
 				<div class="w-full p-4 flex-1 flex flex-col">
-					<div class="flex-1 relative">
+					<div class="flex-1 relative min-h-0">
 						<MediaPlayer
 							ref="mediaPlayerRef"
 							:video-url="videoUrl"
@@ -53,7 +53,7 @@
 							@video-paused="isPlaying = false"
 							@timeUpdate="onTimeUpdate"
 							@mute-change="isMuted = $event"
-							class="absolute inset-0"
+							class="absolute inset-0 h-full"
 						/>
 					</div>
 					<MediaPlayerControls
@@ -73,14 +73,16 @@
 					/>
 				</div>
 
-				<div class="flex-shrink-0 w-[500px] overflow-hidden flex flex-col">
-					<MediaPlayerSettings
-						:duration="videoDuration"
-						:width="videoWidth"
-						:height="videoHeight"
-						v-model="mouseSize"
-						class="flex-1 overflow-y-auto p-4"
-					/>
+				<div class="flex-shrink-0 w-[500px] flex flex-col">
+					<div class="flex-1 overflow-y-auto p-4 relative">
+						<MediaPlayerSettings
+							:duration="videoDuration"
+							:width="videoWidth"
+							:height="videoHeight"
+							v-model="mouseSize"
+							class="relative"
+						/>
+					</div>
 				</div>
 			</div>
 
