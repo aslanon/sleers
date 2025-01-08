@@ -1,5 +1,7 @@
 <template>
-	<div class="media-player-settings bg-white/10 w-80 ml-4 rounded-lg p-4">
+	<div
+		class="media-player-settings bg-white/10 w-[500px] min-w-[500px] ml-4 rounded-lg p-4"
+	>
 		<!-- Tab yapısı -->
 		<div class="flex">
 			<!-- Tab listesi -->
