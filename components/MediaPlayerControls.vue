@@ -85,7 +85,7 @@
 
 			<button
 				@click="$emit('togglePlayback')"
-				class="px-6 py-2 rounded-lg flex items-center"
+				class="px-6 py-2 rounded-lg outline-none flex items-center"
 				type="button"
 			>
 				<span v-if="isPlaying">
