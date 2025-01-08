@@ -1308,6 +1308,49 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.restore();
 };
 
+// cropRatio değişikliğini izle
+watch(cropRatio, (newRatio) => {
+	if (!videoElement) return;
+
+	if (!newRatio || newRatio === "auto") {
+		// Auto seçildiğinde orijinal boyutları kullan
+		cropArea.value = {
+			x: 0,
+			y: 0,
+			width: videoElement.videoWidth,
+			height: videoElement.videoHeight,
+		};
+	} else {
+		// Diğer aspect ratio'lar için mevcut hesaplama
+		const [widthRatio, heightRatio] = newRatio.split(":").map(Number);
+		const targetRatio = widthRatio / heightRatio;
+		const currentRatio = videoElement.videoWidth / videoElement.videoHeight;
+
+		if (currentRatio > targetRatio) {
+			// Video daha geniş, yüksekliği kullan
+			const newWidth = videoElement.videoHeight * targetRatio;
+			cropArea.value = {
+				x: (videoElement.videoWidth - newWidth) / 2,
+				y: 0,
+				width: newWidth,
+				height: videoElement.videoHeight,
+			};
+		} else {
+			// Video daha dar, genişliği kullan
+			const newHeight = videoElement.videoWidth / targetRatio;
+			cropArea.value = {
+				x: 0,
+				y: (videoElement.videoHeight - newHeight) / 2,
+				width: videoElement.videoWidth,
+				height: newHeight,
+			};
+		}
+	}
+
+	// Crop değişikliğini bildir
+	emit("cropChange", cropArea.value);
+});
+
 // Aspect ratio değişikliğini izle ve canvas'ı güncelle
 watch(
 	cropRatio,
@@ -1344,6 +1387,55 @@ const currentAspectRatio = computed(() => {
 	if (!width || !height) return "16/9";
 	return `${width}/${height}`;
 });
+
+// Video yüklendiğinde
+const onVideoLoad = () => {
+	if (!videoElement) return;
+
+	// Video boyutlarını kaydet
+	videoSize.value = {
+		width: videoElement.videoWidth,
+		height: videoElement.videoHeight,
+	};
+
+	// Crop alanını ayarla
+	if (!cropRatio.value || cropRatio.value === "auto") {
+		cropArea.value = {
+			x: 0,
+			y: 0,
+			width: videoElement.videoWidth,
+			height: videoElement.videoHeight,
+		};
+	} else {
+		// Diğer aspect ratio'lar için mevcut hesaplama
+		const [widthRatio, heightRatio] = cropRatio.value.split(":").map(Number);
+		const targetRatio = widthRatio / heightRatio;
+		const currentRatio = videoElement.videoWidth / videoElement.videoHeight;
+
+		if (currentRatio > targetRatio) {
+			// Video daha geniş, yüksekliği kullan
+			const newWidth = videoElement.videoHeight * targetRatio;
+			cropArea.value = {
+				x: (videoElement.videoWidth - newWidth) / 2,
+				y: 0,
+				width: newWidth,
+				height: videoElement.videoHeight,
+			};
+		} else {
+			// Video daha dar, genişliği kullan
+			const newHeight = videoElement.videoWidth / targetRatio;
+			cropArea.value = {
+				x: 0,
+				y: (videoElement.videoHeight - newHeight) / 2,
+				width: videoElement.videoWidth,
+				height: newHeight,
+			};
+		}
+	}
+
+	// Crop değişikliğini bildir
+	emit("cropChange", cropArea.value);
+};
 </script>
 
 <style scoped>

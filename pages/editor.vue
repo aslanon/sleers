@@ -1,7 +1,9 @@
 <template>
-	<div class="w-full flex flex-col bg-black text-white min-h-screen">
+	<div
+		class="w-full flex flex-col bg-black text-white h-screen overflow-hidden"
+	>
 		<div
-			class="w-full p-2 px-6 bg-black border-b border-gray-700 flex justify-between gap-2"
+			class="w-full p-2 px-6 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
 		>
 			<div class="flex flex-row gap-2 items-center">
 				<button
@@ -29,29 +31,31 @@
 			</div>
 		</div>
 		<!-- Ana İçerik -->
-		<div>
-			<div class="w-full flex">
+		<div class="flex-1 flex flex-col min-h-0">
+			<div class="w-full flex flex-1 overflow-hidden">
 				<div class="w-full p-4 flex-1 flex flex-col">
-					<MediaPlayer
-						ref="mediaPlayerRef"
-						:video-url="videoUrl"
-						:audio-url="audioUrl"
-						:video-type="videoType"
-						:audio-type="audioType"
-						:is-playing="isPlaying"
-						:current-time="currentTime"
-						:preview-time="previewTime"
-						:is-muted="isMuted"
-						:segments="segments"
-						:mouse-positions="mousePositions"
-						:mouse-size="mouseSize"
-						@video-loaded="onVideoLoaded"
-						@video-ended="onVideoEnded"
-						@video-paused="isPlaying = false"
-						@timeUpdate="onTimeUpdate"
-						@mute-change="isMuted = $event"
-					/>
-
+					<div class="flex-1 relative">
+						<MediaPlayer
+							ref="mediaPlayerRef"
+							:video-url="videoUrl"
+							:audio-url="audioUrl"
+							:video-type="videoType"
+							:audio-type="audioType"
+							:is-playing="isPlaying"
+							:current-time="currentTime"
+							:preview-time="previewTime"
+							:is-muted="isMuted"
+							:segments="segments"
+							:mouse-positions="mousePositions"
+							:mouse-size="mouseSize"
+							@video-loaded="onVideoLoaded"
+							@video-ended="onVideoEnded"
+							@video-paused="isPlaying = false"
+							@timeUpdate="onTimeUpdate"
+							@mute-change="isMuted = $event"
+							class="absolute inset-0"
+						/>
+					</div>
 					<MediaPlayerControls
 						:is-playing="isPlaying"
 						:current-time="currentTime"
@@ -65,28 +69,34 @@
 						@update:selected-ratio="onAspectRatioChange"
 						@toggle-mute="toggleMute"
 						@toggle-split-mode="toggleSplitMode"
+						class="mt-4"
 					/>
 				</div>
 
-				<MediaPlayerSettings
-					:duration="videoDuration"
-					:width="videoWidth"
-					:height="videoHeight"
-					v-model="mouseSize"
-				/>
+				<div class="flex-shrink-0 w-[500px] overflow-hidden flex flex-col">
+					<MediaPlayerSettings
+						:duration="videoDuration"
+						:width="videoWidth"
+						:height="videoHeight"
+						v-model="mouseSize"
+						class="flex-1 overflow-y-auto p-4"
+					/>
+				</div>
 			</div>
 
-			<TimelineComponent
-				:duration="videoDuration"
-				:current-time="currentTime"
-				:segments="segments"
-				:is-split-mode="isSplitMode"
-				@timeUpdate="handleTimeUpdate"
-				@previewTimeUpdate="handlePreviewTimeUpdate"
-				@segmentsReordered="handleSegmentsReordered"
-				@splitSegment="handleSegmentSplit"
-				ref="timelineRef"
-			/>
+			<div class="flex-shrink-0">
+				<TimelineComponent
+					:duration="videoDuration"
+					:current-time="currentTime"
+					:segments="segments"
+					:is-split-mode="isSplitMode"
+					@timeUpdate="handleTimeUpdate"
+					@previewTimeUpdate="handlePreviewTimeUpdate"
+					@segmentsReordered="handleSegmentsReordered"
+					@splitSegment="handleSegmentSplit"
+					ref="timelineRef"
+				/>
+			</div>
 		</div>
 	</div>
 </template>
