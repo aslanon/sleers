@@ -1210,13 +1210,15 @@ const drawMousePosition = (ctx, currentTime) => {
 	const normalizedX = interpolatedX / videoWidth;
 	const normalizedY = interpolatedY / videoHeight;
 
-	// Video'nun canvas içindeki mevcut boyutlarını hesapla
+	// Video'nun canvas içindeki mevcut boyutlarını hesapla (padding'i dahil et)
 	const currentVideoWidth = videoWidth * scale.value;
 	const currentVideoHeight = videoHeight * scale.value;
 
-	// Mouse pozisyonunu canvas koordinatlarına dönüştür
-	const canvasX = position.value.x + normalizedX * currentVideoWidth;
-	const canvasY = position.value.y + normalizedY * currentVideoHeight;
+	// Mouse pozisyonunu canvas koordinatlarına dönüştür (padding'i ekle)
+	const canvasX =
+		position.value.x + normalizedX * currentVideoWidth + padding.value;
+	const canvasY =
+		position.value.y + normalizedY * currentVideoHeight + padding.value;
 
 	// Yeni pozisyonu kaydet
 	if (previousPositions.value.length >= MAX_TRAIL_LENGTH) {
