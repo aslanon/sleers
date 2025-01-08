@@ -716,13 +716,13 @@ const updateCanvas = (timestamp) => {
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	const canvasRatio = canvasRef.value.width / canvasRef.value.height;
 
-	// Normal durumda video boyutlarını hesapla
+	// Padding'i hesaba katarak video boyutlarını hesapla
 	let drawWidth, drawHeight;
 	if (videoRatio > canvasRatio) {
-		drawWidth = canvasRef.value.width;
+		drawWidth = canvasRef.value.width - padding.value * 2;
 		drawHeight = drawWidth / videoRatio;
 	} else {
-		drawHeight = canvasRef.value.height;
+		drawHeight = canvasRef.value.height - padding.value * 2;
 		drawWidth = drawHeight * videoRatio;
 	}
 
@@ -733,56 +733,50 @@ const updateCanvas = (timestamp) => {
 	// Video'yu çiz
 	ctx.save();
 
+	// Shadow için path oluştur
+	if (shadowSize.value > 0) {
+		ctx.save();
+		ctx.beginPath();
+		roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+		ctx.shadowBlur = shadowSize.value;
+		ctx.shadowOffsetX = 0;
+		ctx.shadowOffsetY = 0;
+		ctx.fillStyle = backgroundColor.value;
+		ctx.fill();
+		ctx.restore();
+	}
+
 	if (videoScale.value > 1) {
 		// Scale edilmiş video boyutlarını hesapla
 		const scale = videoScale.value;
 
 		// Mouse pozisyonuna göre transform origin'i hesapla
-		const transformOriginX = x + drawWidth * mouseCanvasPosition.value.x;
-		const transformOriginY = y + drawHeight * mouseCanvasPosition.value.y;
+		const normalizedX =
+			(mouseCanvasPosition.value.x * canvasRef.value.width - x) / drawWidth;
+		const normalizedY =
+			(mouseCanvasPosition.value.y * canvasRef.value.height - y) / drawHeight;
+
+		// Transform origin'i video alanının içinde tut
+		const clampedX = Math.max(0, Math.min(1, normalizedX));
+		const clampedY = Math.max(0, Math.min(1, normalizedY));
+
+		const transformOriginX = x + drawWidth * clampedX;
+		const transformOriginY = y + drawHeight * clampedY;
 
 		// Scale transformasyonu uygula
 		ctx.translate(transformOriginX, transformOriginY);
 		ctx.scale(scale, scale);
 		ctx.translate(-transformOriginX, -transformOriginY);
-
-		// Radial blur efekti için geçici canvas oluştur
-		const tempCanvas = document.createElement("canvas");
-		tempCanvas.width = canvasRef.value.width;
-		tempCanvas.height = canvasRef.value.height;
-		const tempCtx = tempCanvas.getContext("2d");
-
-		// Ana görüntüyü çiz
-		ctx.globalAlpha = 1;
-		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
-
-		// Radial blur efekti uygula
-		const blurAmount = Math.floor((scale - 1) * 8); // Blur miktarı
-		const steps = 12; // Blur adım sayısı
-		const angleStep = (Math.PI * 2) / steps;
-		const radiusStart = 20; // İç yarıçap (efektsiz bölge)
-		const radiusEnd = blurAmount; // Dış yarıçap
-
-		ctx.globalAlpha = 0.04; // Her katman için düşük opaklık
-
-		for (let angle = 0; angle < Math.PI * 2; angle += angleStep) {
-			for (let r = radiusStart; r <= radiusEnd; r += 2) {
-				const offsetX = Math.cos(angle) * r;
-				const offsetY = Math.sin(angle) * r;
-				ctx.drawImage(
-					videoElement,
-					x + offsetX,
-					y + offsetY,
-					drawWidth,
-					drawHeight
-				);
-			}
-		}
-	} else {
-		// Normal video çizimi
-		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	}
 
+	// Video alanını kırp ve radius uygula
+	ctx.beginPath();
+	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+	ctx.clip();
+
+	// Video'yu çiz
+	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	ctx.restore();
 
 	// Mouse pozisyonlarını çiz
@@ -1383,7 +1377,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	const canvasWidth = canvas.width;
 	const canvasHeight = canvas.height;
 
-	// Video'nun canvas içindeki boyutlarını ve pozisyonunu hesapla
+	// Video'nun canvas içindeki boyutlarını ve pozisyonunu hesapla (padding'i hesaba katarak)
 	const videoRatio = videoWidth / videoHeight;
 	const canvasRatio = canvasWidth / canvasHeight;
 	let displayWidth, displayHeight;
@@ -1413,9 +1407,12 @@ const drawMousePosition = (ctx, currentTime) => {
 	const normalizedX = interpolatedX / videoWidth;
 	const normalizedY = interpolatedY / videoHeight;
 
-	// Canvas koordinatlarına dönüştür
-	const canvasX = videoX + normalizedX * displayWidth;
-	const canvasY = videoY + normalizedY * displayHeight;
+	// Zoom scale'ini hesapla
+	const scale = videoScale.value;
+
+	// Mouse pozisyonunu zoom'a göre ayarla (padding'i hesaba katarak)
+	const zoomedX = videoX + normalizedX * displayWidth * scale;
+	const zoomedY = videoY + normalizedY * displayHeight * scale;
 
 	// Mouse hızını ve yönünü hesapla
 	const moveX = nextPos.x - currentPos.x;
@@ -1438,8 +1435,6 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Motion blur efektini uygula
 	if (speed > 0.1 && mouseMotionEnabled.value) {
 		const blurAmount = Math.min(32, speed * motionBlurValue.value);
-
-		// Hareket yönünün tersine doğru blur uygula
 		const blurCanvas = document.createElement("canvas");
 		const blurCtx = blurCanvas.getContext("2d");
 		blurCanvas.width = mouseSize.value + Math.abs(blurAmount * dirX);
@@ -1460,7 +1455,7 @@ const drawMousePosition = (ctx, currentTime) => {
 
 		// Blurlanmış cursor'ı çiz
 		ctx.save();
-		ctx.translate(canvasX, canvasY);
+		ctx.translate(zoomedX, zoomedY);
 		ctx.drawImage(
 			blurCanvas,
 			-mouseSize.value / 2 - Math.max(0, blurAmount * dirX),
@@ -1472,7 +1467,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	} else {
 		// Hareket yoksa normal cursor'ı çiz
 		ctx.save();
-		ctx.translate(canvasX, canvasY);
+		ctx.translate(zoomedX, zoomedY);
 		ctx.drawImage(
 			cursorImage,
 			-mouseSize.value / 2,
