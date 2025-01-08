@@ -56,13 +56,14 @@ function setupIpcHandlers() {
 	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_CHANGED, async (event, status) => {
 		console.log("********Kayıt durumu değişti:", status);
 		if (status) {
-			// Start mouse position tracking when recording starts
 			console.log(1232);
 			startMouseTracking();
 		} else {
 			console.log(423);
-			// Stop mouse position tracking when recording stops
 			stopMouseTracking();
+			if (mediaStateManager && tempFileManager) {
+				await mediaStateManager.saveCursorData(tempFileManager);
+			}
 		}
 
 		try {
@@ -85,73 +86,35 @@ function setupIpcHandlers() {
 							throw new Error("Medya dosyaları hazır değil");
 						}
 
-						await editorManager.showEditorWindow();
-
-						if (editorManager.editorWindow) {
-							// Editor'ün yüklenmesini bekle
-							await new Promise((resolve, reject) => {
-								const timeout = setTimeout(() => {
-									reject(new Error("Editor yükleme zaman aşımı"));
-								}, 10000);
-
-								editorManager.editorWindow.webContents.once(
-									"did-finish-load",
-									() => {
-										clearTimeout(timeout);
-										resolve();
-									}
-								);
-							});
-
-							// Editor'e medya durumunu gönder
-							mediaStateManager.notifyRenderers(editorManager.editorWindow);
-
-							setTimeout(() => {
-								// Mouse position'ı editor'e gönder
-								editorManager.editorWindow.webContents.send(
-									IPC_EVENTS.MOUSE_POSITION_UPDATED,
-									mousePositions
-								);
-							}, 3000);
-						}
+						// Editor penceresini aç
+						editorManager.createEditorWindow();
 					} catch (error) {
-						console.error("Editor açılırken hata:", error);
-
-						// Hata durumunda ana pencereyi göster ve kullanıcıyı bilgilendir
-						if (mainWindow) {
-							mainWindow.show();
-							mainWindow.webContents.send(
-								IPC_EVENTS.EDITOR_LOAD_ERROR,
-								error.message
-							);
-						}
-
-						// State'i sıfırla
-						mediaStateManager.resetState();
-					}
-				} else {
-					console.error(
-						"Medya dosyaları hazırlanamadı veya editor yüklenemedi"
-					);
-					if (mainWindow) {
-						mainWindow.show();
-						mainWindow.webContents.send(
-							IPC_EVENTS.RECORDING_ERROR,
-							"Kayıt işlemi tamamlanamadı"
-						);
+						console.error("[main.cjs] Editor penceresi açılırken hata:", error);
 					}
 				}
 			}
-
-			if (trayManager) {
-				trayManager.setRecordingStatus(status);
-			}
 		} catch (error) {
-			console.error("Kayıt işlemi sırasında hata:", error);
-			if (mainWindow) {
-				mainWindow.show();
-				mainWindow.webContents.send(IPC_EVENTS.RECORDING_ERROR, error.message);
+			console.error("[main.cjs] Kayıt durumu değiştirilirken hata:", error);
+			event.reply(IPC_EVENTS.RECORDING_ERROR, error.message);
+		}
+	});
+
+	// Cursor data handler
+	ipcMain.handle(IPC_EVENTS.LOAD_CURSOR_DATA, async () => {
+		try {
+			console.log("[main.cjs] Cursor verisi yükleniyor...");
+			if (mediaStateManager) {
+				const cursorData = await mediaStateManager.loadCursorData();
+				console.log(
+					"[main.cjs] Cursor verisi yüklendi:",
+					cursorData?.length || 0
+				);
+				return cursorData;
 			}
+			return [];
+		} catch (error) {
+			console.error("[main.cjs] Cursor verisi yüklenirken hata:", error);
+			return [];
 		}
 	});
 
@@ -589,7 +552,7 @@ function startMouseTracking() {
 			mouseTrackingInterval = setInterval(() => {
 				const mousePos = screen.getCursorScreenPoint();
 				time = time + 1;
-				mousePositions.push({
+				mediaStateManager.addMousePosition({
 					x: mousePos.x,
 					y: mousePos.y,
 					timestamp: time,

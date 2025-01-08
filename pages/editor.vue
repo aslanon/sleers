@@ -659,14 +659,12 @@ const handlePreviewTimeUpdate = (time) => {
 
 let mousePositions = ref([]);
 
-onMounted(() => {
-	// Listen for mouse position updates
-	electron.ipcRenderer.on(
-		electron.ipcRenderer.IPC_EVENTS.MOUSE_POSITION_UPDATED,
-		(data) => {
-			mousePositions = data;
-		}
-	);
+onMounted(async () => {
+	// Cursor verilerini yükle
+	if (electron.mediaStateManager) {
+		const cursorData = await electron.mediaStateManager.loadCursorData();
+		mousePositions.value = cursorData;
+	}
 });
 
 onUnmounted(() => {

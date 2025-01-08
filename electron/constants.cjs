@@ -66,6 +66,9 @@ const IPC_EVENTS = {
 	// Recording Delay
 	UPDATE_RECORDING_DELAY: "UPDATE_RECORDING_DELAY",
 	GET_RECORDING_DELAY: "GET_RECORDING_DELAY",
+
+	// Load Cursor Data
+	LOAD_CURSOR_DATA: "LOAD_CURSOR_DATA",
 };
 
 module.exports = {

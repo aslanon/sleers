@@ -4,7 +4,12 @@ const { app } = require("electron");
 
 class TempFileManager {
 	constructor() {
-		this.tempFiles = new Map();
+		this.tempFiles = {
+			video: null,
+			audio: null,
+			screen: null,
+			cursor: null,
+		};
 		this.appDir = path.join(app.getPath("downloads"), ".sleer");
 		this.ensureAppDir();
 	}
@@ -74,8 +79,8 @@ class TempFileManager {
 				throw new Error(`Dosya okunamıyor: ${tempPath}`);
 			}
 
-			// Map'e kaydet
-			this.tempFiles.set(type, tempPath);
+			// Objeye kaydet
+			this.tempFiles[type] = tempPath;
 
 			return tempPath;
 		} catch (error) {
@@ -88,7 +93,7 @@ class TempFileManager {
 	}
 
 	async cleanupFile(type) {
-		const oldPath = this.tempFiles.get(type);
+		const oldPath = this.tempFiles[type];
 		if (oldPath) {
 			try {
 				if (fs.existsSync(oldPath)) {
@@ -98,7 +103,7 @@ class TempFileManager {
 						oldPath
 					);
 				}
-				this.tempFiles.delete(type);
+				this.tempFiles[type] = null;
 			} catch (err) {
 				console.error(
 					`[TempFileManager] ${type} için eski dosya silinirken hata:`,
@@ -110,26 +115,45 @@ class TempFileManager {
 
 	async cleanupAllFiles() {
 		console.log("[TempFileManager] Tüm geçici dosyalar temizleniyor...");
-		console.log("Mevcut dosyalar:", Array.from(this.tempFiles.entries()));
+		console.log("Mevcut dosyalar:", this.tempFiles);
 
-		const cleanupPromises = Array.from(this.tempFiles.entries()).map(([type]) =>
+		const cleanupPromises = Object.keys(this.tempFiles).map((type) =>
 			this.cleanupFile(type)
 		);
 
 		await Promise.all(cleanupPromises);
-		this.tempFiles.clear();
+
+		// Tüm dosyaları null yap
+		Object.keys(this.tempFiles).forEach((type) => {
+			this.tempFiles[type] = null;
+		});
 
 		console.log("[TempFileManager] Geçici dosya temizliği tamamlandı");
 	}
 
 	getFilePath(type) {
-		const path = this.tempFiles.get(type);
+		const path = this.tempFiles[type];
 		console.log(`[TempFileManager] ${type} için dosya yolu istendi:`, path);
 		return path;
 	}
 
 	getAllFiles() {
-		return Object.fromEntries(this.tempFiles);
+		return { ...this.tempFiles };
+	}
+
+	async saveTempFile(data, type, extension) {
+		try {
+			const tempPath = path.join(
+				app.getPath("temp"),
+				`temp_${type}${extension}`
+			);
+			await fs.promises.writeFile(tempPath, data);
+			this.tempFiles[type] = tempPath;
+			return tempPath;
+		} catch (error) {
+			console.error(`[TempFileManager] ${type} kaydedilirken hata:`, error);
+			return null;
+		}
 	}
 }
 

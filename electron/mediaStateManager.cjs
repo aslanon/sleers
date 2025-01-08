@@ -9,6 +9,7 @@ class MediaStateManager {
 			videoPath: null,
 			audioPath: null,
 			systemAudioPath: null,
+			cursorPath: null,
 			lastRecordingTime: null,
 			isEditing: false,
 			isRecording: false,
@@ -28,6 +29,7 @@ class MediaStateManager {
 		this.recordingCheckInterval = null;
 		this.fileCheckAttempts = 0;
 		this.maxFileCheckAttempts = 50; // 5 saniye (100ms * 50)
+		this.mousePositions = [];
 	}
 
 	async validateMediaFile(filePath, type = "unknown") {
@@ -229,6 +231,7 @@ class MediaStateManager {
 			videoPath: null,
 			audioPath: null,
 			systemAudioPath: null,
+			cursorPath: null,
 			lastRecordingTime: null,
 			isEditing: false,
 			isRecording: false,
@@ -381,6 +384,7 @@ class MediaStateManager {
 		if (this.recordingCheckInterval) {
 			clearInterval(this.recordingCheckInterval);
 		}
+		this.clearMousePositions();
 	}
 
 	updateAudioSettings(settings) {
@@ -429,6 +433,58 @@ class MediaStateManager {
 				selectedAudioDevice: deviceId,
 			},
 		});
+	}
+
+	addMousePosition(position) {
+		this.mousePositions.push(position);
+	}
+
+	getMousePositions() {
+		return this.mousePositions;
+	}
+
+	clearMousePositions() {
+		this.mousePositions = [];
+	}
+
+	async saveCursorData(tempFileManager) {
+		if (this.mousePositions.length === 0) return null;
+
+		try {
+			const cursorData = JSON.stringify(this.mousePositions);
+			const cursorPath = await tempFileManager.saveTempFile(
+				cursorData,
+				"cursor",
+				".json"
+			);
+
+			this.updateState({
+				cursorPath,
+			});
+
+			return cursorPath;
+		} catch (error) {
+			console.error(
+				"[MediaStateManager] Cursor verisi kaydedilirken hata:",
+				error
+			);
+			return null;
+		}
+	}
+
+	async loadCursorData() {
+		if (!this.state.cursorPath) return [];
+
+		try {
+			const cursorData = await fs.promises.readFile(
+				this.state.cursorPath,
+				"utf8"
+			);
+			return JSON.parse(cursorData);
+		} catch (error) {
+			console.error("[MediaStateManager] Cursor verisi okunurken hata:", error);
+			return [];
+		}
 	}
 }
 

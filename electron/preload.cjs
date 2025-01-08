@@ -40,4 +40,7 @@ contextBridge.exposeInMainWorld("electron", {
 	recording: {
 		getCropInfo: () => ipcRenderer.invoke("GET_CROP_INFO"),
 	},
+	mediaStateManager: {
+		loadCursorData: () => ipcRenderer.invoke(IPC_EVENTS.LOAD_CURSOR_DATA),
+	},
 });
