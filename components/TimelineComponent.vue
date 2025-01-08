@@ -395,7 +395,7 @@ const generateId = () => {
 // Zoom sabitleri
 const minZoom = 0.1;
 const maxZoom = 10;
-const zoomStep = 0.8;
+const zoomStep = 0.2;
 
 // Timeline sabitleri
 const maxDuration = computed(() => Math.max(props.duration, 600)); // Minimum 10 dakika
@@ -661,11 +661,13 @@ const handleZoom = (e) => {
 	// Sadece Cmd/Ctrl basılıyken zoom işlemi yap
 	if (e.ctrlKey || e.metaKey) {
 		e.preventDefault();
-		// Zoom işlemi
-		const delta = -Math.sign(e.deltaY) * zoomStep;
+		// Zoom işlemi - daha yumuşak bir zoom için deltaY'yi normalize et
+		const normalizedDelta =
+			-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY * 0.01), 1);
+		const delta = normalizedDelta * zoomStep;
 		const newZoom = Math.max(
 			minZoom,
-			Math.min(maxZoom, currentZoom.value + delta)
+			Math.min(maxZoom, currentZoom.value * (1 + delta))
 		);
 
 		if (newZoom !== currentZoom.value) {
