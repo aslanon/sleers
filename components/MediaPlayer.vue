@@ -654,128 +654,67 @@ const getCropData = () => {
 
 // Canvas güncelleme optimizasyonu
 const updateCanvas = (timestamp) => {
-	if (!canvasRef.value || !videoElement) return;
+	if (!videoElement || !ctx || !canvasRef.value) return;
 
 	// FPS kontrolü
-	const elapsed = timestamp - lastFrameTime;
-	if (elapsed < frameInterval) {
+	if (timestamp - lastFrameTime < frameInterval) {
 		animationFrame = requestAnimationFrame(updateCanvas);
 		return;
 	}
+
 	lastFrameTime = timestamp;
 
-	const canvas = canvasRef.value;
-	const ctx = canvas.getContext("2d", {
-		alpha: false,
-		desynchronized: true,
-	});
+	// Canvas'ı temizle ve arkaplan rengini ayarla
+	ctx.fillStyle = backgroundColor.value;
+	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
-	// Render kalitesi ayarları
-	ctx.imageSmoothingEnabled = true;
-	ctx.imageSmoothingQuality = "high";
-
-	// Zoom segmenti varsa gradient arka plan oluştur
-	if (currentZoomRange.value) {
-		const gradient = ctx.createLinearGradient(
-			0,
-			0,
-			canvas.width,
-			canvas.height
-		);
-		gradient.addColorStop(0, "#4338ca"); // indigo-700
-		gradient.addColorStop(1, "#7e22ce"); // purple-700
-		ctx.fillStyle = gradient;
-	} else {
-		// Normal arka plan rengi
-		ctx.fillStyle = backgroundColor.value;
-	}
-
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-	// Video'nun orijinal en-boy oranını koru
-	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-	const canvasRatio = canvas.width / canvas.height;
-
-	// Video'nun boyutlarını hesapla (her zaman orijinal oranını koruyarak)
-	let videoWidth, videoHeight;
-
-	// Video'nun canvas içindeki maksimum boyutlarını hesapla
-	if (videoRatio > canvasRatio) {
-		// Video daha geniş, genişliğe göre ölçekle
-		videoWidth = canvas.width - padding.value * 2;
-		videoHeight = videoWidth / videoRatio;
-	} else {
-		// Video daha dar, yüksekliğe göre ölçekle
-		videoHeight = canvas.height - padding.value * 2;
-		videoWidth = videoHeight * videoRatio;
-	}
-
-	// Video'yu canvas'ın ortasına yerleştir
-	const videoX = (canvas.width - videoWidth) / 2;
-	const videoY = (canvas.height - videoHeight) / 2;
-
-	// Shadow için path oluştur
-	if (shadowSize.value > 0) {
-		ctx.save();
-		ctx.beginPath();
-		roundedRect(ctx, videoX, videoY, videoWidth, videoHeight, radius.value);
-
-		// Shadow ayarları
-		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-		ctx.shadowBlur = shadowSize.value;
-		ctx.shadowOffsetX = 0;
-		ctx.shadowOffsetY = 0;
-
-		// Shadow için arka planı çiz
-		ctx.fillStyle = backgroundColor.value;
-		ctx.fill();
-		ctx.restore();
-	}
-
-	// Video alanını kırp ve radius uygula
+	// Video frame'ini çiz
 	ctx.save();
-	ctx.beginPath();
-	roundedRect(ctx, videoX, videoY, videoWidth, videoHeight, radius.value);
-	ctx.clip();
-
-	// Videoyu çiz
-	if (videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
-		ctx.drawImage(
-			videoElement,
-			0,
-			0,
-			videoElement.videoWidth,
-			videoElement.videoHeight,
-			videoX,
-			videoY,
-			videoWidth,
-			videoHeight
-		);
-	}
-
+	ctx.translate(position.value.x, position.value.y);
+	ctx.scale(scale.value, scale.value);
+	ctx.rotate((rotation.value * Math.PI) / 180);
+	ctx.drawImage(
+		videoElement,
+		-videoSize.value.width / 2,
+		-videoSize.value.height / 2,
+		videoSize.value.width,
+		videoSize.value.height
+	);
 	ctx.restore();
 
-	// Mouse pozisyonunu çiz
-	if (props.mousePositions?.length > 0) {
+	// Mouse pozisyonlarını çiz
+	if (props.mousePositions && props.mousePositions.length > 0) {
 		drawMousePosition(ctx, videoElement.currentTime);
 	}
 
-	// Her durumda sürekli güncelleme yap
 	animationFrame = requestAnimationFrame(updateCanvas);
 };
 
-// Yardımcı fonksiyon: Yuvarlak köşeli dikdörtgen çizimi
-const roundedRect = (ctx, x, y, width, height, radius) => {
-	ctx.moveTo(x + radius, y);
-	ctx.lineTo(x + width - radius, y);
-	ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-	ctx.lineTo(x + width, y + height - radius);
-	ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-	ctx.lineTo(x + radius, y + height);
-	ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-	ctx.lineTo(x, y + radius);
-	ctx.quadraticCurveTo(x, y, x + radius, y);
+// Canvas'ı yeniden boyutlandır
+const resizeCanvas = () => {
+	if (!canvasRef.value || !containerRef.value) return;
+
+	const container = containerRef.value;
+	const canvas = canvasRef.value;
+
+	canvas.width = container.clientWidth;
+	canvas.height = container.clientHeight;
+
+	// Canvas context'i yeniden al ve ayarları güncelle
+	ctx = canvas.getContext("2d");
+	ctx.fillStyle = backgroundColor.value;
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
 };
+
+// Arkaplan rengi değiştiğinde canvas'ı güncelle
+watch(backgroundColor, () => {
+	if (!ctx || !canvasRef.value) return;
+	ctx.fillStyle = backgroundColor.value;
+	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+	if (videoElement && !videoState.value.isPlaying) {
+		requestAnimationFrame(updateCanvas);
+	}
+});
 
 // Tüm prop değişikliklerini izle ve canvas'ı güncelle
 const forceCanvasUpdate = () => {
