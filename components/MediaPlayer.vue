@@ -1,6 +1,7 @@
 <template>
 	<div
 		class="media-player w-full h-full rounded-lg overflow-hidden bg-black/80"
+		@togglePlayback="togglePlay"
 	>
 		<div
 			ref="containerRef"
@@ -237,65 +238,80 @@ const togglePlay = async (e) => {
 const play = async () => {
 	if (!videoElement) return;
 	try {
-		// Önce mevcut durumu kontrol et
-		if (videoState.value.isPlaying) {
-			return;
-		}
+		// Eğer zaten oynatılıyorsa işlemi durdur
+		if (videoState.value.isPlaying) return;
 
 		// Video bitmiş ise başa sar
 		if (videoElement.currentTime >= videoElement.duration) {
 			videoElement.currentTime = 0;
+			videoState.value.currentTime = 0;
+			if (audioRef.value) {
+				audioRef.value.currentTime = 0;
+			}
 		}
 
-		// Mevcut zamanı koru
-		const startTime = videoState.value.currentTime;
-
-		// Video ve ses elementlerini başlat
-		videoElement.currentTime = startTime;
-		await Promise.all([
-			videoElement.play(),
-			audioRef.value ? audioRef.value.play() : Promise.resolve(),
-		]);
-
-		// State'i güncelle
+		// Önce state'i güncelle
 		videoState.value.isPlaying = true;
 		videoState.value.isPaused = false;
 
+		// Video ve sesi oynat
+		try {
+			await videoElement.play();
+			if (audioRef.value && !audioRef.value.paused) {
+				await audioRef.value.play();
+			}
+		} catch (error) {
+			// Oynatma başarısız olursa state'i geri al
+			videoState.value.isPlaying = false;
+			videoState.value.isPaused = true;
+			throw error;
+		}
+
+		// Canvas animasyonunu başlat
 		if (!animationFrame) {
 			animationFrame = requestAnimationFrame(updateCanvas);
 		}
+
+		emit("play");
 	} catch (error) {
 		console.error("[MediaPlayer] Oynatma hatası:", error);
-		// Hata durumunda state'i sıfırla
 		videoState.value.isPlaying = false;
 		videoState.value.isPaused = true;
-		throw error;
 	}
 };
 
 const pause = async () => {
 	if (!videoElement) return;
 	try {
-		// Önce mevcut durumu kontrol et
-		if (!videoState.value.isPlaying) {
-			return;
-		}
+		// Eğer zaten durdurulmuşsa işlemi durdur
+		if (!videoState.value.isPlaying) return;
 
-		// Video ve sesi durdur
-		await Promise.all([
-			videoElement.pause(),
-			audioRef.value ? audioRef.value.pause() : Promise.resolve(),
-		]);
-
-		// State'i güncelle
+		// Önce state'i güncelle
 		videoState.value.isPlaying = false;
 		videoState.value.isPaused = true;
 
+		// Video ve sesi durdur
+		try {
+			await videoElement.pause();
+			if (audioRef.value && !audioRef.value.paused) {
+				await audioRef.value.pause();
+			}
+		} catch (error) {
+			// Durdurma başarısız olursa state'i geri al
+			videoState.value.isPlaying = true;
+			videoState.value.isPaused = false;
+			throw error;
+		}
+
+		// Canvas animasyonunu durdur
 		if (animationFrame) {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = null;
 		}
+
+		// Son frame'i çiz
 		updateCanvas(performance.now());
+		emit("pause");
 	} catch (error) {
 		console.error("[MediaPlayer] Durdurma hatası:", error);
 	}
@@ -569,20 +585,24 @@ const handleZoom = (e) => {
 };
 
 // Video bittiğinde
-const onVideoEnded = async () => {
-	// Video bittiğinde başa sar
+const onVideoEnded = () => {
+	// State'i güncelle
+	videoState.value.isPlaying = false;
+	videoState.value.isPaused = true;
+
+	// Video ve sesi başa sar
 	if (videoElement) {
 		videoElement.currentTime = 0;
 		videoState.value.currentTime = 0;
-
-		// Ses elementini de sıfırla
-		if (audioRef.value) {
-			audioRef.value.currentTime = 0;
-		}
-
-		// Videoyu tekrar başlat
-		await play();
 	}
+
+	if (audioRef.value) {
+		audioRef.value.pause();
+		audioRef.value.currentTime = 0;
+	}
+
+	// Event'i emit et
+	emit("videoEnded");
 };
 
 // Video hatası
@@ -992,12 +1012,20 @@ const onDurationChange = () => {
 const onVideoPlay = () => {
 	videoState.value.isPlaying = true;
 	videoState.value.isPaused = false;
+	if (!animationFrame) {
+		animationFrame = requestAnimationFrame(updateCanvas);
+	}
 	emit("play", videoState.value);
 };
 
 const onVideoPause = () => {
 	videoState.value.isPlaying = false;
 	videoState.value.isPaused = true;
+	if (animationFrame) {
+		cancelAnimationFrame(animationFrame);
+		animationFrame = null;
+	}
+	updateCanvas(performance.now());
 	emit("pause", videoState.value);
 };
 

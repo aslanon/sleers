@@ -368,6 +368,7 @@ const selectAspectRatio = (ratio) => {
 };
 
 const emit = defineEmits([
+	"togglePlayback",
 	"toggle-playback",
 	"toggle-trim-mode",
 	"toggle-mute",
