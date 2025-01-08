@@ -1281,63 +1281,25 @@ const drawMousePosition = (ctx, currentTime) => {
 	const canvasX = videoX + normalizedX * displayWidth;
 	const canvasY = videoY + normalizedY * displayHeight;
 
-	// Yeni pozisyonu kaydet
-	if (previousPositions.value.length >= MAX_TRAIL_LENGTH) {
-		previousPositions.value.shift();
-	}
-	previousPositions.value.push({ x: canvasX, y: canvasY, time: currentTime });
+	// Mouse hızını hesapla
+	const speed = Math.sqrt(
+		Math.pow(nextPos.x - currentPos.x, 2) +
+			Math.pow(nextPos.y - currentPos.y, 2)
+	);
 
-	// Motion blur efekti için önceki pozisyonları çiz
-	const blurValue = motionBlurValue.value;
-	if (blurValue > 0) {
-		const trailLength = previousPositions.value.length;
-		const positions = [...previousPositions.value].reverse();
+	// Hıza bağlı blur değeri (0-5 arası)
+	const blurAmount = Math.min(5, speed * 0.1);
 
-		// Batch drawing için path kullan
-		ctx.save();
-		for (let i = 0; i < positions.length; i++) {
-			const pos = positions[i];
-			const normalizedIndex = i / trailLength;
-			const alpha = Math.pow(1 - normalizedIndex, 0.5) * blurValue;
-
-			ctx.globalAlpha = Math.min(0.9, alpha);
-			ctx.translate(pos.x, pos.y);
-
-			// Trail için cursor boyutunu hesapla
-			const sizeMultiplier = 1 - normalizedIndex * 0.3;
-			const cursorSize = mouseSize.value * sizeMultiplier;
-
-			ctx.filter = `blur(${blurValue}px)`;
-
-			try {
-				ctx.drawImage(
-					cursorImage,
-					-cursorSize / 4,
-					-cursorSize / 4,
-					cursorSize,
-					cursorSize
-				);
-			} catch (error) {
-				console.error("[MediaPlayer] Trail cursor drawing error:", error);
-			}
-
-			ctx.translate(-pos.x, -pos.y);
-		}
-		ctx.restore();
-	}
-
-	// Ana cursor'ı çiz
+	// Cursor'ı çiz
 	ctx.save();
 	ctx.globalAlpha = 1;
 	ctx.translate(canvasX, canvasY);
 
-	// Ana cursor boyutunu ayarla
-	const cursorSize = mouseSize.value;
+	// Hıza bağlı blur efekti
+	ctx.filter = `blur(${blurAmount}px)`;
 
-	// Ana cursor'a da blur efekti uygula
-	if (blurValue > 0) {
-		ctx.filter = `blur(${blurValue / 10}px)`; // Ana cursor için daha az blur
-	}
+	// Cursor boyutu
+	const cursorSize = mouseSize.value;
 
 	try {
 		ctx.drawImage(
@@ -1348,7 +1310,7 @@ const drawMousePosition = (ctx, currentTime) => {
 			cursorSize
 		);
 	} catch (error) {
-		console.error("[MediaPlayer] Main cursor drawing error:", error);
+		console.error("[MediaPlayer] Cursor drawing error:", error);
 	}
 
 	ctx.restore();
