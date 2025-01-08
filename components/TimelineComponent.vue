@@ -258,7 +258,7 @@
 					<!-- Preview Playhead -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-0 bottom-0 w-[1px] z-30"
+						class="absolute top-4 bottom-0 w-[1px] z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -270,7 +270,7 @@
 					<!-- Preview Playhead Handle -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-0 w-3 h-5 z-30"
+						class="absolute top-4 w-3 h-5 z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -1033,8 +1033,7 @@ const getZoomStyle = (range) => {
 			((range.end - range.start) / maxDuration.value) * timelineWidth.value
 		}px`,
 		backgroundColor: "rgb(67, 42, 244)",
-		background:
-			"linear-gradient(rgb(67 42 244 / 100%) 0%, rgb(96 75 244 / 40%) 100%)",
+		background: "linear-gradient(rgb(67, 42, 244) 0%, rgb(114 99 213) 100%)",
 		border: "0.25px solid rgba(255, 255, 255, 0.1)",
 		borderRadius: "10px",
 		height: "100%",

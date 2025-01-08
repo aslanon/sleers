@@ -347,31 +347,17 @@ const handleResize = () => {
 	if (!containerRef.value || !videoElement) return;
 
 	const container = containerRef.value.getBoundingClientRect();
-
-	// Canvas boyutlarını güncelle
-	if (canvasRef.value) {
-		canvasRef.value.width = container.width;
-		canvasRef.value.height = container.height;
-	}
-
-	let canvasWidth, canvasHeight;
 	const containerRatio = container.width / container.height;
 
-	if (!cropRatio.value || cropRatio.value === "auto") {
-		// Auto modunda video'nun orijinal en-boy oranını kullan
-		const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+	// Canvas boyutlarını seçilen aspect ratio'ya göre ayarla
+	let canvasWidth, canvasHeight;
 
-		if (videoRatio > containerRatio) {
-			// Video daha geniş, genişliğe göre ölçekle
-			canvasWidth = container.width;
-			canvasHeight = container.width / videoRatio;
-		} else {
-			// Video daha dar, yüksekliğe göre ölçekle
-			canvasHeight = container.height;
-			canvasWidth = container.height * videoRatio;
-		}
+	if (!cropRatio.value || cropRatio.value === "auto") {
+		// Auto modunda container boyutlarını kullan
+		canvasWidth = container.width;
+		canvasHeight = container.height;
 	} else {
-		// Seçilen aspect ratio'yu al
+		// Seçilen aspect ratio'yu kullan
 		const [targetWidth, targetHeight] = cropRatio.value.split(":").map(Number);
 		const targetRatio = targetWidth / targetHeight;
 
@@ -384,6 +370,12 @@ const handleResize = () => {
 			canvasWidth = container.width;
 			canvasHeight = canvasWidth / targetRatio;
 		}
+	}
+
+	// Canvas boyutlarını güncelle
+	if (canvasRef.value) {
+		canvasRef.value.width = canvasWidth;
+		canvasRef.value.height = canvasHeight;
 	}
 
 	// Kırpma alanını güncelle
@@ -704,42 +696,18 @@ const updateCanvas = (timestamp) => {
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	const canvasRatio = canvas.width / canvas.height;
 
-	// Video'nun boyutlarını hesapla (en-boy oranını koruyarak)
+	// Video'nun boyutlarını hesapla (her zaman orijinal oranını koruyarak)
 	let videoWidth, videoHeight;
 
-	if (!cropRatio.value || cropRatio.value === "auto") {
-		// Auto modunda video'nun orijinal en-boy oranını kullan
-		if (videoRatio > canvasRatio) {
-			// Video daha geniş, genişliğe göre ölçekle
-			videoWidth = canvas.width - padding.value * 2;
-			videoHeight = videoWidth / videoRatio;
-		} else {
-			// Video daha dar, yüksekliğe göre ölçekle
-			videoHeight = canvas.height - padding.value * 2;
-			videoWidth = videoHeight * videoRatio;
-		}
-
-		// Canvas boyutlarını güncelle
-		cropArea.value = {
-			width: videoWidth,
-			height: videoHeight,
-			x: 0,
-			y: 0,
-		};
+	// Video'nun canvas içindeki maksimum boyutlarını hesapla
+	if (videoRatio > canvasRatio) {
+		// Video daha geniş, genişliğe göre ölçekle
+		videoWidth = canvas.width - padding.value * 2;
+		videoHeight = videoWidth / videoRatio;
 	} else {
-		// Seçili aspect ratio'yu kullan
-		const [targetWidth, targetHeight] = cropRatio.value.split(":").map(Number);
-		const targetRatio = targetWidth / targetHeight;
-
-		if (canvasRatio > targetRatio) {
-			// Canvas daha geniş, yüksekliğe göre hesapla
-			videoHeight = canvas.height - padding.value * 2;
-			videoWidth = videoHeight * targetRatio;
-		} else {
-			// Canvas daha dar, genişliğe göre hesapla
-			videoWidth = canvas.width - padding.value * 2;
-			videoHeight = videoWidth / targetRatio;
-		}
+		// Video daha dar, yüksekliğe göre ölçekle
+		videoHeight = canvas.height - padding.value * 2;
+		videoWidth = videoHeight * videoRatio;
 	}
 
 	// Video'yu canvas'ın ortasına yerleştir
