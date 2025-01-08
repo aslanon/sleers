@@ -367,6 +367,8 @@ const updateCropArea = () => {
 	if (!containerRef.value || !videoElement) return;
 
 	const container = containerRef.value.getBoundingClientRect();
+	const availableWidth = container.width - padding.value * 2;
+	const availableHeight = container.height - padding.value * 2;
 
 	if (cropRatio.value) {
 		const [widthRatio, heightRatio] = cropRatio.value.split(":").map(Number);
@@ -375,32 +377,81 @@ const updateCropArea = () => {
 			const targetRatio = widthRatio / heightRatio;
 			let width, height;
 
-			if (container.width / container.height > targetRatio) {
-				height = container.height; // Maksimum yükseklik
+			// Container'ın mevcut oranı
+			const containerRatio = availableWidth / availableHeight;
+
+			if (containerRatio > targetRatio) {
+				// Container daha geniş, yüksekliğe göre ayarla
+				height = availableHeight;
 				width = height * targetRatio;
 			} else {
-				width = container.width; // Maksimum genişlik
+				// Container daha dar, genişliğe göre ayarla
+				width = availableWidth;
 				height = width / targetRatio;
 			}
 
+			// Kırpma alanını ortala
 			cropArea.value = {
 				width,
 				height,
-				x: (container.width - width) / 2,
-				y: (container.height - height) / 2,
+				x: (availableWidth - width) / 2 + padding.value,
+				y: (availableHeight - height) / 2 + padding.value,
+			};
+
+			// Video scale ve pozisyonunu güncelle
+			const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+			let newScale;
+
+			if (videoRatio > targetRatio) {
+				// Video daha geniş, yüksekliğe göre scale et
+				newScale = height / videoElement.videoHeight;
+			} else {
+				// Video daha dar, genişliğe göre scale et
+				newScale = width / videoElement.videoWidth;
+			}
+
+			scale.value = newScale;
+
+			// Videoyu kırpma alanının ortasına yerleştir
+			position.value = {
+				x: cropArea.value.x + (width - videoElement.videoWidth * newScale) / 2,
+				y:
+					cropArea.value.y + (height - videoElement.videoHeight * newScale) / 2,
 			};
 		}
 	} else {
+		// Aspect ratio seçilmemişse tüm alanı kullan
 		cropArea.value = {
-			width: container.width,
-			height: container.height,
-			x: 0,
-			y: 0,
+			width: availableWidth,
+			height: availableHeight,
+			x: padding.value,
+			y: padding.value,
+		};
+
+		// Video scale ve pozisyonunu sıfırla
+		const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+		const containerRatio = availableWidth / availableHeight;
+		let newScale;
+
+		if (containerRatio > videoRatio) {
+			newScale = availableHeight / videoElement.videoHeight;
+		} else {
+			newScale = availableWidth / videoElement.videoWidth;
+		}
+
+		scale.value = newScale;
+		position.value = {
+			x:
+				padding.value +
+				(availableWidth - videoElement.videoWidth * newScale) / 2,
+			y:
+				padding.value +
+				(availableHeight - videoElement.videoHeight * newScale) / 2,
 		};
 	}
 
-	// Kırpma değişikliğini hemen emit et
-	emit("cropChange", getCropData());
+	// Canvas'ı güncelle
+	requestAnimationFrame(() => updateCanvas(performance.now()));
 };
 
 // Sürükleme işlemleri
@@ -582,8 +633,8 @@ const updateCanvas = (timestamp) => {
 	}
 
 	const ctx = canvas.getContext("2d", {
-		alpha: false, // Alpha kanalını devre dışı bırak
-		desynchronized: true, // Daha hızlı render
+		alpha: false,
+		desynchronized: true,
 	});
 
 	// Render kalitesi ayarları
@@ -594,31 +645,18 @@ const updateCanvas = (timestamp) => {
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-	// Video için kullanılabilir alanı hesapla (padding'i çıkar)
-	const availableWidth = canvas.width - padding.value * 2;
-	const availableHeight = canvas.height - padding.value * 2;
-
 	// Shadow için path oluştur
 	if (shadowSize.value > 0) {
 		ctx.save();
 		ctx.beginPath();
-		const x = padding.value;
-		const y = padding.value;
-		const width = availableWidth;
-		const height = availableHeight;
-		const r = radius.value;
-
-		// Köşeleri yuvarla
-		ctx.moveTo(x + r, y);
-		ctx.lineTo(x + width - r, y);
-		ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-		ctx.lineTo(x + width, y + height - r);
-		ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-		ctx.lineTo(x + r, y + height);
-		ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-		ctx.lineTo(x, y + r);
-		ctx.quadraticCurveTo(x, y, x + r, y);
-		ctx.closePath();
+		roundedRect(
+			ctx,
+			cropArea.value.x,
+			cropArea.value.y,
+			cropArea.value.width,
+			cropArea.value.height,
+			radius.value
+		);
 
 		// Shadow ayarları
 		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
@@ -635,32 +673,19 @@ const updateCanvas = (timestamp) => {
 	// Video alanını kırp ve radius uygula
 	ctx.save();
 	ctx.beginPath();
-	const x = padding.value;
-	const y = padding.value;
-	const width = availableWidth;
-	const height = availableHeight;
-	const r = radius.value;
-
-	// Köşeleri yuvarla
-	ctx.moveTo(x + r, y);
-	ctx.lineTo(x + width - r, y);
-	ctx.quadraticCurveTo(x + width, y, x + width, y + r);
-	ctx.lineTo(x + width, y + height - r);
-	ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-	ctx.lineTo(x + r, y + height);
-	ctx.quadraticCurveTo(x, y + height, x, y + height - r);
-	ctx.lineTo(x, y + r);
-	ctx.quadraticCurveTo(x, y, x + r, y);
-	ctx.closePath();
+	roundedRect(
+		ctx,
+		cropArea.value.x,
+		cropArea.value.y,
+		cropArea.value.width,
+		cropArea.value.height,
+		radius.value
+	);
 	ctx.clip();
 
 	// Transform işlemleri
-	ctx.translate(
-		position.value.x + padding.value,
-		position.value.y + padding.value
-	);
+	ctx.translate(position.value.x, position.value.y);
 	ctx.scale(scale.value, scale.value);
-	ctx.rotate(rotation.value);
 
 	// Videoyu çiz
 	if (videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
@@ -675,11 +700,6 @@ const updateCanvas = (timestamp) => {
 
 	ctx.restore();
 
-	// Kırpma alanını sadece gerektiğinde çiz
-	if (selectedAspectRatio.value) {
-		drawCropOverlay(ctx, canvas.width, canvas.height);
-	}
-
 	// Mouse pozisyonunu çiz
 	if (props.mousePositions?.length > 0) {
 		drawMousePosition(ctx, videoElement.currentTime);
@@ -689,47 +709,17 @@ const updateCanvas = (timestamp) => {
 	animationFrame = requestAnimationFrame(updateCanvas);
 };
 
-// Kırpma overlay'ini ayrı bir fonksiyona taşıyalım
-const drawCropOverlay = (ctx, canvasWidth, canvasHeight) => {
-	// Kırpma alanı dışındaki bölgeleri karart
-	ctx.fillStyle = backgroundColor.value;
-
-	// Üst bölge
-	ctx.fillRect(0, 0, canvasWidth, cropArea.value.y + padding.value);
-
-	// Sol bölge
-	ctx.fillRect(
-		0,
-		cropArea.value.y + padding.value,
-		cropArea.value.x + padding.value,
-		cropArea.value.height
-	);
-
-	// Sağ bölge
-	ctx.fillRect(
-		cropArea.value.x + cropArea.value.width + padding.value,
-		cropArea.value.y + padding.value,
-		canvasWidth - (cropArea.value.x + cropArea.value.width + padding.value),
-		cropArea.value.height
-	);
-
-	// Alt bölge
-	ctx.fillRect(
-		0,
-		cropArea.value.y + cropArea.value.height + padding.value,
-		canvasWidth,
-		canvasHeight - (cropArea.value.y + cropArea.value.height + padding.value)
-	);
-
-	// Kırpma çerçevesi
-	ctx.strokeStyle = "white";
-	ctx.lineWidth = 2;
-	ctx.strokeRect(
-		cropArea.value.x + padding.value,
-		cropArea.value.y + padding.value,
-		cropArea.value.width,
-		cropArea.value.height
-	);
+// Yardımcı fonksiyon: Yuvarlak köşeli dikdörtgen çizimi
+const roundedRect = (ctx, x, y, width, height, radius) => {
+	ctx.moveTo(x + radius, y);
+	ctx.lineTo(x + width - radius, y);
+	ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+	ctx.lineTo(x + width, y + height - radius);
+	ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+	ctx.lineTo(x + radius, y + height);
+	ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+	ctx.lineTo(x, y + radius);
+	ctx.quadraticCurveTo(x, y, x + radius, y);
 };
 
 // Tüm prop değişikliklerini izle ve canvas'ı güncelle
