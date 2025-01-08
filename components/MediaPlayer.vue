@@ -122,7 +122,9 @@ const {
 	radius,
 	shadowSize,
 	cropRatio,
+	zoomRanges,
 	currentZoomRange,
+	setCurrentZoomRange,
 } = usePlayerSettings();
 
 const emit = defineEmits([
@@ -323,6 +325,9 @@ const onTimeUpdate = () => {
 	if (videoState.value.isPlaying) {
 		const currentTime = videoElement.currentTime;
 		videoState.value.currentTime = currentTime;
+
+		// Zoom segmentlerini kontrol et
+		checkZoomSegments(currentTime);
 
 		// Ses zamanını da senkronize et
 		if (
@@ -1479,7 +1484,7 @@ const videoContainerStyle = computed(() => {
 
 	const scale = currentZoomRange.value.scale;
 	const progress =
-		(currentTime.value - currentZoomRange.value.start) /
+		(videoState.value.currentTime - currentZoomRange.value.start) /
 		(currentZoomRange.value.end - currentZoomRange.value.start);
 
 	// Video container'ı scale et ve pozisyonunu ayarla
@@ -1490,6 +1495,121 @@ const videoContainerStyle = computed(() => {
 		willChange: "transform",
 	};
 });
+
+// Zoom animasyonu için state'ler
+const targetScale = ref(1);
+const targetPosition = ref({ x: 0, y: 0 });
+const isZoomAnimating = ref(false);
+let zoomAnimationFrame = null;
+const initialScale = ref(1);
+const initialPosition = ref({ x: 0, y: 0 });
+const currentSegmentId = ref(null);
+
+// Zoom segmentini uygula
+const applyZoomSegment = (zoomRange, currentTime) => {
+	if (!containerRef.value || !videoElement) return;
+
+	// Eğer aynı segment içindeysek tekrar zoom yapma
+	const segmentId = zoomRange ? `${zoomRange.start}-${zoomRange.end}` : null;
+	if (segmentId === currentSegmentId.value) {
+		return;
+	}
+
+	// Yeni segment'e geçtik, id'yi güncelle
+	currentSegmentId.value = segmentId;
+
+	const container = containerRef.value.getBoundingClientRect();
+
+	// Başlangıç değerlerini kaydet (segment değiştiğinde)
+	if (!zoomRange) {
+		// Zoom segmenti yoksa başlangıç değerlerine dön
+		targetScale.value = 1;
+		const centerX = container.width / 2;
+		const centerY = container.height / 2;
+		targetPosition.value = {
+			x: centerX - (videoElement.videoWidth * targetScale.value) / 2,
+			y: centerY - (videoElement.videoHeight * targetScale.value) / 2,
+		};
+		initialScale.value = 1;
+		initialPosition.value = { ...targetPosition.value };
+	} else {
+		// Zoom segmenti varsa direkt hedef değerlere geç
+		targetScale.value = zoomRange.scale;
+
+		// Video'nun merkez noktasını hesapla
+		const centerX = container.width / 2;
+		const centerY = container.height / 2;
+
+		// Hedef pozisyonu hesapla
+		targetPosition.value = {
+			x: centerX - (videoElement.videoWidth * targetScale.value) / 2,
+			y: centerY - (videoElement.videoHeight * targetScale.value) / 2,
+		};
+	}
+
+	// Animasyonu başlat
+	isZoomAnimating.value = true;
+	if (zoomAnimationFrame) {
+		cancelAnimationFrame(zoomAnimationFrame);
+	}
+	zoomAnimationFrame = requestAnimationFrame(animateZoom);
+};
+
+// Video zamanı güncellendiğinde zoom segmentlerini kontrol et
+const checkZoomSegments = (currentTime) => {
+	const activeZoom = zoomRanges.value.find(
+		(range) => currentTime >= range.start && currentTime <= range.end
+	);
+
+	// Aktif zoom segmentini güncelle
+	if (activeZoom !== currentZoomRange.value) {
+		setCurrentZoomRange(activeZoom);
+		applyZoomSegment(activeZoom, currentTime);
+	}
+};
+
+// Zoom animasyonu
+const animateZoom = (timestamp) => {
+	if (!isZoomAnimating.value) return;
+
+	// Smooth lerp için faktör (0-1 arası)
+	const lerpFactor = 0.1;
+
+	// Scale'i animate et
+	scale.value = scale.value + (targetScale.value - scale.value) * lerpFactor;
+
+	// Pozisyonu animate et
+	position.value = {
+		x:
+			position.value.x +
+			(targetPosition.value.x - position.value.x) * lerpFactor,
+		y:
+			position.value.y +
+			(targetPosition.value.y - position.value.y) * lerpFactor,
+	};
+
+	// Animasyonu devam ettir veya bitir
+	const scaleDiff = Math.abs(scale.value - targetScale.value);
+	const posDiff =
+		Math.abs(position.value.x - targetPosition.value.x) +
+		Math.abs(position.value.y - targetPosition.value.y);
+
+	if (scaleDiff > 0.001 || posDiff > 0.1) {
+		zoomAnimationFrame = requestAnimationFrame(animateZoom);
+	} else {
+		isZoomAnimating.value = false;
+		scale.value = targetScale.value;
+		position.value = targetPosition.value;
+	}
+
+	// Canvas'ı güncelle
+	updateCanvas(timestamp);
+};
+
+// Ease fonksiyonu
+const easeInOutCubic = (t) => {
+	return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+};
 </script>
 
 <style scoped>
