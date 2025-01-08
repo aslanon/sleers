@@ -1277,6 +1277,39 @@ cursorImage.onerror = (error) => {
 	console.error("[MediaPlayer] Cursor image loading error:", error);
 };
 
+// Motion blur fonksiyonu
+const applyMotionBlur = (image, amount) => {
+	if (!amount || amount <= 0) return image;
+
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
+	const width = image.width;
+	const height = image.height;
+
+	// Sol üst köşeye doğru blur için canvas boyutunu ayarla
+	canvas.width = width + amount;
+	canvas.height = height + amount;
+
+	// Görüntüyü sağ alta kaydır ki sol üste doğru blur yapabilelim
+	ctx.drawImage(image, amount, amount, width, height);
+
+	let currentAmount = amount;
+	while (currentAmount--) {
+		const opacity = 1 / (amount - currentAmount);
+		ctx.globalAlpha = opacity;
+		// Sol üst köşeye doğru blur için her adımda hem x hem y'yi azalt
+		ctx.drawImage(
+			image,
+			currentAmount, // x offset (sola doğru)
+			currentAmount, // y offset (yukarı doğru)
+			width,
+			height
+		);
+	}
+
+	return canvas;
+};
+
 const drawMousePosition = (ctx, currentTime) => {
 	const mousePos = props.mousePositions;
 	if (
@@ -1348,69 +1381,69 @@ const drawMousePosition = (ctx, currentTime) => {
 	const canvasX = videoX + normalizedX * displayWidth;
 	const canvasY = videoY + normalizedY * displayHeight;
 
-	// Mouse hızını hesapla
-	const speed = Math.sqrt(
-		Math.pow(nextPos.x - currentPos.x, 2) +
-			Math.pow(nextPos.y - currentPos.y, 2)
-	);
+	// Mouse hızını ve yönünü hesapla
+	const moveX = nextPos.x - currentPos.x;
+	const moveY = nextPos.y - currentPos.y;
+	const speed = Math.sqrt(moveX * moveX + moveY * moveY);
 
-	// Hıza bağlı blur değeri (0-5 arası)
-	const blurAmount = Math.min(5, speed * 0.1);
+	// Hareket yönünün tersini hesapla ve normalize et
+	const dirX = speed > 0 ? -moveX / speed : 0;
+	const dirY = speed > 0 ? -moveY / speed : 0;
 
-	// Trail sayısı (ana cursor dahil)
-	const trailCount = 3;
+	// Motion blur için temp canvas oluştur
+	const tempCanvas = document.createElement("canvas");
+	tempCanvas.width = mouseSize.value;
+	tempCanvas.height = mouseSize.value;
+	const tempCtx = tempCanvas.getContext("2d");
 
-	// Hareket varsa ve motion efekti aktifse trail'leri çiz
+	// Cursor'ı temp canvas'a çiz
+	tempCtx.drawImage(cursorImage, 0, 0, mouseSize.value, mouseSize.value);
+
+	// Motion blur efektini uygula
 	if (speed > 0.1 && mouseMotionEnabled.value) {
-		// Her trail için (sondan başa doğru çiziyoruz ki ana cursor en üstte olsun)
-		for (let i = trailCount - 1; i >= 0; i--) {
-			ctx.save();
-			// Hıza ve pozisyona bağlı alpha değeri
-			const alpha = speed > 0.1 ? 1 - i * 0.3 : 0;
-			ctx.globalAlpha = alpha;
+		const blurAmount = Math.min(32, speed * motionBlurValue.value);
 
-			// Sağa doğru offset
-			ctx.translate(canvasX + i * 3, canvasY);
+		// Hareket yönünün tersine doğru blur uygula
+		const blurCanvas = document.createElement("canvas");
+		const blurCtx = blurCanvas.getContext("2d");
+		blurCanvas.width = mouseSize.value + Math.abs(blurAmount * dirX);
+		blurCanvas.height = mouseSize.value + Math.abs(blurAmount * dirY);
 
-			// Blur efekti
-			ctx.filter = `blur(${blurAmount}px)`;
-
-			// Her trail için biraz daha küçük cursor
-			const trailSize = mouseSize.value * (1 - i * 0.15);
-
-			try {
-				ctx.drawImage(
-					cursorImage,
-					-trailSize / 4,
-					-trailSize / 4,
-					trailSize,
-					trailSize
-				);
-			} catch (error) {
-				console.error("[MediaPlayer] Cursor drawing error:", error);
-			}
-
-			ctx.restore();
-		}
-	} else {
-		// Hareket yoksa veya motion efekti kapalıysa sadece ana cursor'ı çiz
-		ctx.save();
-		ctx.globalAlpha = 1;
-		ctx.translate(canvasX, canvasY);
-		ctx.filter = mouseMotionEnabled.value ? `blur(${blurAmount}px)` : "none";
-
-		try {
-			ctx.drawImage(
-				cursorImage,
-				-mouseSize.value / 4,
-				-mouseSize.value / 4,
+		let currentAmount = blurAmount;
+		while (currentAmount--) {
+			const opacity = 1 / (blurAmount - currentAmount);
+			blurCtx.globalAlpha = opacity;
+			blurCtx.drawImage(
+				tempCanvas,
+				Math.max(0, dirX * currentAmount),
+				Math.max(0, dirY * currentAmount),
 				mouseSize.value,
 				mouseSize.value
 			);
-		} catch (error) {
-			console.error("[MediaPlayer] Cursor drawing error:", error);
 		}
 
+		// Blurlanmış cursor'ı çiz
+		ctx.save();
+		ctx.translate(canvasX, canvasY);
+		ctx.drawImage(
+			blurCanvas,
+			-mouseSize.value / 2 - Math.max(0, blurAmount * dirX),
+			-mouseSize.value / 2 - Math.max(0, blurAmount * dirY),
+			blurCanvas.width,
+			blurCanvas.height
+		);
+		ctx.restore();
+	} else {
+		// Hareket yoksa normal cursor'ı çiz
+		ctx.save();
+		ctx.translate(canvasX, canvasY);
+		ctx.drawImage(
+			cursorImage,
+			-mouseSize.value / 2,
+			-mouseSize.value / 2,
+			mouseSize.value,
+			mouseSize.value
+		);
 		ctx.restore();
 	}
 };
