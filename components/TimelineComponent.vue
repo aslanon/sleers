@@ -69,7 +69,10 @@
 						>
 							{{ marker.label }}
 						</span>
-						<div v-if="marker.time != 0" class="w-1 h-1 bg-white/20"></div>
+						<div
+							v-if="marker.time != 0"
+							class="w-1 h-1 rounded-full bg-white/20"
+						></div>
 					</div>
 
 					<!-- Video Track -->

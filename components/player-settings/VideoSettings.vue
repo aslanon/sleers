@@ -57,7 +57,7 @@
 					v-for="color in colors"
 					:key="color"
 					@click="selectColor(color)"
-					class="w-6 h-6 m-auto rounded-lg border-2 transition-all"
+					class="w-6 h-6 m-auto rounded-lg border-2 border-white/20 transition-all"
 					:class="
 						color === selectedColor ? 'border-white' : 'border-transparent'
 					"
