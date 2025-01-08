@@ -6,16 +6,24 @@
 			ref="containerRef"
 			class="relative w-full h-full overflow-hidden flex items-center justify-center"
 		>
-			<canvas
-				ref="canvasRef"
-				class="absolute inset-0 w-full h-full"
-				:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
-				@mousedown="startDragging"
-				@mousemove="onDragging"
-				@mouseup="stopDragging"
-				@mouseleave="stopDragging"
-				@wheel="handleZoom"
-			></canvas>
+			<div
+				class="relative"
+				:style="{
+					width: `${cropArea.width}px`,
+					height: `${cropArea.height}px`,
+				}"
+			>
+				<canvas
+					ref="canvasRef"
+					class="absolute inset-0 w-full h-full"
+					:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
+					@mousedown="startDragging"
+					@mousemove="onDragging"
+					@mouseup="stopDragging"
+					@mouseleave="stopDragging"
+					@wheel="handleZoom"
+				></canvas>
+			</div>
 
 			<!-- Ses -->
 			<audio
@@ -361,61 +369,32 @@ const updateCropArea = () => {
 		.map(Number) || [16, 9];
 	const targetRatio = targetWidth / targetHeight;
 
-	// Mevcut container oranı
+	// Canvas boyutlarını seçilen aspect ratio'ya göre ayarla
+	let canvasWidth, canvasHeight;
 	const containerRatio = container.width / container.height;
-
-	let cropWidth, cropHeight;
 
 	if (containerRatio > targetRatio) {
 		// Container daha geniş, yüksekliğe göre hesapla
-		cropHeight = container.height;
-		cropWidth = cropHeight * targetRatio;
+		canvasHeight = container.height;
+		canvasWidth = canvasHeight * targetRatio;
 	} else {
 		// Container daha dar, genişliğe göre hesapla
-		cropWidth = container.width;
-		cropHeight = cropWidth / targetRatio;
+		canvasWidth = container.width;
+		canvasHeight = canvasWidth / targetRatio;
 	}
 
-	// Kırpma alanını güncelle
+	// Kırpma alanını güncelle (canvas boyutları)
 	cropArea.value = {
-		width: cropWidth,
-		height: cropHeight,
+		width: canvasWidth,
+		height: canvasHeight,
 		x: 0,
 		y: 0,
 	};
 
-	// Video scale ve pozisyonunu güncelle
-	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-	let newScale;
-
-	// Padding'i hesaba katarak kullanılabilir alanı hesapla
-	const availableWidth = cropWidth - padding.value * 2;
-	const availableHeight = cropHeight - padding.value * 2;
-	const availableRatio = availableWidth / availableHeight;
-
-	if (videoRatio > availableRatio) {
-		// Video daha geniş, yüksekliğe göre scale et
-		newScale = availableHeight / videoElement.videoHeight;
-	} else {
-		// Video daha dar, genişliğe göre scale et
-		newScale = availableWidth / videoElement.videoWidth;
-	}
-
-	scale.value = newScale;
-
-	// Videoyu padding içinde ortala
-	const scaledVideoWidth = videoElement.videoWidth * newScale;
-	const scaledVideoHeight = videoElement.videoHeight * newScale;
-
-	position.value = {
-		x: padding.value + (availableWidth - scaledVideoWidth) / 2,
-		y: padding.value + (availableHeight - scaledVideoHeight) / 2,
-	};
-
 	// Canvas boyutlarını güncelle
 	if (canvasRef.value) {
-		canvasRef.value.width = cropWidth;
-		canvasRef.value.height = cropHeight;
+		canvasRef.value.width = canvasWidth;
+		canvasRef.value.height = canvasHeight;
 	}
 
 	// Canvas'ı güncelle
@@ -646,30 +625,25 @@ const updateCanvas = (timestamp) => {
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-	// Padding'i hesaba katarak kullanılabilir alanı hesapla
-	const availableWidth = canvas.width - padding.value * 2;
-	const availableHeight = canvas.height - padding.value * 2;
-
 	// Video'nun orijinal en-boy oranını koru
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+	const canvasRatio = canvas.width / canvas.height;
 
 	// Video'nun boyutlarını hesapla (en-boy oranını koruyarak)
-	let videoWidth, videoHeight, scale;
-	if (availableWidth / availableHeight > videoRatio) {
-		// Kullanılabilir alan daha geniş, yüksekliğe göre ölçekle
-		videoHeight = availableHeight;
-		videoWidth = videoHeight * videoRatio;
-		scale = videoHeight / videoElement.videoHeight;
-	} else {
-		// Kullanılabilir alan daha dar, genişliğe göre ölçekle
-		videoWidth = availableWidth;
+	let videoWidth, videoHeight;
+	if (videoRatio > canvasRatio) {
+		// Video daha geniş, genişliğe göre ölçekle
+		videoWidth = canvas.width - padding.value * 2;
 		videoHeight = videoWidth / videoRatio;
-		scale = videoWidth / videoElement.videoWidth;
+	} else {
+		// Video daha dar, yüksekliğe göre ölçekle
+		videoHeight = canvas.height - padding.value * 2;
+		videoWidth = videoHeight * videoRatio;
 	}
 
-	// Video'nun padding içindeki pozisyonunu hesapla (ortalanmış)
-	const videoX = padding.value + (availableWidth - videoWidth) / 2;
-	const videoY = padding.value + (availableHeight - videoHeight) / 2;
+	// Video'yu canvas'ın ortasına yerleştir
+	const videoX = (canvas.width - videoWidth) / 2;
+	const videoY = (canvas.height - videoHeight) / 2;
 
 	// Shadow için path oluştur
 	if (shadowSize.value > 0) {
@@ -695,10 +669,11 @@ const updateCanvas = (timestamp) => {
 	roundedRect(ctx, videoX, videoY, videoWidth, videoHeight, radius.value);
 	ctx.clip();
 
-	// Videoyu çiz (tek bir scale değeri kullanarak en-boy oranını koru)
+	// Videoyu çiz
 	if (videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
+		const scale = videoWidth / videoElement.videoWidth;
 		ctx.translate(videoX, videoY);
-		ctx.scale(scale, scale); // Aynı scale değerini kullan
+		ctx.scale(scale, scale);
 		ctx.drawImage(
 			videoElement,
 			0,
