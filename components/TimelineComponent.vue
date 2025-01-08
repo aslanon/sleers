@@ -287,7 +287,7 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-[1px] z-20"
+						class="absolute top-0 bottom-0 w-[1px] z-20 transition-[left] duration-[50ms] ease-linear will-change-[left]"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -298,7 +298,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute -top-1 w-3 h-5 cursor-move z-20"
+						class="absolute -top-1 w-3 h-5 cursor-move z-20 transition-[left] duration-[50ms] ease-linear will-change-[left]"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
