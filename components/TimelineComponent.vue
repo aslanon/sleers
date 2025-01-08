@@ -73,7 +73,8 @@
 					</div>
 
 					<!-- Video Track -->
-					<div class="absolute left-0 right-0 top-16 flex items-center px-2">
+					<div class="absolute left-0 right-0 top-16 flex flex-col gap-2 px-2">
+						<!-- Segment Bar -->
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
 							<div
@@ -155,6 +156,138 @@
 								</div>
 							</div>
 						</div>
+
+						<!-- Zoom Track -->
+						<div
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleZoomTrackClick"
+							@mousemove="handleZoomTrackMouseMove"
+							@mouseleave="hideGhostZoom"
+						>
+							<div
+								class="flex flex-row h-[50px] relative w-full bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+							>
+								<!-- Empty State Label -->
+								<div
+									v-if="zoomRanges.length === 0"
+									class="absolute inset-0 flex items-center justify-center gap-1.5 text-white/50 hover:text-white/60 transition-colors"
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="w-5 h-5"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+										/>
+									</svg>
+									<span class="text-sm font-medium tracking-wide"
+										>Zoom eklemek için tıklayın</span
+									>
+								</div>
+
+								<!-- Zoom Ranges -->
+								<div
+									v-for="(range, index) in zoomRanges"
+									:key="index"
+									class="h-full ring-inset relative transition-all duration-200 group"
+									:class="{
+										'hover:!ring-[1px] hover:!ring-white': !isZoomResizing,
+									}"
+									:style="getZoomStyle(range)"
+									@mouseenter="handleZoomRangeEnter(range)"
+									@mouseleave="handleZoomRangeLeave"
+								>
+									<!-- Sol Resize Handle -->
+									<div
+										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80': activeZoomIndex === index,
+											'group-hover:opacity-80': !isZoomResizing,
+										}"
+									>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
+											@mousedown.stop="
+												handleZoomResizeStart($event, index, 'start')
+											"
+										></div>
+									</div>
+
+									<!-- Sağ Resize Handle -->
+									<div
+										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80': activeZoomIndex === index,
+											'group-hover:opacity-80': !isZoomResizing,
+										}"
+									>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
+											@mousedown.stop="
+												handleZoomResizeStart($event, index, 'end')
+											"
+										></div>
+									</div>
+
+									<!-- Zoom İçeriği -->
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center"
+									>
+										<span
+											class="text-white/70 text-[10px] font-medium tracking-wide"
+											>Zoom</span
+										>
+										<span
+											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
+										>
+											{{ formatDuration(range.end - range.start) }} @
+											{{ range.scale }}x
+										</span>
+									</div>
+								</div>
+
+								<!-- Ghost Zoom Bar -->
+								<div
+									v-if="ghostZoomPosition !== null && !isZoomResizing"
+									class="absolute top-0 bottom-0 transition-all rounded-lg pointer-events-none"
+									:style="{
+										position: 'absolute',
+										left: `${
+											(((ghostZoomPosition / 100) * maxDuration.value) /
+												maxDuration.value) *
+											timelineWidth.value
+										}px`,
+										width: `${(1 / maxDuration.value) * timelineWidth.value}px`,
+										backgroundColor: 'rgb(79, 70, 229, 0.2)',
+										background:
+											'linear-gradient(180deg, rgba(79, 70, 229, 0.1) 0%, rgba(99, 102, 241, 0.2) 100%)',
+										border: '0.25px solid rgba(255, 255, 255, 0.05)',
+										borderRadius: '10px',
+										height: '100%',
+									}"
+								>
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center"
+									>
+										<span
+											class="text-white/40 text-[10px] font-medium tracking-wide"
+											>Zoom</span
+										>
+										<span
+											class="text-white/60 text-sm font-medium tracking-wide mt-0.5"
+										>
+											1s @ 2x
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
 					</div>
 
 					<!-- Preview Playhead -->
@@ -213,6 +346,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
 	duration: {
@@ -259,6 +393,14 @@ const emit = defineEmits([
 	"segmentsReordered",
 	"previewTimeUpdate",
 ]);
+
+const {
+	zoomRanges,
+	addZoomRange,
+	removeZoomRange,
+	updateZoomRange,
+	setCurrentZoomRange,
+} = usePlayerSettings();
 
 // Referanslar ve state
 const scrollContainerRef = ref(null);
@@ -760,6 +902,165 @@ const handleTimelineMouseMove = (e) => {
 const handleTimelineMouseLeave = () => {
 	previewPlayheadPosition.value = null;
 	emit("previewTimeUpdate", null);
+};
+
+// Zoom track için state'ler
+const isZoomResizing = ref(false);
+const activeZoomIndex = ref(null);
+const resizingZoomEdge = ref(null);
+const initialZoomRange = ref(null);
+const initialClientX = ref(null);
+
+// Zoom range ekleme
+const handleZoomTrackClick = (event) => {
+	if (isZoomResizing.value) return;
+
+	const rect = event.currentTarget.getBoundingClientRect();
+	const clickX = event.clientX - rect.left;
+	const scrollLeft = scrollContainerRef.value.scrollLeft;
+
+	// Timeline üzerindeki tıklanan noktayı bul
+	const adjustedX = clickX + scrollLeft;
+	const clickedTime = (adjustedX / timelineWidth.value) * maxDuration.value;
+
+	console.log("Click position:", {
+		clickX,
+		scrollLeft,
+		adjustedX,
+		clickedTime,
+		timelineWidth: timelineWidth.value,
+		maxDuration: maxDuration.value,
+	});
+
+	// Tıklanan noktadan itibaren 1 saniyelik zoom aralığı oluştur
+	const zoomRange = {
+		start: clickedTime,
+		end: Math.min(maxDuration.value, clickedTime + 1),
+		scale: 2,
+	};
+
+	console.log("Created zoom range:", zoomRange);
+
+	// Zoom range'i ekle
+	addZoomRange(zoomRange);
+
+	// Ghost zoom'u gizle
+	hideGhostZoom();
+};
+
+// Zoom range silme
+const removeCurrentZoomRange = () => {
+	if (zoomRanges.value.length > 0) {
+		removeZoomRange(0); // İlk (ve tek) zoom range'i sil
+		setCurrentZoomRange(null);
+	}
+};
+
+// Zoom range'den mouse çıktığında deaktif et
+const handleZoomRangeLeave = () => {
+	setCurrentZoomRange(null);
+};
+
+// Zoom range yeniden boyutlandırma
+const handleZoomResizeStart = (event, index, edge) => {
+	event.stopPropagation();
+	isZoomResizing.value = true;
+	activeZoomIndex.value = index;
+	resizingZoomEdge.value = edge;
+	initialZoomRange.value = { ...zoomRanges.value[index] };
+	initialClientX.value = event.clientX;
+
+	window.addEventListener("mousemove", handleZoomResizeMove);
+	window.addEventListener("mouseup", handleZoomResizeEnd);
+};
+
+const handleZoomResizeMove = (event) => {
+	if (!isZoomResizing.value || activeZoomIndex.value === null) return;
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const deltaX = event.clientX - initialClientX.value;
+	const deltaTime = (deltaX / rect.width) * maxDuration.value;
+
+	const range = { ...initialZoomRange.value };
+	if (resizingZoomEdge.value === "start") {
+		range.start = Math.max(0, range.start + deltaTime);
+		range.start = Math.min(range.start, range.end - 1); // Minimum 1 saniyelik aralık
+	} else {
+		range.end = Math.min(maxDuration.value, range.end + deltaTime);
+		range.end = Math.max(range.end, range.start + 1); // Minimum 1 saniyelik aralık
+	}
+
+	// Toplam süreyi kontrol et
+	if (range.end - range.start <= maxDuration.value) {
+		updateZoomRange(activeZoomIndex.value, range);
+	}
+};
+
+const handleZoomResizeEnd = () => {
+	isZoomResizing.value = false;
+	activeZoomIndex.value = null;
+	resizingZoomEdge.value = null;
+	initialZoomRange.value = null;
+	initialClientX.value = null;
+
+	window.removeEventListener("mousemove", handleZoomResizeMove);
+	window.removeEventListener("mouseup", handleZoomResizeEnd);
+};
+
+// Zoom range'e mouse girdiğinde aktif et
+const handleZoomRangeEnter = (range) => {
+	setCurrentZoomRange(range);
+};
+
+// Script kısmına eklenecek state ve fonksiyonlar:
+const ghostZoomPosition = ref(null);
+
+// Ghost zoom pozisyonunu güncelle
+const handleZoomTrackMouseMove = (event) => {
+	if (isZoomResizing.value) {
+		ghostZoomPosition.value = null;
+		return;
+	}
+
+	const rect = event.currentTarget.getBoundingClientRect();
+	const clickX = event.clientX - rect.left;
+	const scrollLeft = scrollContainerRef.value.scrollLeft;
+
+	// Timeline üzerindeki mouse pozisyonunu bul
+	const adjustedX = clickX + scrollLeft;
+	const hoverTime = (adjustedX / timelineWidth.value) * maxDuration.value;
+
+	// Ghost zoom pozisyonunu güncelle
+	ghostZoomPosition.value = (hoverTime / maxDuration.value) * 100;
+};
+
+// Ghost zoom'u gizle
+const hideGhostZoom = () => {
+	ghostZoomPosition.value = null;
+};
+
+// Ghost bar genişliği hesaplama
+const calculateGhostBarWidth = () => {
+	// Tam olarak 1 saniyelik genişlik
+	return (1 / maxDuration.value) * 100;
+};
+
+// Zoom segmentleri için style hesaplama fonksiyonu ekleyelim
+const getZoomStyle = (range) => {
+	return {
+		position: "absolute",
+		left: `${(range.start / maxDuration.value) * timelineWidth.value}px`,
+		width: `${
+			((range.end - range.start) / maxDuration.value) * timelineWidth.value
+		}px`,
+		backgroundColor: "rgb(79, 70, 229)",
+		background:
+			"linear-gradient(180deg, rgba(79, 70, 229, 0.3) 0%, rgba(99, 102, 241, 0.4) 100%)",
+		border: "0.25px solid rgba(255, 255, 255, 0.1)",
+		borderRadius: "10px",
+		height: "100%",
+	};
 };
 </script>
 

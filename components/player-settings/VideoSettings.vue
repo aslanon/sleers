@@ -1,6 +1,6 @@
 <template>
 	<div class="space-y-4">
-		<h2 class="text-xl font-bold mb-4">Video Ayarları</h2>
+		<!-- <h2 class="text-xl font-bold mb-4">Video Ayarları</h2>
 		<div>
 			<label class="block text-sm font-medium mb-1">Video Süresi</label>
 			<span class="text-gray-300">{{ formatDuration(duration) }}</span>
@@ -9,7 +9,7 @@
 		<div>
 			<label class="block text-sm font-medium mb-1">Boyut</label>
 			<span class="text-gray-300">{{ width }}x{{ height }}</span>
-		</div>
+		</div> -->
 
 		<div>
 			<label class="block text-sm font-medium mb-1">Padding</label>

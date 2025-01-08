@@ -122,6 +122,7 @@ const {
 	radius,
 	shadowSize,
 	cropRatio,
+	currentZoomRange,
 } = usePlayerSettings();
 
 const emit = defineEmits([
@@ -1438,6 +1439,24 @@ const onVideoLoad = () => {
 	// Crop değişikliğini bildir
 	emit("cropChange", cropArea.value);
 };
+
+// Video container style
+const videoContainerStyle = computed(() => {
+	if (!currentZoomRange.value) return {};
+
+	const scale = currentZoomRange.value.scale;
+	const progress =
+		(currentTime.value - currentZoomRange.value.start) /
+		(currentZoomRange.value.end - currentZoomRange.value.start);
+
+	// Video container'ı scale et ve pozisyonunu ayarla
+	return {
+		transform: `scale(${scale})`,
+		transition: "transform 0.3s ease-out",
+		transformOrigin: "center center",
+		willChange: "transform",
+	};
+});
 </script>
 
 <style scoped>

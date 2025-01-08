@@ -7,6 +7,8 @@ const padding = ref(0);
 const radius = ref(0);
 const shadowSize = ref(0);
 const cropRatio = ref("");
+const zoomRanges = ref([]);
+const currentZoomRange = ref(null);
 
 export const usePlayerSettings = () => {
 	const updateMouseSize = (size) => {
@@ -33,8 +35,24 @@ export const usePlayerSettings = () => {
 		shadowSize.value = value;
 	};
 
-	const updateCropRatio = (value) => {
-		cropRatio.value = value;
+	const updateCropRatio = (ratio) => {
+		cropRatio.value = ratio;
+	};
+
+	const addZoomRange = (range) => {
+		zoomRanges.value.push(range);
+	};
+
+	const removeZoomRange = (index) => {
+		zoomRanges.value.splice(index, 1);
+	};
+
+	const updateZoomRange = (index, range) => {
+		zoomRanges.value[index] = range;
+	};
+
+	const setCurrentZoomRange = (range) => {
+		currentZoomRange.value = range;
 	};
 
 	return {
@@ -52,5 +70,11 @@ export const usePlayerSettings = () => {
 		updateRadius,
 		updateShadowSize,
 		updateCropRatio,
+		zoomRanges,
+		addZoomRange,
+		removeZoomRange,
+		updateZoomRange,
+		currentZoomRange,
+		setCurrentZoomRange,
 	};
 };
