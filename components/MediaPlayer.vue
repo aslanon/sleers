@@ -1208,8 +1208,30 @@ const drawMousePosition = (ctx, currentTime) => {
 	if (!currentPos || !nextPos) return;
 
 	// Video boyutlarını al
-	const videoWidth = videoSize.value.width;
-	const videoHeight = videoSize.value.height;
+	const videoWidth = videoElement.videoWidth;
+	const videoHeight = videoElement.videoHeight;
+
+	// Canvas boyutlarını al
+	const canvas = canvasRef.value;
+	const canvasWidth = canvas.width;
+	const canvasHeight = canvas.height;
+
+	// Video'nun canvas içindeki boyutlarını ve pozisyonunu hesapla
+	const videoRatio = videoWidth / videoHeight;
+	const canvasRatio = canvasWidth / canvasHeight;
+	let displayWidth, displayHeight;
+
+	if (videoRatio > canvasRatio) {
+		displayWidth = canvasWidth - padding.value * 2;
+		displayHeight = displayWidth / videoRatio;
+	} else {
+		displayHeight = canvasHeight - padding.value * 2;
+		displayWidth = displayHeight * videoRatio;
+	}
+
+	// Video'nun canvas içindeki pozisyonunu hesapla
+	const videoX = (canvasWidth - displayWidth) / 2;
+	const videoY = (canvasHeight - displayHeight) / 2;
 
 	// İki pozisyon arasında cubic interpolasyon yap
 	const t = framePart;
@@ -1224,13 +1246,9 @@ const drawMousePosition = (ctx, currentTime) => {
 	const normalizedX = interpolatedX / videoWidth;
 	const normalizedY = interpolatedY / videoHeight;
 
-	// Video'nun canvas içindeki mevcut boyutlarını hesapla
-	const scaledVideoWidth = videoWidth * scale.value;
-	const scaledVideoHeight = videoHeight * scale.value;
-
-	// Mouse pozisyonunu canvas koordinatlarına dönüştür
-	const canvasX = position.value.x + normalizedX * scaledVideoWidth;
-	const canvasY = position.value.y + normalizedY * scaledVideoHeight;
+	// Canvas koordinatlarına dönüştür
+	const canvasX = videoX + normalizedX * displayWidth;
+	const canvasY = videoY + normalizedY * displayHeight;
 
 	// Yeni pozisyonu kaydet
 	if (previousPositions.value.length >= MAX_TRAIL_LENGTH) {
@@ -1256,7 +1274,7 @@ const drawMousePosition = (ctx, currentTime) => {
 
 			// Trail için cursor boyutunu hesapla
 			const sizeMultiplier = 1 - normalizedIndex * 0.3;
-			const cursorSize = mouseSize.value * 2 * scale.value * sizeMultiplier;
+			const cursorSize = mouseSize.value * sizeMultiplier;
 
 			ctx.filter = `blur(${blurValue}px)`;
 
@@ -1283,7 +1301,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.translate(canvasX, canvasY);
 
 	// Ana cursor boyutunu ayarla
-	const cursorSize = mouseSize.value * 2 * scale.value;
+	const cursorSize = mouseSize.value;
 
 	// Ana cursor'a da blur efekti uygula
 	if (blurValue > 0) {
