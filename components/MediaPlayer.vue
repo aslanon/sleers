@@ -504,29 +504,62 @@ const handleZoom = (e) => {
 	if (!containerRef.value || !videoElement) return;
 
 	const delta = e.deltaY * -0.01;
-	const newScale = Math.min(Math.max(0.5, scale.value + delta), 3);
+	const newScale = Math.min(Math.max(0.25, scale.value + delta), 3);
+
+	if (newScale === scale.value) return;
 
 	// Mouse'un container içindeki pozisyonu
 	const rect = containerRef.value.getBoundingClientRect();
 	const mouseX = e.clientX - rect.left;
 	const mouseY = e.clientY - rect.top;
 
-	// Mouse'un video üzerindeki relatif pozisyonu
+	// Mouse'un video üzerindeki relatif pozisyonu (scale öncesi)
 	const relativeX = (mouseX - position.value.x) / scale.value;
 	const relativeY = (mouseY - position.value.y) / scale.value;
 
-	// Yeni pozisyonu hesapla
-	position.value = {
-		x: mouseX - relativeX * newScale,
-		y: mouseY - relativeY * newScale,
-	};
+	// Mouse'un video üzerindeki piksel pozisyonu
+	const videoX = relativeX * videoElement.videoWidth;
+	const videoY = relativeY * videoElement.videoHeight;
 
+	// Yeni scale'i uygula
 	scale.value = newScale;
 
-	// Direkt olarak canvas'ı güncelle
-	requestAnimationFrame(() => {
-		updateCanvas(performance.now());
-	});
+	// Yeni pozisyonu hesapla
+	let newX = mouseX - (videoX * newScale) / videoElement.videoWidth;
+	let newY = mouseY - (videoY * newScale) / videoElement.videoHeight;
+
+	// Video'nun canvas dışına çıkmasını sınırla
+	const scaledVideoWidth = videoElement.videoWidth * newScale;
+	const scaledVideoHeight = videoElement.videoHeight * newScale;
+	const containerWidth = rect.width;
+	const containerHeight = rect.height;
+
+	// Minimum görünür alan oranı (video'nun en az %30'u görünür olmalı)
+	const minVisibleRatio = 0.3;
+	const minVisibleWidth = scaledVideoWidth * minVisibleRatio;
+	const minVisibleHeight = scaledVideoHeight * minVisibleRatio;
+
+	// X ekseni sınırlaması
+	const maxX = containerWidth - scaledVideoWidth * (1 - minVisibleRatio);
+	const minX = -(scaledVideoWidth * (1 - minVisibleRatio));
+	newX = Math.min(Math.max(newX, minX), maxX);
+
+	// Y ekseni sınırlaması
+	const maxY = containerHeight - scaledVideoHeight * (1 - minVisibleRatio);
+	const minY = -(scaledVideoHeight * (1 - minVisibleRatio));
+	newY = Math.min(Math.max(newY, minY), maxY);
+
+	// Yeni pozisyonu uygula
+	position.value = {
+		x: newX,
+		y: newY,
+	};
+
+	// Canvas'ı güncelle
+	requestAnimationFrame(() => updateCanvas(performance.now()));
+
+	// Değişiklikleri emit et
+	emit("cropChange", getCropData());
 };
 
 // Video bittiğinde
