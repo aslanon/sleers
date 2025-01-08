@@ -209,7 +209,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, nextTick } from "vue";
+import { ref, computed, onUnmounted, nextTick, onMounted } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -373,6 +373,19 @@ const emit = defineEmits([
 	"toggle-mute",
 	"toggle-split-mode",
 ]);
+
+// Space tuşu için event handler
+const handleKeyPress = (event) => {
+	if (event.code === "Space" && !event.repeat) {
+		event.preventDefault();
+		emit("toggle-playback");
+	}
+};
+
+// Component mount olduğunda
+onMounted(() => {
+	window.addEventListener("keydown", handleKeyPress);
+});
 
 const formatTime = (seconds) => {
 	if (!seconds || isNaN(seconds)) return "00:00:00";

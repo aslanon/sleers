@@ -242,6 +242,11 @@ const play = async () => {
 			return;
 		}
 
+		// Video bitmiş ise başa sar
+		if (videoElement.currentTime >= videoElement.duration) {
+			videoElement.currentTime = 0;
+		}
+
 		// Mevcut zamanı koru
 		const startTime = videoState.value.currentTime;
 
@@ -564,11 +569,20 @@ const handleZoom = (e) => {
 };
 
 // Video bittiğinde
-const onVideoEnded = () => {
-	videoState.value.isPlaying = false;
-	videoState.value.isPaused = true;
-	emit("videoEnded");
-	if (audioRef.value) audioRef.value.pause();
+const onVideoEnded = async () => {
+	// Video bittiğinde başa sar
+	if (videoElement) {
+		videoElement.currentTime = 0;
+		videoState.value.currentTime = 0;
+
+		// Ses elementini de sıfırla
+		if (audioRef.value) {
+			audioRef.value.currentTime = 0;
+		}
+
+		// Videoyu tekrar başlat
+		await play();
+	}
 };
 
 // Video hatası
