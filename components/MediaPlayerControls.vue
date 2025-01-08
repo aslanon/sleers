@@ -33,47 +33,49 @@
 				<!-- Dropdown Menu -->
 				<div
 					v-show="isAspectRatioOpen"
-					class="fixed inset-0 z-50"
+					class="fixed inset-0 z-50 bg-transparent"
 					@click="isAspectRatioOpen = false"
 				></div>
 				<div
 					v-show="isAspectRatioOpen"
-					class="fixed mt-1 w-40 bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 py-1 z-[60] shadow-xl"
-					:style="dropdownStyle"
+					ref="dropdownMenu"
+					class="fixed bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 py-1 z-[60] shadow-xl"
 				>
-					<button
-						v-for="ratio in aspectRatios"
-						:key="ratio.value"
-						@click="selectAspectRatio(ratio.value)"
-						class="w-full px-3 py-2 flex items-center space-x-3 hover:bg-white/5 transition-colors text-left group"
-						:class="{ 'text-purple-400': cropRatio === ratio.value }"
-					>
-						<div
-							class="aspect-icon-wrapper w-5 h-5 rounded bg-white/5 flex items-center justify-center group-hover:bg-white/10"
+					<div class="max-h-[320px] overflow-y-auto" @mousedown.stop>
+						<button
+							v-for="ratio in aspectRatios"
+							:key="ratio.value"
+							@click="selectAspectRatio(ratio.value)"
+							class="w-full px-3 py-2 flex items-center space-x-3 hover:bg-white/5 transition-colors text-left group"
+							:class="{ 'text-purple-400': cropRatio === ratio.value }"
 						>
-							<div class="aspect-icon" :class="ratio.iconClass"></div>
-						</div>
-						<span class="text-sm flex-1">{{ ratio.label }}</span>
-						<div
-							v-if="cropRatio === ratio.value"
-							class="w-4 h-4 flex items-center justify-center"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-4 w-4"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
+							<div
+								class="aspect-icon-wrapper w-5 h-5 rounded bg-white/5 flex items-center justify-center group-hover:bg-white/10"
 							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M5 13l4 4L19 7"
-								/>
-							</svg>
-						</div>
-					</button>
+								<div class="aspect-icon" :class="ratio.iconClass"></div>
+							</div>
+							<span class="text-sm flex-1">{{ ratio.label }}</span>
+							<div
+								v-if="cropRatio === ratio.value"
+								class="w-4 h-4 flex items-center justify-center"
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-4 w-4"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M5 13l4 4L19 7"
+									/>
+								</svg>
+							</div>
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -208,7 +210,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onUnmounted, nextTick } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -240,24 +242,83 @@ const props = defineProps({
 
 const { cropRatio, updateCropRatio } = usePlayerSettings();
 
-// Refs
+// Refs ve state
 const dropdownButton = ref(null);
+const dropdownMenu = ref(null);
 const isAspectRatioOpen = ref(false);
+let resizeObserver = null;
 
-// Dropdown style
-const dropdownStyle = computed(() => {
-	if (!dropdownButton.value) return {};
-	const rect = dropdownButton.value.getBoundingClientRect();
-	return {
-		top: `${rect.bottom + 4}px`,
-		left: `${rect.left}px`,
-	};
-});
+// Dropdown pozisyonunu güncelle
+const updateDropdownPosition = () => {
+	if (!isAspectRatioOpen.value || !dropdownButton.value) return;
+
+	const buttonRect = dropdownButton.value.getBoundingClientRect();
+	const windowHeight = window.innerHeight;
+	const windowWidth = window.innerWidth;
+
+	// Dropdown menüsünün tahmini yüksekliği
+	const dropdownHeight = aspectRatios.length * 40 + 16;
+
+	// Aşağıda yeterli alan var mı kontrol et
+	const spaceBelow = windowHeight - buttonRect.bottom;
+	const showBelow = spaceBelow >= dropdownHeight;
+
+	// Sol tarafta yeterli alan var mı kontrol et
+	const spaceRight = windowWidth - buttonRect.left;
+	const alignLeft = spaceRight >= buttonRect.width;
+
+	if (dropdownMenu.value) {
+		dropdownMenu.value.style.position = "fixed";
+		dropdownMenu.value.style.top = showBelow
+			? `${buttonRect.bottom + 8}px`
+			: `${buttonRect.top - dropdownHeight - 8}px`;
+		dropdownMenu.value.style.left = alignLeft
+			? `${buttonRect.left}px`
+			: `${buttonRect.right - buttonRect.width}px`;
+		dropdownMenu.value.style.minWidth = `${buttonRect.width}px`;
+	}
+};
 
 // Toggle dropdown
 const toggleDropdown = () => {
 	isAspectRatioOpen.value = !isAspectRatioOpen.value;
+
+	if (isAspectRatioOpen.value) {
+		// Dropdown açıldığında event listener'ları ekle
+		nextTick(() => {
+			updateDropdownPosition();
+			window.addEventListener("scroll", updateDropdownPosition, true);
+			window.addEventListener("resize", updateDropdownPosition);
+
+			// ResizeObserver ile parent elementlerin boyut değişikliklerini izle
+			if (!resizeObserver) {
+				resizeObserver = new ResizeObserver(updateDropdownPosition);
+			}
+			let parent = dropdownButton.value?.parentElement;
+			while (parent) {
+				resizeObserver.observe(parent);
+				parent = parent.parentElement;
+			}
+		});
+	} else {
+		// Dropdown kapandığında event listener'ları kaldır
+		window.removeEventListener("scroll", updateDropdownPosition, true);
+		window.removeEventListener("resize", updateDropdownPosition);
+		if (resizeObserver) {
+			resizeObserver.disconnect();
+		}
+	}
 };
+
+// Component unmount olduğunda cleanup
+onUnmounted(() => {
+	window.removeEventListener("scroll", updateDropdownPosition, true);
+	window.removeEventListener("resize", updateDropdownPosition);
+	if (resizeObserver) {
+		resizeObserver.disconnect();
+		resizeObserver = null;
+	}
+});
 
 // Aspect ratio seçenekleri
 const aspectRatios = [
