@@ -448,15 +448,27 @@ class MediaStateManager {
 	}
 
 	async saveCursorData(tempFileManager) {
-		if (this.mousePositions.length === 0) return null;
+		if (this.mousePositions.length === 0) {
+			console.log("[MediaStateManager] Kaydedilecek cursor verisi yok");
+			return null;
+		}
 
 		try {
+			console.log("[MediaStateManager] Cursor verisi kaydediliyor...", {
+				positionCount: this.mousePositions.length,
+			});
+
 			const cursorData = JSON.stringify(this.mousePositions);
 			const cursorPath = await tempFileManager.saveTempFile(
 				cursorData,
 				"cursor",
 				".json"
 			);
+
+			console.log("[MediaStateManager] Cursor verisi kaydedildi:", {
+				path: cursorPath,
+				size: cursorData.length,
+			});
 
 			this.updateState({
 				cursorPath,
@@ -473,14 +485,29 @@ class MediaStateManager {
 	}
 
 	async loadCursorData() {
-		if (!this.state.cursorPath) return [];
+		if (!this.state.cursorPath) {
+			console.log("[MediaStateManager] Cursor dosya yolu bulunamadı");
+			return [];
+		}
 
 		try {
+			console.log(
+				"[MediaStateManager] Cursor verisi okunuyor:",
+				this.state.cursorPath
+			);
+
 			const cursorData = await fs.promises.readFile(
 				this.state.cursorPath,
 				"utf8"
 			);
-			return JSON.parse(cursorData);
+
+			const positions = JSON.parse(cursorData);
+			console.log("[MediaStateManager] Cursor verisi yüklendi:", {
+				path: this.state.cursorPath,
+				positionCount: positions.length,
+			});
+
+			return positions;
 		} catch (error) {
 			console.error("[MediaStateManager] Cursor verisi okunurken hata:", error);
 			return [];

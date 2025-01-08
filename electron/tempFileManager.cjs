@@ -143,11 +143,30 @@ class TempFileManager {
 
 	async saveTempFile(data, type, extension) {
 		try {
+			// Eski dosyayı temizle
+			await this.cleanupFile(type);
+
+			// Yeni dosya yolu (.sleer klasörü altında)
 			const tempPath = path.join(
-				app.getPath("temp"),
-				`temp_${type}${extension}`
+				this.appDir,
+				`temp-${type}-${Date.now()}${extension}`
 			);
+
+			console.log(
+				`[TempFileManager] ${type} için geçici dosya kaydediliyor:`,
+				tempPath
+			);
+
 			await fs.promises.writeFile(tempPath, data);
+
+			// Dosya varlığını ve boyutunu kontrol et
+			const stats = await fs.promises.stat(tempPath);
+			console.log(`[TempFileManager] Dosya kaydedildi:`, {
+				path: tempPath,
+				size: stats.size,
+				type: type,
+			});
+
 			this.tempFiles[type] = tempPath;
 			return tempPath;
 		} catch (error) {
