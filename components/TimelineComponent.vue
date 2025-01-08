@@ -47,7 +47,7 @@
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content relative h-[220px] pt-6 transition-all ease-linear duration-300"
+					class="timeline-content relative h-[220px] pt-6"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -257,8 +257,8 @@
 
 					<!-- Preview Playhead -->
 					<div
-						v-show="previewPlayheadPosition !== null"
-						class="absolute top-0 bottom-0 transition-all ease-linear duration-75 w-[1px] bg-red-500/50 z-30"
+						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
+						class="absolute top-0 bottom-0 w-[1px] bg-red-500/50 z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -267,8 +267,8 @@
 
 					<!-- Preview Playhead Handle -->
 					<div
-						v-show="previewPlayheadPosition !== null"
-						class="absolute -top-1 w-3 h-5 transition-all ease-linear duration-75 z-30"
+						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
+						class="absolute -top-1 w-3 h-5 z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -282,7 +282,7 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 transition-all ease-linear duration-300 w-[1px] bg-red-500 z-20"
+						class="absolute top-0 bottom-0 w-[1px] bg-red-500 z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -291,7 +291,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute -top-1 w-3 h-5 transition-all ease-linear duration-300 cursor-pointer z-20"
+						class="absolute -top-1 w-3 h-5 cursor-move z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -416,12 +416,12 @@ watch(
 		if (playheadX > scrollRight - 100) {
 			container.scrollTo({
 				left: playheadX - containerWidth + 100,
-				behavior: "auto",
+				behavior: "instant",
 			});
 		} else if (playheadX < scrollLeft + 100) {
 			container.scrollTo({
 				left: playheadX - 100,
-				behavior: "auto",
+				behavior: "instant",
 			});
 		}
 	},
@@ -624,6 +624,7 @@ const handleTimelineClick = (e) => {
 	// Geçerli zaman aralığında olmasını kontrol et
 	const validTime = Math.max(0, Math.min(props.duration, time));
 	emit("timeUpdate", validTime);
+	previewPlayheadPosition.value = null; // Tıklandığında preview'i gizle
 };
 
 const startDragging = (e) => {
@@ -771,6 +772,8 @@ onMounted(() => {
 onUnmounted(() => {
 	window.removeEventListener("mouseup", stopDragging);
 	window.removeEventListener("mousemove", handleDrag);
+	window.removeEventListener("mousemove", handlePlayheadDrag);
+	window.removeEventListener("mouseup", handlePlayheadDragEnd);
 });
 
 // Resize state'leri
@@ -847,7 +850,7 @@ const previewPlayheadPosition = ref(null);
 
 // Timeline üzerinde mouse hareketi
 const handleTimelineMouseMove = (e) => {
-	if (isDragging.value || isResizing.value) {
+	if (isDragging.value || isResizing.value || isPlayheadDragging.value) {
 		previewPlayheadPosition.value = null;
 		return;
 	}
@@ -866,7 +869,8 @@ const handleTimelineMouseMove = (e) => {
 // Timeline'dan mouse çıkınca preview'i gizle
 const handleTimelineMouseLeave = () => {
 	previewPlayheadPosition.value = null;
-	emit("previewTimeUpdate", null);
+	// Mouse timeline'dan çıkınca gerçek playhead pozisyonuna geri dön
+	emit("previewTimeUpdate", props.currentTime);
 };
 
 // Zoom track için state'ler
@@ -1026,6 +1030,39 @@ const getZoomStyle = (range) => {
 		borderRadius: "10px",
 		height: "100%",
 	};
+};
+
+// Playhead sürükleme state'i
+const isPlayheadDragging = ref(false);
+
+// Playhead sürükleme başlatma
+const handlePlayheadDragStart = (e) => {
+	e.stopPropagation();
+	isPlayheadDragging.value = true;
+	window.addEventListener("mousemove", handlePlayheadDrag);
+	window.addEventListener("mouseup", handlePlayheadDragEnd);
+};
+
+// Playhead sürükleme
+const handlePlayheadDrag = (e) => {
+	if (!isPlayheadDragging.value) return;
+
+	const container = timelineRef.value;
+	const rect = container.getBoundingClientRect();
+	const x = e.clientX - rect.left + container.scrollLeft;
+	const time = (x / timelineWidth.value) * maxDuration.value;
+
+	// Geçerli zaman aralığında olmasını kontrol et
+	const validTime = Math.max(0, Math.min(props.duration, time));
+	emit("timeUpdate", validTime);
+	previewPlayheadPosition.value = null; // Sürükleme sırasında preview'i gizle
+};
+
+// Playhead sürükleme bitirme
+const handlePlayheadDragEnd = () => {
+	isPlayheadDragging.value = false;
+	window.removeEventListener("mousemove", handlePlayheadDrag);
+	window.removeEventListener("mouseup", handlePlayheadDragEnd);
 };
 </script>
 
