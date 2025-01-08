@@ -170,7 +170,7 @@
 								<!-- Empty State Label -->
 								<div
 									v-if="zoomRanges.length === 0"
-									class="absolute inset-0 flex items-center justify-center gap-1.5 text-white/50 hover:text-white/60 transition-colors"
+									class="absolute inset-0 flex items-center justify-center gap-1.5 text-white/50 transition-colors"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -248,41 +248,6 @@
 										>
 											{{ formatDuration(range.end - range.start) }} @
 											{{ range.scale }}x
-										</span>
-									</div>
-								</div>
-
-								<!-- Ghost Zoom Bar -->
-								<div
-									v-if="ghostZoomPosition !== null && !isZoomResizing"
-									class="absolute top-0 bottom-0 transition-all rounded-lg pointer-events-none"
-									:style="{
-										position: 'absolute',
-										left: `${
-											(((ghostZoomPosition / 100) * maxDuration.value) /
-												maxDuration.value) *
-											timelineWidth.value
-										}px`,
-										width: `${(1 / maxDuration.value) * timelineWidth.value}px`,
-										backgroundColor: 'rgb(79, 70, 229, 0.2)',
-										background:
-											'linear-gradient(180deg, rgba(79, 70, 229, 0.1) 0%, rgba(99, 102, 241, 0.2) 100%)',
-										border: '0.25px solid rgba(255, 255, 255, 0.05)',
-										borderRadius: '10px',
-										height: '100%',
-									}"
-								>
-									<div
-										class="absolute inset-0 flex flex-col items-center justify-center text-center"
-									>
-										<span
-											class="text-white/40 text-[10px] font-medium tracking-wide"
-											>Zoom</span
-										>
-										<span
-											class="text-white/60 text-sm font-medium tracking-wide mt-0.5"
-										>
-											1s @ 2x
 										</span>
 									</div>
 								</div>
