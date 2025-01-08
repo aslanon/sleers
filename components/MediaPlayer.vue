@@ -682,8 +682,22 @@ const updateCanvas = (timestamp) => {
 	ctx.imageSmoothingEnabled = true;
 	ctx.imageSmoothingQuality = "high";
 
-	// Önce tüm canvas'ı arkaplan rengiyle doldur
-	ctx.fillStyle = backgroundColor.value;
+	// Zoom segmenti varsa gradient arka plan oluştur
+	if (currentZoomRange.value) {
+		const gradient = ctx.createLinearGradient(
+			0,
+			0,
+			canvas.width,
+			canvas.height
+		);
+		gradient.addColorStop(0, "#4338ca"); // indigo-700
+		gradient.addColorStop(1, "#7e22ce"); // purple-700
+		ctx.fillStyle = gradient;
+	} else {
+		// Normal arka plan rengi
+		ctx.fillStyle = backgroundColor.value;
+	}
+
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
 	// Video'nun orijinal en-boy oranını koru

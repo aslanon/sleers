@@ -263,24 +263,23 @@
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
 							background:
-								'linear-gradient(to bottom, rgb(156 163 175 / 0.25) 0%, transparent 100%)',
+								'linear-gradient(to bottom, rgb(26 26 26) 0%, transparent 100%)',
 						}"
 					></div>
 
 					<!-- Preview Playhead Handle -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute -top-1 w-3 h-5 z-30"
+						class="absolute top-0 w-3 h-5 z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
 						}"
 					>
 						<div
-							class="w-3 h-5"
+							class="w-3 h-3 rounded-full"
 							:style="{
-								clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-								background: 'rgb(156 163 175 / 0.25)',
+								background: 'rgb(26 26 26)',
 							}"
 						></div>
 					</div>
@@ -292,13 +291,13 @@
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
 							background:
-								'linear-gradient(to bottom, rgb(147 51 234) 0%, transparent 100%)',
+								'linear-gradient(to bottom, rgb(67 42 244) 0%, transparent 100%)',
 						}"
 					></div>
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute -top-1 w-3 h-5 cursor-move z-20 transition-[left] duration-[50ms] ease-linear will-change-[left]"
+						class="absolute top-0 w-3 h-5 cursor-move z-20 transition-[left] duration-[50ms] ease-linear will-change-[left]"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -306,10 +305,9 @@
 						@mousedown="handlePlayheadDragStart"
 					>
 						<div
-							class="w-3 h-5"
+							class="w-3 h-3 rounded-full"
 							:style="{
-								clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
-								background: 'rgb(147 51 234)',
+								background: 'rgb(67 42 244)',
 							}"
 						></div>
 					</div>
@@ -1034,9 +1032,9 @@ const getZoomStyle = (range) => {
 		width: `${
 			((range.end - range.start) / maxDuration.value) * timelineWidth.value
 		}px`,
-		backgroundColor: "rgb(79, 70, 229)",
+		backgroundColor: "rgb(67, 42, 244)",
 		background:
-			"linear-gradient(180deg, rgba(79, 70, 229, 0.3) 0%, rgba(99, 102, 241, 0.4) 100%)",
+			"linear-gradient(rgb(67 42 244 / 100%) 0%, rgb(96 75 244 / 40%) 100%)",
 		border: "0.25px solid rgba(255, 255, 255, 0.1)",
 		borderRadius: "10px",
 		height: "100%",
