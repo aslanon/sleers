@@ -416,20 +416,28 @@ const updateCropArea = () => {
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	let newScale;
 
-	if (targetRatio > videoRatio) {
-		// Hedef oran daha geniş, yüksekliğe göre scale et
-		newScale = (cropHeight - padding.value * 2) / videoElement.videoHeight;
+	// Padding'i hesaba katarak kullanılabilir alanı hesapla
+	const availableWidth = cropWidth - padding.value * 2;
+	const availableHeight = cropHeight - padding.value * 2;
+	const availableRatio = availableWidth / availableHeight;
+
+	if (videoRatio > availableRatio) {
+		// Video daha geniş, yüksekliğe göre scale et
+		newScale = availableHeight / videoElement.videoHeight;
 	} else {
-		// Hedef oran daha dar, genişliğe göre scale et
-		newScale = (cropWidth - padding.value * 2) / videoElement.videoWidth;
+		// Video daha dar, genişliğe göre scale et
+		newScale = availableWidth / videoElement.videoWidth;
 	}
 
 	scale.value = newScale;
 
-	// Videoyu ortala (padding'i hesaba katarak)
+	// Videoyu padding içinde ortala
+	const scaledVideoWidth = videoElement.videoWidth * newScale;
+	const scaledVideoHeight = videoElement.videoHeight * newScale;
+
 	position.value = {
-		x: padding.value,
-		y: padding.value,
+		x: padding.value + (availableWidth - scaledVideoWidth) / 2,
+		y: padding.value + (availableHeight - scaledVideoHeight) / 2,
 	};
 
 	// Canvas boyutlarını güncelle
@@ -566,9 +574,13 @@ const getCropData = () => {
 
 	// Canvas koordinatlarını video koordinatlarına dönüştür
 	const canvasToVideo = (canvasX, canvasY, canvasWidth, canvasHeight) => {
+		// Padding'i hesaba katarak kullanılabilir alanı hesapla
+		const availableWidth = cropArea.value.width - padding.value * 2;
+		const availableHeight = cropArea.value.height - padding.value * 2;
+
 		// Canvas'taki oranı hesapla
-		const scaleX = videoWidth / (container.width - padding.value * 2);
-		const scaleY = videoHeight / (container.height - padding.value * 2);
+		const scaleX = videoWidth / availableWidth;
+		const scaleY = videoHeight / availableHeight;
 
 		// Padding'i hesaba katarak dönüştür
 		return {
@@ -581,10 +593,10 @@ const getCropData = () => {
 
 	// Kırpma alanını video koordinatlarına dönüştür
 	const videoCoords = canvasToVideo(
-		cropArea.value.x,
-		cropArea.value.y,
-		cropArea.value.width,
-		cropArea.value.height
+		padding.value,
+		padding.value,
+		cropArea.value.width - padding.value * 2,
+		cropArea.value.height - padding.value * 2
 	);
 
 	console.log("[MediaPlayer] Kırpma verileri hesaplandı:", {
@@ -593,6 +605,7 @@ const getCropData = () => {
 		container: container,
 		videoSize: { width: videoWidth, height: videoHeight },
 		aspectRatio: cropRatio.value,
+		padding: padding.value,
 	});
 
 	return {
@@ -628,11 +641,17 @@ const updateCanvas = (timestamp) => {
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+	//�ç alan için padding'i hesaba kat
+	const innerX = padding.value;
+	const innerY = padding.value;
+	const innerWidth = canvas.width - padding.value * 2;
+	const innerHeight = canvas.height - padding.value * 2;
+
 	// Shadow için path oluştur
 	if (shadowSize.value > 0) {
 		ctx.save();
 		ctx.beginPath();
-		roundedRect(ctx, 0, 0, canvas.width, canvas.height, radius.value);
+		roundedRect(ctx, innerX, innerY, innerWidth, innerHeight, radius.value);
 
 		// Shadow ayarları
 		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
@@ -649,7 +668,7 @@ const updateCanvas = (timestamp) => {
 	// Video alanını kırp ve radius uygula
 	ctx.save();
 	ctx.beginPath();
-	roundedRect(ctx, 0, 0, canvas.width, canvas.height, radius.value);
+	roundedRect(ctx, innerX, innerY, innerWidth, innerHeight, radius.value);
 	ctx.clip();
 
 	// Transform işlemleri
@@ -1209,12 +1228,12 @@ const drawMousePosition = (ctx, currentTime) => {
 	const normalizedY = interpolatedY / videoHeight;
 
 	// Video'nun canvas içindeki mevcut boyutlarını hesapla
-	const currentVideoWidth = videoWidth * scale.value;
-	const currentVideoHeight = videoHeight * scale.value;
+	const scaledVideoWidth = videoWidth * scale.value;
+	const scaledVideoHeight = videoHeight * scale.value;
 
 	// Mouse pozisyonunu canvas koordinatlarına dönüştür
-	const canvasX = position.value.x + normalizedX * currentVideoWidth;
-	const canvasY = position.value.y + normalizedY * currentVideoHeight;
+	const canvasX = position.value.x + normalizedX * scaledVideoWidth;
+	const canvasY = position.value.y + normalizedY * scaledVideoHeight;
 
 	// Yeni pozisyonu kaydet
 	if (previousPositions.value.length >= MAX_TRAIL_LENGTH) {
