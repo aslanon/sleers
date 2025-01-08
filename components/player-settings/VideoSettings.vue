@@ -38,6 +38,19 @@
 		</div>
 
 		<div>
+			<label class="block text-sm font-medium mb-1">Shadow</label>
+			<input
+				type="range"
+				v-model="shadowValue"
+				min="0"
+				max="100"
+				step="5"
+				class="w-full"
+			/>
+			<span class="text-gray-300">{{ shadowValue }}px</span>
+		</div>
+
+		<div>
 			<label class="block text-sm font-medium mb-1">Arkaplan Rengi</label>
 			<div class="grid grid-cols-4 gap-2">
 				<button
@@ -81,9 +94,11 @@ const {
 	backgroundColor,
 	padding,
 	radius,
+	shadowSize,
 	updateBackgroundColor,
 	updatePadding,
 	updateRadius,
+	updateShadowSize,
 } = usePlayerSettings();
 
 // Renk paleti
@@ -110,6 +125,7 @@ const colors = [
 const selectedColor = ref(backgroundColor.value);
 const paddingValue = ref(padding.value);
 const radiusValue = ref(radius.value);
+const shadowValue = ref(shadowSize.value);
 
 // Renk seçimi
 const selectColor = (color) => {
@@ -125,6 +141,11 @@ watch(paddingValue, (newValue) => {
 // Radius değişikliğini izle
 watch(radiusValue, (newValue) => {
 	updateRadius(Number(newValue));
+});
+
+// Shadow değişikliğini izle
+watch(shadowValue, (newValue) => {
+	updateShadowSize(Number(newValue));
 });
 
 // Store'dan gelen değişiklikleri izle
@@ -146,6 +167,13 @@ watch(
 	() => radius.value,
 	(newValue) => {
 		radiusValue.value = newValue;
+	}
+);
+
+watch(
+	() => shadowSize.value,
+	(newValue) => {
+		shadowValue.value = newValue;
 	}
 );
 
