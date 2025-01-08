@@ -1,7 +1,7 @@
 import { ref, computed } from "vue";
 
-const mouseSize = ref(42);
-const motionBlurValue = ref(0);
+const mouseSize = ref(65);
+const motionBlurValue = ref(50);
 const backgroundColor = ref("#000000");
 const padding = ref(0);
 const radius = ref(0);
