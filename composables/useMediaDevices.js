@@ -48,6 +48,18 @@ export const useMediaDevices = () => {
 				throw new Error("Ekran kaynakları bulunamadı");
 			}
 
+			// Seçilen kaynak tipine göre source'u belirle
+			let selectedSource = sources[0];
+			if (streamOptions?.sourceType === "display") {
+				selectedSource =
+					sources.find((source) => source.id.startsWith("screen:")) ||
+					sources[0];
+			} else if (streamOptions?.sourceType === "window") {
+				selectedSource =
+					sources.find((source) => source.id.startsWith("window:")) ||
+					sources[0];
+			}
+
 			// Ekran yakalama
 			const screenStream = await navigator.mediaDevices.getUserMedia({
 				audio: false,
@@ -57,7 +69,7 @@ export const useMediaDevices = () => {
 					mandatory: {
 						cursor: "none",
 						chromeMediaSource: "desktop",
-						chromeMediaSourceId: sources[0].id,
+						chromeMediaSourceId: selectedSource.id,
 						...(streamOptions?.width && {
 							minWidth: streamOptions.width,
 							maxWidth: streamOptions.width,

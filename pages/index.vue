@@ -591,6 +591,7 @@ const startRecording = async (options = null) => {
 						chromeMediaSource: "desktop",
 					},
 				},
+				sourceType: selectedSource.value,
 			});
 
 			console.log("3. Stream başlatıldı");
