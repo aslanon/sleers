@@ -51,7 +51,7 @@
 			</div>
 
 			<!-- Tab içerikleri -->
-			<div class="flex-1 pl-4">
+			<div class="flex-1 pt-0 p-8">
 				<!-- Video Ayarları Tab -->
 				<VideoSettings
 					v-if="currentTab === 'video'"

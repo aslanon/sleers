@@ -73,8 +73,8 @@
 					/>
 				</div>
 
-				<div class="flex-shrink-0 w-[500px] flex flex-col">
-					<div class="flex-1 overflow-y-auto p-4 relative">
+				<div class="flex-shrink-0 w-[520px] flex flex-col">
+					<div class="flex-1 p-4 relative">
 						<MediaPlayerSettings
 							:duration="videoDuration"
 							:width="videoWidth"
