@@ -32,39 +32,46 @@ class MediaStateManager {
 		this.mousePositions = [];
 	}
 
-	async validateMediaFile(filePath, type = "unknown") {
-		console.log(
-			`[MediaStateManager] Dosya kontrolü başladı - ${type}:`,
-			filePath
-		);
+	async validateMediaFile(filePath, type = "unknown", silent = false) {
+		if (!silent) {
+			console.log(
+				`[MediaStateManager] Dosya kontrolü başladı - ${type}:`,
+				filePath
+			);
+		}
 
 		try {
 			if (!filePath) {
-				console.log(`[MediaStateManager] Dosya yolu boş - ${type}`);
+				if (!silent)
+					console.log(`[MediaStateManager] Dosya yolu boş - ${type}`);
 				return false;
 			}
 
 			if (!fs.existsSync(filePath)) {
-				console.log(
-					`[MediaStateManager] Dosya bulunamadı - ${type}:`,
-					filePath
-				);
+				if (!silent)
+					console.log(
+						`[MediaStateManager] Dosya bulunamadı - ${type}:`,
+						filePath
+					);
 				return false;
 			}
 
 			const stats = fs.statSync(filePath);
-			console.log(`[MediaStateManager] Dosya boyutu - ${type}:`, {
-				path: filePath,
-				size: stats.size,
-				sizeInMB: (stats.size / (1024 * 1024)).toFixed(2) + "MB",
-			});
+			if (!silent) {
+				console.log(`[MediaStateManager] Dosya boyutu - ${type}:`, {
+					path: filePath,
+					size: stats.size,
+					sizeInMB: (stats.size / (1024 * 1024)).toFixed(2) + "MB",
+				});
+			}
 
 			// En az 1KB olmalı
 			if (stats.size < 1024) {
-				console.log(
-					`[MediaStateManager] Dosya çok küçük - ${type}:`,
-					stats.size
-				);
+				if (!silent)
+					console.log(
+						`[MediaStateManager] Dosya çok küçük - ${type}:`,
+						stats.size
+					);
 				return false;
 			}
 
@@ -75,7 +82,8 @@ class MediaStateManager {
 			fs.closeSync(fd);
 
 			if (bytesRead < 1) {
-				console.log(`[MediaStateManager] Dosya okunamıyor - ${type}`);
+				if (!silent)
+					console.log(`[MediaStateManager] Dosya okunamıyor - ${type}`);
 				return false;
 			}
 
@@ -84,7 +92,8 @@ class MediaStateManager {
 				const testFd = fs.openSync(filePath, "r+");
 				fs.closeSync(testFd);
 			} catch (error) {
-				console.log(`[MediaStateManager] Dosya kilitli - ${type}:`, error);
+				if (!silent)
+					console.log(`[MediaStateManager] Dosya kilitli - ${type}:`, error);
 				return false;
 			}
 
@@ -92,10 +101,11 @@ class MediaStateManager {
 			if (type.includes("video")) {
 				const extension = path.extname(filePath).toLowerCase();
 				if (![".mp4", ".webm"].includes(extension)) {
-					console.log(
-						`[MediaStateManager] Geçersiz video formatı - ${type}:`,
-						extension
-					);
+					if (!silent)
+						console.log(
+							`[MediaStateManager] Geçersiz video formatı - ${type}:`,
+							extension
+						);
 					return false;
 				}
 
@@ -103,18 +113,20 @@ class MediaStateManager {
 				const header = buffer.slice(0, 4);
 				const isValidHeader = header.some((byte) => byte !== 0);
 				if (!isValidHeader) {
-					console.log(`[MediaStateManager] Geçersiz video başlığı - ${type}`);
+					if (!silent)
+						console.log(`[MediaStateManager] Geçersiz video başlığı - ${type}`);
 					return false;
 				}
 			}
 
-			console.log(`[MediaStateManager] Dosya geçerli - ${type}`);
+			if (!silent) console.log(`[MediaStateManager] Dosya geçerli - ${type}`);
 			return true;
 		} catch (error) {
-			console.error(
-				`[MediaStateManager] Dosya kontrolü sırasında hata - ${type}:`,
-				error
-			);
+			if (!silent)
+				console.error(
+					`[MediaStateManager] Dosya kontrolü sırasında hata - ${type}:`,
+					error
+				);
 			return false;
 		}
 	}
@@ -135,16 +147,20 @@ class MediaStateManager {
 				const audioPath = tempFileManager.getFilePath("audio");
 				const elapsedTime = Date.now() - startTime;
 
-				console.log("[MediaStateManager] Dosya kontrolü:", {
-					attempt: this.fileCheckAttempts,
-					videoPath,
-					audioPath,
-					elapsedTime,
-				});
+				// Her 10 denemede bir log yaz
+				if (this.fileCheckAttempts % 10 === 0) {
+					console.log("[MediaStateManager] Dosya kontrolü:", {
+						attempt: this.fileCheckAttempts,
+						videoPath,
+						audioPath,
+						elapsedTime,
+					});
+				}
 
 				const progress = Math.min((elapsedTime / maxWaitTime) * 100, 99);
 
-				if (progress !== lastProgress) {
+				// Progress değişimi %5'ten fazlaysa güncelle
+				if (Math.abs(progress - lastProgress) >= 5) {
 					this.updateState({
 						processingStatus: {
 							isProcessing: true,
@@ -156,14 +172,17 @@ class MediaStateManager {
 				}
 
 				// Video dosyasını kontrol et
-				if (videoPath && (await this.validateMediaFile(videoPath, "video"))) {
+				if (
+					videoPath &&
+					(await this.validateMediaFile(videoPath, "video", true))
+				) {
 					clearInterval(this.recordingCheckInterval);
 
 					// Dosyanın tamamen yazılmasını bekle
 					await new Promise((resolve) => setTimeout(resolve, 500));
 
 					// Son bir kontrol daha yap
-					if (!(await this.validateMediaFile(videoPath, "final-video"))) {
+					if (!(await this.validateMediaFile(videoPath, "final-video", true))) {
 						if (this.fileCheckAttempts < this.maxFileCheckAttempts) {
 							return; // Devam et
 						}
@@ -172,7 +191,7 @@ class MediaStateManager {
 
 					// Ses dosyasını kontrol et
 					const isAudioValid = audioPath
-						? await this.validateMediaFile(audioPath, "audio")
+						? await this.validateMediaFile(audioPath, "audio", true)
 						: false;
 
 					resolve({
@@ -303,6 +322,12 @@ class MediaStateManager {
 				const result = await this.waitForMediaFiles(tempFileManager);
 
 				if (result.success) {
+					// Interval'i temizle
+					if (this.recordingCheckInterval) {
+						clearInterval(this.recordingCheckInterval);
+						this.recordingCheckInterval = null;
+					}
+
 					this.updateState({
 						videoPath: result.videoPath,
 						audioPath: result.audioPath,
@@ -325,7 +350,6 @@ class MediaStateManager {
 						{
 							videoPath: result.videoPath,
 							audioPath: result.audioPath,
-							state: this.state,
 						}
 					);
 
@@ -340,6 +364,9 @@ class MediaStateManager {
 							videoPath: result.videoPath,
 							audioPath: result.audioPath,
 						});
+
+						// Editor açıldıktan sonra kontrolleri durdur
+						this.cleanup();
 					}
 
 					return true;
@@ -383,8 +410,13 @@ class MediaStateManager {
 	cleanup() {
 		if (this.recordingCheckInterval) {
 			clearInterval(this.recordingCheckInterval);
+			this.recordingCheckInterval = null;
 		}
 		this.clearMousePositions();
+		// Temizlik sırasında son log durumlarını da sıfırla
+		if (this._lastLoggedPaths) {
+			this._lastLoggedPaths = {};
+		}
 	}
 
 	updateAudioSettings(settings) {

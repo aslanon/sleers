@@ -133,7 +133,11 @@ class TempFileManager {
 
 	getFilePath(type) {
 		const path = this.tempFiles[type];
-		console.log(`[TempFileManager] ${type} için dosya yolu istendi:`, path);
+		if (this._lastLoggedPaths?.[type] !== path) {
+			console.log(`[TempFileManager] ${type} için dosya yolu istendi:`, path);
+			if (!this._lastLoggedPaths) this._lastLoggedPaths = {};
+			this._lastLoggedPaths[type] = path;
+		}
 		return path;
 	}
 
