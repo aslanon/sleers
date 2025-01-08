@@ -330,7 +330,7 @@ const saveVideo = async () => {
 					if (mediaPlayerRef.value) {
 						await mediaPlayerRef.value.seek(0);
 						await mediaPlayerRef.value.pause();
-						await new Promise((resolve) => setTimeout(resolve, 100)); // Kısa bir bekleme
+						await new Promise((resolve) => setTimeout(resolve, 500)); // Daha uzun bekleme
 					}
 
 					// Video kaydını başlat
@@ -351,11 +351,12 @@ const saveVideo = async () => {
 					const onRecordingEnded = async () => {
 						try {
 							console.log("[editor.vue] Video bitti, kayıt durduruluyor...");
+
+							// Kayıt durdurmadan önce kısa bir bekleme ekle
+							await new Promise((resolve) => setTimeout(resolve, 500));
+
 							mediaRecorder.stop();
 							isPlaying.value = false;
-
-							// Kısa bir bekleme ekle
-							await new Promise((resolve) => setTimeout(resolve, 500));
 
 							// Kayıt verilerini bekle
 							const webmBlob = new Blob(chunks, { type: "video/webm" });
@@ -374,6 +375,8 @@ const saveVideo = async () => {
 							console.log("[editor.vue] Kayıt tamamlandı, dosya boyutu:", {
 								video: webmBlob.size,
 								audio: audioArrayBuffer?.byteLength,
+								chunks: chunks.length,
+								duration: videoDuration.value,
 							});
 
 							// Main process'e gönder ve MP4'e dönüştür
@@ -408,12 +411,15 @@ const saveVideo = async () => {
 					mediaRecorder.start(100);
 
 					// Kısa bir bekleme ekle
-					await new Promise((resolve) => setTimeout(resolve, 100));
+					await new Promise((resolve) => setTimeout(resolve, 500));
 
 					// Video oynatmayı başlat
 					if (mediaPlayerRef.value) {
 						isPlaying.value = true;
-						await mediaPlayerRef.value.play();
+						await mediaPlayerRef.value.play().catch((error) => {
+							console.error("[editor.vue] Video oynatma hatası:", error);
+							throw error;
+						});
 					} else {
 						throw new Error("Video oynatıcı bulunamadı");
 					}

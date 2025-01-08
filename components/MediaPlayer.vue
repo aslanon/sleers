@@ -583,7 +583,7 @@ const updateCanvas = (timestamp) => {
 
 	// Render kalitesi ayarları
 	ctx.imageSmoothingEnabled = true;
-	ctx.imageSmoothingQuality = "medium"; // high yerine medium kullanalım
+	ctx.imageSmoothingQuality = "high";
 
 	// Önce tüm canvas'ı arkaplan rengiyle doldur
 	ctx.fillStyle = backgroundColor.value;
@@ -608,13 +608,15 @@ const updateCanvas = (timestamp) => {
 	ctx.rotate(rotation.value);
 
 	// Videoyu çiz
-	ctx.drawImage(
-		videoElement,
-		0,
-		0,
-		videoElement.videoWidth,
-		videoElement.videoHeight
-	);
+	if (videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
+		ctx.drawImage(
+			videoElement,
+			0,
+			0,
+			videoElement.videoWidth,
+			videoElement.videoHeight
+		);
+	}
 
 	ctx.restore();
 
