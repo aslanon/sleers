@@ -52,12 +52,12 @@
 
 		<div>
 			<label class="block text-sm font-medium mb-1">Arkaplan Rengi</label>
-			<div class="grid grid-cols-4 gap-2">
+			<div class="grid grid-cols-12 gap-2 w-max mt-4">
 				<button
 					v-for="color in colors"
 					:key="color"
 					@click="selectColor(color)"
-					class="w-8 h-8 rounded-lg border-2 transition-all"
+					class="w-6 h-6 m-auto rounded-lg border-2 transition-all"
 					:class="
 						color === selectedColor ? 'border-white' : 'border-transparent'
 					"
@@ -103,22 +103,47 @@ const {
 
 // Renk paleti
 const colors = [
-	"#000000",
-	"#1a1a1a",
-	"#333333",
-	"#4d4d4d",
-	"#666666",
-	"#808080",
-	"#999999",
-	"#b3b3b3",
-	"#cccccc",
-	"#e6e6e6",
-	"#f2f2f2",
-	"#ffffff",
-	"#ff4444",
-	"#44ff44",
-	"#4444ff",
-	"#ffff44",
+	"#000000", // Siyah
+	"#F8F9FA", // Beyaz
+	"#1A1A1A", // Koyu Gri
+	"#2C3E50", // Slate
+	"#34495E", // Wet Asphalt
+	"#95A5A6", // Concrete
+
+	"#FF6B6B", // Canlı Kırmızı
+	"#FF8787", // Açık Kırmızı
+	"#FFB3BA", // Pastel Pembe
+	"#FEC8D8", // Açık Pembe
+	"#FF69B4", // Hot Pink
+	"#E84393", // Fuşya
+
+	"#4ECB71", // Canlı Yeşil
+	"#BAFFC9", // Pastel Yeşil
+	"#A8E6CF", // Nane Yeşili
+	"#98FB98", // Açık Yeşil
+	"#00B894", // Mint Leaf
+	"#20BF6B", // Emerald
+
+	"#4B7BEC", // Canlı Mavi
+	"#BAE1FF", // Pastel Mavi
+	"#74B9FF", // Elektrik Mavi
+	"#00CEC9", // Robin's Egg Blue
+	"#48DBFB", // Picton Mavi
+	"#0984E3", // Elektrik Mavi
+
+	"#FDA7DF", // Orkide
+	"#E0BBE4", // Pastel Mor
+	"#D4A5A5", // Rosy Brown
+	"#9B59B6", // Ametist
+	"#8E44AD", // Wisteria
+	"#DCD3FF", // Pastel Leylak
+
+	"#FFA502", // Turuncu
+	"#FFE4B5", // Pastel Turuncu
+	"#F4D03F", // Sarı
+	"#F1C40F", // Güneş Sarısı
+	"#FFCCB6", // Şeftali
+	"#FFC8A2", // Somon
 ];
 
 // Local state
