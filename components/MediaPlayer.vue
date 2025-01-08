@@ -19,9 +19,19 @@
 					class="absolute inset-0 w-full h-full"
 					:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
 					@mousedown="startDragging"
-					@mousemove="onDragging"
+					@mousemove="
+						(e) => {
+							onDragging(e);
+							handleCanvasMouseMove(e);
+						}
+					"
 					@mouseup="stopDragging"
-					@mouseleave="stopDragging"
+					@mouseleave="
+						(e) => {
+							stopDragging(e);
+							handleCanvasMouseLeave();
+						}
+					"
 					@wheel="handleZoom"
 				></canvas>
 			</div>
@@ -686,7 +696,7 @@ const getCropData = () => {
 	};
 };
 
-// Canvas güncelleme optimizasyonu
+// Canvas güncelleme fonksiyonu
 const updateCanvas = (timestamp) => {
 	if (!videoElement || !ctx || !canvasRef.value) return;
 
@@ -698,7 +708,7 @@ const updateCanvas = (timestamp) => {
 
 	lastFrameTime = timestamp;
 
-	// Canvas'ı temizle ve arkaplan rengini ayarla
+	// Canvas'ı temizle
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
@@ -706,14 +716,18 @@ const updateCanvas = (timestamp) => {
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	const canvasRatio = canvasRef.value.width / canvasRef.value.height;
 
+	// Zoom durumunda padding'i azalt
+	const currentPadding =
+		videoScale.value > 1
+			? padding.value * (2 - videoScale.value) // Zoom arttıkça padding azalır
+			: padding.value;
+
 	let drawWidth, drawHeight;
 	if (videoRatio > canvasRatio) {
-		// Video daha geniş, genişliğe göre ölçekle
-		drawWidth = canvasRef.value.width - padding.value * 2;
+		drawWidth = canvasRef.value.width - currentPadding * 2;
 		drawHeight = drawWidth / videoRatio;
 	} else {
-		// Video daha dar, yüksekliğe göre ölçekle
-		drawHeight = canvasRef.value.height - padding.value * 2;
+		drawHeight = canvasRef.value.height - currentPadding * 2;
 		drawWidth = drawHeight * videoRatio;
 	}
 
@@ -726,14 +740,10 @@ const updateCanvas = (timestamp) => {
 		ctx.save();
 		ctx.beginPath();
 		roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
-
-		// Shadow ayarları
 		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
 		ctx.shadowBlur = shadowSize.value;
 		ctx.shadowOffsetX = 0;
 		ctx.shadowOffsetY = 0;
-
-		// Shadow için arka planı çiz
 		ctx.fillStyle = backgroundColor.value;
 		ctx.fill();
 		ctx.restore();
@@ -745,7 +755,7 @@ const updateCanvas = (timestamp) => {
 	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
 	ctx.clip();
 
-	// Video frame'ini çiz
+	// Video'yu çiz
 	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	ctx.restore();
 
@@ -1709,6 +1719,54 @@ const animateZoom = (timestamp) => {
 const easeInOutCubic = (t) => {
 	return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 };
+
+// Mouse pozisyonu için state ekle
+const mouseCanvasPosition = ref({ x: 0.5, y: 0.5 });
+
+// Video scale state'i
+const videoScale = ref(1);
+
+// Canvas üzerinde mouse hareketi
+const handleCanvasMouseMove = (e) => {
+	if (!canvasRef.value) return;
+	const rect = canvasRef.value.getBoundingClientRect();
+	mouseCanvasPosition.value = {
+		x: (e.clientX - rect.left) / rect.width,
+		y: (e.clientY - rect.top) / rect.height,
+	};
+};
+
+// Canvas'tan mouse çıkınca
+const handleCanvasMouseLeave = () => {
+	mouseCanvasPosition.value = { x: 0.5, y: 0.5 }; // Merkeze dön
+};
+
+// Video scale animasyonu
+const animateVideoScale = (timestamp) => {
+	if (!ctx || !canvasRef.value) return;
+
+	// Smooth lerp ile scale'i güncelle
+	const lerpFactor = 0.1;
+	videoScale.value =
+		videoScale.value + (currentZoomRange.value ? 0.05 : -0.05) * lerpFactor;
+	videoScale.value = Math.max(1, Math.min(1.5, videoScale.value)); // 1.5x max zoom
+
+	// Canvas'ı güncelle
+	updateCanvas(timestamp);
+
+	// Animasyonu devam ettir
+	if (Math.abs(videoScale.value - (currentZoomRange.value ? 1.5 : 1)) > 0.001) {
+		requestAnimationFrame(animateVideoScale);
+	}
+};
+
+// Zoom range değişikliğini izle
+watch(
+	() => currentZoomRange.value,
+	(newRange) => {
+		requestAnimationFrame(animateVideoScale);
+	}
+);
 </script>
 
 <style scoped>
