@@ -716,24 +716,36 @@ const updateCanvas = (timestamp) => {
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	const canvasRatio = canvasRef.value.width / canvasRef.value.height;
 
-	// Zoom durumunda padding'i azalt
-	const currentPadding =
-		videoScale.value > 1
-			? padding.value * (2 - videoScale.value) // Zoom arttıkça padding azalır
-			: padding.value;
-
+	// Normal durumda video boyutlarını hesapla
 	let drawWidth, drawHeight;
 	if (videoRatio > canvasRatio) {
-		drawWidth = canvasRef.value.width - currentPadding * 2;
+		drawWidth = canvasRef.value.width;
 		drawHeight = drawWidth / videoRatio;
 	} else {
-		drawHeight = canvasRef.value.height - currentPadding * 2;
+		drawHeight = canvasRef.value.height;
 		drawWidth = drawHeight * videoRatio;
 	}
 
 	// Video'yu canvas'ın ortasına yerleştir
 	const x = (canvasRef.value.width - drawWidth) / 2;
 	const y = (canvasRef.value.height - drawHeight) / 2;
+
+	// Video'yu çiz
+	ctx.save();
+
+	if (videoScale.value > 1) {
+		// Scale edilmiş video boyutlarını hesapla
+		const scale = videoScale.value;
+
+		// Mouse pozisyonuna göre transform origin'i hesapla
+		const transformOriginX = x + drawWidth * mouseCanvasPosition.value.x;
+		const transformOriginY = y + drawHeight * mouseCanvasPosition.value.y;
+
+		// Scale transformasyonu uygula
+		ctx.translate(transformOriginX, transformOriginY);
+		ctx.scale(scale, scale);
+		ctx.translate(-transformOriginX, -transformOriginY);
+	}
 
 	// Shadow için path oluştur
 	if (shadowSize.value > 0) {
@@ -750,7 +762,6 @@ const updateCanvas = (timestamp) => {
 	}
 
 	// Video alanını kırp ve radius uygula
-	ctx.save();
 	ctx.beginPath();
 	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
 	ctx.clip();
@@ -1748,14 +1759,14 @@ const animateVideoScale = (timestamp) => {
 	// Smooth lerp ile scale'i güncelle
 	const lerpFactor = 0.1;
 	videoScale.value =
-		videoScale.value + (currentZoomRange.value ? 0.05 : -0.05) * lerpFactor;
-	videoScale.value = Math.max(1, Math.min(1.5, videoScale.value)); // 1.5x max zoom
+		videoScale.value + (currentZoomRange.value ? 0.2 : -0.2) * lerpFactor;
+	videoScale.value = Math.max(1, Math.min(8, videoScale.value)); // 8x max zoom
 
 	// Canvas'ı güncelle
 	updateCanvas(timestamp);
 
 	// Animasyonu devam ettir
-	if (Math.abs(videoScale.value - (currentZoomRange.value ? 1.5 : 1)) > 0.001) {
+	if (Math.abs(videoScale.value - (currentZoomRange.value ? 8 : 1)) > 0.001) {
 		requestAnimationFrame(animateVideoScale);
 	}
 };
