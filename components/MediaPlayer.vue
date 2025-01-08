@@ -1290,30 +1290,62 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Hıza bağlı blur değeri (0-5 arası)
 	const blurAmount = Math.min(5, speed * 0.1);
 
-	// Cursor'ı çiz
-	ctx.save();
-	ctx.globalAlpha = 1;
-	ctx.translate(canvasX, canvasY);
+	// Trail sayısı (ana cursor dahil)
+	const trailCount = 3;
 
-	// Hıza bağlı blur efekti
-	ctx.filter = `blur(${blurAmount}px)`;
+	// Hareket varsa trail'leri çiz
+	if (speed > 0.1) {
+		// Her trail için (sondan başa doğru çiziyoruz ki ana cursor en üstte olsun)
+		for (let i = trailCount - 1; i >= 0; i--) {
+			ctx.save();
+			// Hıza ve pozisyona bağlı alpha değeri
+			const alpha = speed > 0.1 ? 1 - i * 0.3 : 0;
+			ctx.globalAlpha = alpha;
 
-	// Cursor boyutu
-	const cursorSize = mouseSize.value;
+			// Sağa doğru offset
+			ctx.translate(canvasX + i * 3, canvasY);
 
-	try {
-		ctx.drawImage(
-			cursorImage,
-			-cursorSize / 4,
-			-cursorSize / 4,
-			cursorSize,
-			cursorSize
-		);
-	} catch (error) {
-		console.error("[MediaPlayer] Cursor drawing error:", error);
+			// Blur efekti
+			ctx.filter = `blur(${blurAmount}px)`;
+
+			// Her trail için biraz daha küçük cursor
+			const trailSize = mouseSize.value * (1 - i * 0.15);
+
+			try {
+				ctx.drawImage(
+					cursorImage,
+					-trailSize / 4,
+					-trailSize / 4,
+					trailSize,
+					trailSize
+				);
+			} catch (error) {
+				console.error("[MediaPlayer] Cursor drawing error:", error);
+			}
+
+			ctx.restore();
+		}
+	} else {
+		// Hareket yoksa sadece ana cursor'ı çiz
+		ctx.save();
+		ctx.globalAlpha = 1;
+		ctx.translate(canvasX, canvasY);
+		ctx.filter = `blur(${blurAmount}px)`;
+
+		try {
+			ctx.drawImage(
+				cursorImage,
+				-mouseSize.value / 4,
+				-mouseSize.value / 4,
+				mouseSize.value,
+				mouseSize.value
+			);
+		} catch (error) {
+			console.error("[MediaPlayer] Cursor drawing error:", error);
+		}
+
+		ctx.restore();
 	}
-
-	ctx.restore();
 };
 
 // cropRatio değişikliğini izle
