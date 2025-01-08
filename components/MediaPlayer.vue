@@ -668,18 +668,28 @@ const updateCanvas = (timestamp) => {
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
+	// Video'nun orijinal en-boy oranını koru
+	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+	const canvasRatio = canvasRef.value.width / canvasRef.value.height;
+
+	let drawWidth, drawHeight;
+	if (videoRatio > canvasRatio) {
+		// Video daha geniş, genişliğe göre ölçekle
+		drawWidth = canvasRef.value.width - padding.value * 2;
+		drawHeight = drawWidth / videoRatio;
+	} else {
+		// Video daha dar, yüksekliğe göre ölçekle
+		drawHeight = canvasRef.value.height - padding.value * 2;
+		drawWidth = drawHeight * videoRatio;
+	}
+
+	// Video'yu canvas'ın ortasına yerleştir
+	const x = (canvasRef.value.width - drawWidth) / 2;
+	const y = (canvasRef.value.height - drawHeight) / 2;
+
 	// Video frame'ini çiz
 	ctx.save();
-	ctx.translate(position.value.x, position.value.y);
-	ctx.scale(scale.value, scale.value);
-	ctx.rotate((rotation.value * Math.PI) / 180);
-	ctx.drawImage(
-		videoElement,
-		-videoSize.value.width / 2,
-		-videoSize.value.height / 2,
-		videoSize.value.width,
-		videoSize.value.height
-	);
+	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	ctx.restore();
 
 	// Mouse pozisyonlarını çiz
@@ -830,9 +840,10 @@ const onVideoMetadataLoaded = () => {
 		ctx.imageSmoothingQuality = "high";
 
 		// Video boyutlarını kaydet
-		const width = videoElement.videoWidth || 1920;
-		const height = videoElement.videoHeight || 1080;
-		videoSize.value = { width, height };
+		videoSize.value = {
+			width: videoElement.videoWidth,
+			height: videoElement.videoHeight,
+		};
 
 		// İlk render
 		handleResize();
@@ -846,13 +857,13 @@ const onVideoMetadataLoaded = () => {
 			// Video hazır event'i
 			emit("videoLoaded", {
 				duration,
-				width,
-				height,
+				width: videoElement.videoWidth,
+				height: videoElement.videoHeight,
 			});
 
 			console.log("[MediaPlayer] Video metadata yüklendi:", {
-				width,
-				height,
+				width: videoElement.videoWidth,
+				height: videoElement.videoHeight,
 				duration,
 			});
 		}
