@@ -6,6 +6,7 @@ const backgroundColor = ref("#000000");
 const padding = ref(0);
 const radius = ref(0);
 const shadowSize = ref(0);
+const cropRatio = ref("");
 
 export const usePlayerSettings = () => {
 	const updateMouseSize = (size) => {
@@ -32,6 +33,10 @@ export const usePlayerSettings = () => {
 		shadowSize.value = value;
 	};
 
+	const updateCropRatio = (value) => {
+		cropRatio.value = value;
+	};
+
 	return {
 		mouseSize,
 		motionBlurValue,
@@ -39,11 +44,13 @@ export const usePlayerSettings = () => {
 		padding,
 		radius,
 		shadowSize,
+		cropRatio,
 		updateMouseSize,
 		updateMotionBlur,
 		updateBackgroundColor,
 		updatePadding,
 		updateRadius,
 		updateShadowSize,
+		updateCropRatio,
 	};
 };

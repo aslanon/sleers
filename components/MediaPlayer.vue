@@ -104,6 +104,7 @@ const {
 	padding,
 	radius,
 	shadowSize,
+	cropRatio,
 } = usePlayerSettings();
 
 const emit = defineEmits([
@@ -367,10 +368,8 @@ const updateCropArea = () => {
 
 	const container = containerRef.value.getBoundingClientRect();
 
-	if (selectedAspectRatio.value) {
-		const [widthRatio, heightRatio] = selectedAspectRatio.value
-			.split(":")
-			.map(Number);
+	if (cropRatio.value) {
+		const [widthRatio, heightRatio] = cropRatio.value.split(":").map(Number);
 
 		if (widthRatio && heightRatio) {
 			const targetRatio = widthRatio / heightRatio;
@@ -1335,11 +1334,14 @@ const drawMousePosition = (ctx, currentTime) => {
 
 // Aspect ratio değişikliğini izle
 watch(
-	() => props.selectedAspectRatio,
+	() => cropRatio.value,
 	() => {
-		updateAspectRatio(props.selectedAspectRatio);
-	},
-	{ immediate: true }
+		updateCropArea();
+		// Hemen canvas'ı güncelle
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
+	}
 );
 </script>
 

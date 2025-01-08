@@ -4,18 +4,76 @@
 	>
 		<div class="flex flex-row space-x-4">
 			<!-- Aspect Ratio Seçimi -->
-			<select
-				:value="selectedRatio"
-				class="bg-gray-800 text-white px-3 py-1 rounded-lg"
-				@change="$emit('update:selectedRatio', $event.target.value)"
-			>
-				<option value="">Serbest Kırpma</option>
-				<option value="1:1">1:1 Kare</option>
-				<option value="4:3">4:3 Klasik</option>
-				<option value="3:4">3:4 Klasik</option>
-				<option value="16:9">16:9 Geniş</option>
-				<option value="9:16">9:16 Dikey</option>
-			</select>
+			<div class="relative">
+				<button
+					@click="isAspectRatioOpen = !isAspectRatioOpen"
+					class="aspect-ratio-button px-3 py-1.5 w-[150px] rounded bg-black/80 border border-white/5 transition-all flex items-center space-x-2 hover:border-white/10"
+				>
+					<span class="text-sm text-white/90">{{
+						getCurrentRatio?.label || "Auto"
+					}}</span>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-4 w-4 transition-transform text-white/70"
+						:class="{ 'rotate-180': isAspectRatioOpen }"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M19 9l-7 7-7-7"
+						/>
+					</svg>
+				</button>
+
+				<!-- Dropdown Menu -->
+				<div
+					v-show="isAspectRatioOpen"
+					class="fixed inset-0 z-40"
+					@click="isAspectRatioOpen = false"
+				></div>
+				<div
+					v-show="isAspectRatioOpen"
+					class="absolute top-full left-0 mt-1 w-40 bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 py-1 z-50 shadow-xl"
+				>
+					<button
+						v-for="ratio in aspectRatios"
+						:key="ratio.value"
+						@click="selectAspectRatio(ratio.value)"
+						class="w-full px-3 py-2 flex items-center space-x-3 hover:bg-white/5 transition-colors text-left group"
+						:class="{ 'text-purple-400': cropRatio === ratio.value }"
+					>
+						<div
+							class="aspect-icon-wrapper w-5 h-5 rounded bg-white/5 flex items-center justify-center group-hover:bg-white/10"
+						>
+							<div class="aspect-icon" :class="ratio.iconClass"></div>
+						</div>
+						<span class="text-sm flex-1">{{ ratio.label }}</span>
+						<div
+							v-if="cropRatio === ratio.value"
+							class="w-4 h-4 flex items-center justify-center"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M5 13l4 4L19 7"
+								/>
+							</svg>
+						</div>
+					</button>
+				</div>
+			</div>
 		</div>
 
 		<div class="w-full flex justify-center items-center space-x-4">
@@ -148,6 +206,9 @@
 </template>
 
 <script setup>
+import { ref, computed } from "vue";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
+
 const props = defineProps({
 	isPlaying: {
 		type: Boolean,
@@ -165,10 +226,6 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
-	selectedRatio: {
-		type: String,
-		default: "",
-	},
 	isMuted: {
 		type: Boolean,
 		default: false,
@@ -179,10 +236,58 @@ const props = defineProps({
 	},
 });
 
+const { cropRatio, updateCropRatio } = usePlayerSettings();
+
+// Dropdown state
+const isAspectRatioOpen = ref(false);
+
+// Aspect ratio seçenekleri
+const aspectRatios = [
+	{ value: "", label: "Auto", iconClass: "icon-auto", preview: "16/9" },
+	{
+		value: "16:9",
+		label: "Wide 16:9",
+		iconClass: "icon-wide",
+		preview: "16/9",
+	},
+	{
+		value: "9:16",
+		label: "Vertical 9:16",
+		iconClass: "icon-vertical",
+		preview: "9/16",
+	},
+	{
+		value: "1:1",
+		label: "Square 1:1",
+		iconClass: "icon-square",
+		preview: "1/1",
+	},
+	{
+		value: "4:3",
+		label: "Classic 4:3",
+		iconClass: "icon-classic",
+		preview: "4/3",
+	},
+	{ value: "3:4", label: "Tall 3:4", iconClass: "icon-tall", preview: "3/4" },
+];
+
+// Mevcut seçili ratio'yu bul
+const getCurrentRatio = computed(() => {
+	return (
+		aspectRatios.find((ratio) => ratio.value === cropRatio.value) ||
+		aspectRatios[0]
+	);
+});
+
+// Aspect ratio seçimi
+const selectAspectRatio = (ratio) => {
+	updateCropRatio(ratio);
+	isAspectRatioOpen.value = false;
+};
+
 const emit = defineEmits([
 	"toggle-playback",
 	"toggle-trim-mode",
-	"update:selected-ratio",
 	"toggle-mute",
 	"toggle-split-mode",
 ]);
@@ -198,21 +303,12 @@ const formatTime = (seconds) => {
 		.toString()
 		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
 };
-
-// Aspect ratio değişikliği
-const onAspectRatioChange = (ratio) => {
-	emit("update:selected-ratio", ratio);
-};
 </script>
 
 <style scoped>
-select {
-	appearance: none;
-	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-	background-repeat: no-repeat;
-	background-position: right 0.5rem center;
-	background-size: 1em;
-	padding-right: 2.5rem;
+.aspect-ratio-button {
+	cursor: pointer;
+	user-select: none;
 }
 
 button {
@@ -221,5 +317,42 @@ button {
 
 button:active {
 	transform: scale(0.95);
+}
+
+.aspect-icon {
+	width: 12px;
+	height: 12px;
+	border: 1.5px solid currentColor;
+	border-radius: 1px;
+}
+
+.icon-auto {
+	width: 14px;
+	height: 10px;
+}
+
+.icon-wide {
+	width: 14px;
+	height: 8px;
+}
+
+.icon-vertical {
+	width: 8px;
+	height: 14px;
+}
+
+.icon-square {
+	width: 11px;
+	height: 11px;
+}
+
+.icon-classic {
+	width: 12px;
+	height: 9px;
+}
+
+.icon-tall {
+	width: 9px;
+	height: 12px;
 }
 </style>

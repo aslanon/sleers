@@ -71,6 +71,7 @@ const tabs = [
 	{ id: "video", name: "Video" },
 	{ id: "mouse", name: "Mouse" },
 ];
+
 const currentTab = ref("video");
 
 // Mouse ayarları
@@ -92,3 +93,10 @@ watch(
 	{ immediate: true }
 );
 </script>
+
+<style scoped>
+button {
+	cursor: pointer;
+	user-select: none;
+}
+</style>
