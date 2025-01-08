@@ -258,7 +258,7 @@
 					<!-- Preview Playhead -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-0 bottom-0 w-[1px] bg-red-500/50 z-30"
+						class="absolute top-0 bottom-0 w-[1px] bg-gray-400/25 z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -275,14 +275,14 @@
 						}"
 					>
 						<div
-							class="w-3 h-5 bg-red-500/50"
+							class="w-3 h-5 bg-gray-400/25"
 							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
 						></div>
 					</div>
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-[1px] bg-red-500 z-20"
+						class="absolute top-0 bottom-0 w-[1px] bg-purple-500 z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -299,7 +299,7 @@
 						@mousedown="handlePlayheadDragStart"
 					>
 						<div
-							class="w-3 h-5 bg-red-500"
+							class="w-3 h-5 bg-purple-500"
 							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
 						></div>
 					</div>
@@ -625,6 +625,7 @@ const handleTimelineClick = (e) => {
 	const validTime = Math.max(0, Math.min(props.duration, time));
 	emit("timeUpdate", validTime);
 	previewPlayheadPosition.value = null; // Tıklandığında preview'i gizle
+	emit("previewTimeUpdate", null); // Preview'i temizle
 };
 
 const startDragging = (e) => {
@@ -852,6 +853,7 @@ const previewPlayheadPosition = ref(null);
 const handleTimelineMouseMove = (e) => {
 	if (isDragging.value || isResizing.value || isPlayheadDragging.value) {
 		previewPlayheadPosition.value = null;
+		emit("previewTimeUpdate", null);
 		return;
 	}
 
@@ -869,8 +871,7 @@ const handleTimelineMouseMove = (e) => {
 // Timeline'dan mouse çıkınca preview'i gizle
 const handleTimelineMouseLeave = () => {
 	previewPlayheadPosition.value = null;
-	// Mouse timeline'dan çıkınca gerçek playhead pozisyonuna geri dön
-	emit("previewTimeUpdate", props.currentTime);
+	emit("previewTimeUpdate", null);
 };
 
 // Zoom track için state'ler
@@ -1056,6 +1057,7 @@ const handlePlayheadDrag = (e) => {
 	const validTime = Math.max(0, Math.min(props.duration, time));
 	emit("timeUpdate", validTime);
 	previewPlayheadPosition.value = null; // Sürükleme sırasında preview'i gizle
+	emit("previewTimeUpdate", null); // Preview'i temizle
 };
 
 // Playhead sürükleme bitirme

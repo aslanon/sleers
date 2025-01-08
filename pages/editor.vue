@@ -59,6 +59,7 @@
 					<MediaPlayerControls
 						:is-playing="isPlaying"
 						:current-time="currentTime"
+						:preview-time="previewTime"
 						:duration="videoDuration"
 						:is-trim-mode="isTrimMode"
 						:selected-ratio="selectedRatio"

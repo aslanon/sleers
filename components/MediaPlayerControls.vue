@@ -81,7 +81,7 @@
 		</div>
 
 		<div class="w-full flex justify-center items-center space-x-4">
-			<div class="text-sm text-gray-300">{{ formatTime(currentTime) }}</div>
+			<div class="text-sm text-gray-300">{{ formatTime(displayTime) }}</div>
 
 			<button
 				@click="$emit('togglePlayback')"
@@ -221,6 +221,10 @@ const props = defineProps({
 	currentTime: {
 		type: Number,
 		default: 0,
+	},
+	previewTime: {
+		type: Number,
+		default: null,
 	},
 	duration: {
 		type: Number,
@@ -382,6 +386,11 @@ const formatTime = (seconds) => {
 		.toString()
 		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
 };
+
+// Gösterilecek zamanı hesapla
+const displayTime = computed(() => {
+	return props.previewTime !== null ? props.previewTime : props.currentTime;
+});
 </script>
 
 <style scoped>
