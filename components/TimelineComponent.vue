@@ -47,7 +47,7 @@
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content relative h-[220px] pt-6"
+					class="timeline-content relative h-[220px] pt-6 transition-[width] duration-100 ease-linear"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -258,10 +258,12 @@
 					<!-- Preview Playhead -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-0 bottom-0 w-[1px] bg-gray-400/25 z-30"
+						class="absolute top-0 bottom-0 w-[1px] z-30"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
+							background:
+								'linear-gradient(to bottom, rgb(156 163 175 / 0.25) 0%, transparent 100%)',
 						}"
 					></div>
 
@@ -275,17 +277,22 @@
 						}"
 					>
 						<div
-							class="w-3 h-5 bg-gray-400/25"
-							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+							class="w-3 h-5"
+							:style="{
+								clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+								background: 'rgb(156 163 175 / 0.25)',
+							}"
 						></div>
 					</div>
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-[1px] bg-purple-500 z-20"
+						class="absolute top-0 bottom-0 w-[1px] z-20"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
+							background:
+								'linear-gradient(to bottom, rgb(147 51 234) 0%, transparent 100%)',
 						}"
 					></div>
 
@@ -299,8 +306,11 @@
 						@mousedown="handlePlayheadDragStart"
 					>
 						<div
-							class="w-3 h-5 bg-purple-500"
-							style="clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)"
+							class="w-3 h-5"
+							:style="{
+								clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+								background: 'rgb(147 51 234)',
+							}"
 						></div>
 					</div>
 				</div>
