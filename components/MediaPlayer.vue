@@ -687,8 +687,31 @@ const updateCanvas = (timestamp) => {
 	const x = (canvasRef.value.width - drawWidth) / 2;
 	const y = (canvasRef.value.height - drawHeight) / 2;
 
-	// Video frame'ini çiz
+	// Shadow için path oluştur
+	if (shadowSize.value > 0) {
+		ctx.save();
+		ctx.beginPath();
+		roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+
+		// Shadow ayarları
+		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+		ctx.shadowBlur = shadowSize.value;
+		ctx.shadowOffsetX = 0;
+		ctx.shadowOffsetY = 0;
+
+		// Shadow için arka planı çiz
+		ctx.fillStyle = backgroundColor.value;
+		ctx.fill();
+		ctx.restore();
+	}
+
+	// Video alanını kırp ve radius uygula
 	ctx.save();
+	ctx.beginPath();
+	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+	ctx.clip();
+
+	// Video frame'ini çiz
 	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	ctx.restore();
 
@@ -698,6 +721,19 @@ const updateCanvas = (timestamp) => {
 	}
 
 	animationFrame = requestAnimationFrame(updateCanvas);
+};
+
+// Yardımcı fonksiyon: Yuvarlak köşeli dikdörtgen çizimi
+const roundedRect = (ctx, x, y, width, height, radius) => {
+	ctx.moveTo(x + radius, y);
+	ctx.lineTo(x + width - radius, y);
+	ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+	ctx.lineTo(x + width, y + height - radius);
+	ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+	ctx.lineTo(x + radius, y + height);
+	ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+	ctx.lineTo(x, y + radius);
+	ctx.quadraticCurveTo(x, y, x + radius, y);
 };
 
 // Canvas'ı yeniden boyutlandır
