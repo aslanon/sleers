@@ -45,6 +45,24 @@
 					</button>
 				</div>
 			</div>
+
+			<div class="border-t border-gray-700 my-2"></div>
+
+			<!-- Kamera Ayarları -->
+			<div class="text-white">
+				<div class="text-sm font-medium text-white mb-2">Kamera Ayarları</div>
+				<div class="flex items-center gap-2">
+					<label class="flex items-center gap-2 cursor-pointer">
+						<input
+							type="checkbox"
+							:checked="followMouse"
+							@change="toggleFollowMouse"
+							class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-700 bg-gray-800 focus:ring-blue-500"
+						/>
+						<span class="text-sm">Kamera fare imlecini takip etsin</span>
+					</label>
+				</div>
+			</div>
 		</div>
 	</div>
 </template>
@@ -65,9 +83,17 @@ const props = defineProps({
 		type: String,
 		default: "display",
 	},
+	followMouse: {
+		type: Boolean,
+		default: false,
+	},
 });
 
-const emit = defineEmits(["update:selectedDelay", "update:selectedSource"]);
+const emit = defineEmits([
+	"update:selectedDelay",
+	"update:selectedSource",
+	"update:followMouse",
+]);
 
 // Kayıt kaynakları
 const sources = computed(() => [
@@ -112,5 +138,14 @@ const selectSource = (source) => {
 	if (source === "area") {
 		window.electron?.ipcRenderer.send("START_AREA_SELECTION");
 	}
+};
+
+// Kamera takip ayarı
+const toggleFollowMouse = (event) => {
+	emit("update:followMouse", event.target.checked);
+	window.electron?.ipcRenderer.send(
+		"TOGGLE_CAMERA_FOLLOW",
+		event.target.checked
+	);
 };
 </script>

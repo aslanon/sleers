@@ -415,6 +415,11 @@ function setupIpcHandlers() {
 			mainWindow.setSize(width, height);
 		}
 	});
+
+	// Kamera takip ayarı
+	ipcMain.on("TOGGLE_CAMERA_FOLLOW", (event, shouldFollow) => {
+		cameraManager.setFollowMouse(shouldFollow);
+	});
 }
 
 async function createWindow() {

@@ -15,6 +15,7 @@ class CameraManager {
 		this.lastMousePositions = [];
 		this.lastCameraPosition = null;
 		this.isRecording = false;
+		this.shouldFollowMouse = true;
 
 		// Constants
 		this.SMALL_SIZE = 260;
@@ -122,47 +123,53 @@ class CameraManager {
 				const [width, height] = this.cameraWindow.getSize();
 				this.checkMouseShake(mousePos);
 
-				const display = screen.getDisplayNearestPoint(mousePos);
-				const bounds = display.bounds;
+				// Sadece shouldFollowMouse true ise fare takibi yap
+				if (this.shouldFollowMouse) {
+					const display = screen.getDisplayNearestPoint(mousePos);
+					const bounds = display.bounds;
 
-				let x = mousePos.x - width / 2;
-				let y = mousePos.y + 25;
+					let x = mousePos.x - width / 2;
+					let y = mousePos.y + 25;
 
-				const EDGE_THRESHOLD = 600;
+					const EDGE_THRESHOLD = 600;
 
-				if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
-					x = mousePos.x - width - 25;
-				} else if (mousePos.x < bounds.x + EDGE_THRESHOLD) {
-					x = mousePos.x + 25;
-				}
+					if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
+						x = mousePos.x - width - 25;
+					} else if (mousePos.x < bounds.x + EDGE_THRESHOLD) {
+						x = mousePos.x + 25;
+					}
 
-				if (mousePos.y > bounds.y + bounds.height - EDGE_THRESHOLD) {
-					y = mousePos.y - height - 25;
-				} else if (mousePos.y < bounds.y + EDGE_THRESHOLD) {
-					y = mousePos.y + 25;
-				}
+					if (mousePos.y > bounds.y + bounds.height - EDGE_THRESHOLD) {
+						y = mousePos.y - height - 25;
+					} else if (mousePos.y < bounds.y + EDGE_THRESHOLD) {
+						y = mousePos.y + 25;
+					}
 
-				x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.width - width));
-				y = Math.max(bounds.y, Math.min(y, bounds.y + bounds.height - height));
-
-				this.targetPosition = { x, y };
-
-				this.currentPosition.x = this.lerp(
-					this.currentPosition.x,
-					this.targetPosition.x,
-					0.15
-				);
-				this.currentPosition.y = this.lerp(
-					this.currentPosition.y,
-					this.targetPosition.y,
-					0.15
-				);
-
-				if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
-					this.cameraWindow.setPosition(
-						Math.round(this.currentPosition.x),
-						Math.round(this.currentPosition.y)
+					x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.width - width));
+					y = Math.max(
+						bounds.y,
+						Math.min(y, bounds.y + bounds.height - height)
 					);
+
+					this.targetPosition = { x, y };
+
+					this.currentPosition.x = this.lerp(
+						this.currentPosition.x,
+						this.targetPosition.x,
+						0.15
+					);
+					this.currentPosition.y = this.lerp(
+						this.currentPosition.y,
+						this.targetPosition.y,
+						0.15
+					);
+
+					if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+						this.cameraWindow.setPosition(
+							Math.round(this.currentPosition.x),
+							Math.round(this.currentPosition.y)
+						);
+					}
 				}
 			}, 16);
 		}
@@ -377,6 +384,21 @@ class CameraManager {
 		if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
 			this.cameraWindow.webContents.send("START_CAMERA");
 			this.cameraWindow.show();
+		}
+	}
+
+	// Yeni metod: Fare takibini aç/kapa
+	setFollowMouse(shouldFollow) {
+		this.shouldFollowMouse = shouldFollow;
+		if (
+			!shouldFollow &&
+			this.cameraWindow &&
+			!this.cameraWindow.isDestroyed()
+		) {
+			// Fare takibi kapalıysa, kamerayı sağ alt köşeye yerleştir
+			const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+			const size = this.isLargeCamera ? this.LARGE_SIZE : this.SMALL_SIZE;
+			this.cameraWindow.setPosition(100, height - size);
 		}
 	}
 }
