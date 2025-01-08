@@ -213,35 +213,55 @@ const togglePlay = async (e) => {
 const play = async () => {
 	if (!videoElement) return;
 	try {
+		// Önce mevcut durumu kontrol et
+		if (videoState.value.isPlaying) {
+			return;
+		}
+
 		// Mevcut zamanı koru
 		const startTime = videoState.value.currentTime;
 
 		// Video ve ses elementlerini başlat
 		videoElement.currentTime = startTime;
-		await videoElement.play();
+		await Promise.all([
+			videoElement.play(),
+			audioRef.value ? audioRef.value.play() : Promise.resolve(),
+		]);
 
-		// Ses elementini de oynat
-		if (audioRef.value) {
-			audioRef.value.currentTime = startTime;
-			await audioRef.value.play();
-		}
+		// State'i güncelle
+		videoState.value.isPlaying = true;
+		videoState.value.isPaused = false;
 
 		if (!animationFrame) {
 			animationFrame = requestAnimationFrame(updateCanvas);
 		}
 	} catch (error) {
 		console.error("[MediaPlayer] Oynatma hatası:", error);
+		// Hata durumunda state'i sıfırla
+		videoState.value.isPlaying = false;
+		videoState.value.isPaused = true;
+		throw error;
 	}
 };
 
 const pause = async () => {
 	if (!videoElement) return;
 	try {
-		await videoElement.pause();
-		// Ses elementini de durdur
-		if (audioRef.value) {
-			await audioRef.value.pause();
+		// Önce mevcut durumu kontrol et
+		if (!videoState.value.isPlaying) {
+			return;
 		}
+
+		// Video ve sesi durdur
+		await Promise.all([
+			videoElement.pause(),
+			audioRef.value ? audioRef.value.pause() : Promise.resolve(),
+		]);
+
+		// State'i güncelle
+		videoState.value.isPlaying = false;
+		videoState.value.isPaused = true;
+
 		if (animationFrame) {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = null;
@@ -453,6 +473,8 @@ const handleZoom = (e) => {
 
 // Video bittiğinde
 const onVideoEnded = () => {
+	videoState.value.isPlaying = false;
+	videoState.value.isPaused = true;
 	emit("videoEnded");
 	if (audioRef.value) audioRef.value.pause();
 };
@@ -1082,6 +1104,22 @@ defineExpose({
 			audioRef.value.muted = videoElement.muted;
 		}
 		emit("muteChange", videoElement.muted);
+	},
+	getCanvas: () => canvasRef.value,
+	getVideoElement: () => videoElement,
+	on: (event, handler) => {
+		if (event === "videoEnded") {
+			if (videoElement) {
+				videoElement.addEventListener("ended", handler);
+			}
+		}
+	},
+	off: (event, handler) => {
+		if (event === "videoEnded") {
+			if (videoElement) {
+				videoElement.removeEventListener("ended", handler);
+			}
+		}
 	},
 });
 

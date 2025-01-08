@@ -382,6 +382,69 @@ function setupIpcHandlers() {
 		}
 	);
 
+	// Video kaydetme işlemi
+	ipcMain.handle(
+		IPC_EVENTS.SAVE_CANVAS_RECORDING,
+		async (event, videoArrayBuffer, filePath, audioArrayBuffer) => {
+			try {
+				console.log("[main] Canvas kaydı kaydetme işlemi başlatıldı");
+
+				// ArrayBuffer'ları Buffer'a çevir
+				const videoBuffer = Buffer.from(videoArrayBuffer);
+				const audioBuffer = audioArrayBuffer
+					? Buffer.from(audioArrayBuffer)
+					: null;
+
+				// Geçici dosya yolları
+				const tempVideoPath = path.join(
+					app.getPath("temp"),
+					"temp_canvas_video.webm"
+				);
+				const tempAudioPath = audioBuffer
+					? path.join(app.getPath("temp"), "temp_canvas_audio.webm")
+					: null;
+
+				// Dosyaları geçici olarak kaydet
+				await fs.promises.writeFile(tempVideoPath, videoBuffer);
+				if (audioBuffer) {
+					await fs.promises.writeFile(tempAudioPath, audioBuffer);
+				}
+
+				// FFmpeg ile video işleme
+				return new Promise((resolve, reject) => {
+					let command = ffmpeg(tempVideoPath);
+
+					if (audioBuffer) {
+						command = command.input(tempAudioPath);
+					}
+
+					command
+						.videoCodec("libx264")
+						.outputOptions([
+							"-crf 23", // Kalite ayarı (0-51, düşük değer daha iyi kalite)
+							"-preset medium", // Encoding hızı/kalite dengesi
+							"-movflags +faststart", // Web'de hızlı başlatma için
+						])
+						.on("end", () => {
+							// Geçici dosyaları temizle
+							fs.unlinkSync(tempVideoPath);
+							if (tempAudioPath) fs.unlinkSync(tempAudioPath);
+							console.log("[main] Video başarıyla kaydedildi:", filePath);
+							resolve({ success: true, path: filePath });
+						})
+						.on("error", (err) => {
+							console.error("[main] Video kaydedilirken hata:", err);
+							reject(err);
+						})
+						.save(filePath);
+				});
+			} catch (error) {
+				console.error("[main] Canvas kaydı kaydetme hatası:", error);
+				throw error;
+			}
+		}
+	);
+
 	// Pencere boyutu güncelleme
 	ipcMain.on("UPDATE_WINDOW_SIZE", (event, { height }) => {
 		if (mainWindow) {

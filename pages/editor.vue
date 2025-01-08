@@ -302,64 +302,130 @@ const saveVideo = async () => {
 		});
 
 		if (filePath) {
-			// Debug: selectedArea değerini kontrol et
-			console.log("[editor.vue] Mevcut selectedArea:", selectedArea.value);
+			// Canvas'ı al
+			const canvas = mediaPlayerRef.value?.getCanvas();
+			if (!canvas) {
+				console.error(
+					"[editor.vue] MediaPlayer referansı:",
+					mediaPlayerRef.value
+				);
+				throw new Error("Canvas bulunamadı");
+			}
 
-			// Kırpma bilgilerini basitleştirilmiş formatta hazırla
-			let cropInfo = null;
+			// Kayıt durumunu göster
+			const loadingMessage = document.createElement("div");
+			loadingMessage.className =
+				"fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50";
+			loadingMessage.innerHTML = `
+				<div class="bg-gray-800 p-4 rounded-lg text-white">
+					<p class="text-lg">Video kaydediliyor...</p>
+					<p class="text-sm mt-2">Video oynatılırken lütfen bekleyin</p>
+				</div>
+			`;
+			document.body.appendChild(loadingMessage);
 
-			if (selectedArea.value) {
-				cropInfo = {
-					x: parseInt(selectedArea.value.x) || 0,
-					y: parseInt(selectedArea.value.y) || 0,
-					width: parseInt(selectedArea.value.width) || videoWidth.value,
-					height: parseInt(selectedArea.value.height) || videoHeight.value,
-					scale: 1,
-				};
-			} else {
-				// Main process'ten kırpma bilgisini al
+			return new Promise(async (resolve, reject) => {
 				try {
-					cropInfo = await electron?.ipcRenderer.invoke("GET_CROP_INFO");
-				} catch (err) {
-					console.warn("[editor.vue] Kırpma bilgisi alınamadı:", err);
+					// Önce video başa sar ve durdur
+					if (mediaPlayerRef.value) {
+						await mediaPlayerRef.value.seek(0);
+						await mediaPlayerRef.value.pause();
+						await new Promise((resolve) => setTimeout(resolve, 100)); // Kısa bir bekleme
+					}
+
+					// Video kaydını başlat
+					const stream = canvas.captureStream(60); // 60 FPS
+					const mediaRecorder = new MediaRecorder(stream, {
+						mimeType: "video/webm",
+						videoBitsPerSecond: 8000000, // 8 Mbps
+					});
+
+					const chunks = [];
+					mediaRecorder.ondataavailable = (e) => {
+						if (e.data.size > 0) {
+							chunks.push(e.data);
+						}
+					};
+
+					// Video bittiğinde kayıt durdur
+					const onRecordingEnded = async () => {
+						try {
+							console.log("[editor.vue] Video bitti, kayıt durduruluyor...");
+							mediaRecorder.stop();
+							isPlaying.value = false;
+
+							// Kısa bir bekleme ekle
+							await new Promise((resolve) => setTimeout(resolve, 500));
+
+							// Kayıt verilerini bekle
+							const webmBlob = new Blob(chunks, { type: "video/webm" });
+
+							// Ses verisi varsa ve ses açıksa
+							let audioArrayBuffer = null;
+							if (audioUrl.value && !isMuted.value) {
+								const audioResponse = await fetch(audioUrl.value);
+								const audioBlob = await audioResponse.blob();
+								audioArrayBuffer = await audioBlob.arrayBuffer();
+							}
+
+							// WebM'i ArrayBuffer'a dönüştür
+							const videoArrayBuffer = await webmBlob.arrayBuffer();
+
+							console.log("[editor.vue] Kayıt tamamlandı, dosya boyutu:", {
+								video: webmBlob.size,
+								audio: audioArrayBuffer?.byteLength,
+							});
+
+							// Main process'e gönder ve MP4'e dönüştür
+							const result = await electron?.ipcRenderer.invoke(
+								"SAVE_CANVAS_RECORDING",
+								videoArrayBuffer,
+								filePath,
+								audioArrayBuffer
+							);
+
+							console.log("[editor.vue] Video kaydedildi, sonuç:", result);
+
+							// Yükleme mesajını kaldır
+							document.body.removeChild(loadingMessage);
+
+							// Başarı mesajı göster
+							alert("Video başarıyla kaydedildi!");
+							resolve(result);
+						} catch (error) {
+							console.error("[editor.vue] Kayıt sonlandırma hatası:", error);
+							reject(error);
+						} finally {
+							// Event listener'ı temizle
+							mediaPlayerRef.value?.off("videoEnded", onRecordingEnded);
+						}
+					};
+
+					// Event listener'ı ekle
+					mediaPlayerRef.value?.on("videoEnded", onRecordingEnded);
+
+					// Her 100ms'de bir veri topla
+					mediaRecorder.start(100);
+
+					// Kısa bir bekleme ekle
+					await new Promise((resolve) => setTimeout(resolve, 100));
+
+					// Video oynatmayı başlat
+					if (mediaPlayerRef.value) {
+						isPlaying.value = true;
+						await mediaPlayerRef.value.play();
+					} else {
+						throw new Error("Video oynatıcı bulunamadı");
+					}
+				} catch (error) {
+					console.error("[editor.vue] Kayıt başlatma hatası:", error);
+					// Hata durumunda yükleme mesajını kaldır
+					if (loadingMessage.parentNode) {
+						document.body.removeChild(loadingMessage);
+					}
+					reject(error);
 				}
-			}
-
-			console.log("[editor.vue] Hazırlanan kırpma bilgileri:", cropInfo);
-
-			// Video blob'unu al
-			const response = await fetch(videoUrl.value);
-			const blob = await response.blob();
-			const arrayBuffer = await blob.arrayBuffer();
-
-			// Ses blob'unu al
-			let audioArrayBuffer = null;
-			if (audioUrl.value && !isMuted.value) {
-				// Ses açıksa ve ses dosyası varsa
-				const audioResponse = await fetch(audioUrl.value);
-				const audioBlob = await audioResponse.blob();
-				audioArrayBuffer = await audioBlob.arrayBuffer();
-			}
-
-			console.log(
-				"[editor.vue] Video ve ses verisi hazırlandı, kaydetme başlıyor...",
-				{
-					hasAudio: !!audioArrayBuffer,
-					isMuted: isMuted.value,
-				}
-			);
-
-			// Video, ses ve kırpma bilgilerini main process'e gönder
-			const result = await electron?.ipcRenderer.invoke(
-				"SAVE_VIDEO_FILE",
-				arrayBuffer,
-				filePath,
-				cropInfo,
-				audioArrayBuffer
-			);
-
-			console.log("[editor.vue] Video kaydedildi, sonuç:", result);
-			console.log("[editor.vue] Video başarıyla kaydedildi:", filePath);
+			});
 		}
 	} catch (error) {
 		console.error("[editor.vue] Video kaydedilirken hata:", error);
