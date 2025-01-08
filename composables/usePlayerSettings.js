@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { ref, computed } from "vue";
 
 const mouseSize = ref(42);
 const motionBlurValue = ref(0);
@@ -9,6 +9,9 @@ const shadowSize = ref(0);
 const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
+
+// Motion efekti için computed değer
+const mouseMotionEnabled = computed(() => motionBlurValue.value > 0);
 
 export const usePlayerSettings = () => {
 	const updateMouseSize = (size) => {
@@ -58,6 +61,7 @@ export const usePlayerSettings = () => {
 	return {
 		mouseSize,
 		motionBlurValue,
+		mouseMotionEnabled,
 		backgroundColor,
 		padding,
 		radius,

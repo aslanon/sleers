@@ -15,7 +15,7 @@
 		</div>
 
 		<div class="flex flex-col gap-2">
-			<label class="text-sm text-gray-500">Motion Blur</label>
+			<label class="text-sm text-gray-500">Motion Effect</label>
 			<input
 				type="range"
 				:min="0"

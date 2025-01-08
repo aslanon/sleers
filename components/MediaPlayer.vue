@@ -113,6 +113,7 @@ const props = defineProps({
 const {
 	mouseSize,
 	motionBlurValue,
+	mouseMotionEnabled,
 	backgroundColor,
 	padding,
 	radius,
@@ -1293,8 +1294,8 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Trail sayısı (ana cursor dahil)
 	const trailCount = 3;
 
-	// Hareket varsa trail'leri çiz
-	if (speed > 0.1) {
+	// Hareket varsa ve motion efekti aktifse trail'leri çiz
+	if (speed > 0.1 && mouseMotionEnabled.value) {
 		// Her trail için (sondan başa doğru çiziyoruz ki ana cursor en üstte olsun)
 		for (let i = trailCount - 1; i >= 0; i--) {
 			ctx.save();
@@ -1326,11 +1327,11 @@ const drawMousePosition = (ctx, currentTime) => {
 			ctx.restore();
 		}
 	} else {
-		// Hareket yoksa sadece ana cursor'ı çiz
+		// Hareket yoksa veya motion efekti kapalıysa sadece ana cursor'ı çiz
 		ctx.save();
 		ctx.globalAlpha = 1;
 		ctx.translate(canvasX, canvasY);
-		ctx.filter = `blur(${blurAmount}px)`;
+		ctx.filter = mouseMotionEnabled.value ? `blur(${blurAmount}px)` : "none";
 
 		try {
 			ctx.drawImage(
