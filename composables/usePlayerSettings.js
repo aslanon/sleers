@@ -4,6 +4,7 @@ const mouseSize = ref(42);
 const motionBlurValue = ref(0);
 const backgroundColor = ref("#000000");
 const padding = ref(0);
+const radius = ref(0);
 
 export const usePlayerSettings = () => {
 	const updateMouseSize = (size) => {
@@ -22,14 +23,20 @@ export const usePlayerSettings = () => {
 		padding.value = value;
 	};
 
+	const updateRadius = (value) => {
+		radius.value = value;
+	};
+
 	return {
 		mouseSize,
 		motionBlurValue,
 		backgroundColor,
 		padding,
+		radius,
 		updateMouseSize,
 		updateMotionBlur,
 		updateBackgroundColor,
 		updatePadding,
+		updateRadius,
 	};
 };

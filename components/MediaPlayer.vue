@@ -97,7 +97,7 @@ const props = defineProps({
 });
 
 // Player settings'i al
-const { mouseSize, motionBlurValue, backgroundColor, padding } =
+const { mouseSize, motionBlurValue, backgroundColor, padding, radius } =
 	usePlayerSettings();
 
 const emit = defineEmits([
@@ -593,10 +593,26 @@ const updateCanvas = (timestamp) => {
 	const availableWidth = canvas.width - padding.value * 2;
 	const availableHeight = canvas.height - padding.value * 2;
 
-	// Video alanını kırp
+	// Video alanını kırp ve radius uygula
 	ctx.save();
 	ctx.beginPath();
-	ctx.rect(padding.value, padding.value, availableWidth, availableHeight);
+	const x = padding.value;
+	const y = padding.value;
+	const width = availableWidth;
+	const height = availableHeight;
+	const r = radius.value;
+
+	// Köşeleri yuvarla
+	ctx.moveTo(x + r, y);
+	ctx.lineTo(x + width - r, y);
+	ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+	ctx.lineTo(x + width, y + height - r);
+	ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+	ctx.lineTo(x + r, y + height);
+	ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+	ctx.lineTo(x, y + r);
+	ctx.quadraticCurveTo(x, y, x + r, y);
+	ctx.closePath();
 	ctx.clip();
 
 	// Transform işlemleri

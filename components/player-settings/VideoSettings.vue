@@ -25,6 +25,19 @@
 		</div>
 
 		<div>
+			<label class="block text-sm font-medium mb-1">Radius</label>
+			<input
+				type="range"
+				v-model="radiusValue"
+				min="0"
+				max="50"
+				step="2"
+				class="w-full"
+			/>
+			<span class="text-gray-300">{{ radiusValue }}px</span>
+		</div>
+
+		<div>
 			<label class="block text-sm font-medium mb-1">Arkaplan Rengi</label>
 			<div class="grid grid-cols-4 gap-2">
 				<button
@@ -64,8 +77,14 @@ const props = defineProps({
 	},
 });
 
-const { backgroundColor, padding, updateBackgroundColor, updatePadding } =
-	usePlayerSettings();
+const {
+	backgroundColor,
+	padding,
+	radius,
+	updateBackgroundColor,
+	updatePadding,
+	updateRadius,
+} = usePlayerSettings();
 
 // Renk paleti
 const colors = [
@@ -90,6 +109,7 @@ const colors = [
 // Local state
 const selectedColor = ref(backgroundColor.value);
 const paddingValue = ref(padding.value);
+const radiusValue = ref(radius.value);
 
 // Renk seçimi
 const selectColor = (color) => {
@@ -100,6 +120,11 @@ const selectColor = (color) => {
 // Padding değişikliğini izle
 watch(paddingValue, (newValue) => {
 	updatePadding(Number(newValue));
+});
+
+// Radius değişikliğini izle
+watch(radiusValue, (newValue) => {
+	updateRadius(Number(newValue));
 });
 
 // Store'dan gelen değişiklikleri izle
@@ -114,6 +139,13 @@ watch(
 	() => padding.value,
 	(newValue) => {
 		paddingValue.value = newValue;
+	}
+);
+
+watch(
+	() => radius.value,
+	(newValue) => {
+		radiusValue.value = newValue;
 	}
 );
 
