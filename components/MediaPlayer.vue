@@ -282,6 +282,17 @@ const play = async () => {
 			animationFrame = requestAnimationFrame(updateCanvas);
 		}
 
+		// Zoom animasyonunu kontrol et
+		const currentTime = videoElement.currentTime;
+		const activeZoom = zoomRanges.value.find(
+			(range) => currentTime >= range.start && currentTime <= range.end
+		);
+
+		if (activeZoom) {
+			setCurrentZoomRange(activeZoom);
+			requestAnimationFrame(animateVideoScale);
+		}
+
 		emit("play");
 	} catch (error) {
 		console.error("[MediaPlayer] Oynatma hatası:", error);
@@ -293,21 +304,17 @@ const play = async () => {
 const pause = async () => {
 	if (!videoElement) return;
 	try {
-		// Eğer zaten durdurulmuşsa işlemi durdur
 		if (!videoState.value.isPlaying) return;
 
-		// Önce state'i güncelle
 		videoState.value.isPlaying = false;
 		videoState.value.isPaused = true;
 
-		// Video ve sesi durdur
 		try {
 			await videoElement.pause();
 			if (audioRef.value && !audioRef.value.paused) {
 				await audioRef.value.pause();
 			}
 		} catch (error) {
-			// Durdurma başarısız olursa state'i geri al
 			videoState.value.isPlaying = true;
 			videoState.value.isPaused = false;
 			throw error;
@@ -326,6 +333,36 @@ const pause = async () => {
 		console.error("[MediaPlayer] Durdurma hatası:", error);
 	}
 };
+
+// Video scale animasyonu
+const animateVideoScale = (timestamp) => {
+	if (!ctx || !canvasRef.value || videoState.value.isPaused) return;
+
+	// Smooth lerp ile scale'i güncelle
+	const lerpFactor = 0.1;
+	const targetScale = currentZoomRange.value ? 8 : 1;
+	const scaleDiff = targetScale - videoScale.value;
+
+	if (Math.abs(scaleDiff) > 0.001) {
+		videoScale.value += scaleDiff * lerpFactor;
+		// Canvas'ı güncelle
+		updateCanvas(timestamp);
+		// Animasyonu devam ettir
+		if (!videoState.value.isPaused) {
+			requestAnimationFrame(animateVideoScale);
+		}
+	}
+};
+
+// Zoom range değişikliğini izle
+watch(
+	() => currentZoomRange.value,
+	(newRange) => {
+		if (!videoState.value.isPaused) {
+			requestAnimationFrame(animateVideoScale);
+		}
+	}
+);
 
 // Tam ekran kontrolü
 const toggleFullscreen = async (e) => {
@@ -1761,33 +1798,6 @@ const handleCanvasMouseMove = (e) => {
 const handleCanvasMouseLeave = () => {
 	mouseCanvasPosition.value = { x: 0.5, y: 0.5 }; // Merkeze dön
 };
-
-// Video scale animasyonu
-const animateVideoScale = (timestamp) => {
-	if (!ctx || !canvasRef.value) return;
-
-	// Smooth lerp ile scale'i güncelle
-	const lerpFactor = 0.1;
-	videoScale.value =
-		videoScale.value + (currentZoomRange.value ? 0.2 : -0.2) * lerpFactor;
-	videoScale.value = Math.max(1, Math.min(8, videoScale.value)); // 8x max zoom
-
-	// Canvas'ı güncelle
-	updateCanvas(timestamp);
-
-	// Animasyonu devam ettir
-	if (Math.abs(videoScale.value - (currentZoomRange.value ? 8 : 1)) > 0.001) {
-		requestAnimationFrame(animateVideoScale);
-	}
-};
-
-// Zoom range değişikliğini izle
-watch(
-	() => currentZoomRange.value,
-	(newRange) => {
-		requestAnimationFrame(animateVideoScale);
-	}
-);
 </script>
 
 <style scoped>
