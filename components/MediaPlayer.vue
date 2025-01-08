@@ -1,16 +1,31 @@
 <template>
-	<div class="media-player w-full h-max p-4 rounded-lg overflow-hidden">
-		<div ref="containerRef" class="relative w-full h-full overflow-hidden">
-			<canvas
-				ref="canvasRef"
-				class="absolute inset-0 w-full h-full"
-				:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
-				@mousedown="startDragging"
-				@mousemove="onDragging"
-				@mouseup="stopDragging"
-				@mouseleave="stopDragging"
-				@wheel="handleZoom"
-			></canvas>
+	<div class="media-player w-full rounded-lg overflow-hidden bg-black/80">
+		<div
+			ref="containerRef"
+			class="relative w-full overflow-hidden flex items-center justify-center"
+			:style="{
+				aspectRatio: currentAspectRatio,
+				maxHeight: '80vh',
+			}"
+		>
+			<div
+				class="relative"
+				:style="{
+					width: `${cropArea.width}px`,
+					height: `${cropArea.height}px`,
+				}"
+			>
+				<canvas
+					ref="canvasRef"
+					class="absolute inset-0 w-full h-full"
+					:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
+					@mousedown="startDragging"
+					@mousemove="onDragging"
+					@mouseup="stopDragging"
+					@mouseleave="stopDragging"
+					@wheel="handleZoom"
+				></canvas>
+			</div>
 
 			<!-- Ses -->
 			<audio
@@ -367,91 +382,67 @@ const updateCropArea = () => {
 	if (!containerRef.value || !videoElement) return;
 
 	const container = containerRef.value.getBoundingClientRect();
-	const availableWidth = container.width - padding.value * 2;
-	const availableHeight = container.height - padding.value * 2;
 
-	if (cropRatio.value) {
-		const [widthRatio, heightRatio] = cropRatio.value.split(":").map(Number);
+	// Seçilen aspect ratio'yu al
+	const [targetWidth, targetHeight] = cropRatio.value
+		.split(":")
+		.map(Number) || [16, 9];
+	const targetRatio = targetWidth / targetHeight;
 
-		if (widthRatio && heightRatio) {
-			const targetRatio = widthRatio / heightRatio;
-			let width, height;
+	// Mevcut container oranı
+	const containerRatio = container.width / container.height;
 
-			// Container'ın mevcut oranı
-			const containerRatio = availableWidth / availableHeight;
+	let cropWidth, cropHeight;
 
-			if (containerRatio > targetRatio) {
-				// Container daha geniş, yüksekliğe göre ayarla
-				height = availableHeight;
-				width = height * targetRatio;
-			} else {
-				// Container daha dar, genişliğe göre ayarla
-				width = availableWidth;
-				height = width / targetRatio;
-			}
-
-			// Kırpma alanını ortala
-			cropArea.value = {
-				width,
-				height,
-				x: (availableWidth - width) / 2 + padding.value,
-				y: (availableHeight - height) / 2 + padding.value,
-			};
-
-			// Video scale ve pozisyonunu güncelle
-			const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-			let newScale;
-
-			if (videoRatio > targetRatio) {
-				// Video daha geniş, yüksekliğe göre scale et
-				newScale = height / videoElement.videoHeight;
-			} else {
-				// Video daha dar, genişliğe göre scale et
-				newScale = width / videoElement.videoWidth;
-			}
-
-			scale.value = newScale;
-
-			// Videoyu kırpma alanının ortasına yerleştir
-			position.value = {
-				x: cropArea.value.x + (width - videoElement.videoWidth * newScale) / 2,
-				y:
-					cropArea.value.y + (height - videoElement.videoHeight * newScale) / 2,
-			};
-		}
+	if (containerRatio > targetRatio) {
+		// Container daha geniş, yüksekliğe göre hesapla
+		cropHeight = container.height;
+		cropWidth = cropHeight * targetRatio;
 	} else {
-		// Aspect ratio seçilmemişse tüm alanı kullan
-		cropArea.value = {
-			width: availableWidth,
-			height: availableHeight,
-			x: padding.value,
-			y: padding.value,
-		};
+		// Container daha dar, genişliğe göre hesapla
+		cropWidth = container.width;
+		cropHeight = cropWidth / targetRatio;
+	}
 
-		// Video scale ve pozisyonunu sıfırla
-		const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-		const containerRatio = availableWidth / availableHeight;
-		let newScale;
+	// Kırpma alanını güncelle
+	cropArea.value = {
+		width: cropWidth,
+		height: cropHeight,
+		x: 0,
+		y: 0,
+	};
 
-		if (containerRatio > videoRatio) {
-			newScale = availableHeight / videoElement.videoHeight;
-		} else {
-			newScale = availableWidth / videoElement.videoWidth;
-		}
+	// Video scale ve pozisyonunu güncelle
+	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+	let newScale;
 
-		scale.value = newScale;
-		position.value = {
-			x:
-				padding.value +
-				(availableWidth - videoElement.videoWidth * newScale) / 2,
-			y:
-				padding.value +
-				(availableHeight - videoElement.videoHeight * newScale) / 2,
-		};
+	if (targetRatio > videoRatio) {
+		// Hedef oran daha geniş, yüksekliğe göre scale et
+		newScale = (cropHeight - padding.value * 2) / videoElement.videoHeight;
+	} else {
+		// Hedef oran daha dar, genişliğe göre scale et
+		newScale = (cropWidth - padding.value * 2) / videoElement.videoWidth;
+	}
+
+	scale.value = newScale;
+
+	// Videoyu ortala (padding'i hesaba katarak)
+	position.value = {
+		x: padding.value,
+		y: padding.value,
+	};
+
+	// Canvas boyutlarını güncelle
+	if (canvasRef.value) {
+		canvasRef.value.width = cropWidth;
+		canvasRef.value.height = cropHeight;
 	}
 
 	// Canvas'ı güncelle
 	requestAnimationFrame(() => updateCanvas(performance.now()));
+
+	// Değişiklikleri emit et
+	emit("cropChange", getCropData());
 };
 
 // Sürükleme işlemleri
@@ -570,18 +561,19 @@ const getCropData = () => {
 	const videoWidth = videoElement.videoWidth;
 	const videoHeight = videoElement.videoHeight;
 
-	// Seçilen alan yoksa null döndür
-	if (!selectedAspectRatio.value) return null;
+	// Seçilen aspect ratio yoksa null döndür
+	if (!cropRatio.value) return null;
 
 	// Canvas koordinatlarını video koordinatlarına dönüştür
 	const canvasToVideo = (canvasX, canvasY, canvasWidth, canvasHeight) => {
 		// Canvas'taki oranı hesapla
-		const scaleX = videoWidth / container.width;
-		const scaleY = videoHeight / container.height;
+		const scaleX = videoWidth / (container.width - padding.value * 2);
+		const scaleY = videoHeight / (container.height - padding.value * 2);
 
+		// Padding'i hesaba katarak dönüştür
 		return {
-			x: Math.round(canvasX * scaleX),
-			y: Math.round(canvasY * scaleY),
+			x: Math.round((canvasX - padding.value) * scaleX),
+			y: Math.round((canvasY - padding.value) * scaleY),
 			width: Math.round(canvasWidth * scaleX),
 			height: Math.round(canvasHeight * scaleY),
 		};
@@ -600,11 +592,13 @@ const getCropData = () => {
 		video: videoCoords,
 		container: container,
 		videoSize: { width: videoWidth, height: videoHeight },
+		aspectRatio: cropRatio.value,
 	});
 
 	return {
 		...videoCoords,
-		scale: 1, // Scale'i 1 olarak sabit tutuyoruz çünkü koordinatları zaten dönüştürdük
+		scale: scale.value,
+		aspectRatio: cropRatio.value,
 	};
 };
 
@@ -621,17 +615,6 @@ const updateCanvas = (timestamp) => {
 	lastFrameTime = timestamp;
 
 	const canvas = canvasRef.value;
-	const container = containerRef.value;
-
-	// Canvas boyutlarını sadece değiştiğinde güncelle
-	if (
-		canvas.width !== container.clientWidth ||
-		canvas.height !== container.clientHeight
-	) {
-		canvas.width = container.clientWidth;
-		canvas.height = container.clientHeight;
-	}
-
 	const ctx = canvas.getContext("2d", {
 		alpha: false,
 		desynchronized: true,
@@ -649,14 +632,7 @@ const updateCanvas = (timestamp) => {
 	if (shadowSize.value > 0) {
 		ctx.save();
 		ctx.beginPath();
-		roundedRect(
-			ctx,
-			cropArea.value.x,
-			cropArea.value.y,
-			cropArea.value.width,
-			cropArea.value.height,
-			radius.value
-		);
+		roundedRect(ctx, 0, 0, canvas.width, canvas.height, radius.value);
 
 		// Shadow ayarları
 		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
@@ -673,14 +649,7 @@ const updateCanvas = (timestamp) => {
 	// Video alanını kırp ve radius uygula
 	ctx.save();
 	ctx.beginPath();
-	roundedRect(
-		ctx,
-		cropArea.value.x,
-		cropArea.value.y,
-		cropArea.value.width,
-		cropArea.value.height,
-		radius.value
-	);
+	roundedRect(ctx, 0, 0, canvas.width, canvas.height, radius.value);
 	ctx.clip();
 
 	// Transform işlemleri
@@ -1222,7 +1191,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	const nextPos = mousePos[nextFrame];
 	if (!currentPos || !nextPos) return;
 
-	// Video boyutlarını al (cache'lenmiş değerleri kullan)
+	// Video boyutlarını al
 	const videoWidth = videoSize.value.width;
 	const videoHeight = videoSize.value.height;
 
@@ -1239,15 +1208,13 @@ const drawMousePosition = (ctx, currentTime) => {
 	const normalizedX = interpolatedX / videoWidth;
 	const normalizedY = interpolatedY / videoHeight;
 
-	// Video'nun canvas içindeki mevcut boyutlarını hesapla (padding'i dahil et)
+	// Video'nun canvas içindeki mevcut boyutlarını hesapla
 	const currentVideoWidth = videoWidth * scale.value;
 	const currentVideoHeight = videoHeight * scale.value;
 
-	// Mouse pozisyonunu canvas koordinatlarına dönüştür (padding'i ekle)
-	const canvasX =
-		position.value.x + normalizedX * currentVideoWidth + padding.value;
-	const canvasY =
-		position.value.y + normalizedY * currentVideoHeight + padding.value;
+	// Mouse pozisyonunu canvas koordinatlarına dönüştür
+	const canvasX = position.value.x + normalizedX * currentVideoWidth;
+	const canvasY = position.value.y + normalizedY * currentVideoHeight;
 
 	// Yeni pozisyonu kaydet
 	if (previousPositions.value.length >= MAX_TRAIL_LENGTH) {
@@ -1322,24 +1289,45 @@ const drawMousePosition = (ctx, currentTime) => {
 	ctx.restore();
 };
 
-// Aspect ratio değişikliğini izle
+// Aspect ratio değişikliğini izle ve canvas'ı güncelle
 watch(
-	() => cropRatio.value,
-	() => {
-		updateCropArea();
-		// Hemen canvas'ı güncelle
-		requestAnimationFrame(() => {
-			updateCanvas(performance.now());
-		});
-	}
+	cropRatio,
+	(newRatio) => {
+		console.log("[MediaPlayer] Aspect ratio changed:", newRatio);
+
+		// Canvas'ı yeniden boyutlandır
+		if (containerRef.value && canvasRef.value) {
+			const container = containerRef.value;
+			const canvas = canvasRef.value;
+
+			// Container boyutlarını güncelle
+			requestAnimationFrame(() => {
+				// Canvas boyutlarını güncelle
+				canvas.width = container.clientWidth;
+				canvas.height = container.clientHeight;
+
+				// Kırpma alanını ve video pozisyonunu güncelle
+				updateCropArea();
+
+				// Canvas'ı hemen güncelle
+				updateCanvas(performance.now());
+			});
+		}
+	},
+	{ immediate: true }
 );
+
+// Aspect ratio hesaplama
+const currentAspectRatio = computed(() => {
+	if (!cropRatio.value) return "16/9"; // Default ratio
+
+	const [width, height] = cropRatio.value.split(":").map(Number);
+	if (!width || !height) return "16/9";
+	return `${width}/${height}`;
+});
 </script>
 
 <style scoped>
-.media-player {
-	aspect-ratio: 16/9;
-}
-
 canvas {
 	image-rendering: optimizeQuality;
 	-webkit-backface-visibility: hidden;
