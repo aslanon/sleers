@@ -745,29 +745,44 @@ const updateCanvas = (timestamp) => {
 		ctx.translate(transformOriginX, transformOriginY);
 		ctx.scale(scale, scale);
 		ctx.translate(-transformOriginX, -transformOriginY);
+
+		// Radial blur efekti için geçici canvas oluştur
+		const tempCanvas = document.createElement("canvas");
+		tempCanvas.width = canvasRef.value.width;
+		tempCanvas.height = canvasRef.value.height;
+		const tempCtx = tempCanvas.getContext("2d");
+
+		// Ana görüntüyü çiz
+		ctx.globalAlpha = 1;
+		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+
+		// Radial blur efekti uygula
+		const blurAmount = Math.floor((scale - 1) * 8); // Blur miktarı
+		const steps = 12; // Blur adım sayısı
+		const angleStep = (Math.PI * 2) / steps;
+		const radiusStart = 20; // İç yarıçap (efektsiz bölge)
+		const radiusEnd = blurAmount; // Dış yarıçap
+
+		ctx.globalAlpha = 0.04; // Her katman için düşük opaklık
+
+		for (let angle = 0; angle < Math.PI * 2; angle += angleStep) {
+			for (let r = radiusStart; r <= radiusEnd; r += 2) {
+				const offsetX = Math.cos(angle) * r;
+				const offsetY = Math.sin(angle) * r;
+				ctx.drawImage(
+					videoElement,
+					x + offsetX,
+					y + offsetY,
+					drawWidth,
+					drawHeight
+				);
+			}
+		}
+	} else {
+		// Normal video çizimi
+		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	}
 
-	// Shadow için path oluştur
-	if (shadowSize.value > 0) {
-		ctx.save();
-		ctx.beginPath();
-		roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
-		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-		ctx.shadowBlur = shadowSize.value;
-		ctx.shadowOffsetX = 0;
-		ctx.shadowOffsetY = 0;
-		ctx.fillStyle = backgroundColor.value;
-		ctx.fill();
-		ctx.restore();
-	}
-
-	// Video alanını kırp ve radius uygula
-	ctx.beginPath();
-	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
-	ctx.clip();
-
-	// Video'yu çiz
-	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	ctx.restore();
 
 	// Mouse pozisyonlarını çiz
