@@ -347,14 +347,45 @@ const handleResize = () => {
 
 	const container = containerRef.value.getBoundingClientRect();
 
+	// Seçilen aspect ratio'yu al
+	const [targetWidth, targetHeight] = cropRatio.value
+		.split(":")
+		.map(Number) || [16, 9];
+	const targetRatio = targetWidth / targetHeight;
+
+	// Container boyutlarını seçilen aspect ratio'ya göre ayarla
+	let canvasWidth, canvasHeight;
+	const containerRatio = container.width / container.height;
+
+	if (containerRatio > targetRatio) {
+		// Container daha geniş, yüksekliğe göre hesapla
+		canvasHeight = container.height;
+		canvasWidth = canvasHeight * targetRatio;
+	} else {
+		// Container daha dar, genişliğe göre hesapla
+		canvasWidth = container.width;
+		canvasHeight = canvasWidth / targetRatio;
+	}
+
 	// Canvas boyutlarını güncelle
 	if (canvasRef.value) {
-		canvasRef.value.width = container.width;
-		canvasRef.value.height = container.height;
+		canvasRef.value.width = canvasWidth;
+		canvasRef.value.height = canvasHeight;
 	}
+
+	// Kırpma alanını güncelle
+	cropArea.value = {
+		width: canvasWidth,
+		height: canvasHeight,
+		x: 0,
+		y: 0,
+	};
 
 	// Canvas'ı hemen güncelle
 	requestAnimationFrame(() => updateCanvas(performance.now()));
+
+	// Değişiklikleri emit et
+	emit("cropChange", getCropData());
 };
 
 // Kırpma alanını güncelle
