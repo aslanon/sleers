@@ -55,6 +55,9 @@ function setupIpcHandlers() {
 	// Recording status
 	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_CHANGED, async (event, status) => {
 		console.log("********Kayıt durumu değişti:", status);
+		if (trayManager) {
+			trayManager.setRecordingStatus(status);
+		}
 		if (status) {
 			console.log(1232);
 			startMouseTracking();

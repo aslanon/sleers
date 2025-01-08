@@ -22,7 +22,6 @@
 		"wait-on": "^7.2.0"
 	},
 	"devDependencies": {
-		"@nuxt/devtools": "latest",
 		"concurrently": "^8.2.2",
 		"cross-env": "^7.0.3",
 		"electron-builder": "^24.9.1",

@@ -753,6 +753,14 @@ watch(selectedAudioDevice, async (newDeviceId) => {
 	}
 });
 
+// Kayıt durumu değiştiğinde tray'i güncelle
+watch(isRecording, (newValue) => {
+	if (electron?.ipcRenderer) {
+		console.log("[index.vue] Kayıt durumu değişti:", newValue);
+		electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, newValue);
+	}
+});
+
 // Pencere sürükleme fonksiyonları
 const startDrag = (event) => {
 	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
