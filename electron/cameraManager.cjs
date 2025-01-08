@@ -396,9 +396,9 @@ class CameraManager {
 			!this.cameraWindow.isDestroyed()
 		) {
 			// Fare takibi kapalıysa, kamerayı sağ alt köşeye yerleştir
-			const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-			const size = this.isLargeCamera ? this.LARGE_SIZE : this.SMALL_SIZE;
-			this.cameraWindow.setPosition(100, height - size);
+			// const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+			const size = this.LARGE_SIZE;
+			this.cameraWindow.setPosition(30, 50 - size);
 		}
 	}
 }

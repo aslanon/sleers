@@ -85,7 +85,7 @@ const props = defineProps({
 	},
 	followMouse: {
 		type: Boolean,
-		default: false,
+		default: true,
 	},
 });
 
