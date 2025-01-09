@@ -737,6 +737,9 @@ const updateCanvas = (timestamp) => {
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
+	// Ana context state'i kaydet
+	ctx.save();
+
 	// Video'nun orijinal en-boy oranını koru
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	const canvasRatio = canvasRef.value.width / canvasRef.value.height;
@@ -755,9 +758,6 @@ const updateCanvas = (timestamp) => {
 	const x = (canvasRef.value.width - drawWidth) / 2;
 	const y = (canvasRef.value.height - drawHeight) / 2;
 
-	// Ana context state'i kaydet
-	ctx.save();
-
 	// Aktif zoom segmentini bul
 	const currentTime = videoElement.currentTime;
 	const activeZoom = zoomRanges.value.find(
@@ -770,11 +770,10 @@ const updateCanvas = (timestamp) => {
 	videoScale.value =
 		videoScale.value + (targetScale - videoScale.value) * lerpFactor;
 
+	// Zoom efektini uygula
 	if (videoScale.value > 1.001) {
-		// Canvas'ın merkez noktası
 		const centerX = canvasRef.value.width / 2;
 		const centerY = canvasRef.value.height / 2;
-
 		let transformOriginX = centerX;
 		let transformOriginY = centerY;
 
@@ -796,10 +795,6 @@ const updateCanvas = (timestamp) => {
 				break;
 			case "middle-left":
 				transformOriginX = x;
-				transformOriginY = centerY;
-				break;
-			case "center":
-				transformOriginX = centerX;
 				transformOriginY = centerY;
 				break;
 			case "middle-right":
@@ -831,12 +826,7 @@ const updateCanvas = (timestamp) => {
 		ctx.translate(-transformOriginX, -transformOriginY);
 	}
 
-	// Video alanını kırp ve radius uygula
-	ctx.beginPath();
-	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
-	ctx.clip();
-
-	// Shadow için yeni bir state kaydet ve shadow çiz
+	// Shadow için yeni bir state kaydet
 	if (shadowSize.value > 0) {
 		ctx.save();
 		ctx.beginPath();
@@ -849,6 +839,11 @@ const updateCanvas = (timestamp) => {
 		ctx.fill();
 		ctx.restore();
 	}
+
+	// Video alanını kırp ve radius uygula
+	ctx.beginPath();
+	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+	ctx.clip();
 
 	// Video'yu çiz
 	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
