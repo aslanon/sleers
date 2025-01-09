@@ -793,47 +793,50 @@ const updateCanvas = (timestamp) => {
 		let transformOriginY = centerY;
 
 		// Zoom segmentinin pozisyonuna göre transform origin'i ayarla
-		if (activeZoom && activeZoom.position) {
-			const position = activeZoom.position;
+		const position = activeZoom?.position || lastZoomPosition.value || "center";
 
-			switch (position) {
-				case "top-left":
-					transformOriginX = x;
-					transformOriginY = y;
-					break;
-				case "top-center":
-					transformOriginX = centerX;
-					transformOriginY = y;
-					break;
-				case "top-right":
-					transformOriginX = x + drawWidth;
-					transformOriginY = y;
-					break;
-				case "middle-left":
-					transformOriginX = x;
-					transformOriginY = centerY;
-					break;
-				case "center":
-					transformOriginX = centerX;
-					transformOriginY = centerY;
-					break;
-				case "middle-right":
-					transformOriginX = x + drawWidth;
-					transformOriginY = centerY;
-					break;
-				case "bottom-left":
-					transformOriginX = x;
-					transformOriginY = y + drawHeight;
-					break;
-				case "bottom-center":
-					transformOriginX = centerX;
-					transformOriginY = y + drawHeight;
-					break;
-				case "bottom-right":
-					transformOriginX = x + drawWidth;
-					transformOriginY = y + drawHeight;
-					break;
-			}
+		switch (position) {
+			case "top-left":
+				transformOriginX = x;
+				transformOriginY = y;
+				break;
+			case "top-center":
+				transformOriginX = centerX;
+				transformOriginY = y;
+				break;
+			case "top-right":
+				transformOriginX = x + drawWidth;
+				transformOriginY = y;
+				break;
+			case "middle-left":
+				transformOriginX = x;
+				transformOriginY = centerY;
+				break;
+			case "center":
+				transformOriginX = centerX;
+				transformOriginY = centerY;
+				break;
+			case "middle-right":
+				transformOriginX = x + drawWidth;
+				transformOriginY = centerY;
+				break;
+			case "bottom-left":
+				transformOriginX = x;
+				transformOriginY = y + drawHeight;
+				break;
+			case "bottom-center":
+				transformOriginX = centerX;
+				transformOriginY = y + drawHeight;
+				break;
+			case "bottom-right":
+				transformOriginX = x + drawWidth;
+				transformOriginY = y + drawHeight;
+				break;
+		}
+
+		// Son zoom pozisyonunu kaydet
+		if (activeZoom?.position) {
+			lastZoomPosition.value = activeZoom.position;
 		}
 
 		// Scale transformasyonu uygula
@@ -1825,16 +1828,17 @@ const checkZoomSegments = (currentTime) => {
 		if (startingSegment !== currentZoomRange.value) {
 			// Sadece zoom değerlerini kullan, ayarları açma
 			if (startingSegment.scale) {
-				// Smooth geçiş için mevcut scale'i koruyoruz, targetScale updateCanvas'ta güncelleniyor
 				setCurrentZoomRange(startingSegment);
 			}
 		}
 	}
 	// Zoom segmentinden çıkıyorsak
 	else if (endingSegment || (!activeZoom && currentZoomRange.value)) {
-		// Smooth geçiş için sadece currentZoomRange'i null yapıyoruz
-		// videoScale updateCanvas'ta smooth bir şekilde 1'e dönecek
 		setCurrentZoomRange(null);
+		// Zoom tamamen bittiğinde son pozisyonu sıfırla
+		if (videoScale.value <= 1.001) {
+			lastZoomPosition.value = null;
+		}
 	}
 };
 
@@ -1910,6 +1914,9 @@ const handleZoomSegmentClick = (event, index) => {
 	selectedZoomIndex.value = index;
 	emit("zoomSegmentSelect");
 };
+
+// Son zoom pozisyonunu takip etmek için ref ekle
+const lastZoomPosition = ref(null);
 </script>
 
 <style scoped>
