@@ -1394,22 +1394,17 @@ const applyMotionBlur = (
 	const MAX_SPEED = 5.0;
 	const MIN_DISTANCE_THRESHOLD = 20;
 
-	// Cursor'ın uç noktası için offset'leri ayarla
-	const CURSOR_TIP_OFFSET_X = mouseSize.value * 0.3;
-	const CURSOR_TIP_OFFSET_Y = mouseSize.value * 0.2;
+	// Mouse boyutunu sabit tut
+	const size = mouseSize.value;
+	const offsetX = size * 0.3;
+	const offsetY = size * 0.2;
 
 	// Hız ve mesafe kontrolü
 	const isSignificantMovement =
 		speed > MIN_SPEED_THRESHOLD && moveDistance > MIN_DISTANCE_THRESHOLD;
 
 	if (!mouseMotionEnabled.value || !isSignificantMovement) {
-		ctx.drawImage(
-			cursorImage,
-			x - CURSOR_TIP_OFFSET_X,
-			y - CURSOR_TIP_OFFSET_Y,
-			mouseSize.value,
-			mouseSize.value
-		);
+		ctx.drawImage(cursorImage, x - offsetX, y - offsetY, size, size);
 		return;
 	}
 
@@ -1429,17 +1424,17 @@ const applyMotionBlur = (
 	// Kısa trail efekti için 3-4 kopya çiz
 	const TRAIL_STEPS = 4;
 	for (let i = TRAIL_STEPS; i > 0; i--) {
-		const trailOpacity = (i / TRAIL_STEPS) * 0.35; // Max opaklık 0.15
-		const trailOffset = i * 2; // Her adımda 3px offset
+		const trailOpacity = (i / TRAIL_STEPS) * 0.35;
+		const trailOffset = i * 2;
 
 		ctx.globalAlpha = trailOpacity;
 		ctx.filter = `blur(3px)`;
 		ctx.drawImage(
 			cursorImage,
-			x + dirX * trailOffset - CURSOR_TIP_OFFSET_X,
-			y + dirY * trailOffset - CURSOR_TIP_OFFSET_Y,
-			mouseSize.value,
-			mouseSize.value
+			x + dirX * trailOffset - offsetX,
+			y + dirY * trailOffset - offsetY,
+			size,
+			size
 		);
 	}
 
@@ -1465,17 +1460,12 @@ const applyMotionBlur = (
 	ctx.scale(stretchX, stretchY);
 	ctx.transform(1, skewY, skewX, 1, 0, 0);
 
-	ctx.drawImage(
-		cursorImage,
-		-CURSOR_TIP_OFFSET_X,
-		-CURSOR_TIP_OFFSET_Y,
-		mouseSize.value,
-		mouseSize.value
-	);
+	ctx.drawImage(cursorImage, -offsetX, -offsetY, size, size);
 
 	ctx.restore();
 };
 
+// Mouse pozisyonunu çiz
 const drawMousePosition = (ctx, currentTime) => {
 	const mousePos = props.mousePositions;
 	if (
@@ -1543,13 +1533,65 @@ const drawMousePosition = (ctx, currentTime) => {
 	const normalizedX = interpolatedX / videoWidth;
 	const normalizedY = interpolatedY / videoHeight;
 
-	// Zoom scale'ini hesapla
-	const scale = videoScale.value;
+	// Mouse'un temel pozisyonunu hesapla
+	let finalX = videoX + normalizedX * displayWidth;
+	let finalY = videoY + normalizedY * displayHeight;
 
-	// Mouse pozisyonunu zoom ve padding'e göre ayarla
-	// NOT: zoomedX ve zoomedY artık gerçek mouse'un tıklama noktasını gösteriyor
-	const zoomedX = videoX + normalizedX * displayWidth * scale;
-	const zoomedY = videoY + normalizedY * displayHeight * scale;
+	// Zoom durumunda pozisyonu ayarla
+	if (videoScale.value > 1.001) {
+		const centerX = canvasWidth / 2;
+		const centerY = canvasHeight / 2;
+		let originX = centerX;
+		let originY = centerY;
+
+		// Zoom origin noktasını belirle
+		const activeZoom = zoomRanges.value.find(
+			(range) => currentTime >= range.start && currentTime <= range.end
+		);
+
+		if (activeZoom?.position) {
+			switch (activeZoom.position) {
+				case "top-left":
+					originX = videoX;
+					originY = videoY;
+					break;
+				case "top-center":
+					originX = centerX;
+					originY = videoY;
+					break;
+				case "top-right":
+					originX = videoX + displayWidth;
+					originY = videoY;
+					break;
+				case "middle-left":
+					originX = videoX;
+					originY = centerY;
+					break;
+				case "middle-right":
+					originX = videoX + displayWidth;
+					originY = centerY;
+					break;
+				case "bottom-left":
+					originX = videoX;
+					originY = videoY + displayHeight;
+					break;
+				case "bottom-center":
+					originX = centerX;
+					originY = videoY + displayHeight;
+					break;
+				case "bottom-right":
+					originX = videoX + displayWidth;
+					originY = videoY + displayHeight;
+					break;
+			}
+		}
+
+		// Mouse pozisyonunu zoom origin'e göre ayarla
+		const relativeX = finalX - originX;
+		const relativeY = finalY - originY;
+		finalX = originX + relativeX * videoScale.value;
+		finalY = originY + relativeY * videoScale.value;
+	}
 
 	// Mouse hızını ve yönünü hesapla
 	const moveX = nextPos.x - currentPos.x;
@@ -1563,12 +1605,12 @@ const drawMousePosition = (ctx, currentTime) => {
 
 	ctx.save();
 
-	// Motion blur efektini uygula (hareket mesafesini de gönder)
+	// Motion blur efektini uygula
 	applyMotionBlur(
 		ctx,
 		cursorImage,
-		zoomedX,
-		zoomedY,
+		finalX,
+		finalY,
 		dirX,
 		dirY,
 		speed,
