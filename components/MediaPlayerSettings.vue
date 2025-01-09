@@ -1,16 +1,16 @@
 <template>
 	<div
-		class="media-player-settings bg-black w-[500px] min-w-[500px] rounded-lg p-4"
+		class="media-player-settings bg-black w-[500px] min-w-[500px] rounded-lg"
 	>
 		<!-- Tab yapısı -->
 		<div class="flex">
 			<!-- Tab listesi -->
-			<div class="w-12 space-y-2 border-r border-white/10 pr-2">
+			<div class="space-y-2 border-r border-white/10 pr-4">
 				<button
 					v-for="tab in tabs"
 					:key="tab.id"
 					@click="currentTab = tab.id"
-					class="w-full flex items-center justify-center p-2 rounded-lg transition-colors"
+					class="w-12 flex items-center justify-center p-2 rounded-lg transition-colors"
 					:class="{
 						'bg-white/10': currentTab === tab.id,
 						'hover:bg-white/5': currentTab !== tab.id,
