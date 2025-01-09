@@ -602,7 +602,6 @@ const {
 	previousPositions,
 	cursorImage,
 	drawMousePosition: drawMouseCursor,
-	applyMotionBlur,
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
 
 // Mouse positions değişikliğini izle ve previousPositions'ı temizle

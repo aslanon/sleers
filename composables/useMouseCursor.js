@@ -1,5 +1,16 @@
 import { ref } from "vue";
 import cursorSvg from "~/assets/cursors/default.svg";
+import { calculateZoomOrigin } from "~/composables/utils/zoomPositions";
+import {
+	calculateMousePosition,
+	calculateMouseMovement,
+	calculateVideoDisplaySize,
+} from "~/composables/utils/mousePosition";
+import {
+	calculateMotionBlurEffects,
+	applyTrailEffects,
+	applyDeformationEffects,
+} from "~/composables/utils/motionBlur";
 
 export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 	// Mouse animasyonu için state
@@ -67,56 +78,50 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			return;
 		}
 
-		const easeOutQuad = (t) => t * (2 - t);
-
-		const normalizedSpeed = Math.min(
-			(speed - MIN_SPEED_THRESHOLD) / (MAX_SPEED - MIN_SPEED_THRESHOLD),
-			1
-		);
-		const normalizedDistance = Math.min(moveDistance / 100, 1);
-		const movementIntensity = normalizedSpeed * normalizedDistance;
-		const easedIntensity = easeOutQuad(movementIntensity);
-		const deformAmount = Math.min(6, easedIntensity * motionBlurValue * 6);
-
-		// Trail efekti
-		for (let i = TRAIL_STEPS; i > 0; i--) {
-			const trailOpacity = (i / TRAIL_STEPS) * TRAIL_OPACITY_BASE;
-			const trailOffset = i * TRAIL_OFFSET_MULTIPLIER;
-
-			ctx.globalAlpha = trailOpacity;
-			ctx.filter = `blur(${BLUR_BASE}px)`;
-			ctx.drawImage(
-				cursorImage,
-				x + dirX * trailOffset - offsetX,
-				y + dirY * trailOffset - offsetY,
-				size,
-				size
+		// Motion blur efektlerini hesapla
+		const { easedIntensity, deformAmount, blurAmount } =
+			calculateMotionBlurEffects(
+				speed,
+				moveDistance,
+				MIN_SPEED_THRESHOLD,
+				MAX_SPEED,
+				motionBlurValue
 			);
-		}
+
+		// Trail efektlerini uygula
+		applyTrailEffects(
+			ctx,
+			cursorImage,
+			x,
+			y,
+			dirX,
+			dirY,
+			TRAIL_STEPS,
+			TRAIL_OPACITY_BASE,
+			TRAIL_OFFSET_MULTIPLIER,
+			BLUR_BASE,
+			size,
+			offsetX,
+			offsetY
+		);
 
 		// Ana cursor için normal efektleri uygula
 		ctx.globalAlpha = 1;
-		const blurAmount = Math.min(1.5, easedIntensity * 5);
 		ctx.filter = `blur(${blurAmount}px)`;
-
 		ctx.translate(x, y);
 
-		// Hareket yönüne doğru eğim uygula
-		if (moveDistance > 25) {
-			const angle = Math.atan2(dirY, dirX);
-			const rotationDegree = MOVEMENT_ANGLE * (Math.PI / 180);
-			ctx.rotate(angle * 0.05 + rotationDegree * easedIntensity);
-		}
-
-		const skewX = -dirX * deformAmount * SKEW_FACTOR;
-		const skewY = -dirY * deformAmount * SKEW_FACTOR;
-		const stretchX =
-			1 + Math.abs(dirX * deformAmount * STRETCH_FACTOR) * easedIntensity;
-		const stretchY =
-			1 + Math.abs(dirY * deformAmount * STRETCH_FACTOR) * easedIntensity;
-
-		ctx.scale(stretchX, stretchY);
-		ctx.transform(1, skewY, skewX, 1, 0, 0);
+		// Deformasyon efektlerini uygula
+		applyDeformationEffects(
+			ctx,
+			moveDistance,
+			dirX,
+			dirY,
+			deformAmount,
+			easedIntensity,
+			MOVEMENT_ANGLE,
+			SKEW_FACTOR,
+			STRETCH_FACTOR
+		);
 
 		ctx.drawImage(cursorImage, -offsetX, -offsetY, size, size);
 
@@ -168,169 +173,73 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const nextPos = mousePositions[nextFrame];
 		if (!currentPos || !nextPos) return;
 
-		// Video boyutlarını al
-		const videoWidth = videoElement.videoWidth;
-		const videoHeight = videoElement.videoHeight;
+		// Video boyutlarını hesapla
+		const { displayWidth, displayHeight, videoX, videoY } =
+			calculateVideoDisplaySize(
+				videoElement.videoWidth,
+				videoElement.videoHeight,
+				canvasRef.width,
+				canvasRef.height,
+				padding
+			);
 
-		// Canvas boyutlarını al
-		const canvas = canvasRef;
-		const canvasWidth = canvas.width;
-		const canvasHeight = canvas.height;
-
-		// Video'nun canvas içindeki boyutlarını ve pozisyonunu hesapla
-		const videoRatio = videoWidth / videoHeight;
-		const canvasRatio = canvasWidth / canvasHeight;
-		let displayWidth, displayHeight;
-
-		if (videoRatio > canvasRatio) {
-			displayWidth = canvasWidth - padding * 2;
-			displayHeight = displayWidth / videoRatio;
-		} else {
-			displayHeight = canvasHeight - padding * 2;
-			displayWidth = displayHeight * videoRatio;
-		}
-
-		// Video'nun canvas içindeki pozisyonunu hesapla (padding dahil)
-		const videoX = (canvasWidth - displayWidth) / 2;
-		const videoY = (canvasHeight - displayHeight) / 2;
-
-		// İki pozisyon arasında cubic interpolasyon yap
-		const t = framePart;
-		const t2 = t * t;
-		const t3 = t2 * t;
-		const interpolatedX =
-			currentPos.x + (nextPos.x - currentPos.x) * (3 * t2 - 2 * t3);
-		const interpolatedY =
-			currentPos.y + (nextPos.y - currentPos.y) * (3 * t2 - 2 * t3);
-
-		// Video içindeki oransal pozisyonu hesapla (0-1 arası)
-		const normalizedX = interpolatedX / videoWidth;
-		const normalizedY = interpolatedY / videoHeight;
-
-		// Mouse'un temel pozisyonunu hesapla
-		let finalX = videoX + normalizedX * displayWidth;
-		let finalY = videoY + normalizedY * displayHeight;
-
-		// Zoom durumunda pozisyonu ayarla
-		const centerX = canvasWidth / 2;
-		const centerY = canvasHeight / 2;
-		let originX = centerX;
-		let originY = centerY;
-
-		// Zoom origin noktasını belirle
-		const activeZoom = zoomRanges.find(
-			(range) => currentTime >= range.start && currentTime <= range.end
+		// Mouse pozisyonunu hesapla
+		const { finalX, finalY } = calculateMousePosition(
+			currentPos,
+			nextPos,
+			framePart,
+			videoElement.videoWidth,
+			videoElement.videoHeight,
+			displayWidth,
+			displayHeight,
+			videoX,
+			videoY
 		);
 
-		// Son zoom pozisyonunu kaydet
-		if (activeZoom?.position) {
-			switch (activeZoom.position) {
-				case "top-left":
-					originX = videoX;
-					originY = videoY;
-					break;
-				case "top-center":
-					originX = centerX;
-					originY = videoY;
-					break;
-				case "top-right":
-					originX = videoX + displayWidth;
-					originY = videoY;
-					break;
-				case "middle-left":
-					originX = videoX;
-					originY = centerY;
-					break;
-				case "middle-right":
-					originX = videoX + displayWidth;
-					originY = centerY;
-					break;
-				case "bottom-left":
-					originX = videoX;
-					originY = videoY + displayHeight;
-					break;
-				case "bottom-center":
-					originX = centerX;
-					originY = videoY + displayHeight;
-					break;
-				case "bottom-right":
-					originX = videoX + displayWidth;
-					originY = videoY + displayHeight;
-					break;
-			}
-			lastZoomPosition.value = activeZoom.position;
-		} else if (lastZoomPosition.value) {
-			// Zoom devreden çıkarken son pozisyonu kullan
-			switch (lastZoomPosition.value) {
-				case "top-left":
-					originX = videoX;
-					originY = videoY;
-					break;
-				case "top-center":
-					originX = centerX;
-					originY = videoY;
-					break;
-				case "top-right":
-					originX = videoX + displayWidth;
-					originY = videoY;
-					break;
-				case "middle-left":
-					originX = videoX;
-					originY = centerY;
-					break;
-				case "middle-right":
-					originX = videoX + displayWidth;
-					originY = centerY;
-					break;
-				case "bottom-left":
-					originX = videoX;
-					originY = videoY + displayHeight;
-					break;
-				case "bottom-center":
-					originX = centerX;
-					originY = videoY + displayHeight;
-					break;
-				case "bottom-right":
-					originX = videoX + displayWidth;
-					originY = videoY + displayHeight;
-					break;
-			}
-		}
+		// Zoom origin'i hesapla
+		const { originX, originY } = calculateZoomOrigin(
+			zoomRanges.find(
+				(range) => currentTime >= range.start && currentTime <= range.end
+			)?.position ||
+				lastZoomPosition.value ||
+				"center",
+			videoX,
+			videoY,
+			displayWidth,
+			displayHeight,
+			canvasRef.width / 2,
+			canvasRef.height / 2
+		);
 
 		// Mouse pozisyonunu zoom origin'e göre ayarla
 		const relativeX = finalX - originX;
 		const relativeY = finalY - originY;
 
 		// Zoom geçişlerinde smooth pozisyon hesaplama
-		const currentScale = videoScale;
+		const activeZoom = zoomRanges.find(
+			(range) => currentTime >= range.start && currentTime <= range.end
+		);
 		const targetScale = activeZoom ? activeZoom.scale : 1;
-		const lerpFactor = 0.1; // Zoom ile aynı lerp faktörü
-
-		// Scale değişimini smooth yap
-		const smoothScale =
-			currentScale + (targetScale - currentScale) * lerpFactor;
+		const lerpFactor = 0.1;
+		const smoothScale = videoScale + (targetScale - videoScale) * lerpFactor;
 
 		// Pozisyonu smooth scale ile hesapla
-		finalX = originX + relativeX * smoothScale;
-		finalY = originY + relativeY * smoothScale;
+		const adjustedX = originX + relativeX * smoothScale;
+		const adjustedY = originY + relativeY * smoothScale;
 
-		// Mouse hızını ve yönünü hesapla
-		const moveX = nextPos.x - currentPos.x;
-		const moveY = nextPos.y - currentPos.y;
-		const speed = Math.sqrt(moveX * moveX + moveY * moveY);
-		const moveDistance = Math.sqrt(moveX * moveX + moveY * moveY);
-
-		// Hareket yönünü hesapla ve normalize et
-		const dirX = speed > 0 ? moveX / speed : 0;
-		const dirY = speed > 0 ? moveY / speed : 0;
+		// Mouse hareketini hesapla
+		const { speed, moveDistance, dirX, dirY } = calculateMouseMovement(
+			currentPos,
+			nextPos
+		);
 
 		ctx.save();
 
 		// Motion blur efektini uygula
 		applyMotionBlur(
 			ctx,
-			finalX,
-			finalY,
+			adjustedX,
+			adjustedY,
 			dirX,
 			dirY,
 			speed,
