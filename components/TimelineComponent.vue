@@ -210,7 +210,8 @@
 									:key="index"
 									class="h-full ring-inset relative transition-all duration-200 group"
 									:class="{
-										'ring-[1px] ring-white z-50': selectedZoomIndex === index,
+										'ring-[1px] ring-white z-50 selected-zoom':
+											selectedZoomIndex === index,
 										'hover:!ring-[1px] hover:!ring-white hover:z-50':
 											!isZoomResizing && selectedZoomIndex !== index,
 										'z-10':
@@ -1199,5 +1200,20 @@ button:disabled {
 
 .timeline-content {
 	will-change: transform, width;
+}
+
+/* Zoom segment bounce animasyonu */
+@keyframes bounce {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-2px);
+	}
+}
+
+.group.selected-zoom:not(:hover) {
+	animation: bounce 1s ease-in-out infinite;
 }
 </style>
