@@ -218,11 +218,14 @@
 											!isZoomResizing &&
 											selectedZoomIndex !== index &&
 											!isHovered,
+										'cursor-grab': !isZoomDragging,
+										'cursor-grabbing': isZoomDragging,
 									}"
 									:style="getZoomStyle(range, index)"
 									@mouseenter="handleZoomRangeEnter(range, index)"
 									@mouseleave="handleZoomRangeLeave"
 									@click.stop="handleZoomSegmentClick($event, index)"
+									@mousedown.stop="handleZoomDragStart($event, index)"
 								>
 									<!-- Sol Resize Handle -->
 									<div
@@ -1146,6 +1149,112 @@ const isZoomTrackHovered = ref(false);
 const handleZoomTrackLeave = () => {
 	hideGhostZoom();
 	isZoomTrackHovered = false;
+};
+
+// Zoom sürükleme state'leri
+const isZoomDragging = ref(false);
+const draggedZoomIndex = ref(null);
+const dragStartX = ref(0);
+const dragStartRange = ref(null);
+
+// Zoom segmenti sürükleme başlatma
+const handleZoomDragStart = (event, index) => {
+	if (isZoomResizing.value) return;
+
+	event.stopPropagation();
+	isZoomDragging.value = true;
+	draggedZoomIndex.value = index;
+	dragStartX.value = event.clientX;
+	dragStartRange.value = { ...zoomRanges.value[index] };
+
+	window.addEventListener("mousemove", handleZoomDrag);
+	window.addEventListener("mouseup", handleZoomDragEnd);
+};
+
+// Zoom segmenti sürükleme
+const handleZoomDrag = (event) => {
+	if (!isZoomDragging.value || draggedZoomIndex.value === null) return;
+
+	const deltaX = event.clientX - dragStartX.value;
+	const timeline = timelineRef.value;
+	const timelineRect = timeline.getBoundingClientRect();
+	const deltaTime = (deltaX / timelineRect.width) * maxDuration.value;
+
+	const currentRange = { ...dragStartRange.value };
+	const duration = currentRange.end - currentRange.start;
+
+	// Yeni başlangıç ve bitiş zamanlarını hesapla
+	let newStart = currentRange.start + deltaTime;
+	let newEnd = newStart + duration;
+
+	// Diğer segmentlerle çakışma kontrolü ve snap
+	const otherRanges = zoomRanges.value.filter(
+		(_, i) => i !== draggedZoomIndex.value
+	);
+
+	// Sınırları kontrol et
+	if (newStart < 0) {
+		newStart = 0;
+		newEnd = duration;
+	}
+
+	if (newEnd > props.duration) {
+		newEnd = props.duration;
+		newStart = newEnd - duration;
+	}
+
+	// En yakın snap noktasını bul
+	const snapThreshold = 0.1; // 100ms snap toleransı
+	let shouldSnap = false;
+	let snappedStart = newStart;
+	let snappedEnd = newEnd;
+
+	// Diğer segmentlerin başlangıç ve bitiş noktalarını kontrol et
+	otherRanges.forEach((range) => {
+		// Başlangıç noktasını range'in sonuna snap
+		if (Math.abs(newStart - range.end) < snapThreshold) {
+			snappedStart = range.end;
+			snappedEnd = range.end + duration;
+			shouldSnap = true;
+		}
+		// Bitiş noktasını range'in başlangıcına snap
+		if (Math.abs(newEnd - range.start) < snapThreshold) {
+			snappedEnd = range.start;
+			snappedStart = range.start - duration;
+			shouldSnap = true;
+		}
+	});
+
+	// Çakışma kontrolü
+	const hasCollision = otherRanges.some((range) => {
+		// Tam uç uca gelme durumunu çakışma olarak sayma
+		const isEndToEnd =
+			Math.abs(newStart - range.end) < snapThreshold ||
+			Math.abs(newEnd - range.start) < snapThreshold;
+		if (isEndToEnd) return false;
+
+		return newStart < range.end && newEnd > range.start;
+	});
+
+	if (!hasCollision) {
+		const updatedRange = {
+			...currentRange,
+			start: shouldSnap ? snappedStart : newStart,
+			end: shouldSnap ? snappedEnd : newEnd,
+		};
+		updateZoomRange(draggedZoomIndex.value, updatedRange);
+	}
+};
+
+// Zoom segmenti sürükleme bitirme
+const handleZoomDragEnd = () => {
+	isZoomDragging.value = false;
+	draggedZoomIndex.value = null;
+	dragStartX.value = 0;
+	dragStartRange.value = null;
+
+	window.removeEventListener("mousemove", handleZoomDrag);
+	window.removeEventListener("mouseup", handleZoomDragEnd);
 };
 </script>
 
