@@ -784,9 +784,10 @@ const updateCanvas = (timestamp) => {
 		ctx.restore();
 	}
 
-	if (videoScale.value > 1) {
+	// Zoom efektini uygula
+	if (currentZoomRange.value) {
 		// Scale edilmiş video boyutlarını hesapla
-		const scale = videoScale.value;
+		const scale = currentZoomRange.value.scale || 2;
 
 		// Mouse pozisyonuna göre transform origin'i hesapla
 		const normalizedX =
