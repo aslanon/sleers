@@ -14,7 +14,7 @@ const currentZoomRange = ref(null);
 const mouseMotionEnabled = computed(() => motionBlurValue.value > 0);
 
 // Aktif zoom range için computed değerler
-const activeZoomScale = computed(() => currentZoomRange.value?.scale || 2);
+const activeZoomScale = computed(() => currentZoomRange.value?.scale || 1.25);
 const activeZoomPosition = computed(
 	() => currentZoomRange.value?.position || "center"
 );
@@ -52,7 +52,7 @@ export const usePlayerSettings = () => {
 		// Default değerleri ekle
 		const newRange = {
 			...range,
-			scale: range.scale || 2,
+			scale: range.scale || 1.25,
 			position: range.position || "center",
 		};
 

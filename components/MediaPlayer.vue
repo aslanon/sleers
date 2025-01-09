@@ -791,7 +791,7 @@ const updateCanvas = (timestamp) => {
 	);
 
 	// Zoom efektini uygula
-	const targetScale = activeZoom ? activeZoom.scale : 1;
+	const targetScale = activeZoom ? activeZoom.scale || 1.25 : 1;
 
 	// Smooth transition için lerp uygula
 	const lerpFactor = 0.1;
@@ -1813,19 +1813,26 @@ const checkZoomSegments = (currentTime) => {
 		(range) => Math.abs(currentTime - range.start) < 0.1 // 100ms tolerans
 	);
 
+	// Eğer bir zoom segmentinin tam bitişindeysek
+	const endingSegment = sortedRanges.find(
+		(range) => Math.abs(currentTime - range.end) < 0.1 // 100ms tolerans
+	);
+
 	if (startingSegment) {
 		// Yeni zoom segmenti başlıyor
 		if (startingSegment !== currentZoomRange.value) {
-			videoScale.value = 1; // Smooth geçiş için scale'i resetle
 			// Sadece zoom değerlerini kullan, ayarları açma
 			if (startingSegment.scale) {
-				videoScale.value = startingSegment.scale;
+				// Smooth geçiş için mevcut scale'i koruyoruz, targetScale updateCanvas'ta güncelleniyor
+				setCurrentZoomRange(startingSegment);
 			}
 		}
 	}
 	// Zoom segmentinden çıkıyorsak
-	else if (!activeZoom && currentZoomRange.value) {
-		videoScale.value = 1;
+	else if (endingSegment || (!activeZoom && currentZoomRange.value)) {
+		// Smooth geçiş için sadece currentZoomRange'i null yapıyoruz
+		// videoScale updateCanvas'ta smooth bir şekilde 1'e dönecek
+		setCurrentZoomRange(null);
 	}
 };
 
