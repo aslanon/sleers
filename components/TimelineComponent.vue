@@ -177,7 +177,7 @@
 							@mouseleave="handleZoomTrackLeave"
 						>
 							<div
-								class="flex flex-row h-[50px] relative w-full bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+								class="flex flex-row h-[50px] relative w-full"
 								:class="{ 'z-50': isZoomTrackHovered }"
 							>
 								<!-- Empty State Label -->
