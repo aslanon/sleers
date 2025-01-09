@@ -338,19 +338,18 @@ const pause = async () => {
 const animateVideoScale = (timestamp) => {
 	if (!ctx || !canvasRef.value || videoState.value.isPaused) return;
 
-	// Smooth lerp ile scale'i güncelle
-	const lerpFactor = 0.1;
-	const targetScale = currentZoomRange.value ? 8 : 1;
+	// Store'dan gelen scale değerini kullan
+	const targetScale = currentZoomRange.value ? currentZoomRange.value.scale : 1;
 	const scaleDiff = targetScale - videoScale.value;
 
+	// Smooth transition için lerp
+	const lerpFactor = 0.1;
 	if (Math.abs(scaleDiff) > 0.001) {
 		videoScale.value += scaleDiff * lerpFactor;
 		// Canvas'ı güncelle
 		updateCanvas(timestamp);
 		// Animasyonu devam ettir
-		if (!videoState.value.isPaused) {
-			requestAnimationFrame(animateVideoScale);
-		}
+		requestAnimationFrame(animateVideoScale);
 	}
 };
 
@@ -776,10 +775,8 @@ const updateCanvas = (timestamp) => {
 		(range) => currentTime >= range.start && currentTime <= range.end
 	);
 
-	// Zoom efektini uygula
-	const targetScale = activeZoom ? activeZoom.scale || 1.25 : 1;
-
-	// Smooth transition için lerp uygula
+	// Store'dan gelen scale değerini kullan
+	const targetScale = activeZoom ? activeZoom.scale : 1;
 	const lerpFactor = 0.1;
 	videoScale.value =
 		videoScale.value + (targetScale - videoScale.value) * lerpFactor;
@@ -1768,32 +1765,24 @@ const applyZoomSegment = (zoomRange, currentTime) => {
 
 	const container = containerRef.value.getBoundingClientRect();
 
-	// Başlangıç değerlerini kaydet (segment değiştiğinde)
+	// Store'dan gelen scale değerini kullan
 	if (!zoomRange) {
 		// Zoom segmenti yoksa başlangıç değerlerine dön
 		targetScale.value = 1;
-		const centerX = container.width / 2;
-		const centerY = container.height / 2;
-		targetPosition.value = {
-			x: centerX - (videoElement.videoWidth * targetScale.value) / 2,
-			y: centerY - (videoElement.videoHeight * targetScale.value) / 2,
-		};
-		initialScale.value = 1;
-		initialPosition.value = { ...targetPosition.value };
 	} else {
-		// Zoom segmenti varsa direkt hedef değerlere geç
+		// Zoom segmenti varsa store'dan gelen scale değerini kullan
 		targetScale.value = zoomRange.scale;
-
-		// Video'nun merkez noktasını hesapla
-		const centerX = container.width / 2;
-		const centerY = container.height / 2;
-
-		// Hedef pozisyonu hesapla
-		targetPosition.value = {
-			x: centerX - (videoElement.videoWidth * targetScale.value) / 2,
-			y: centerY - (videoElement.videoHeight * targetScale.value) / 2,
-		};
 	}
+
+	// Video'nun merkez noktasını hesapla
+	const centerX = container.width / 2;
+	const centerY = container.height / 2;
+
+	// Hedef pozisyonu hesapla
+	targetPosition.value = {
+		x: centerX - (videoElement.videoWidth * targetScale.value) / 2,
+		y: centerY - (videoElement.videoHeight * targetScale.value) / 2,
+	};
 
 	// Animasyonu başlat
 	isZoomAnimating.value = true;
