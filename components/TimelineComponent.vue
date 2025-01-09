@@ -969,6 +969,36 @@ const handleZoomTrackClick = (event) => {
 	hideGhostZoom();
 };
 
+// Zoom segmenti sürükleme başlatma
+const handleZoomDragStart = (event, index) => {
+	if (isZoomResizing.value) return;
+
+	event.stopPropagation();
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const clickX = event.clientX - rect.left + timeline.scrollLeft;
+	const clickTime = (clickX / timelineWidth.value) * maxDuration.value;
+
+	const segment = zoomRanges.value[index];
+	const clickOffset = clickTime - segment.start;
+
+	isZoomDragging.value = true;
+	draggedZoomIndex.value = index;
+	dragStartRange.value = {
+		...segment,
+		clickOffset, // Tıklanan noktanın segment başlangıcına olan uzaklığı
+	};
+
+	// Performance için style güncellemesi
+	const segmentEl = event.currentTarget;
+	segmentEl.style.willChange = "transform";
+	segmentEl.style.transition = "none";
+
+	window.addEventListener("mousemove", handleZoomDrag, { passive: true });
+	window.addEventListener("mouseup", handleZoomDragEnd);
+};
+
 // Zoom segmenti sürükleme
 const handleZoomDrag = (event) => {
 	if (!isZoomDragging.value || draggedZoomIndex.value === null) return;
@@ -982,10 +1012,9 @@ const handleZoomDrag = (event) => {
 
 	const segment = dragStartRange.value;
 	const duration = segment.end - segment.start;
-	const offset = currentTime - (segment.start + duration / 2);
 
-	// Yeni pozisyonu hesapla
-	let newStart = segment.start + offset;
+	// Tıklanan noktayı koruyarak yeni pozisyonu hesapla
+	let newStart = currentTime - segment.clickOffset;
 	let newEnd = newStart + duration;
 
 	// Sınırları kontrol et
@@ -1058,25 +1087,6 @@ const handleZoomDrag = (event) => {
 			updateZoomRange(draggedZoomIndex.value, updatedRange);
 		});
 	}
-};
-
-// Zoom segmenti sürükleme başlatma
-const handleZoomDragStart = (event, index) => {
-	if (isZoomResizing.value) return;
-
-	event.stopPropagation();
-	isZoomDragging.value = true;
-	draggedZoomIndex.value = index;
-	dragStartX.value = event.clientX;
-	dragStartRange.value = { ...zoomRanges.value[index] };
-
-	// Performance için style güncellemesi
-	const segment = event.currentTarget;
-	segment.style.willChange = "transform";
-	segment.style.transition = "none";
-
-	window.addEventListener("mousemove", handleZoomDrag, { passive: true });
-	window.addEventListener("mouseup", handleZoomDragEnd);
 };
 
 // Zoom segmenti sürükleme bitirme
