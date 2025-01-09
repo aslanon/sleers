@@ -76,7 +76,11 @@
 					</div>
 
 					<!-- Video Track -->
-					<div class="absolute left-0 right-0 top-16 flex flex-col gap-2 px-2">
+					<div
+						class="absolute left-0 right-0 top-16 flex flex-col gap-2 px-2"
+						@mouseenter="isTimelineHovered = true"
+						@mouseleave="isTimelineHovered = false"
+					>
 						<!-- Segment Bar -->
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
@@ -91,7 +95,11 @@
 									:key="segment.id || index"
 									class="h-full ring-inset relative transition-all duration-200 group"
 									:class="{
-										'hover:!ring-[1px] hover:!ring-white': !isResizing,
+										'ring-[1px] ring-white z-50': activeSegmentIndex === index,
+										'hover:!ring-[1px] hover:!ring-white hover:z-50':
+											!isResizing && activeSegmentIndex !== index,
+										'z-10':
+											!isResizing && activeSegmentIndex !== index && !isHovered,
 									}"
 									:style="getSegmentStyle(segment, index)"
 									@click.stop="handleSegmentClick(index, $event)"
@@ -165,10 +173,12 @@
 							class="timeline-layer-bar w-full rounded-xl relative"
 							@click="handleZoomTrackClick"
 							@mousemove="handleZoomTrackMouseMove"
-							@mouseleave="hideGhostZoom"
+							@mouseenter="isZoomTrackHovered = true"
+							@mouseleave="handleZoomTrackLeave"
 						>
 							<div
 								class="flex flex-row h-[50px] relative w-full bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+								:class="{ 'z-50': isZoomTrackHovered }"
 							>
 								<!-- Empty State Label -->
 								<div
@@ -200,11 +210,18 @@
 									:key="index"
 									class="h-full ring-inset relative transition-all duration-200 group"
 									:class="{
-										'hover:!ring-[1px] hover:!ring-white': !isZoomResizing,
+										'ring-[1px] ring-white z-50': selectedZoomIndex === index,
+										'hover:!ring-[1px] hover:!ring-white hover:z-50':
+											!isZoomResizing && selectedZoomIndex !== index,
+										'z-10':
+											!isZoomResizing &&
+											selectedZoomIndex !== index &&
+											!isHovered,
 									}"
-									:style="getZoomStyle(range)"
-									@mouseenter="handleZoomRangeEnter(range)"
+									:style="getZoomStyle(range, index)"
+									@mouseenter="handleZoomRangeEnter(range, index)"
 									@mouseleave="handleZoomRangeLeave"
+									@click.stop="handleZoomSegmentClick($event, index)"
 								>
 									<!-- Sol Resize Handle -->
 									<div
@@ -261,7 +278,8 @@
 					<!-- Preview Playhead -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-4 bottom-0 w-[1px] z-30"
+						class="absolute top-4 bottom-0 w-[1px] transition-all duration-75"
+						:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -273,11 +291,13 @@
 					<!-- Preview Playhead Handle -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-4 w-3 h-5 z-30"
+						class="absolute top-4 w-3 h-5 transition-all duration-75"
+						:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
 						}"
+						@mousedown="handlePlayheadDragStart"
 					>
 						<div
 							class="w-3 h-3 rounded-full"
@@ -289,7 +309,8 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-[1px] z-20 transition-[left] duration-[50ms] ease-linear will-change-[left]"
+						class="absolute top-0 bottom-0 w-[1px] transition-[left] duration-[50ms] ease-linear will-change-[left]"
+						:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -300,7 +321,8 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute top-0 w-3 h-5 cursor-move z-20 transition-[left] duration-[50ms] ease-linear will-change-[left]"
+						class="absolute top-0 w-3 h-5 cursor-move transition-[left] duration-[50ms] ease-linear will-change-[left]"
+						:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -503,6 +525,7 @@ const activeSegmentIndex = ref(null);
 
 // Segment pozisyonlama hesaplamaları
 const getSegmentStyle = (segment, index) => {
+	const isActive = activeSegmentIndex.value === index;
 	const start = segment.start || segment.startTime || 0;
 	const end = segment.end || segment.endTime || maxDuration.value;
 	const width = ((end - start) / maxDuration.value) * 100;
@@ -513,13 +536,17 @@ const getSegmentStyle = (segment, index) => {
 		left: `${left}%`,
 		position: "absolute",
 		transition: "all 0.2s ease",
-		zIndex: activeSegmentIndex.value === index ? "10" : "1",
+		zIndex: isActive ? "10" : "1",
 		borderRadius: "10px",
 		backgroundColor: "rgb(140,91,7)",
-		background:
-			"linear-gradient(180deg, rgba(140,91,7,1) 0%, rgba(205,141,30,1) 100%, rgba(254,168,19,1) 100%)",
-		border: "0.25px solid rgba(255, 255, 255, 0.1)",
+		background: isActive
+			? "linear-gradient(180deg, rgba(160,111,27,1) 0%, rgba(225,161,50,1) 100%, rgba(254,168,19,1) 100%)"
+			: "linear-gradient(180deg, rgba(140,91,7,1) 0%, rgba(205,141,30,1) 100%, rgba(254,168,19,1) 100%)",
+		border: isActive
+			? "1px solid rgba(255, 255, 255, 0.3)"
+			: "0.25px solid rgba(255, 255, 255, 0.1)",
 		height: "100%",
+		cursor: "pointer",
 	};
 };
 
@@ -781,6 +808,7 @@ const formatDuration = (seconds) => {
 onMounted(() => {
 	window.addEventListener("mouseup", stopDragging);
 	window.addEventListener("mousemove", handleDrag);
+	window.addEventListener("keydown", handleKeyDown);
 });
 
 onUnmounted(() => {
@@ -788,6 +816,7 @@ onUnmounted(() => {
 	window.removeEventListener("mousemove", handleDrag);
 	window.removeEventListener("mousemove", handlePlayheadDrag);
 	window.removeEventListener("mouseup", handlePlayheadDragEnd);
+	window.removeEventListener("keydown", handleKeyDown);
 });
 
 // Resize state'leri
@@ -1030,18 +1059,22 @@ const calculateGhostBarWidth = () => {
 };
 
 // Zoom segmentleri için style hesaplama fonksiyonu ekleyelim
-const getZoomStyle = (range) => {
+const getZoomStyle = (range, index) => {
+	const isSelected = selectedZoomIndex.value === index;
 	return {
 		position: "absolute",
 		left: `${(range.start / maxDuration.value) * timelineWidth.value}px`,
 		width: `${
 			((range.end - range.start) / maxDuration.value) * timelineWidth.value
 		}px`,
-		backgroundColor: "rgb(67, 42, 244)",
-		background: "linear-gradient(rgb(67, 42, 244) 0%, rgb(114 99 213) 100%)",
-		border: "0.25px solid rgba(255, 255, 255, 0.1)",
+		backgroundColor: isSelected ? "rgb(87, 62, 244)" : "rgb(67, 42, 244)",
+		background: isSelected
+			? "linear-gradient(rgb(87, 62, 244) 0%, rgb(134 119 233) 100%)"
+			: "linear-gradient(rgb(67, 42, 244) 0%, rgb(114 99 213) 100%)",
 		borderRadius: "10px",
 		height: "100%",
+		cursor: "pointer",
+		transition: "all 0.2s ease",
 	};
 };
 
@@ -1077,6 +1110,35 @@ const handlePlayheadDragEnd = () => {
 	isPlayheadDragging.value = false;
 	window.removeEventListener("mousemove", handlePlayheadDrag);
 	window.removeEventListener("mouseup", handlePlayheadDragEnd);
+};
+
+const selectedZoomIndex = ref(null);
+
+// Zoom segmentine tıklama
+const handleZoomSegmentClick = (event, index) => {
+	event.stopPropagation();
+	selectedZoomIndex.value = index;
+};
+
+// Klavye olaylarını dinle
+const handleKeyDown = (event) => {
+	if (
+		selectedZoomIndex.value !== null &&
+		(event.key === "Delete" || event.key === "Backspace")
+	) {
+		removeZoomRange(selectedZoomIndex.value);
+		selectedZoomIndex.value = null;
+	}
+};
+
+// Timeline hover state'i
+const isTimelineHovered = ref(false);
+const isZoomTrackHovered = ref(false);
+
+// Zoom track'ten mouse çıktığında
+const handleZoomTrackLeave = () => {
+	hideGhostZoom();
+	isZoomTrackHovered = false;
 };
 </script>
 
