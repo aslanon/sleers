@@ -842,7 +842,12 @@ const updateCanvas = (timestamp) => {
 		ctx.translate(-transformOriginX, -transformOriginY);
 	}
 
-	// Shadow için yeni bir state kaydet
+	// Video alanını kırp ve radius uygula
+	ctx.beginPath();
+	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+	ctx.clip();
+
+	// Shadow için yeni bir state kaydet ve shadow çiz
 	if (shadowSize.value > 0) {
 		ctx.save();
 		ctx.beginPath();
@@ -855,11 +860,6 @@ const updateCanvas = (timestamp) => {
 		ctx.fill();
 		ctx.restore();
 	}
-
-	// Video alanını kırp ve radius uygula
-	ctx.beginPath();
-	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
-	ctx.clip();
 
 	// Video'yu çiz
 	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
