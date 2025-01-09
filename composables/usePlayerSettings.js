@@ -9,6 +9,19 @@ const shadowSize = ref(0);
 const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
+// Motion blur için sabitler
+const MOTION_BLUR_CONSTANTS = {
+	MIN_SPEED_THRESHOLD: 1.2,
+	MAX_SPEED: 5.0,
+	MIN_DISTANCE_THRESHOLD: 20,
+	TRAIL_STEPS: 4,
+	TRAIL_OPACITY_BASE: 0.35,
+	TRAIL_OFFSET_MULTIPLIER: 2,
+	BLUR_BASE: 3,
+	MOVEMENT_ANGLE: 10,
+	SKEW_FACTOR: 0.03,
+	STRETCH_FACTOR: 0.08,
+};
 
 // Motion efekti için computed değer
 const mouseMotionEnabled = computed(() => motionBlurValue.value > 0);
@@ -124,7 +137,7 @@ export const usePlayerSettings = () => {
 		mouseMotionEnabled,
 		backgroundColor,
 		padding,
-
+		MOTION_BLUR_CONSTANTS,
 		radius,
 		shadowSize,
 		cropRatio,
