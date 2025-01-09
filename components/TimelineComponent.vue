@@ -654,6 +654,9 @@ const handleSegmentDragEnd = () => {
 const handleTimelineClick = (e) => {
 	if (isDragging.value || isResizing.value) return;
 
+	// Seçili zoom segmentini temizle
+	selectedZoomIndex.value = null;
+
 	const container = timelineRef.value;
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
@@ -926,6 +929,9 @@ const initialClientX = ref(null);
 // Zoom range ekleme
 const handleZoomTrackClick = (event) => {
 	if (isZoomResizing.value) return;
+
+	// Seçili zoom segmentini temizle
+	selectedZoomIndex.value = null;
 
 	const rect = event.currentTarget.getBoundingClientRect();
 	const clickX = event.clientX - rect.left;
