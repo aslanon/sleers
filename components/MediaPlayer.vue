@@ -32,6 +32,23 @@
 
 <script setup>
 import cursorSvg from "~/assets/cursors/default.svg";
+import { useVideoZoom } from "~/composables/useVideoZoom";
+
+const emit = defineEmits([
+	"videoLoaded",
+	"videoEnded",
+	"videoPaused",
+	"timeUpdate",
+	"cropChange",
+	"play",
+	"pause",
+	"seeking",
+	"seeked",
+	"rateChange",
+	"volumeChange",
+	"fullscreenChange",
+	"muteChange",
+]);
 
 const props = defineProps({
 	videoUrl: {
@@ -115,22 +132,6 @@ const {
 	setCurrentZoomRange,
 } = usePlayerSettings();
 
-const emit = defineEmits([
-	"videoLoaded",
-	"videoEnded",
-	"videoPaused",
-	"timeUpdate",
-	"cropChange",
-	"play",
-	"pause",
-	"seeking",
-	"seeked",
-	"rateChange",
-	"volumeChange",
-	"fullscreenChange",
-	"muteChange",
-]);
-
 // Referanslar
 const containerRef = ref(null);
 const canvasRef = ref(null);
@@ -143,19 +144,32 @@ let ctx = null;
 // Video objesi
 let videoElement = null;
 
+// Zoom yönetimi
+const {
+	scale,
+	videoScale,
+	targetScale,
+	targetPosition,
+	isZoomAnimating,
+	lastZoomPosition,
+	calculateZoomOrigin,
+	applyZoomSegment,
+	checkZoomSegments,
+	cleanup: cleanupZoom,
+} = useVideoZoom(videoElement, containerRef, canvasRef);
+
+// Transform ve kırpma state'leri
+const position = ref({ x: 0, y: 0 });
+const dragStart = ref({ x: 0, y: 0 });
+const cropArea = ref({ x: 0, y: 0, width: 0, height: 0 });
+const videoSize = ref({ width: 0, height: 0 });
+const selectedAspectRatio = ref("");
+
 // Render ve animasyon state'leri
 let animationFrame = null;
 let lastFrameTime = 0;
 const FPS = 60;
 const frameInterval = 1000 / FPS;
-
-// Transform ve kırpma state'leri
-const position = ref({ x: 0, y: 0 });
-const scale = ref(1);
-const dragStart = ref({ x: 0, y: 0 });
-const cropArea = ref({ x: 0, y: 0, width: 0, height: 0 });
-const videoSize = ref({ width: 0, height: 0 });
-const selectedAspectRatio = ref("");
 
 // Video state yönetimi
 const videoState = ref({
@@ -622,9 +636,7 @@ const updateCanvas = (timestamp) => {
 
 	// Aktif zoom segmentini bul
 	const currentTime = videoElement.currentTime;
-	const activeZoom = zoomRanges.value.find(
-		(range) => currentTime >= range.start && currentTime <= range.end
-	);
+	const activeZoom = checkZoomSegments(currentTime, zoomRanges.value);
 
 	// Store'dan gelen scale değerini kullan
 	const targetScale = activeZoom ? activeZoom.scale : 1;
@@ -636,46 +648,18 @@ const updateCanvas = (timestamp) => {
 	if (videoScale.value > 1.001) {
 		const centerX = canvasRef.value.width / 2;
 		const centerY = canvasRef.value.height / 2;
-		let transformOriginX = centerX;
-		let transformOriginY = centerY;
 
-		// Zoom segmentinin pozisyonuna göre transform origin'i ayarla
-		const position = activeZoom?.position || lastZoomPosition.value || "center";
-
-		switch (position) {
-			case "top-left":
-				transformOriginX = x;
-				transformOriginY = y;
-				break;
-			case "top-center":
-				transformOriginX = centerX;
-				transformOriginY = y;
-				break;
-			case "top-right":
-				transformOriginX = x + drawWidth;
-				transformOriginY = y;
-				break;
-			case "middle-left":
-				transformOriginX = x;
-				transformOriginY = centerY;
-				break;
-			case "middle-right":
-				transformOriginX = x + drawWidth;
-				transformOriginY = centerY;
-				break;
-			case "bottom-left":
-				transformOriginX = x;
-				transformOriginY = y + drawHeight;
-				break;
-			case "bottom-center":
-				transformOriginX = centerX;
-				transformOriginY = y + drawHeight;
-				break;
-			case "bottom-right":
-				transformOriginX = x + drawWidth;
-				transformOriginY = y + drawHeight;
-				break;
-		}
+		// Zoom origin'i hesapla
+		const { originX: transformOriginX, originY: transformOriginY } =
+			calculateZoomOrigin(
+				activeZoom?.position || lastZoomPosition.value || "center",
+				x,
+				y,
+				drawWidth,
+				drawHeight,
+				centerX,
+				centerY
+			);
 
 		// Son zoom pozisyonunu kaydet
 		if (activeZoom?.position) {
@@ -1019,6 +1003,7 @@ onUnmounted(() => {
 	// Video ve canvas referanslarını temizle
 	videoRef.value = null;
 	canvasRef.value = null;
+	cleanupZoom();
 });
 
 // Props değişikliklerini izle
@@ -1571,136 +1556,6 @@ watch(
 	},
 	{ immediate: true }
 );
-
-// Zoom animasyonu için state'ler
-const targetScale = ref(1);
-const targetPosition = ref({ x: 0, y: 0 });
-const isZoomAnimating = ref(false);
-let zoomAnimationFrame = null;
-const currentSegmentId = ref(null);
-
-// Zoom segmentini uygula
-const applyZoomSegment = (zoomRange, currentTime) => {
-	if (!containerRef.value || !videoElement) return;
-
-	// Eğer aynı segment içindeysek tekrar zoom yapma
-	const segmentId = zoomRange ? `${zoomRange.start}-${zoomRange.end}` : null;
-	if (segmentId === currentSegmentId.value) {
-		return;
-	}
-
-	// Yeni segment'e geçtik, id'yi güncelle
-	currentSegmentId.value = segmentId;
-
-	const container = containerRef.value.getBoundingClientRect();
-
-	// Store'dan gelen scale değerini kullan
-	if (!zoomRange) {
-		// Zoom segmenti yoksa başlangıç değerlerine dön
-		targetScale.value = 1;
-	} else {
-		// Zoom segmenti varsa store'dan gelen scale değerini kullan
-		targetScale.value = zoomRange.scale;
-	}
-
-	// Video'nun merkez noktasını hesapla
-	const centerX = container.width / 2;
-	const centerY = container.height / 2;
-
-	// Hedef pozisyonu hesapla
-	targetPosition.value = {
-		x: centerX - (videoElement.videoWidth * targetScale.value) / 2,
-		y: centerY - (videoElement.videoHeight * targetScale.value) / 2,
-	};
-
-	// Animasyonu başlat
-	isZoomAnimating.value = true;
-	if (zoomAnimationFrame) {
-		cancelAnimationFrame(zoomAnimationFrame);
-	}
-	zoomAnimationFrame = requestAnimationFrame(animateZoom);
-};
-
-// Video zamanı güncellendiğinde zoom segmentlerini kontrol et
-const checkZoomSegments = (currentTime) => {
-	// Tüm zoom segmentlerini sırala
-	const sortedRanges = [...zoomRanges.value].sort((a, b) => a.start - b.start);
-
-	// Aktif zoom segmentini bul
-	const activeZoom = sortedRanges.find(
-		(range) => currentTime >= range.start && currentTime <= range.end
-	);
-
-	// Eğer bir zoom segmentinin tam başlangıcındaysak
-	const startingSegment = sortedRanges.find(
-		(range) => Math.abs(currentTime - range.start) < 0.1 // 100ms tolerans
-	);
-
-	// Eğer bir zoom segmentinin tam bitişindeysek
-	const endingSegment = sortedRanges.find(
-		(range) => Math.abs(currentTime - range.end) < 0.1 // 100ms tolerans
-	);
-
-	if (startingSegment) {
-		// Yeni zoom segmenti başlıyor
-		if (startingSegment !== currentZoomRange.value) {
-			// Sadece zoom efektini uygula, ayarları açma
-			applyZoomSegment(startingSegment, currentTime);
-		}
-	}
-	// Zoom segmentinden çıkıyorsak
-	else if (endingSegment || (!activeZoom && currentZoomRange.value)) {
-		applyZoomSegment(null, currentTime);
-		// Zoom tamamen bittiğinde son pozisyonu sıfırla
-		if (videoScale.value <= 1.001) {
-			lastZoomPosition.value = null;
-		}
-	}
-};
-
-// Zoom animasyonu
-const animateZoom = (timestamp) => {
-	if (!isZoomAnimating.value) return;
-
-	// Smooth lerp için faktör (0-1 arası)
-	const lerpFactor = 0.1;
-
-	// Scale'i animate et
-	scale.value = scale.value + (targetScale.value - scale.value) * lerpFactor;
-
-	// Pozisyonu animate et
-	position.value = {
-		x:
-			position.value.x +
-			(targetPosition.value.x - position.value.x) * lerpFactor,
-		y:
-			position.value.y +
-			(targetPosition.value.y - position.value.y) * lerpFactor,
-	};
-
-	// Animasyonu devam ettir veya bitir
-	const scaleDiff = Math.abs(scale.value - targetScale.value);
-	const posDiff =
-		Math.abs(position.value.x - targetPosition.value.x) +
-		Math.abs(position.value.y - targetPosition.value.y);
-
-	if (scaleDiff > 0.001 || posDiff > 0.1) {
-		zoomAnimationFrame = requestAnimationFrame(animateZoom);
-	} else {
-		isZoomAnimating.value = false;
-		scale.value = targetScale.value;
-		position.value = targetPosition.value;
-	}
-
-	// Canvas'ı güncelle
-	updateCanvas(timestamp);
-};
-
-// Video scale state'i
-const videoScale = ref(1);
-
-// Son zoom pozisyonunu takip etmek için ref ekle
-const lastZoomPosition = ref(null);
 </script>
 
 <style scoped>
