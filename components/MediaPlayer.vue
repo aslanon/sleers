@@ -784,27 +784,75 @@ const updateCanvas = (timestamp) => {
 		ctx.restore();
 	}
 
+	// Aktif zoom segmentini bul
+	const currentTime = videoElement.currentTime;
+	const activeZoom = zoomRanges.value.find(
+		(range) => currentTime >= range.start && currentTime <= range.end
+	);
+
 	// Zoom efektini uygula
-	if (currentZoomRange.value) {
-		// Scale edilmiş video boyutlarını hesapla
-		const scale = currentZoomRange.value.scale || 2;
+	const targetScale = activeZoom ? activeZoom.scale : 1;
 
-		// Mouse pozisyonuna göre transform origin'i hesapla
-		const normalizedX =
-			(mouseCanvasPosition.value.x * canvasRef.value.width - x) / drawWidth;
-		const normalizedY =
-			(mouseCanvasPosition.value.y * canvasRef.value.height - y) / drawHeight;
+	// Smooth transition için lerp uygula
+	const lerpFactor = 0.1;
+	videoScale.value =
+		videoScale.value + (targetScale - videoScale.value) * lerpFactor;
 
-		// Transform origin'i video alanının içinde tut
-		const clampedX = Math.max(0, Math.min(1, normalizedX));
-		const clampedY = Math.max(0, Math.min(1, normalizedY));
+	if (videoScale.value > 1.001) {
+		// Canvas'ın merkez noktası
+		const centerX = canvasRef.value.width / 2;
+		const centerY = canvasRef.value.height / 2;
 
-		const transformOriginX = x + drawWidth * clampedX;
-		const transformOriginY = y + drawHeight * clampedY;
+		let transformOriginX = centerX;
+		let transformOriginY = centerY;
+
+		// Zoom segmentinin pozisyonuna göre transform origin'i ayarla
+		if (activeZoom && activeZoom.position) {
+			const position = activeZoom.position;
+
+			switch (position) {
+				case "top-left":
+					transformOriginX = x;
+					transformOriginY = y;
+					break;
+				case "top-center":
+					transformOriginX = centerX;
+					transformOriginY = y;
+					break;
+				case "top-right":
+					transformOriginX = x + drawWidth;
+					transformOriginY = y;
+					break;
+				case "middle-left":
+					transformOriginX = x;
+					transformOriginY = centerY;
+					break;
+				case "center":
+					transformOriginX = centerX;
+					transformOriginY = centerY;
+					break;
+				case "middle-right":
+					transformOriginX = x + drawWidth;
+					transformOriginY = centerY;
+					break;
+				case "bottom-left":
+					transformOriginX = x;
+					transformOriginY = y + drawHeight;
+					break;
+				case "bottom-center":
+					transformOriginX = centerX;
+					transformOriginY = y + drawHeight;
+					break;
+				case "bottom-right":
+					transformOriginX = x + drawWidth;
+					transformOriginY = y + drawHeight;
+					break;
+			}
+		}
 
 		// Scale transformasyonu uygula
 		ctx.translate(transformOriginX, transformOriginY);
-		ctx.scale(scale, scale);
+		ctx.scale(videoScale.value, videoScale.value);
 		ctx.translate(-transformOriginX, -transformOriginY);
 	}
 
@@ -1752,14 +1800,32 @@ const applyZoomSegment = (zoomRange, currentTime) => {
 
 // Video zamanı güncellendiğinde zoom segmentlerini kontrol et
 const checkZoomSegments = (currentTime) => {
-	const activeZoom = zoomRanges.value.find(
+	// Tüm zoom segmentlerini sırala
+	const sortedRanges = [...zoomRanges.value].sort((a, b) => a.start - b.start);
+
+	// Aktif zoom segmentini bul
+	const activeZoom = sortedRanges.find(
 		(range) => currentTime >= range.start && currentTime <= range.end
 	);
 
-	// Aktif zoom segmentini güncelle
-	if (activeZoom !== currentZoomRange.value) {
-		setCurrentZoomRange(activeZoom);
-		applyZoomSegment(activeZoom, currentTime);
+	// Eğer bir zoom segmentinin tam başlangıcındaysak
+	const startingSegment = sortedRanges.find(
+		(range) => Math.abs(currentTime - range.start) < 0.1 // 100ms tolerans
+	);
+
+	if (startingSegment) {
+		// Yeni zoom segmenti başlıyor
+		if (startingSegment !== currentZoomRange.value) {
+			videoScale.value = 1; // Smooth geçiş için scale'i resetle
+			// Sadece zoom değerlerini kullan, ayarları açma
+			if (startingSegment.scale) {
+				videoScale.value = startingSegment.scale;
+			}
+		}
+	}
+	// Zoom segmentinden çıkıyorsak
+	else if (!activeZoom && currentZoomRange.value) {
+		videoScale.value = 1;
 	}
 };
 
@@ -1825,6 +1891,15 @@ const handleCanvasMouseMove = (e) => {
 // Canvas'tan mouse çıkınca
 const handleCanvasMouseLeave = () => {
 	mouseCanvasPosition.value = { x: 0.5, y: 0.5 }; // Merkeze dön
+};
+
+// Zoom segmentine tıklandığında
+const handleZoomSegmentClick = (event, index) => {
+	event.stopPropagation();
+	// Sadece tıklandığında ayarları aç
+	setCurrentZoomRange(zoomRanges.value[index]);
+	selectedZoomIndex.value = index;
+	emit("zoomSegmentSelect");
 };
 </script>
 

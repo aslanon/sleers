@@ -55,7 +55,23 @@ export const usePlayerSettings = () => {
 			scale: range.scale || 2,
 			position: range.position || "center",
 		};
-		zoomRanges.value.push(newRange);
+
+		// Aynı start-end aralığında başka bir range varsa güncelle
+		const existingIndex = zoomRanges.value.findIndex(
+			(r) => r.start === range.start && r.end === range.end
+		);
+
+		if (existingIndex !== -1) {
+			zoomRanges.value[existingIndex] = newRange;
+			if (
+				currentZoomRange.value?.start === range.start &&
+				currentZoomRange.value?.end === range.end
+			) {
+				currentZoomRange.value = newRange;
+			}
+		} else {
+			zoomRanges.value.push(newRange);
+		}
 	};
 
 	const removeZoomRange = (index) => {
@@ -66,60 +82,40 @@ export const usePlayerSettings = () => {
 	};
 
 	const updateZoomRange = (index, range) => {
-		// Zoom range'i güncelle
-		zoomRanges.value[index] = range;
+		// Sadece değiştirilmiş değerleri güncelle
+		const currentRange = zoomRanges.value[index];
+		const updatedRange = {
+			...currentRange,
+			...range,
+		};
+
+		zoomRanges.value[index] = updatedRange;
 
 		// Eğer aktif zoom range güncellendiyse, current'ı da güncelle
 		if (
 			currentZoomRange.value &&
-			currentZoomRange.value.start === zoomRanges.value[index].start &&
-			currentZoomRange.value.end === zoomRanges.value[index].end
+			currentZoomRange.value.start === range.start &&
+			currentZoomRange.value.end === range.end
 		) {
-			currentZoomRange.value = range;
+			currentZoomRange.value = updatedRange;
 		}
 	};
 
 	const setCurrentZoomRange = (range) => {
-		currentZoomRange.value = range;
-	};
-
-	// Zoom efektlerini uygula
-	const applyZoomEffect = (range) => {
-		if (!range)
-			return {
-				scale: 1,
-				position: "center",
-				transform: "translate(-50%, -50%) scale(1)",
-			};
-
-		const scale = range.scale || 2;
-		const position = range.position || "center";
-
-		// Pozisyona göre transform değerini hesapla
-		const transform = getTransformForPosition(position, scale);
-
-		return {
-			scale,
-			position,
-			transform,
-		};
-	};
-
-	// Pozisyona göre transform değerini hesapla
-	const getTransformForPosition = (position, scale) => {
-		const positions = {
-			"top-left": "translate(0%, 0%)",
-			"top-center": "translate(-50%, 0%)",
-			"top-right": "translate(-100%, 0%)",
-			"middle-left": "translate(0%, -50%)",
-			center: "translate(-50%, -50%)",
-			"middle-right": "translate(-100%, -50%)",
-			"bottom-left": "translate(0%, -100%)",
-			"bottom-center": "translate(-50%, -100%)",
-			"bottom-right": "translate(-100%, -100%)",
-		};
-
-		return `${positions[position]} scale(${scale})`;
+		if (range) {
+			// Eğer range zaten zoomRanges içinde varsa, o referansı kullan
+			const existingRange = zoomRanges.value.find(
+				(r) => r.start === range.start && r.end === range.end
+			);
+			// Sadece manuel olarak ayarlanmış değerleri kullan
+			if (existingRange) {
+				currentZoomRange.value = existingRange;
+			} else {
+				currentZoomRange.value = range;
+			}
+		} else {
+			currentZoomRange.value = null;
+		}
 	};
 
 	return {
@@ -128,6 +124,7 @@ export const usePlayerSettings = () => {
 		mouseMotionEnabled,
 		backgroundColor,
 		padding,
+
 		radius,
 		shadowSize,
 		cropRatio,
@@ -146,6 +143,5 @@ export const usePlayerSettings = () => {
 		setCurrentZoomRange,
 		activeZoomScale,
 		activeZoomPosition,
-		applyZoomEffect,
 	};
 };
