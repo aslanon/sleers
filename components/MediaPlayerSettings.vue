@@ -90,6 +90,7 @@ import { ref, watch } from "vue";
 import VideoSettings from "./player-settings/VideoSettings.vue";
 import MouseSettings from "./player-settings/MouseSettings.vue";
 import ZoomSettings from "./player-settings/ZoomSettings.vue";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
 	duration: {
@@ -115,6 +116,9 @@ const props = defineProps({
 
 const emit = defineEmits(["update:modelValue"]);
 
+// Store'dan currentZoomRange'i al
+const { currentZoomRange } = usePlayerSettings();
+
 // Tab yönetimi
 const tabs = [
 	{ id: "video", name: "Video" },
@@ -123,6 +127,13 @@ const tabs = [
 ];
 
 const currentTab = ref("video");
+
+// currentZoomRange değiştiğinde zoom sekmesine geç
+watch(currentZoomRange, (newRange) => {
+	if (newRange) {
+		currentTab.value = "zoom";
+	}
+});
 
 // Mouse ayarları
 const mouseSize = ref(props.modelValue);

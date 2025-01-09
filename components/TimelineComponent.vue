@@ -1132,7 +1132,8 @@ const handleZoomDragEnd = () => {
 
 // Zoom range'den mouse çıktığında deaktif et
 const handleZoomRangeLeave = () => {
-	setCurrentZoomRange(null);
+	// Mouse çıkınca ayarları kapatmayı kaldır
+	// setCurrentZoomRange(null);
 };
 
 // Zoom range yeniden boyutlandırma
@@ -1254,7 +1255,8 @@ const handleZoomResizeEnd = () => {
 
 // Zoom range'e mouse girdiğinde aktif et
 const handleZoomRangeEnter = (range) => {
-	setCurrentZoomRange(range);
+	// Hover'da ayarları açmayı kaldır
+	// setCurrentZoomRange(range);
 };
 
 // Script kısmına eklenecek state ve fonksiyonlar:
@@ -1370,8 +1372,8 @@ const selectedZoomIndex = ref(null);
 const handleZoomSegmentClick = (event, index) => {
 	event.stopPropagation();
 	selectedZoomIndex.value = index;
-	setCurrentZoomRange(zoomRanges.value[index]);
-	emit("zoomSegmentSelect"); // Zoom segmenti seçildiğinde event emit et
+	setCurrentZoomRange(zoomRanges.value[index]); // Sadece tıklamada ayarları aç
+	emit("zoomSegmentSelect");
 };
 
 // Klavye olaylarını dinle
