@@ -950,24 +950,44 @@ const handleZoomTrackClick = (event) => {
 	// Video süresini kontrol et
 	if (clickedTime >= props.duration) return;
 
-	// Tıklanan noktadan itibaren kalan süreyi hesapla
-	const remainingDuration = props.duration - clickedTime;
-	const zoomDuration = Math.min(1, remainingDuration); // 1 saniye veya kalan süre
+	// Tıklanan noktaya en yakın segmentleri bul
+	const sortedRanges = [...zoomRanges.value].sort((a, b) => a.start - b.start);
+	let prevSegment = null;
+	let nextSegment = null;
 
-	// Çakışma kontrolü
-	const hasCollision = zoomRanges.value.some((range) => {
-		return clickedTime < range.end && clickedTime + zoomDuration > range.start;
-	});
-
-	if (!hasCollision) {
-		const zoomRange = {
-			start: clickedTime,
-			end: clickedTime + zoomDuration,
-			scale: 2,
-		};
-		addZoomRange(zoomRange);
+	for (let i = 0; i < sortedRanges.length; i++) {
+		if (sortedRanges[i].start > clickedTime) {
+			nextSegment = sortedRanges[i];
+			prevSegment = sortedRanges[i - 1];
+			break;
+		}
 	}
 
+	if (!nextSegment && sortedRanges.length > 0) {
+		prevSegment = sortedRanges[sortedRanges.length - 1];
+	}
+
+	// Kullanılabilir alanı hesapla
+	let availableStart = prevSegment ? prevSegment.end : 0;
+	let availableEnd = nextSegment ? nextSegment.start : props.duration;
+
+	// Tıklanan nokta bu aralıkta değilse çık
+	if (clickedTime < availableStart || clickedTime > availableEnd) return;
+
+	// Tıklanan noktadan sonraki kullanılabilir alanı hesapla
+	const availableSpace = availableEnd - clickedTime;
+
+	// Yeni zoom segmentinin boyutunu hesapla (maksimum 1 saniye)
+	const zoomDuration = Math.min(1, availableSpace);
+
+	// Zoom range'i oluştur
+	const zoomRange = {
+		start: clickedTime,
+		end: clickedTime + zoomDuration,
+		scale: 2,
+	};
+
+	addZoomRange(zoomRange);
 	hideGhostZoom();
 };
 
