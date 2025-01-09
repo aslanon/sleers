@@ -945,8 +945,11 @@ const handleZoomTrackClick = (event) => {
 	const adjustedX = clickX + scrollLeft;
 	const clickedTime = (adjustedX / timelineWidth.value) * maxDuration.value;
 
+	// Video süresini kontrol et
+	if (clickedTime >= props.duration) return;
+
 	// Tıklanan noktadan itibaren kalan süreyi hesapla
-	const remainingDuration = maxDuration.value - clickedTime;
+	const remainingDuration = props.duration - clickedTime;
 	const zoomDuration = Math.min(1, remainingDuration); // 1 saniye veya kalan süre
 
 	// Çakışma kontrolü
@@ -990,8 +993,9 @@ const handleZoomDrag = (event) => {
 		newStart = 0;
 		newEnd = duration;
 	}
-	if (newEnd > maxDuration.value) {
-		newEnd = maxDuration.value;
+	// Video süresini kontrol et
+	if (newEnd > props.duration) {
+		newEnd = props.duration;
 		newStart = newEnd - duration;
 	}
 
@@ -1011,6 +1015,8 @@ const handleZoomDrag = (event) => {
 		if (Math.abs(newStart - range.end) < snapThreshold) {
 			snappedStart = range.end;
 			snappedEnd = range.end + duration;
+			// Video süresini kontrol et
+			if (snappedEnd > props.duration) continue;
 			shouldSnap = true;
 			break;
 		}
@@ -1018,6 +1024,8 @@ const handleZoomDrag = (event) => {
 		if (Math.abs(newEnd - range.start) < snapThreshold) {
 			snappedEnd = range.start;
 			snappedStart = range.start - duration;
+			// Başlangıç noktasını kontrol et
+			if (snappedStart < 0) continue;
 			shouldSnap = true;
 			break;
 		}
@@ -1165,8 +1173,14 @@ const handleZoomTrackMouseMove = (event) => {
 	const adjustedX = clickX + scrollLeft;
 	const hoverTime = (adjustedX / timelineWidth.value) * maxDuration.value;
 
+	// Video süresini kontrol et
+	if (hoverTime >= props.duration) {
+		ghostZoomPosition.value = null;
+		return;
+	}
+
 	// Kalan süreyi hesapla
-	const remainingDuration = maxDuration.value - hoverTime;
+	const remainingDuration = props.duration - hoverTime;
 	const ghostDuration = Math.min(1, remainingDuration);
 
 	// Çakışma kontrolü
