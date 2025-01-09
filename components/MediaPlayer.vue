@@ -1355,13 +1355,14 @@ const applyMotionBlur = (
 	speed,
 	moveDistance
 ) => {
-	const MIN_SPEED_THRESHOLD = 1.2; // Hız eşiğini artır
+	const MIN_SPEED_THRESHOLD = 1.2;
 	const MAX_SPEED = 5.0;
-	const MIN_DISTANCE_THRESHOLD = 20; // Minimum hareket mesafesi (piksel)
+	const MIN_DISTANCE_THRESHOLD = 20;
 
-	// Cursor'ın uç noktasını hesapla
-	const CURSOR_TIP_OFFSET_X = mouseSize.value * 0.1;
-	const CURSOR_TIP_OFFSET_Y = mouseSize.value * 0.1;
+	// Cursor'ın uç noktası için offset'leri ayarla
+	// mouseSize.value büyük cursor'ın boyutu, 32 varsayılan cursor boyutu
+	const CURSOR_TIP_OFFSET_X = mouseSize.value * 0.3; // Sol kenardan cursor ucuna olan mesafe
+	const CURSOR_TIP_OFFSET_Y = mouseSize.value * 0.2; // Üst kenardan cursor ucuna olan mesafe
 
 	// Hız ve mesafe kontrolü
 	const isSignificantMovement =
