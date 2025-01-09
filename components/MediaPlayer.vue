@@ -786,18 +786,25 @@ const initVideo = () => {
 		videoElement.playbackRate = videoState.value.playbackRate;
 
 		// Event listener'ları ekle
-		videoElement.addEventListener("loadedmetadata", onVideoMetadataLoaded);
-		videoElement.addEventListener("loadeddata", onVideoDataLoaded);
-		videoElement.addEventListener("durationchange", onDurationChange);
-		videoElement.addEventListener("timeupdate", onTimeUpdate);
-		videoElement.addEventListener("ended", onVideoEnded);
-		videoElement.addEventListener("error", onVideoError);
-		videoElement.addEventListener("play", onVideoPlay);
-		videoElement.addEventListener("pause", onVideoPause);
-		videoElement.addEventListener("seeking", onVideoSeeking);
-		videoElement.addEventListener("seeked", onVideoSeeked);
-		videoElement.addEventListener("ratechange", onVideoRateChange);
-		videoElement.addEventListener("volumechange", onVideoVolumeChange);
+		const { addEvents, removeEvents } = useVideoEvents(videoElement, {
+			onVideoMetadataLoaded,
+			onVideoDataLoaded,
+			onDurationChange,
+			onTimeUpdate,
+			onVideoEnded,
+			onVideoError,
+			onVideoPlay,
+			onVideoPause,
+			onVideoSeeking,
+			onVideoSeeked,
+			onVideoRateChange,
+			onVideoVolumeChange,
+		});
+
+		addEvents();
+
+		// Cleanup için removeEvents'i sakla
+		videoElement._removeEvents = removeEvents;
 
 		// Video URL'ini set et ve yüklemeyi başlat
 		videoElement.src = props.videoUrl;
@@ -990,16 +997,10 @@ onMounted(() => {
 
 onUnmounted(() => {
 	if (videoElement) {
-		videoElement.removeEventListener("loadedmetadata", onVideoMetadataLoaded);
-		videoElement.removeEventListener("timeupdate", onTimeUpdate);
-		videoElement.removeEventListener("ended", onVideoEnded);
-		videoElement.removeEventListener("error", onVideoError);
-		videoElement.removeEventListener("play", onVideoPlay);
-		videoElement.removeEventListener("pause", onVideoPause);
-		videoElement.removeEventListener("seeking", onVideoSeeking);
-		videoElement.removeEventListener("seeked", onVideoSeeked);
-		videoElement.removeEventListener("ratechange", onVideoRateChange);
-		videoElement.removeEventListener("volumechange", onVideoVolumeChange);
+		// Kayıtlı removeEvents fonksiyonunu çağır
+		if (videoElement._removeEvents) {
+			videoElement._removeEvents();
+		}
 		videoElement.src = "";
 		videoElement = null;
 	}
@@ -1694,14 +1695,6 @@ const animateZoom = (timestamp) => {
 	// Canvas'ı güncelle
 	updateCanvas(timestamp);
 };
-
-// Ease fonksiyonu
-const easeInOutCubic = (t) => {
-	return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-};
-
-// Mouse pozisyonu için state ekle
-const mouseCanvasPosition = ref({ x: 0.5, y: 0.5 });
 
 // Video scale state'i
 const videoScale = ref(1);
