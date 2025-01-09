@@ -1394,10 +1394,20 @@ const applyMotionBlur = (
 	const MAX_SPEED = 5.0;
 	const MIN_DISTANCE_THRESHOLD = 20;
 
-	// Mouse boyutunu sabit tut
+	// Mouse boyutunu kesinlikle sabit tut
 	const size = mouseSize.value;
 	const offsetX = size * 0.3;
 	const offsetY = size * 0.2;
+
+	// Zoom durumunda scale'i kompanse et
+	if (videoScale.value > 1.001) {
+		ctx.save();
+		// Scale'i doğru yönde uygula - mouse boyutunu korumak için videoScale ile çarp
+		const scale = videoScale.value;
+		ctx.scale(scale, scale);
+		x = x / scale;
+		y = y / scale;
+	}
 
 	// Hız ve mesafe kontrolü
 	const isSignificantMovement =
@@ -1405,6 +1415,9 @@ const applyMotionBlur = (
 
 	if (!mouseMotionEnabled.value || !isSignificantMovement) {
 		ctx.drawImage(cursorImage, x - offsetX, y - offsetY, size, size);
+		if (videoScale.value > 1.001) {
+			ctx.restore();
+		}
 		return;
 	}
 
@@ -1418,8 +1431,6 @@ const applyMotionBlur = (
 	const movementIntensity = normalizedSpeed * normalizedDistance;
 	const easedIntensity = easeOutQuad(movementIntensity);
 	const deformAmount = Math.min(6, easedIntensity * motionBlurValue.value * 6);
-
-	ctx.save();
 
 	// Kısa trail efekti için 3-4 kopya çiz
 	const TRAIL_STEPS = 4;
@@ -1461,6 +1472,10 @@ const applyMotionBlur = (
 	ctx.transform(1, skewY, skewX, 1, 0, 0);
 
 	ctx.drawImage(cursorImage, -offsetX, -offsetY, size, size);
+
+	if (videoScale.value > 1.001) {
+		ctx.restore();
+	}
 
 	ctx.restore();
 };
@@ -1538,60 +1553,106 @@ const drawMousePosition = (ctx, currentTime) => {
 	let finalY = videoY + normalizedY * displayHeight;
 
 	// Zoom durumunda pozisyonu ayarla
-	if (videoScale.value > 1.001) {
-		const centerX = canvasWidth / 2;
-		const centerY = canvasHeight / 2;
-		let originX = centerX;
-		let originY = centerY;
+	const centerX = canvasWidth / 2;
+	const centerY = canvasHeight / 2;
+	let originX = centerX;
+	let originY = centerY;
 
-		// Zoom origin noktasını belirle
-		const activeZoom = zoomRanges.value.find(
-			(range) => currentTime >= range.start && currentTime <= range.end
-		);
+	// Zoom origin noktasını belirle
+	const activeZoom = zoomRanges.value.find(
+		(range) => currentTime >= range.start && currentTime <= range.end
+	);
 
-		if (activeZoom?.position) {
-			switch (activeZoom.position) {
-				case "top-left":
-					originX = videoX;
-					originY = videoY;
-					break;
-				case "top-center":
-					originX = centerX;
-					originY = videoY;
-					break;
-				case "top-right":
-					originX = videoX + displayWidth;
-					originY = videoY;
-					break;
-				case "middle-left":
-					originX = videoX;
-					originY = centerY;
-					break;
-				case "middle-right":
-					originX = videoX + displayWidth;
-					originY = centerY;
-					break;
-				case "bottom-left":
-					originX = videoX;
-					originY = videoY + displayHeight;
-					break;
-				case "bottom-center":
-					originX = centerX;
-					originY = videoY + displayHeight;
-					break;
-				case "bottom-right":
-					originX = videoX + displayWidth;
-					originY = videoY + displayHeight;
-					break;
-			}
+	// Son zoom pozisyonunu kaydet
+	if (activeZoom?.position) {
+		switch (activeZoom.position) {
+			case "top-left":
+				originX = videoX;
+				originY = videoY;
+				break;
+			case "top-center":
+				originX = centerX;
+				originY = videoY;
+				break;
+			case "top-right":
+				originX = videoX + displayWidth;
+				originY = videoY;
+				break;
+			case "middle-left":
+				originX = videoX;
+				originY = centerY;
+				break;
+			case "middle-right":
+				originX = videoX + displayWidth;
+				originY = centerY;
+				break;
+			case "bottom-left":
+				originX = videoX;
+				originY = videoY + displayHeight;
+				break;
+			case "bottom-center":
+				originX = centerX;
+				originY = videoY + displayHeight;
+				break;
+			case "bottom-right":
+				originX = videoX + displayWidth;
+				originY = videoY + displayHeight;
+				break;
 		}
-
-		// Mouse pozisyonunu zoom origin'e göre ayarla
-		const relativeX = finalX - originX;
-		const relativeY = finalY - originY;
-		finalX = originX + relativeX * videoScale.value;
-		finalY = originY + relativeY * videoScale.value;
+		lastZoomPosition.value = activeZoom.position;
+	} else if (lastZoomPosition.value) {
+		// Zoom devreden çıkarken son pozisyonu kullan
+		switch (lastZoomPosition.value) {
+			case "top-left":
+				originX = videoX;
+				originY = videoY;
+				break;
+			case "top-center":
+				originX = centerX;
+				originY = videoY;
+				break;
+			case "top-right":
+				originX = videoX + displayWidth;
+				originY = videoY;
+				break;
+			case "middle-left":
+				originX = videoX;
+				originY = centerY;
+				break;
+			case "middle-right":
+				originX = videoX + displayWidth;
+				originY = centerY;
+				break;
+			case "bottom-left":
+				originX = videoX;
+				originY = videoY + displayHeight;
+				break;
+			case "bottom-center":
+				originX = centerX;
+				originY = videoY + displayHeight;
+				break;
+			case "bottom-right":
+				originX = videoX + displayWidth;
+				originY = videoY + displayHeight;
+				break;
+		}
 	}
+
+	// Mouse pozisyonunu zoom origin'e göre ayarla
+	const relativeX = finalX - originX;
+	const relativeY = finalY - originY;
+
+	// Zoom geçişlerinde smooth pozisyon hesaplama
+	const currentScale = videoScale.value;
+	const targetScale = activeZoom ? activeZoom.scale : 1;
+	const lerpFactor = 0.1; // Zoom ile aynı lerp faktörü
+
+	// Scale değişimini smooth yap
+	const smoothScale = currentScale + (targetScale - currentScale) * lerpFactor;
+
+	// Pozisyonu smooth scale ile hesapla
+	finalX = originX + relativeX * smoothScale;
+	finalY = originY + relativeY * smoothScale;
 
 	// Mouse hızını ve yönünü hesapla
 	const moveX = nextPos.x - currentPos.x;
