@@ -47,6 +47,21 @@
 							d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
 						/>
 					</svg>
+					<svg
+						v-if="tab.id === 'zoom'"
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-5 h-5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"
+						/>
+					</svg>
 				</button>
 			</div>
 
@@ -62,6 +77,9 @@
 
 				<!-- Mouse Ayarları Tab -->
 				<MouseSettings v-if="currentTab === 'mouse'" v-model="mouseSize" />
+
+				<!-- Zoom Ayarları Tab -->
+				<ZoomSettings v-if="currentTab === 'zoom'" />
 			</div>
 		</div>
 	</div>
@@ -71,6 +89,7 @@
 import { ref, watch } from "vue";
 import VideoSettings from "./player-settings/VideoSettings.vue";
 import MouseSettings from "./player-settings/MouseSettings.vue";
+import ZoomSettings from "./player-settings/ZoomSettings.vue";
 
 const props = defineProps({
 	duration: {
@@ -100,6 +119,7 @@ const emit = defineEmits(["update:modelValue"]);
 const tabs = [
 	{ id: "video", name: "Video" },
 	{ id: "mouse", name: "Mouse" },
+	{ id: "zoom", name: "Zoom" },
 ];
 
 const currentTab = ref("video");

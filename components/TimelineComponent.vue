@@ -1370,6 +1370,8 @@ const selectedZoomIndex = ref(null);
 const handleZoomSegmentClick = (event, index) => {
 	event.stopPropagation();
 	selectedZoomIndex.value = index;
+	setCurrentZoomRange(zoomRanges.value[index]);
+	emit("zoomSegmentSelect"); // Zoom segmenti seçildiğinde event emit et
 };
 
 // Klavye olaylarını dinle

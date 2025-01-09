@@ -43,15 +43,31 @@ export const usePlayerSettings = () => {
 	};
 
 	const addZoomRange = (range) => {
-		zoomRanges.value.push(range);
+		// Default değerleri ekle
+		const newRange = {
+			...range,
+			scale: range.scale || 2,
+			position: range.position || "center",
+		};
+		zoomRanges.value.push(newRange);
 	};
 
 	const removeZoomRange = (index) => {
+		if (currentZoomRange.value === zoomRanges.value[index]) {
+			currentZoomRange.value = null;
+		}
 		zoomRanges.value.splice(index, 1);
 	};
 
 	const updateZoomRange = (index, range) => {
 		zoomRanges.value[index] = range;
+		if (
+			currentZoomRange.value &&
+			currentZoomRange.value.start === zoomRanges.value[index].start &&
+			currentZoomRange.value.end === zoomRanges.value[index].end
+		) {
+			currentZoomRange.value = range;
+		}
 	};
 
 	const setCurrentZoomRange = (range) => {
