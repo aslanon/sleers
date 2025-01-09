@@ -85,16 +85,23 @@ export const usePlayerSettings = () => {
 
 	// Zoom efektlerini uygula
 	const applyZoomEffect = (range) => {
-		// Bu fonksiyon video preview'da zoom efektini uygulayacak
-		// Örnek: Video elementinin transform ve scale değerlerini güncelle
+		if (!range)
+			return {
+				scale: 1,
+				position: "center",
+				transform: "translate(-50%, -50%) scale(1)",
+			};
+
 		const scale = range.scale || 2;
 		const position = range.position || "center";
 
-		// Bu değerleri video preview'a uygulamak için kullanılacak
+		// Pozisyona göre transform değerini hesapla
+		const transform = getTransformForPosition(position, scale);
+
 		return {
 			scale,
 			position,
-			transform: getTransformForPosition(position, scale),
+			transform,
 		};
 	};
 

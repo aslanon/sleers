@@ -9,11 +9,13 @@
 					:min="1"
 					:max="10"
 					:step="0.1"
-					:value="activeZoomScale"
+					:value="currentZoomRange?.scale || 1"
 					@input="updateZoomScale($event.target.value)"
 					class="w-full"
 				/>
-				<div class="text-xs text-gray-400">{{ activeZoomScale }}x</div>
+				<div class="text-xs text-gray-400">
+					{{ currentZoomRange?.scale || 1 }}x
+				</div>
 			</div>
 
 			<!-- Zoom Position Selector -->
@@ -110,13 +112,7 @@
 import { computed } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
-const {
-	currentZoomRange,
-	updateZoomRange,
-	zoomRanges,
-	activeZoomScale,
-	activeZoomPosition,
-} = usePlayerSettings();
+const { currentZoomRange, updateZoomRange, zoomRanges } = usePlayerSettings();
 
 // Zoom scale güncelleme
 const updateZoomScale = (value) => {
