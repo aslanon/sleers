@@ -1360,16 +1360,14 @@ const applyMotionBlur = (
 	const MIN_DISTANCE_THRESHOLD = 20;
 
 	// Cursor'ın uç noktası için offset'leri ayarla
-	// mouseSize.value büyük cursor'ın boyutu, 32 varsayılan cursor boyutu
-	const CURSOR_TIP_OFFSET_X = mouseSize.value * 0.3; // Sol kenardan cursor ucuna olan mesafe
-	const CURSOR_TIP_OFFSET_Y = mouseSize.value * 0.2; // Üst kenardan cursor ucuna olan mesafe
+	const CURSOR_TIP_OFFSET_X = mouseSize.value * 0.3;
+	const CURSOR_TIP_OFFSET_Y = mouseSize.value * 0.2;
 
 	// Hız ve mesafe kontrolü
 	const isSignificantMovement =
 		speed > MIN_SPEED_THRESHOLD && moveDistance > MIN_DISTANCE_THRESHOLD;
 
 	if (!mouseMotionEnabled.value || !isSignificantMovement) {
-		// Yavaş veya kısa hareket - normal cursor
 		ctx.drawImage(
 			cursorImage,
 			x - CURSOR_TIP_OFFSET_X,
@@ -1380,32 +1378,50 @@ const applyMotionBlur = (
 		return;
 	}
 
-	// Ease fonksiyonu - daha yumuşak geçişler için
 	const easeOutQuad = (t) => t * (2 - t);
 
-	// Hız ve mesafeyi birlikte değerlendir
 	const normalizedSpeed = Math.min(
 		(speed - MIN_SPEED_THRESHOLD) / (MAX_SPEED - MIN_SPEED_THRESHOLD),
 		1
 	);
-	const normalizedDistance = Math.min(moveDistance / 100, 1); // 100 piksel maksimum mesafe
-
-	// Hız ve mesafenin birleşik etkisi
+	const normalizedDistance = Math.min(moveDistance / 100, 1);
 	const movementIntensity = normalizedSpeed * normalizedDistance;
 	const easedIntensity = easeOutQuad(movementIntensity);
-
-	// Deformasyon miktarını hesapla
 	const deformAmount = Math.min(6, easedIntensity * motionBlurValue.value * 6);
 
 	ctx.save();
 
-	// Gaussian blur'u hareket yoğunluğuna göre ayarla
-	const blurAmount = Math.min(1.5, easedIntensity * 1.5);
+	// Kısa trail efekti için 3-4 kopya çiz
+	const TRAIL_STEPS = 4;
+	for (let i = TRAIL_STEPS; i > 0; i--) {
+		const trailOpacity = (i / TRAIL_STEPS) * 0.35; // Max opaklık 0.15
+		const trailOffset = i * 2; // Her adımda 3px offset
+
+		ctx.globalAlpha = trailOpacity;
+		ctx.filter = `blur(3px)`;
+		ctx.drawImage(
+			cursorImage,
+			x + dirX * trailOffset - CURSOR_TIP_OFFSET_X,
+			y + dirY * trailOffset - CURSOR_TIP_OFFSET_Y,
+			mouseSize.value,
+			mouseSize.value
+		);
+	}
+
+	// Ana cursor için normal efektleri uygula
+	ctx.globalAlpha = 1;
+	const blurAmount = Math.min(1.5, easedIntensity * 5);
 	ctx.filter = `blur(${blurAmount}px)`;
 
 	ctx.translate(x, y);
 
-	// Transform değerlerini hareket yoğunluğuna göre ayarla
+	// Hareket yönüne doğru 10 derece eğim uygula (uzun hareketlerde)
+	if (moveDistance > 25) {
+		const angle = Math.atan2(dirY, dirX);
+		const rotationDegree = 10 * (Math.PI / 180);
+		ctx.rotate(angle * 0.05 + rotationDegree * easedIntensity);
+	}
+
 	const skewX = -dirX * deformAmount * 0.03;
 	const skewY = -dirY * deformAmount * 0.03;
 	const stretchX = 1 + Math.abs(dirX * deformAmount * 0.08) * easedIntensity;
