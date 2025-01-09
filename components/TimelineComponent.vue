@@ -231,15 +231,16 @@
 									<div
 										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
 										:class="{
-											'opacity-80': activeZoomIndex === index,
-											'group-hover:opacity-80': !isZoomResizing,
+											'opacity-80': selectedZoomIndex === index,
+											'group-hover:opacity-80':
+												!isZoomResizing && !isZoomDragging,
 										}"
+										@mousedown.stop="
+											handleZoomResizeStart($event, index, 'start')
+										"
 									>
 										<div
-											class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
-											@mousedown.stop="
-												handleZoomResizeStart($event, index, 'start')
-											"
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 										></div>
 									</div>
 
@@ -247,21 +248,22 @@
 									<div
 										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
 										:class="{
-											'opacity-80': activeZoomIndex === index,
-											'group-hover:opacity-80': !isZoomResizing,
+											'opacity-80': selectedZoomIndex === index,
+											'group-hover:opacity-80':
+												!isZoomResizing && !isZoomDragging,
 										}"
+										@mousedown.stop="
+											handleZoomResizeStart($event, index, 'end')
+										"
 									>
 										<div
-											class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
-											@mousedown.stop="
-												handleZoomResizeStart($event, index, 'end')
-											"
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 										></div>
 									</div>
 
 									<!-- Zoom İçeriği -->
 									<div
-										class="absolute inset-0 flex flex-col items-center justify-center text-center"
+										class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
 									>
 										<span
 											class="text-white/70 text-[10px] font-medium tracking-wide"
@@ -1122,6 +1124,15 @@ const handleZoomResizeStart = (event, index, edge) => {
 	initialZoomRange.value = { ...zoomRanges.value[index] };
 	initialClientX.value = event.clientX;
 
+	// Performance için style güncellemesi
+	const segmentEl = event.currentTarget.closest(
+		".timeline-layer-bar > div > div"
+	);
+	if (segmentEl) {
+		segmentEl.style.willChange = "transform";
+		segmentEl.style.transition = "none";
+	}
+
 	window.addEventListener("mousemove", handleZoomResizeMove);
 	window.addEventListener("mouseup", handleZoomResizeEnd);
 };
@@ -1131,26 +1142,87 @@ const handleZoomResizeMove = (event) => {
 
 	const timeline = timelineRef.value;
 	const rect = timeline.getBoundingClientRect();
-	const deltaX = event.clientX - initialClientX.value;
-	const deltaTime = (deltaX / rect.width) * maxDuration.value;
+	const mouseX = event.clientX - rect.left + timeline.scrollLeft;
+	const currentTime = (mouseX / timelineWidth.value) * maxDuration.value;
 
 	const range = { ...initialZoomRange.value };
+	const minDuration = 0.1; // Minimum 100ms uzunluk
+
+	// Yeni başlangıç ve bitiş zamanlarını hesapla
 	if (resizingZoomEdge.value === "start") {
-		range.start = Math.max(0, range.start + deltaTime);
-		range.start = Math.min(range.start, range.end - 1); // Minimum 1 saniyelik aralık
+		range.start = Math.min(currentTime, range.end - minDuration);
+		range.start = Math.max(0, range.start); // 0'ın altına inmemesi için
 	} else {
-		range.end = Math.min(maxDuration.value, range.end + deltaTime);
-		range.end = Math.max(range.end, range.start + 1); // Minimum 1 saniyelik aralık
+		range.end = Math.max(currentTime, range.start + minDuration);
+		range.end = Math.min(props.duration, range.end); // Video süresini aşmaması için
 	}
 
-	// Toplam süreyi kontrol et
-	if (range.end - range.start <= maxDuration.value) {
-		updateZoomRange(activeZoomIndex.value, range);
+	// Diğer segmentlerle çakışma kontrolü
+	const otherRanges = zoomRanges.value.filter(
+		(_, i) => i !== activeZoomIndex.value
+	);
+	const snapThreshold = 0.05; // 50ms snap toleransı
+
+	// Snap kontrolü
+	let shouldSnap = false;
+	let snappedTime =
+		resizingZoomEdge.value === "start" ? range.start : range.end;
+
+	for (const other of otherRanges) {
+		// Başlangıç noktası için snap
+		if (resizingZoomEdge.value === "start") {
+			if (Math.abs(range.start - other.end) < snapThreshold) {
+				snappedTime = other.end;
+				shouldSnap = true;
+				break;
+			}
+		}
+		// Bitiş noktası için snap
+		else {
+			if (Math.abs(range.end - other.start) < snapThreshold) {
+				snappedTime = other.start;
+				shouldSnap = true;
+				break;
+			}
+		}
+	}
+
+	// Çakışma kontrolü
+	const hasCollision = otherRanges.some((other) => {
+		if (resizingZoomEdge.value === "start") {
+			return range.start < other.end && range.end > other.start;
+		} else {
+			return range.end > other.start && range.start < other.end;
+		}
+	});
+
+	if (!hasCollision) {
+		// Snap varsa uygula
+		if (shouldSnap) {
+			if (resizingZoomEdge.value === "start") {
+				range.start = snappedTime;
+			} else {
+				range.end = snappedTime;
+			}
+		}
+
+		// Style güncellemesi için requestAnimationFrame kullan
+		requestAnimationFrame(() => {
+			updateZoomRange(activeZoomIndex.value, range);
+		});
 	}
 };
 
 const handleZoomResizeEnd = () => {
 	isZoomResizing.value = false;
+
+	// Style'ları resetle
+	const segments = document.querySelectorAll(".timeline-layer-bar > div > div");
+	segments.forEach((segment) => {
+		segment.style.willChange = "auto";
+		segment.style.transition = null;
+	});
+
 	activeZoomIndex.value = null;
 	resizingZoomEdge.value = null;
 	initialZoomRange.value = null;
