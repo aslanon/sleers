@@ -1345,36 +1345,83 @@ cursorImage.onerror = (error) => {
 };
 
 // Motion blur fonksiyonu
-const applyMotionBlur = (image, amount) => {
-	if (!amount || amount <= 0) return image;
+const applyMotionBlur = (
+	ctx,
+	cursorImage,
+	x,
+	y,
+	dirX,
+	dirY,
+	speed,
+	moveDistance
+) => {
+	const MIN_SPEED_THRESHOLD = 1.2; // Hız eşiğini artır
+	const MAX_SPEED = 5.0;
+	const MIN_DISTANCE_THRESHOLD = 20; // Minimum hareket mesafesi (piksel)
 
-	const canvas = document.createElement("canvas");
-	const ctx = canvas.getContext("2d");
-	const width = image.width;
-	const height = image.height;
+	// Cursor'ın uç noktasını hesapla
+	const CURSOR_TIP_OFFSET_X = mouseSize.value * 0.1;
+	const CURSOR_TIP_OFFSET_Y = mouseSize.value * 0.1;
 
-	// Sol üst köşeye doğru blur için canvas boyutunu ayarla
-	canvas.width = width + amount;
-	canvas.height = height + amount;
+	// Hız ve mesafe kontrolü
+	const isSignificantMovement =
+		speed > MIN_SPEED_THRESHOLD && moveDistance > MIN_DISTANCE_THRESHOLD;
 
-	// Görüntüyü sağ alta kaydır ki sol üste doğru blur yapabilelim
-	ctx.drawImage(image, amount, amount, width, height);
-
-	let currentAmount = amount;
-	while (currentAmount--) {
-		const opacity = 1 / (amount - currentAmount);
-		ctx.globalAlpha = opacity;
-		// Sol üst köşeye doğru blur için her adımda hem x hem y'yi azalt
+	if (!mouseMotionEnabled.value || !isSignificantMovement) {
+		// Yavaş veya kısa hareket - normal cursor
 		ctx.drawImage(
-			image,
-			currentAmount, // x offset (sola doğru)
-			currentAmount, // y offset (yukarı doğru)
-			width,
-			height
+			cursorImage,
+			x - CURSOR_TIP_OFFSET_X,
+			y - CURSOR_TIP_OFFSET_Y,
+			mouseSize.value,
+			mouseSize.value
 		);
+		return;
 	}
 
-	return canvas;
+	// Ease fonksiyonu - daha yumuşak geçişler için
+	const easeOutQuad = (t) => t * (2 - t);
+
+	// Hız ve mesafeyi birlikte değerlendir
+	const normalizedSpeed = Math.min(
+		(speed - MIN_SPEED_THRESHOLD) / (MAX_SPEED - MIN_SPEED_THRESHOLD),
+		1
+	);
+	const normalizedDistance = Math.min(moveDistance / 100, 1); // 100 piksel maksimum mesafe
+
+	// Hız ve mesafenin birleşik etkisi
+	const movementIntensity = normalizedSpeed * normalizedDistance;
+	const easedIntensity = easeOutQuad(movementIntensity);
+
+	// Deformasyon miktarını hesapla
+	const deformAmount = Math.min(6, easedIntensity * motionBlurValue.value * 6);
+
+	ctx.save();
+
+	// Gaussian blur'u hareket yoğunluğuna göre ayarla
+	const blurAmount = Math.min(1.5, easedIntensity * 1.5);
+	ctx.filter = `blur(${blurAmount}px)`;
+
+	ctx.translate(x, y);
+
+	// Transform değerlerini hareket yoğunluğuna göre ayarla
+	const skewX = -dirX * deformAmount * 0.03;
+	const skewY = -dirY * deformAmount * 0.03;
+	const stretchX = 1 + Math.abs(dirX * deformAmount * 0.08) * easedIntensity;
+	const stretchY = 1 + Math.abs(dirY * deformAmount * 0.08) * easedIntensity;
+
+	ctx.scale(stretchX, stretchY);
+	ctx.transform(1, skewY, skewX, 1, 0, 0);
+
+	ctx.drawImage(
+		cursorImage,
+		-CURSOR_TIP_OFFSET_X,
+		-CURSOR_TIP_OFFSET_Y,
+		mouseSize.value,
+		mouseSize.value
+	);
+
+	ctx.restore();
 };
 
 const drawMousePosition = (ctx, currentTime) => {
@@ -1414,7 +1461,7 @@ const drawMousePosition = (ctx, currentTime) => {
 	const canvasWidth = canvas.width;
 	const canvasHeight = canvas.height;
 
-	// Video'nun canvas içindeki boyutlarını ve pozisyonunu hesapla (padding'i hesaba katarak)
+	// Video'nun canvas içindeki boyutlarını ve pozisyonunu hesapla
 	const videoRatio = videoWidth / videoHeight;
 	const canvasRatio = canvasWidth / canvasHeight;
 	let displayWidth, displayHeight;
@@ -1427,7 +1474,7 @@ const drawMousePosition = (ctx, currentTime) => {
 		displayWidth = displayHeight * videoRatio;
 	}
 
-	// Video'nun canvas içindeki pozisyonunu hesapla
+	// Video'nun canvas içindeki pozisyonunu hesapla (padding dahil)
 	const videoX = (canvasWidth - displayWidth) / 2;
 	const videoY = (canvasHeight - displayHeight) / 2;
 
@@ -1447,7 +1494,8 @@ const drawMousePosition = (ctx, currentTime) => {
 	// Zoom scale'ini hesapla
 	const scale = videoScale.value;
 
-	// Mouse pozisyonunu zoom'a göre ayarla (padding'i hesaba katarak)
+	// Mouse pozisyonunu zoom ve padding'e göre ayarla
+	// NOT: zoomedX ve zoomedY artık gerçek mouse'un tıklama noktasını gösteriyor
 	const zoomedX = videoX + normalizedX * displayWidth * scale;
 	const zoomedY = videoY + normalizedY * displayHeight * scale;
 
@@ -1455,65 +1503,27 @@ const drawMousePosition = (ctx, currentTime) => {
 	const moveX = nextPos.x - currentPos.x;
 	const moveY = nextPos.y - currentPos.y;
 	const speed = Math.sqrt(moveX * moveX + moveY * moveY);
+	const moveDistance = Math.sqrt(moveX * moveX + moveY * moveY);
 
-	// Hareket yönünün tersini hesapla ve normalize et
-	const dirX = speed > 0 ? -moveX / speed : 0;
-	const dirY = speed > 0 ? -moveY / speed : 0;
+	// Hareket yönünü hesapla ve normalize et
+	const dirX = speed > 0 ? moveX / speed : 0;
+	const dirY = speed > 0 ? moveY / speed : 0;
 
-	// Motion blur için temp canvas oluştur
-	const tempCanvas = document.createElement("canvas");
-	tempCanvas.width = mouseSize.value;
-	tempCanvas.height = mouseSize.value;
-	const tempCtx = tempCanvas.getContext("2d");
+	ctx.save();
 
-	// Cursor'ı temp canvas'a çiz
-	tempCtx.drawImage(cursorImage, 0, 0, mouseSize.value, mouseSize.value);
+	// Motion blur efektini uygula (hareket mesafesini de gönder)
+	applyMotionBlur(
+		ctx,
+		cursorImage,
+		zoomedX,
+		zoomedY,
+		dirX,
+		dirY,
+		speed,
+		moveDistance
+	);
 
-	// Motion blur efektini uygula
-	if (speed > 0.1 && mouseMotionEnabled.value) {
-		const blurAmount = Math.min(32, speed * motionBlurValue.value);
-		const blurCanvas = document.createElement("canvas");
-		const blurCtx = blurCanvas.getContext("2d");
-		blurCanvas.width = mouseSize.value + Math.abs(blurAmount * dirX);
-		blurCanvas.height = mouseSize.value + Math.abs(blurAmount * dirY);
-
-		let currentAmount = blurAmount;
-		while (currentAmount--) {
-			const opacity = 1 / (blurAmount - currentAmount);
-			blurCtx.globalAlpha = opacity;
-			blurCtx.drawImage(
-				tempCanvas,
-				Math.max(0, dirX * currentAmount),
-				Math.max(0, dirY * currentAmount),
-				mouseSize.value,
-				mouseSize.value
-			);
-		}
-
-		// Blurlanmış cursor'ı çiz
-		ctx.save();
-		ctx.translate(zoomedX, zoomedY);
-		ctx.drawImage(
-			blurCanvas,
-			-mouseSize.value / 2 - Math.max(0, blurAmount * dirX),
-			-mouseSize.value / 2 - Math.max(0, blurAmount * dirY),
-			blurCanvas.width,
-			blurCanvas.height
-		);
-		ctx.restore();
-	} else {
-		// Hareket yoksa normal cursor'ı çiz
-		ctx.save();
-		ctx.translate(zoomedX, zoomedY);
-		ctx.drawImage(
-			cursorImage,
-			-mouseSize.value / 2,
-			-mouseSize.value / 2,
-			mouseSize.value,
-			mouseSize.value
-		);
-		ctx.restore();
-	}
+	ctx.restore();
 };
 
 // cropRatio değişikliğini izle
