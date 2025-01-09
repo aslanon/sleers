@@ -282,17 +282,6 @@ const play = async () => {
 			animationFrame = requestAnimationFrame(updateCanvas);
 		}
 
-		// Zoom animasyonunu kontrol et
-		const currentTime = videoElement.currentTime;
-		const activeZoom = zoomRanges.value.find(
-			(range) => currentTime >= range.start && currentTime <= range.end
-		);
-
-		if (activeZoom) {
-			setCurrentZoomRange(activeZoom);
-			requestAnimationFrame(animateVideoScale);
-		}
-
 		emit("play");
 	} catch (error) {
 		console.error("[MediaPlayer] Oynatma hatası:", error);
@@ -1815,15 +1804,13 @@ const checkZoomSegments = (currentTime) => {
 	if (startingSegment) {
 		// Yeni zoom segmenti başlıyor
 		if (startingSegment !== currentZoomRange.value) {
-			// Sadece zoom değerlerini kullan, ayarları açma
-			if (startingSegment.scale) {
-				setCurrentZoomRange(startingSegment);
-			}
+			// Sadece zoom efektini uygula, ayarları açma
+			applyZoomSegment(startingSegment, currentTime);
 		}
 	}
 	// Zoom segmentinden çıkıyorsak
 	else if (endingSegment || (!activeZoom && currentZoomRange.value)) {
-		setCurrentZoomRange(null);
+		applyZoomSegment(null, currentTime);
 		// Zoom tamamen bittiğinde son pozisyonu sıfırla
 		if (videoScale.value <= 1.001) {
 			lastZoomPosition.value = null;
