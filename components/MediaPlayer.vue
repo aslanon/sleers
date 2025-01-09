@@ -767,22 +767,8 @@ const updateCanvas = (timestamp) => {
 	const x = (canvasRef.value.width - drawWidth) / 2;
 	const y = (canvasRef.value.height - drawHeight) / 2;
 
-	// Video'yu çiz
+	// Ana context state'i kaydet
 	ctx.save();
-
-	// Shadow için path oluştur
-	if (shadowSize.value > 0) {
-		ctx.save();
-		ctx.beginPath();
-		roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
-		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-		ctx.shadowBlur = shadowSize.value;
-		ctx.shadowOffsetX = 0;
-		ctx.shadowOffsetY = 0;
-		ctx.fillStyle = backgroundColor.value;
-		ctx.fill();
-		ctx.restore();
-	}
 
 	// Aktif zoom segmentini bul
 	const currentTime = videoElement.currentTime;
@@ -856,6 +842,20 @@ const updateCanvas = (timestamp) => {
 		ctx.translate(-transformOriginX, -transformOriginY);
 	}
 
+	// Shadow için yeni bir state kaydet
+	if (shadowSize.value > 0) {
+		ctx.save();
+		ctx.beginPath();
+		roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+		ctx.shadowBlur = shadowSize.value;
+		ctx.shadowOffsetX = 0;
+		ctx.shadowOffsetY = 0;
+		ctx.fillStyle = backgroundColor.value;
+		ctx.fill();
+		ctx.restore();
+	}
+
 	// Video alanını kırp ve radius uygula
 	ctx.beginPath();
 	roundedRect(ctx, x, y, drawWidth, drawHeight, radius.value);
@@ -863,6 +863,8 @@ const updateCanvas = (timestamp) => {
 
 	// Video'yu çiz
 	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+
+	// Ana context state'i geri yükle
 	ctx.restore();
 
 	// Mouse pozisyonlarını çiz
