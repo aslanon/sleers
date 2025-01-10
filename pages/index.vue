@@ -152,7 +152,7 @@
 
 			<!-- Kayıt Toggle Butonu -->
 			<button
-				@click="isRecording ? stopRecording() : startRecording()"
+				@click="onRecordButtonClick"
 				class="flex items-center space-x-2 h-[36px] px-4 py-2 rounded-lg"
 				:class="
 					isRecording
@@ -216,7 +216,7 @@ const closeWindow = () => {
 // Delay yönetimi için state
 const isSettingsOpen = ref(false);
 const delayOptions = [0, 1000, 3000, 5000, 10000]; // 1sn, 3sn, 5sn
-const selectedSource = ref("display"); // Varsayılan kaynak tipi
+const selectedSource = ref(null);
 
 // Delay değişikliğini izle
 watch(selectedDelay, (newValue) => {
@@ -296,6 +296,30 @@ watch(selectedVideoDevice, async (deviceLabel) => {
 		}
 	}
 });
+
+// Kayıt başlatma fonksiyonu
+const handleStartRecording = async () => {
+	try {
+		await startRecording({
+			systemAudio: systemAudioEnabled.value,
+			microphone: microphoneEnabled.value,
+			microphoneDeviceId: selectedAudioDevice.value,
+			sourceType: selectedSource.value?.type || "display",
+			sourceId: selectedSource.value?.id,
+		});
+	} catch (error) {
+		console.error("Kayıt başlatılırken hata:", error);
+	}
+};
+
+// Kayıt butonuna tıklandığında
+const onRecordButtonClick = () => {
+	if (isRecording.value) {
+		stopRecording();
+	} else {
+		handleStartRecording();
+	}
+};
 
 onMounted(async () => {
 	// Cihazları yükle

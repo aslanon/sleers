@@ -32,10 +32,10 @@
 					<button
 						v-for="source in sources"
 						:key="source.id"
-						@click="selectSource(source.id)"
+						@click="selectedSourceType = source.id"
 						class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
 						:class="
-							selectedSource === source.id
+							selectedSourceType === source.id
 								? 'bg-blue-600'
 								: 'bg-gray-700 hover:bg-gray-600'
 						"
@@ -43,6 +43,36 @@
 						<span v-html="source.icon"></span>
 						{{ source.label }}
 					</button>
+				</div>
+
+				<!-- Kaynak Listesi -->
+				<div v-if="availableSources.length > 0" class="mt-3">
+					<div class="flex flex-wrap gap-3">
+						<button
+							v-for="source in filteredSources"
+							:key="source.id"
+							@click="selectSource(source)"
+							class="w-[100px] flex flex-col items-center p-2 rounded-lg transition-all border"
+							:class="[
+								selectedSourceId === source.id
+									? 'bg-blue-500/20 border-blue-500 text-blue-400'
+									: 'border-gray-700 hover:border-gray-500 hover:bg-gray-700/50 text-gray-300',
+							]"
+						>
+							<div
+								class="w-full aspect-video rounded-lg overflow-hidden bg-black/50"
+							>
+								<img
+									:src="source.thumbnail.toDataURL()"
+									class="w-full h-full object-contain"
+									:alt="source.name"
+								/>
+							</div>
+							<span class="mt-2 text-xs text-center line-clamp-1">{{
+								source.name
+							}}</span>
+						</button>
+					</div>
 				</div>
 			</div>
 
@@ -56,7 +86,7 @@
 						<input
 							type="checkbox"
 							:checked="followMouse"
-							@change="toggleFollowMouse"
+							@change="$emit('update:followMouse', $event.target.checked)"
 							class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-700 bg-gray-800 focus:ring-blue-500"
 						/>
 						<span class="text-sm">Kamera fare imlecini takip etsin</span>
@@ -68,7 +98,7 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 
 const { selectedDelay } = useMediaDevices();
@@ -83,8 +113,12 @@ const props = defineProps({
 		default: 1000,
 	},
 	selectedSource: {
-		type: String,
-		default: "display",
+		type: Object,
+		default: () => ({
+			type: "display",
+			id: null,
+			name: null,
+		}),
 	},
 	followMouse: {
 		type: Boolean,
@@ -129,18 +163,56 @@ const sources = computed(() => [
 	},
 ]);
 
-// Delay seçimi
-const selectDelay = (delay) => {
-	emit("update:modelValue", delay);
+// Kaynak yönetimi için state'ler
+const selectedSourceType = ref("display");
+const selectedSourceId = ref(null);
+const availableSources = ref([]);
+
+// Kaynak türüne göre filtreleme
+const filteredSources = computed(() => {
+	return availableSources.value.filter((source) =>
+		source.id.startsWith(
+			selectedSourceType.value === "display" ? "screen:" : "window:"
+		)
+	);
+});
+
+// Kaynakları yükle
+const loadSources = async () => {
+	try {
+		const sources = await window.electron?.desktopCapturer.getSources({
+			types: ["window", "screen"],
+			thumbnailSize: { width: 150, height: 150 },
+		});
+		availableSources.value = sources || [];
+	} catch (error) {
+		console.error("Kaynaklar yüklenirken hata:", error);
+	}
 };
 
 // Kaynak seçimi
 const selectSource = (source) => {
-	emit("update:selectedSource", source);
-	// Alan seçimi yapılacaksa electron event'ini tetikle
-	if (source === "area") {
-		window.electron?.ipcRenderer.send("START_AREA_SELECTION");
-	}
+	selectedSourceId.value = source.id;
+	const sourceData = {
+		type: selectedSourceType.value,
+		id: source.id,
+		name: source.name,
+	};
+	emit("update:selectedSource", sourceData);
+};
+
+// Kaynak türü değişince kaynakları yeniden yükle
+watch(selectedSourceType, () => {
+	loadSources();
+});
+
+onMounted(() => {
+	loadSources();
+});
+
+// Delay seçimi
+const selectDelay = (delay) => {
+	emit("update:modelValue", delay);
 };
 
 // Kamera takip ayarı
