@@ -370,39 +370,53 @@ const onTimeUpdate = () => {
 
 // Pencere boyutu değiştiğinde
 const handleResize = () => {
-	if (!containerRef.value || !videoElement) return;
+	if (!containerRef.value || !videoElement || !canvasRef.value || !ctx) return;
 
+	// Container boyutlarını al
 	const container = containerRef.value.getBoundingClientRect();
-	const containerRatio = container.width / container.height;
+	const containerWidth = container.width;
+	const containerHeight = container.height;
 
-	// Canvas boyutlarını seçilen aspect ratio'ya göre ayarla
+	// Video aspect ratio'sunu hesapla
+	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+	const containerRatio = containerWidth / containerHeight;
+
+	// Canvas boyutlarını container'a göre ayarla
 	let canvasWidth, canvasHeight;
-
 	if (!cropRatio.value || cropRatio.value === "auto") {
-		// Auto modunda container boyutlarını kullan
-		canvasWidth = container.width;
-		canvasHeight = container.height;
+		// Auto modunda video aspect ratio'sunu koru
+		if (videoRatio > containerRatio) {
+			canvasWidth = containerWidth;
+			canvasHeight = containerWidth / videoRatio;
+		} else {
+			canvasHeight = containerHeight;
+			canvasWidth = containerHeight * videoRatio;
+		}
 	} else {
 		// Seçilen aspect ratio'yu kullan
 		const [targetWidth, targetHeight] = cropRatio.value.split(":").map(Number);
 		const targetRatio = targetWidth / targetHeight;
 
 		if (containerRatio > targetRatio) {
-			// Container daha geniş, yüksekliğe göre hesapla
-			canvasHeight = container.height;
-			canvasWidth = canvasHeight * targetRatio;
+			canvasHeight = containerHeight;
+			canvasWidth = containerHeight * targetRatio;
 		} else {
-			// Container daha dar, genişliğe göre hesapla
-			canvasWidth = container.width;
-			canvasHeight = canvasWidth / targetRatio;
+			canvasWidth = containerWidth;
+			canvasHeight = containerWidth / targetRatio;
 		}
 	}
 
-	// Canvas boyutlarını güncelle
-	if (canvasRef.value) {
-		canvasRef.value.width = canvasWidth;
-		canvasRef.value.height = canvasHeight;
-	}
+	// DPR'ı kullanarak canvas çözünürlüğünü artır
+	const dpr = window.devicePixelRatio || 1;
+	canvasRef.value.width = canvasWidth * dpr;
+	canvasRef.value.height = canvasHeight * dpr;
+
+	// Canvas stil boyutlarını ayarla (CSS pixels)
+	canvasRef.value.style.width = `${canvasWidth}px`;
+	canvasRef.value.style.height = `${canvasHeight}px`;
+
+	// Canvas transform ayarları
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
 	// Kırpma alanını güncelle
 	cropArea.value = {
@@ -625,6 +639,9 @@ const updateCanvas = (timestamp) => {
 
 	lastFrameTime = timestamp;
 
+	// DPR'ı al
+	const dpr = window.devicePixelRatio || 1;
+
 	// Canvas'ı temizle
 	ctx.fillStyle = backgroundColor.value;
 	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
@@ -639,10 +656,10 @@ const updateCanvas = (timestamp) => {
 	// Padding'i hesaba katarak video boyutlarını hesapla
 	let drawWidth, drawHeight;
 	if (videoRatio > canvasRatio) {
-		drawWidth = canvasRef.value.width - padding.value * 2;
+		drawWidth = canvasRef.value.width - padding.value * 2 * dpr;
 		drawHeight = drawWidth / videoRatio;
 	} else {
-		drawHeight = canvasRef.value.height - padding.value * 2;
+		drawHeight = canvasRef.value.height - padding.value * 2 * dpr;
 		drawWidth = drawHeight * videoRatio;
 	}
 
@@ -692,9 +709,9 @@ const updateCanvas = (timestamp) => {
 	if (shadowSize.value > 0) {
 		ctx.save();
 		ctx.beginPath();
-		useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+		useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
 		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-		ctx.shadowBlur = shadowSize.value;
+		ctx.shadowBlur = shadowSize.value * dpr;
 		ctx.shadowOffsetX = 0;
 		ctx.shadowOffsetY = 0;
 		ctx.fillStyle = backgroundColor.value;
@@ -704,11 +721,21 @@ const updateCanvas = (timestamp) => {
 
 	// Video alanını kırp ve radius uygula
 	ctx.beginPath();
-	useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value);
+	useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
 	ctx.clip();
 
-	// Video'yu çiz
-	ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+	// Video'yu yüksek kalitede çiz
+	ctx.drawImage(
+		videoElement,
+		0,
+		0,
+		videoElement.videoWidth,
+		videoElement.videoHeight, // Source rectangle
+		x,
+		y,
+		drawWidth,
+		drawHeight // Destination rectangle
+	);
 
 	// Ana context state'i geri yükle
 	ctx.restore();
@@ -721,11 +748,11 @@ const updateCanvas = (timestamp) => {
 			props.mousePositions,
 			canvasRef.value,
 			videoElement,
-			padding.value,
+			padding.value * dpr,
 			videoScale.value,
 			zoomRanges.value,
 			lastZoomPosition,
-			mouseSize.value,
+			mouseSize.value * dpr,
 			mouseMotionEnabled.value,
 			motionBlurValue.value
 		);
@@ -782,12 +809,38 @@ const initVideo = () => {
 
 		// Yeni video elementi oluştur
 		videoElement = document.createElement("video");
+
+		// Temel ayarlar
 		videoElement.crossOrigin = "anonymous";
 		videoElement.muted = !props.systemAudioEnabled;
 		videoElement.playsInline = true;
 		videoElement.preload = "auto";
 		videoElement.volume = videoState.value.volume;
 		videoElement.playbackRate = videoState.value.playbackRate;
+
+		// Video kalitesi için ek ayarlar
+		videoElement.style.imageRendering = "high-quality";
+		videoElement.style.webkitImageRendering = "high-quality";
+		videoElement.style.objectFit = "contain";
+
+		// Video kalitesi için özel attributeler
+		videoElement.setAttribute("playsinline", "");
+		videoElement.setAttribute("webkit-playsinline", "");
+		videoElement.setAttribute("x-webkit-airplay", "allow");
+		videoElement.setAttribute("preload", "auto");
+		videoElement.setAttribute("poster", ""); // Boş poster ile daha iyi ilk frame
+
+		// Video kalitesi için özel stil ayarları
+		Object.assign(videoElement.style, {
+			width: "100%",
+			height: "100%",
+			display: "block",
+			objectFit: "contain",
+			transform: "translateZ(0)",
+			backfaceVisibility: "hidden",
+			perspective: "1000px",
+			willChange: "transform",
+		});
 
 		// Event listener'ları ekle
 		const { addEvents, removeEvents } = useVideoEvents(videoElement, {
@@ -812,12 +865,20 @@ const initVideo = () => {
 
 		// Video URL'ini set et ve yüklemeyi başlat
 		videoElement.src = props.videoUrl;
-		videoElement.load();
+
+		// Video yüklemesini başlat
+		const loadPromise = videoElement.load();
+		if (loadPromise) {
+			loadPromise.catch((error) => {
+				console.error("[MediaPlayer] Video yükleme hatası:", error);
+			});
+		}
 
 		console.log("[MediaPlayer] Video element oluşturuldu ve yükleniyor:", {
 			src: videoElement.src,
 			readyState: videoElement.readyState,
 			networkState: videoElement.networkState,
+			style: videoElement.style,
 		});
 	} catch (error) {
 		console.error("[MediaPlayer] Video yükleme hatası:", error);
@@ -838,14 +899,64 @@ const onVideoMetadataLoaded = () => {
 
 		// Context'i oluştur
 		ctx = canvasRef.value.getContext("2d", {
-			alpha: true,
-			desynchronized: true,
+			alpha: false,
+			desynchronized: false,
 			willReadFrequently: false,
+			preserveDrawingBuffer: true,
+			antialias: true,
 		});
 
-		// Render kalitesi ayarları
+		// Container boyutlarını al
+		const container = containerRef.value.getBoundingClientRect();
+		const containerWidth = container.width;
+		const containerHeight = container.height;
+
+		// Video aspect ratio'sunu hesapla
+		const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+		const containerRatio = containerWidth / containerHeight;
+
+		// Canvas boyutlarını container'a göre ayarla
+		let canvasWidth, canvasHeight;
+		if (videoRatio > containerRatio) {
+			// Video daha geniş, genişliğe göre ölçekle
+			canvasWidth = containerWidth;
+			canvasHeight = containerWidth / videoRatio;
+		} else {
+			// Video daha dar, yüksekliğe göre ölçekle
+			canvasHeight = containerHeight;
+			canvasWidth = containerHeight * videoRatio;
+		}
+
+		// DPR'ı kullanarak canvas çözünürlüğünü artır
+		const dpr = window.devicePixelRatio || 1;
+		canvasRef.value.width = canvasWidth * dpr;
+		canvasRef.value.height = canvasHeight * dpr;
+
+		// Canvas stil boyutlarını ayarla (CSS pixels)
+		canvasRef.value.style.width = `${canvasWidth}px`;
+		canvasRef.value.style.height = `${canvasHeight}px`;
+
+		// Canvas kalite ayarları
 		ctx.imageSmoothingEnabled = true;
 		ctx.imageSmoothingQuality = "high";
+
+		// Canvas transform ayarları
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+		// Canvas stil ayarları
+		Object.assign(canvasRef.value.style, {
+			display: "block",
+			transform: "translateZ(0)",
+			backfaceVisibility: "hidden",
+			perspective: "1000px",
+			willChange: "transform",
+			imageRendering: "high-quality",
+			webkitImageRendering: "high-quality",
+			position: "absolute",
+			left: "50%",
+			top: "50%",
+			transform: "translate(-50%, -50%)",
+		});
 
 		// Video boyutlarını kaydet
 		videoSize.value = {
@@ -867,12 +978,6 @@ const onVideoMetadataLoaded = () => {
 				duration,
 				width: videoElement.videoWidth,
 				height: videoElement.videoHeight,
-			});
-
-			console.log("[MediaPlayer] Video metadata yüklendi:", {
-				width: videoElement.videoWidth,
-				height: videoElement.videoHeight,
-				duration,
 			});
 		}
 	} catch (error) {
@@ -1254,12 +1359,163 @@ watch(
 	},
 	{ immediate: true }
 );
+
+// Video elementi oluştur
+const createVideoElement = () => {
+	const video = document.createElement("video");
+	video.playsInline = true;
+	video.muted = true;
+
+	// Video kalitesi için ayarlar
+	video.style.imageRendering = "high-quality";
+	video.style.objectFit = "contain";
+
+	// Kalite ayarları
+	const qualitySettings = {
+		bitrateMode: "constant",
+		targetBitrate: 100000000, // 100 Mbps
+		quality: 1.0,
+	};
+
+	if ("mediaKeys" in video) {
+		video.mediaKeys = qualitySettings;
+	}
+
+	if ("getVideoPlaybackQuality" in video) {
+		video.getVideoPlaybackQuality().totalVideoFrames = 60;
+	}
+
+	return video;
+};
+
+// Canvas'a video çizme
+const drawVideoFrame = () => {
+	if (!videoElement.value || !canvasContext.value) return;
+
+	// Canvas çizim kalitesi ayarları
+	canvasContext.value.imageSmoothingEnabled = true;
+	canvasContext.value.imageSmoothingQuality = "high";
+
+	// Video frame'ini yüksek kalitede çiz
+	canvasContext.value.drawImage(
+		videoElement.value,
+		0,
+		0,
+		canvas.value.width,
+		canvas.value.height
+	);
+
+	// Overlay'ları çiz
+	drawOverlays();
+
+	// Sonraki frame için devam et
+	if (isPlaying.value) {
+		requestAnimationFrame(drawVideoFrame);
+	}
+};
+
+// Canvas oluştur
+const createCanvas = () => {
+	const canvas = document.createElement("canvas");
+
+	// Canvas kalite ayarları
+	const ctx = canvas.getContext("2d", {
+		alpha: true,
+		desynchronized: false,
+		willReadFrequently: true,
+		preserveDrawingBuffer: true,
+	});
+
+	// Piksel oranını ayarla
+	const dpr = window.devicePixelRatio || 1;
+	canvas.style.width = "100%";
+	canvas.style.height = "100%";
+
+	// Canvas çözünürlüğünü artır
+	canvas.width = canvas.offsetWidth * dpr;
+	canvas.height = canvas.offsetHeight * dpr;
+
+	// Çizim kalitesi
+	ctx.imageSmoothingEnabled = true;
+	ctx.imageSmoothingQuality = "high";
+
+	return canvas;
+};
+
+const initializePlayer = async () => {
+	try {
+		// Video elementi oluştur
+		videoElement.value = createVideoElement();
+
+		// Canvas oluştur
+		canvas.value = createCanvas();
+		canvasContext.value = canvas.value.getContext("2d", {
+			alpha: true,
+			desynchronized: false,
+			willReadFrequently: true,
+			preserveDrawingBuffer: true,
+		});
+
+		// Container'a canvas'ı ekle
+		container.value?.appendChild(canvas.value);
+
+		// Video yüklendiğinde
+		videoElement.value.onloadedmetadata = () => {
+			// Canvas boyutunu video boyutuna göre ayarla
+			const dpr = window.devicePixelRatio || 1;
+			canvas.value.width = videoElement.value.videoWidth * dpr;
+			canvas.value.height = videoElement.value.videoHeight * dpr;
+
+			// Çizim kalitesi ayarları
+			canvasContext.value.imageSmoothingEnabled = true;
+			canvasContext.value.imageSmoothingQuality = "high";
+
+			// İlk frame'i çiz
+			drawVideoFrame();
+
+			// Video bilgilerini emit et
+			emit("loaded", {
+				duration: videoElement.value.duration,
+				width: videoElement.value.videoWidth,
+				height: videoElement.value.videoHeight,
+			});
+		};
+
+		// Video URL'ini ayarla
+		if (props.src) {
+			videoElement.value.src = props.src;
+		}
+	} catch (error) {
+		console.error("[MediaPlayer] Player başlatma hatası:", error);
+	}
+};
 </script>
 
 <style scoped>
 canvas {
+	image-rendering: -webkit-optimize-contrast;
+	image-rendering: crisp-edges;
+	image-rendering: pixelated;
 	image-rendering: optimizeQuality;
 	-webkit-backface-visibility: hidden;
 	backface-visibility: hidden;
+	transform: translateZ(0);
+	perspective: 1000;
+	-webkit-transform-style: preserve-3d;
+	transform-style: preserve-3d;
+	-webkit-perspective: 1000;
+}
+
+video {
+	image-rendering: -webkit-optimize-contrast;
+	image-rendering: crisp-edges;
+	image-rendering: optimizeQuality;
+	-webkit-backface-visibility: hidden;
+	backface-visibility: hidden;
+	transform: translateZ(0);
+	perspective: 1000;
+	-webkit-transform-style: preserve-3d;
+	transform-style: preserve-3d;
+	-webkit-perspective: 1000;
 }
 </style>
