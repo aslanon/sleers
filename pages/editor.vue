@@ -317,20 +317,27 @@ const saveVideo = async () => {
 			// Canvas'ı al
 			const sourceCanvas = mediaPlayerRef.value?.getCanvas();
 			if (!sourceCanvas) {
-				console.error(
-					"[editor.vue] MediaPlayer referansı:",
-					mediaPlayerRef.value
-				);
 				throw new Error("Canvas bulunamadı");
 			}
 
-			// 1080p için yeni bir canvas oluştur
-			const outputCanvas = document.createElement("canvas");
-			const targetHeight = 1080;
-			const aspectRatio = sourceCanvas.width / sourceCanvas.height;
-			outputCanvas.height = targetHeight;
-			outputCanvas.width = Math.round(targetHeight * aspectRatio);
-			const ctx = outputCanvas.getContext("2d");
+			// Orijinal boyutları kaydet
+			const originalWidth = sourceCanvas.width;
+			const originalHeight = sourceCanvas.height;
+
+			// 2K çözünürlük için yeni boyutları hesapla (aspect ratio'yu koru)
+			const targetHeight = 1440; // 2K dikey çözünürlük
+			const targetWidth = Math.round(
+				(targetHeight * originalWidth) / originalHeight
+			);
+
+			// Geçici yüksek çözünürlüklü canvas oluştur
+			const tempCanvas = document.createElement("canvas");
+			tempCanvas.width = targetWidth;
+			tempCanvas.height = targetHeight;
+			const tempCtx = tempCanvas.getContext("2d", {
+				alpha: true,
+				willReadFrequently: true,
+			});
 
 			// Kayıt durumunu göster
 			const loadingMessage = document.createElement("div");
@@ -346,11 +353,11 @@ const saveVideo = async () => {
 
 			return new Promise(async (resolve, reject) => {
 				try {
-					// Video kaydını başlat
-					const stream = outputCanvas.captureStream(60); // 60 FPS
+					// Video kaydını başlat - en yüksek kalite için ayarlar
+					const stream = tempCanvas.captureStream(60); // 60 FPS
 					const mediaRecorder = new MediaRecorder(stream, {
 						mimeType: "video/webm",
-						videoBitsPerSecond: 20000000, // 20 Mbps for high quality
+						videoBitsPerSecond: 50000000, // 50 Mbps for ultra high quality
 					});
 
 					const chunks = [];
@@ -374,25 +381,18 @@ const saveVideo = async () => {
 							lastFrameTime = currentTime;
 
 							// Video süresini kontrol et
-							const videoTime = elapsed / 1000; // milisaniyeden saniyeye çevir
+							const videoTime = elapsed / 1000;
 							if (videoTime >= videoDuration.value) {
 								mediaRecorder.stop();
 								return;
 							}
 
-							// Videoyu ilgili zamana getir ve frame'i çiz
+							// Videoyu ilgili zamana getir
 							await mediaPlayerRef.value.seek(videoTime);
 
-							// Canvas'ı yüksek kalitede ölçekle
-							ctx.imageSmoothingEnabled = true;
-							ctx.imageSmoothingQuality = "high";
-							ctx.drawImage(
-								sourceCanvas,
-								0,
-								0,
-								outputCanvas.width,
-								outputCanvas.height
-							);
+							// Source canvas'ı yüksek çözünürlüklü canvas'a çiz
+							tempCtx.clearRect(0, 0, targetWidth, targetHeight);
+							tempCtx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
 
 							// Bir sonraki frame için devam et
 							requestAnimationFrame(renderFrame);
@@ -404,6 +404,9 @@ const saveVideo = async () => {
 					// Kayıt tamamlandığında
 					mediaRecorder.onstop = async () => {
 						try {
+							// Son frame'e geri dön
+							await mediaPlayerRef.value.seek(currentTime.value);
+
 							const webmBlob = new Blob(chunks, { type: "video/webm" });
 							const arrayBuffer = await webmBlob.arrayBuffer();
 							const base64Data = btoa(
