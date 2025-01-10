@@ -14,12 +14,34 @@ export const useMediaDevices = () => {
 	const microphoneLevel = ref(0);
 	const currentAudioStream = ref(null);
 	const selectedDelay = ref(0);
+	const mousePositions = ref([]);
 	let mediaRecorder = null;
 	let audioContext = null;
 	let audioAnalyser = null;
 	let dataArray = null;
 	let animationFrame = null;
 	const isAudioAnalyserActive = ref(false);
+
+	// Mouse pozisyonunu kaydet
+	const setupMouseTracking = () => {
+		if (!window.electron?.ipcRenderer) return;
+
+		window.electron.ipcRenderer.on("MOUSE_POSITION", (event, position) => {
+			if (isRecording.value) {
+				const mousePosition = {
+					x: position.x,
+					y: position.y,
+					timestamp: Date.now(),
+					cursorType: position.cursorType || "default",
+				};
+				mousePositions.value.push(mousePosition);
+				previousPositions.value = [
+					...previousPositions.value,
+					mousePosition,
+				].slice(-5);
+			}
+		});
+	};
 
 	// Throttle fonksiyonu
 	const throttle = (func, limit) => {
@@ -159,6 +181,15 @@ export const useMediaDevices = () => {
 
 	const startRecording = async (options = null) => {
 		try {
+			// Mouse pozisyonlarını sıfırla
+			mousePositions.value = [];
+			previousPositions.value = [];
+
+			// Mouse takibini başlat
+			if (window.electron?.ipcRenderer) {
+				window.electron.ipcRenderer.send("START_MOUSE_TRACKING");
+			}
+
 			// Geri sayım başlat
 			await startCountdown();
 
@@ -291,6 +322,9 @@ export const useMediaDevices = () => {
 			console.error("Kayıt başlatılırken hata:", error);
 			document.body.classList.remove("recording");
 			isRecording.value = false;
+			if (window.electron?.ipcRenderer) {
+				window.electron.ipcRenderer.send("STOP_MOUSE_TRACKING");
+			}
 		}
 	};
 
@@ -380,6 +414,9 @@ export const useMediaDevices = () => {
 
 	const stopRecording = async () => {
 		isRecording.value = false;
+		if (window.electron?.ipcRenderer) {
+			window.electron.ipcRenderer.send("STOP_MOUSE_TRACKING");
+		}
 
 		try {
 			console.log("1. Kayıt durdurma başlatıldı");
@@ -504,6 +541,9 @@ export const useMediaDevices = () => {
 		}
 	};
 
+	// Mouse tracking setup'ı başlat
+	setupMouseTracking();
+
 	return {
 		videoDevices,
 		audioDevices,
@@ -517,6 +557,8 @@ export const useMediaDevices = () => {
 		currentAudioStream,
 		isAudioAnalyserActive,
 		selectedDelay,
+		mousePositions,
+		previousPositions,
 		getDevices,
 		startRecording,
 		stopRecording,
@@ -526,5 +568,6 @@ export const useMediaDevices = () => {
 		toggleMicrophone,
 		toggleSystemAudio,
 		throttle,
+		drawMousePosition,
 	};
 };

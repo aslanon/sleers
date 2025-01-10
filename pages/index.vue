@@ -303,6 +303,12 @@ onMounted(async () => {
 
 	// Electron API'si yüklendiyse event listener'ları ekle
 	if (electron) {
+		// Mouse pozisyonlarını dinle
+		electron.ipcRenderer.on("MOUSE_POSITION", (event, position) => {
+			// Mouse pozisyonları useMediaDevices composable'ında işleniyor
+			console.log("[index.vue] Mouse pozisyonu alındı:", position);
+		});
+
 		// MediaState'i al ve ses durumlarını güncelle
 		const mediaState = await electron.ipcRenderer.invoke(
 			IPC_EVENTS.GET_MEDIA_STATE
@@ -382,6 +388,7 @@ onBeforeUnmount(() => {
 		electron.ipcRenderer.removeAllListeners("START_RECORDING_FROM_TRAY");
 		electron.ipcRenderer.removeAllListeners("STOP_RECORDING_FROM_TRAY");
 		electron.ipcRenderer.removeAllListeners("CAMERA_STATUS_CHANGED");
+		electron.ipcRenderer.removeAllListeners("MOUSE_POSITION");
 	}
 });
 
