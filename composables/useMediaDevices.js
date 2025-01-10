@@ -15,12 +15,13 @@ export const useMediaDevices = () => {
 	const currentAudioStream = ref(null);
 	const selectedDelay = ref(0);
 	const mousePositions = ref([]);
+	const previousPositions = ref([]);
+	const isAudioAnalyserActive = ref(false);
 	let mediaRecorder = null;
 	let audioContext = null;
 	let audioAnalyser = null;
 	let dataArray = null;
 	let animationFrame = null;
-	const isAudioAnalyserActive = ref(false);
 
 	// Mouse pozisyonunu kaydet
 	const setupMouseTracking = () => {
@@ -568,6 +569,5 @@ export const useMediaDevices = () => {
 		toggleMicrophone,
 		toggleSystemAudio,
 		throttle,
-		drawMousePosition,
 	};
 };

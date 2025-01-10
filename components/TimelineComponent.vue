@@ -1394,7 +1394,7 @@ const isZoomTrackHovered = ref(false);
 // Zoom track'ten mouse çıktığında
 const handleZoomTrackLeave = () => {
 	hideGhostZoom();
-	isZoomTrackHovered = false;
+	isZoomTrackHovered.value = false;
 };
 
 // Zoom sürükleme state'leri
