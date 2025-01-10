@@ -1,65 +1,62 @@
 <template>
-	<div class="space-y-4">
-		<!-- <h2 class="text-xl font-bold mb-4">Video Ayarları</h2>
-		<div>
-			<label class="block text-sm font-medium mb-1">Video Süresi</label>
-			<span class="text-gray-300">{{ formatDuration(duration) }}</span>
+	<div class="flex flex-col gap-4">
+		<div class="setting-group">
+			<label class="setting-label">Padding</label>
+			<div class="setting-control">
+				<input
+					type="range"
+					v-model="paddingValue"
+					min="0"
+					max="100"
+					step="4"
+					class="setting-slider"
+				/>
+				<span class="setting-value">{{ paddingValue }}px</span>
+			</div>
 		</div>
 
-		<div>
-			<label class="block text-sm font-medium mb-1">Boyut</label>
-			<span class="text-gray-300">{{ width }}x{{ height }}</span>
-		</div> -->
-
-		<div>
-			<label class="block text-sm font-medium mb-1">Padding</label>
-			<input
-				type="range"
-				v-model="paddingValue"
-				min="0"
-				max="100"
-				step="4"
-				class="w-full"
-			/>
-			<span class="text-gray-300">{{ paddingValue }}px</span>
+		<div class="setting-group">
+			<label class="setting-label">Radius</label>
+			<div class="setting-control">
+				<input
+					type="range"
+					v-model="radiusValue"
+					min="0"
+					max="50"
+					step="2"
+					class="setting-slider"
+				/>
+				<span class="setting-value">{{ radiusValue }}px</span>
+			</div>
 		</div>
 
-		<div>
-			<label class="block text-sm font-medium mb-1">Radius</label>
-			<input
-				type="range"
-				v-model="radiusValue"
-				min="0"
-				max="50"
-				step="2"
-				class="w-full"
-			/>
-			<span class="text-gray-300">{{ radiusValue }}px</span>
+		<div class="setting-group">
+			<label class="setting-label">Shadow</label>
+			<div class="setting-control">
+				<input
+					type="range"
+					v-model="shadowValue"
+					min="0"
+					max="100"
+					step="5"
+					class="setting-slider"
+				/>
+				<span class="setting-value">{{ shadowValue }}px</span>
+			</div>
 		</div>
 
-		<div>
-			<label class="block text-sm font-medium mb-1">Shadow</label>
-			<input
-				type="range"
-				v-model="shadowValue"
-				min="0"
-				max="100"
-				step="5"
-				class="w-full"
-			/>
-			<span class="text-gray-300">{{ shadowValue }}px</span>
-		</div>
-
-		<div>
-			<label class="block text-sm font-medium mb-1">Arkaplan Rengi</label>
-			<div class="grid grid-cols-12 gap-2 w-max mt-4">
+		<div class="setting-group">
+			<label class="setting-label">Arkaplan Rengi</label>
+			<div class="color-grid">
 				<button
 					v-for="color in colors"
 					:key="color"
 					@click="selectColor(color)"
-					class="w-6 h-6 m-auto rounded-lg border-2 border-white/20 transition-all"
+					class="color-button"
 					:class="
-						color === selectedColor ? 'border-white' : 'border-transparent'
+						color === selectedColor
+							? 'color-button-selected'
+							: 'color-button-unselected'
 					"
 					:style="{ backgroundColor: color }"
 				></button>
@@ -209,3 +206,55 @@ const formatDuration = (seconds) => {
 	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 };
 </script>
+
+<style scoped>
+.setting-group {
+	@apply flex flex-col gap-2;
+}
+
+.setting-label {
+	@apply text-sm font-medium text-gray-300;
+}
+
+.setting-control {
+	@apply flex items-center gap-3;
+}
+
+.setting-slider {
+	@apply w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer;
+}
+
+.setting-slider::-webkit-slider-thumb {
+	@apply appearance-none w-4 h-4 bg-blue-500 rounded-full cursor-pointer hover:bg-blue-400 transition-colors;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.setting-slider::-webkit-slider-thumb:hover {
+	@apply bg-blue-400;
+	box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2);
+}
+
+.setting-value {
+	@apply text-sm text-gray-300 min-w-[3rem] text-right font-medium;
+}
+
+.setting-select {
+	@apply w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
+}
+
+.color-grid {
+	@apply grid grid-cols-12 gap-2 w-max mt-4;
+}
+
+.color-button {
+	@apply w-6 h-6 m-auto rounded-lg border-2 border-white/20 transition-all hover:scale-110;
+}
+
+.color-button-selected {
+	@apply border-white shadow-lg;
+}
+
+.color-button-unselected {
+	@apply border-transparent;
+}
+</style>

@@ -2,27 +2,27 @@
 	<div class="flex flex-col gap-4">
 		<div v-if="isZoomSettingsActive" class="flex flex-col gap-4">
 			<!-- Zoom Level Slider -->
-			<div class="flex flex-col gap-2">
-				<label class="text-sm text-gray-500">Zoom Level</label>
-				<input
-					type="range"
-					:min="1"
-					:max="10"
-					:step="0.1"
-					:value="currentZoomRange?.scale || 1"
-					@input="updateZoomScale($event.target.value)"
-					class="w-full"
-				/>
-				<div class="text-xs text-gray-400">
-					{{ currentZoomRange?.scale || 1 }}x
+			<div class="setting-group">
+				<label class="setting-label">Zoom Level</label>
+				<div class="setting-control">
+					<input
+						type="range"
+						:min="1"
+						:max="10"
+						:step="0.1"
+						:value="currentZoomRange?.scale || 1"
+						@input="updateZoomScale($event.target.value)"
+						class="setting-slider"
+					/>
+					<span class="setting-value">{{ currentZoomRange?.scale || 1 }}x</span>
 				</div>
 			</div>
 
 			<!-- Zoom Position Selector -->
-			<div class="flex flex-col gap-2">
-				<label class="text-sm text-gray-500">Zoom Position</label>
+			<div class="setting-group">
+				<label class="setting-label">Zoom Position</label>
 				<div
-					class="relative w-[100px] h-[100px] bg-gray-800/50 rounded-lg mx-auto"
+					class="relative w-[100px] h-[100px] bg-gray-800 rounded-lg mx-auto border border-gray-700"
 				>
 					<!-- Köşe ve Kenar Noktaları -->
 					<div class="absolute inset-0 grid grid-cols-3 grid-rows-3">
@@ -102,7 +102,7 @@
 				</div>
 			</div>
 		</div>
-		<div v-else class="flex items-center justify-center h-32 text-gray-500">
+		<div v-else class="flex items-center justify-center h-32 text-gray-400">
 			Select a zoom segment to adjust its settings
 		</div>
 	</div>
@@ -164,3 +164,35 @@ const getPositionClass = (position) => {
 // Zoom ayarları aktif mi?
 const isZoomSettingsActive = computed(() => currentZoomRange.value !== null);
 </script>
+
+<style scoped>
+.setting-group {
+	@apply flex flex-col gap-2;
+}
+
+.setting-label {
+	@apply text-sm font-medium text-gray-300;
+}
+
+.setting-control {
+	@apply flex items-center gap-3;
+}
+
+.setting-slider {
+	@apply w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer;
+}
+
+.setting-slider::-webkit-slider-thumb {
+	@apply appearance-none w-4 h-4 bg-blue-500 rounded-full cursor-pointer hover:bg-blue-400 transition-colors;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.setting-slider::-webkit-slider-thumb:hover {
+	@apply bg-blue-400;
+	box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2);
+}
+
+.setting-value {
+	@apply text-sm text-gray-300 min-w-[3rem] text-right font-medium;
+}
+</style>
