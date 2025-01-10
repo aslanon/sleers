@@ -98,6 +98,9 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 
 	// Zoom segmentlerini kontrol et
 	const checkZoomSegments = (currentTime, zoomRanges) => {
+		// zoomRanges null veya undefined ise boş array kullan
+		if (!zoomRanges) return null;
+
 		// Tüm zoom segmentlerini sırala
 		const sortedRanges = [...zoomRanges].sort((a, b) => a.start - b.start);
 

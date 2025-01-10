@@ -9,6 +9,51 @@ export const useMediaDevices = () => {
 	const selectedAudioDevice = ref("");
 	const mediaStream = ref(null);
 	const isRecording = ref(false);
+	const systemAudioEnabled = ref(true);
+	const microphoneEnabled = ref(true);
+	const microphoneLevel = ref(0);
+	const currentAudioStream = ref(null);
+	const selectedDelay = ref(0);
+	const mousePositions = ref([]);
+	let mediaRecorder = null;
+	let audioContext = null;
+	let audioAnalyser = null;
+	let dataArray = null;
+	let animationFrame = null;
+	const isAudioAnalyserActive = ref(false);
+
+	// Mouse pozisyonunu kaydet
+	const setupMouseTracking = () => {
+		if (!window.electron?.ipcRenderer) return;
+
+		window.electron.ipcRenderer.on("MOUSE_POSITION", (event, position) => {
+			if (isRecording.value) {
+				const mousePosition = {
+					x: position.x,
+					y: position.y,
+					timestamp: Date.now(),
+					cursorType: position.cursorType || "default",
+				};
+				mousePositions.value.push(mousePosition);
+				previousPositions.value = [
+					...previousPositions.value,
+					mousePosition,
+				].slice(-5);
+			}
+		});
+	};
+
+	// Throttle fonksiyonu
+	const throttle = (func, limit) => {
+		let inThrottle;
+		return function (...args) {
+			if (!inThrottle) {
+				func.apply(this, args);
+				inThrottle = true;
+				setTimeout(() => (inThrottle = false), limit);
+			}
+		};
+	};
 
 	const getDevices = async () => {
 		try {
@@ -31,12 +76,260 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const startRecording = async (streamOptions) => {
+	const initAudioAnalyser = async () => {
 		try {
-			// 500ms timeout ekle
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			if (isAudioAnalyserActive.value) {
+				cleanupAudioAnalyser();
+			}
 
-			// Ekran seçimi için kaynakları al
+			if (!audioContext) {
+				audioContext = new (window.AudioContext || window.webkitAudioContext)();
+			}
+
+			if (currentAudioStream.value) {
+				currentAudioStream.value.getTracks().forEach((track) => track.stop());
+			}
+
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					deviceId: selectedAudioDevice.value
+						? { exact: selectedAudioDevice.value }
+						: undefined,
+				},
+			});
+
+			currentAudioStream.value = stream;
+
+			const source = audioContext.createMediaStreamSource(stream);
+			audioAnalyser = audioContext.createAnalyser();
+			audioAnalyser.fftSize = 256;
+			source.connect(audioAnalyser);
+
+			dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+			isAudioAnalyserActive.value = true;
+			updateMicrophoneLevel();
+		} catch (error) {
+			console.error("Mikrofon analiz hatası:", error);
+			isAudioAnalyserActive.value = false;
+		}
+	};
+
+	const cleanupAudioAnalyser = () => {
+		if (animationFrame) {
+			cancelAnimationFrame(animationFrame);
+			animationFrame = null;
+		}
+
+		if (currentAudioStream.value) {
+			currentAudioStream.value.getTracks().forEach((track) => track.stop());
+			currentAudioStream.value = null;
+		}
+
+		if (audioContext) {
+			audioContext.close();
+			audioContext = null;
+		}
+
+		audioAnalyser = null;
+		dataArray = null;
+		isAudioAnalyserActive.value = false;
+	};
+
+	const updateMicrophoneLevel = () => {
+		if (!isAudioAnalyserActive.value || !audioAnalyser || !dataArray) return;
+
+		try {
+			audioAnalyser.getByteFrequencyData(dataArray);
+			const average =
+				dataArray.reduce((acc, value) => acc + value, 0) / dataArray.length;
+			microphoneLevel.value = Math.min(100, (average / 255) * 100);
+
+			if (isAudioAnalyserActive.value) {
+				animationFrame = requestAnimationFrame(updateMicrophoneLevel);
+			}
+		} catch (error) {
+			console.error("Mikrofon seviyesi güncellenirken hata:", error);
+			cleanupAudioAnalyser();
+		}
+	};
+
+	const startCountdown = async () => {
+		if (selectedDelay.value <= 0) return;
+
+		return new Promise((resolve) => {
+			const countdownElement = document.createElement("div");
+			countdownElement.className =
+				"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xl !text-white bg-red-500/80 backdrop-blur-3xl border border-gray-700 rounded-full w-12 h-12 flex items-center justify-center z-50 countdown-number";
+
+			document.body.appendChild(countdownElement);
+
+			let countdown = selectedDelay.value / 1000;
+			countdownElement.textContent = countdown;
+
+			const countdownInterval = setInterval(() => {
+				countdown--;
+				countdownElement.textContent = countdown;
+
+				if (countdown <= 0) {
+					clearInterval(countdownInterval);
+					document.body.removeChild(countdownElement);
+					resolve();
+				}
+			}, 1000);
+		});
+	};
+
+	const startRecording = async (options = null) => {
+		try {
+			// Mouse pozisyonlarını sıfırla
+			mousePositions.value = [];
+			previousPositions.value = [];
+
+			// Mouse takibini başlat
+			if (window.electron?.ipcRenderer) {
+				window.electron.ipcRenderer.send("START_MOUSE_TRACKING");
+			}
+
+			// Geri sayım başlat
+			await startCountdown();
+
+			isRecording.value = true;
+			document.body.classList.add("recording");
+
+			const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
+			const useMicrophone = options?.microphone ?? microphoneEnabled.value;
+			const micDeviceId =
+				options?.microphoneDeviceId ?? selectedAudioDevice.value;
+
+			const audioConfig = {
+				mandatory: {
+					chromeMediaSource: useSystemAudio ? "desktop" : "none",
+				},
+			};
+
+			if (useMicrophone && micDeviceId) {
+				audioConfig.optional = [
+					{
+						deviceId: { exact: micDeviceId },
+					},
+				];
+			}
+
+			console.log("2. Stream başlatılıyor...", {
+				useSystemAudio,
+				useMicrophone,
+				micDeviceId,
+				audioConfig,
+			});
+
+			const { screenStream, cameraStream } = await startMediaStream({
+				audio: audioConfig,
+				video: {
+					mandatory: {
+						chromeMediaSource: "desktop",
+					},
+				},
+				sourceType: options?.sourceType || "display",
+			});
+
+			console.log("3. Stream başlatıldı");
+
+			if (mediaStream.value) {
+				console.log("4. MediaRecorder'lar oluşturuluyor");
+
+				const screenRecorder = new MediaRecorder(screenStream, {
+					mimeType: "video/webm;codecs=vp9",
+					videoBitsPerSecond: 50000000,
+				});
+
+				let cameraRecorder = null;
+				if (cameraStream) {
+					cameraRecorder = new MediaRecorder(cameraStream, {
+						mimeType: "video/webm;codecs=vp9",
+						videoBitsPerSecond: 8000000,
+					});
+				}
+
+				let audioRecorder = null;
+				if (mediaStream.value.getAudioTracks().length > 0) {
+					const audioStream = new MediaStream(
+						mediaStream.value.getAudioTracks()
+					);
+					audioRecorder = new MediaRecorder(audioStream, {
+						mimeType: "audio/webm;codecs=opus",
+						audioBitsPerSecond: 320000,
+					});
+
+					console.log("Ses kaydı yapılandırması:", {
+						systemAudio: useSystemAudio,
+						microphone: useMicrophone,
+						audioTracks: audioStream.getAudioTracks().length,
+					});
+				}
+
+				const screenChunks = [];
+				screenRecorder.ondataavailable = (event) => {
+					if (event.data.size > 0) {
+						screenChunks.push(event.data);
+					}
+				};
+
+				const cameraChunks = [];
+				if (cameraRecorder) {
+					cameraRecorder.ondataavailable = (event) => {
+						if (event.data.size > 0) {
+							cameraChunks.push(event.data);
+						}
+					};
+				}
+
+				const audioChunks = [];
+				if (audioRecorder) {
+					audioRecorder.ondataavailable = (event) => {
+						if (event.data.size > 0) {
+							audioChunks.push(event.data);
+						}
+					};
+				}
+
+				screenRecorder.start(1000);
+				if (cameraRecorder) cameraRecorder.start(1000);
+				if (audioRecorder) audioRecorder.start(1000);
+
+				mediaRecorder = {
+					screen: screenRecorder,
+					camera: cameraRecorder,
+					audio: audioRecorder,
+					stop: async () => {
+						document.body.classList.remove("recording");
+
+						screenRecorder.stop();
+						if (cameraRecorder) cameraRecorder.stop();
+						if (audioRecorder) audioRecorder.stop();
+
+						await saveRecording({
+							screen: screenChunks,
+							camera: cameraChunks,
+							audio: audioChunks,
+						});
+					},
+				};
+
+				console.log("8. Tüm MediaRecorder'lar başlatıldı");
+				isRecording.value = true;
+			}
+		} catch (error) {
+			console.error("Kayıt başlatılırken hata:", error);
+			document.body.classList.remove("recording");
+			isRecording.value = false;
+			if (window.electron?.ipcRenderer) {
+				window.electron.ipcRenderer.send("STOP_MOUSE_TRACKING");
+			}
+		}
+	};
+
+	const startMediaStream = async (streamOptions) => {
+		try {
 			const sources = await window.electron?.desktopCapturer.getSources({
 				types: ["window", "screen"],
 				thumbnailSize: { width: 1280, height: 720 },
@@ -48,7 +341,6 @@ export const useMediaDevices = () => {
 				throw new Error("Ekran kaynakları bulunamadı");
 			}
 
-			// Seçilen kaynak tipine göre source'u belirle
 			let selectedSource = sources[0];
 			if (streamOptions?.sourceType === "display") {
 				selectedSource =
@@ -60,13 +352,11 @@ export const useMediaDevices = () => {
 					sources[0];
 			}
 
-			// Ekran yakalama
 			const screenStream = await navigator.mediaDevices.getUserMedia({
 				audio: false,
 				systemAudio: "include",
 				video: {
 					cursor: "never",
-					// @ts-ignore
 					mandatory: {
 						cursor: "never",
 						chromeMediaSource: "desktop",
@@ -90,7 +380,6 @@ export const useMediaDevices = () => {
 				},
 			});
 
-			// Ses yakalama (isteğe bağlı)
 			let audioStream = null;
 			if (selectedAudioDevice.value) {
 				try {
@@ -107,7 +396,6 @@ export const useMediaDevices = () => {
 				}
 			}
 
-			// Tüm akışları birleştir
 			const tracks = [
 				...screenStream.getVideoTracks(),
 				...(audioStream?.getAudioTracks() || []),
@@ -124,7 +412,31 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const stopRecording = () => {
+	const stopRecording = async () => {
+		isRecording.value = false;
+		if (window.electron?.ipcRenderer) {
+			window.electron.ipcRenderer.send("STOP_MOUSE_TRACKING");
+		}
+
+		try {
+			console.log("1. Kayıt durdurma başlatıldı");
+			if (mediaRecorder) {
+				console.log("2. MediaRecorder'lar durduruluyor");
+				await mediaRecorder.stop();
+				mediaRecorder = null;
+			}
+			console.log("3. Stream durduruluyor");
+			await stopMediaStream();
+			console.log("4. Kayıt durdurma tamamlandı");
+			isRecording.value = false;
+		} catch (error) {
+			console.error("Kayıt durdurulurken hata:", error);
+		}
+
+		document.body.classList.remove("recording");
+	};
+
+	const stopMediaStream = () => {
 		if (mediaStream.value) {
 			mediaStream.value.getTracks().forEach((track) => {
 				track.stop();
@@ -134,13 +446,27 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	const saveRecording = async (chunks, cropArea) => {
+	const toggleMicrophone = () => {
+		microphoneEnabled.value = !microphoneEnabled.value;
+		if (!microphoneEnabled.value) {
+			cleanupAudioAnalyser();
+		} else {
+			initAudioAnalyser();
+		}
+		return microphoneEnabled.value;
+	};
+
+	const toggleSystemAudio = () => {
+		systemAudioEnabled.value = !systemAudioEnabled.value;
+		return systemAudioEnabled.value;
+	};
+
+	const saveRecording = async (chunks) => {
 		try {
 			console.log("1. Kayıtlar kaydediliyor...", {
 				hasScreen: chunks.screen.length > 0,
 				hasCamera: chunks.camera.length > 0,
 				hasAudio: chunks.audio.length > 0,
-				cropArea,
 			});
 
 			// Ekran kaydını kaydet
@@ -201,22 +527,22 @@ export const useMediaDevices = () => {
 			}
 
 			// Editör sayfasına yönlendir
-			// router.push({
-			// 	path: "/editor",
-			// 	query: {
-			// 		screen: screenPath ? encodeURIComponent(screenPath) : undefined,
-			// 		camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
-			// 		audio: audioPath ? encodeURIComponent(audioPath) : undefined,
-			// 		cropArea: cropArea
-			// 			? encodeURIComponent(JSON.stringify(cropArea))
-			// 			: undefined,
-			// 	},
-			// });
+			router.push({
+				path: "/editor",
+				query: {
+					screen: screenPath ? encodeURIComponent(screenPath) : undefined,
+					camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
+					audio: audioPath ? encodeURIComponent(audioPath) : undefined,
+				},
+			});
 		} catch (error) {
 			console.error("Kayıtlar kaydedilirken hata:", error);
 			alert("Kayıtlar kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
 		}
 	};
+
+	// Mouse tracking setup'ı başlat
+	setupMouseTracking();
 
 	return {
 		videoDevices,
@@ -225,9 +551,23 @@ export const useMediaDevices = () => {
 		selectedAudioDevice,
 		mediaStream,
 		isRecording,
+		systemAudioEnabled,
+		microphoneEnabled,
+		microphoneLevel,
+		currentAudioStream,
+		isAudioAnalyserActive,
+		selectedDelay,
+		mousePositions,
+		previousPositions,
 		getDevices,
 		startRecording,
 		stopRecording,
 		saveRecording,
+		initAudioAnalyser,
+		cleanupAudioAnalyser,
+		toggleMicrophone,
+		toggleSystemAudio,
+		throttle,
+		drawMousePosition,
 	};
 };

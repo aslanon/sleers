@@ -366,14 +366,21 @@ const props = defineProps({
 	segments: {
 		type: Array,
 		default: () => [],
-		validator: (segments) =>
-			segments.every(
+		validator: (segments) => {
+			if (!segments) return true;
+			return segments.every(
 				(segment) =>
-					segment.start >= 0 &&
-					segment.end >= segment.start &&
-					typeof segment.start === "number" &&
-					typeof segment.end === "number"
-			),
+					segment &&
+					typeof segment === "object" &&
+					(typeof segment.start === "number" ||
+						typeof segment.startTime === "number") &&
+					(typeof segment.end === "number" ||
+						typeof segment.endTime === "number") &&
+					(segment.start || segment.startTime) >= 0 &&
+					(segment.end || segment.endTime) >=
+						(segment.start || segment.startTime)
+			);
+		},
 	},
 	minZoom: {
 		type: Number,
@@ -414,6 +421,7 @@ const isDragging = ref(false);
 const startDragX = ref(0);
 const startScrollLeft = ref(0);
 const startSegmentStart = ref(0);
+const isHovered = ref(false);
 
 // Yardımcı fonksiyonlar
 const generateId = () => {
@@ -1261,6 +1269,7 @@ const handleZoomRangeEnter = (range) => {
 
 // Script kısmına eklenecek state ve fonksiyonlar:
 const ghostZoomPosition = ref(null);
+const isZoomTrackHovered = ref(false);
 
 // Ghost zoom pozisyonunu güncelle
 const handleZoomTrackMouseMove = (event) => {
@@ -1389,12 +1398,11 @@ const handleKeyDown = (event) => {
 
 // Timeline hover state'i
 const isTimelineHovered = ref(false);
-const isZoomTrackHovered = ref(false);
 
 // Zoom track'ten mouse çıktığında
 const handleZoomTrackLeave = () => {
 	hideGhostZoom();
-	isZoomTrackHovered = false;
+	isZoomTrackHovered.value = false;
 };
 
 // Zoom sürükleme state'leri
