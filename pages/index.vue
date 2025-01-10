@@ -215,7 +215,7 @@ const closeWindow = () => {
 
 // Delay yönetimi için state
 const isSettingsOpen = ref(false);
-const delayOptions = [0, 1000, 3000, 5000]; // 1sn, 3sn, 5sn
+const delayOptions = [0, 1000, 3000, 5000, 10000]; // 1sn, 3sn, 5sn
 const selectedSource = ref("display"); // Varsayılan kaynak tipi
 
 // Delay değişikliğini izle

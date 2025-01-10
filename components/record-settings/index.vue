@@ -76,7 +76,7 @@ const { selectedDelay } = useMediaDevices();
 const props = defineProps({
 	delayOptions: {
 		type: Array,
-		default: () => [0, 1000, 3000, 5000],
+		default: () => [0, 1000, 3000, 5000, 10000],
 	},
 	modelValue: {
 		type: Number,

@@ -137,7 +137,7 @@ export const useMediaDevices = () => {
 		return new Promise((resolve) => {
 			const countdownElement = document.createElement("div");
 			countdownElement.className =
-				"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-3xl !text-white bg-black/80 rounded-full w-20 h-20 flex items-center justify-center z-50 countdown-number";
+				"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xl !text-white bg-red-500/80 backdrop-blur-3xl border border-gray-700 rounded-full w-12 h-12 flex items-center justify-center z-50 countdown-number";
 
 			document.body.appendChild(countdownElement);
 
