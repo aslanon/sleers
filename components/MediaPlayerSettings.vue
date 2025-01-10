@@ -7,7 +7,7 @@
 			<!-- Tab listesi -->
 			<div class="space-y-2 border-r border-white/10 pr-4">
 				<button
-					v-for="tab in tabs"
+					v-for="tab in tabs.filter((tab) => tab.isShowInTab)"
 					:key="tab.id"
 					@click="currentTab = tab.id"
 					class="w-12 flex items-center justify-center p-2 rounded-lg transition-colors"
@@ -121,9 +121,9 @@ const { currentZoomRange } = usePlayerSettings();
 
 // Tab yönetimi
 const tabs = [
-	{ id: "video", name: "Video" },
-	{ id: "mouse", name: "Mouse" },
-	{ id: "zoom", name: "Zoom" },
+	{ id: "video", name: "Video", isShowInTab: true },
+	{ id: "mouse", name: "Mouse", isShowInTab: true },
+	{ id: "zoom", name: "Zoom", isShowInTab: false },
 ];
 
 const currentTab = ref("video");
