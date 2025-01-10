@@ -1,5 +1,7 @@
 import { ref } from "vue";
-import cursorSvg from "~/assets/cursors/default.svg";
+import defaultCursor from "~/assets/cursors/default.svg";
+import pointerCursor from "~/assets/cursors/pointer.svg";
+import textCursor from "~/assets/cursors/text.svg";
 import { calculateZoomOrigin } from "~/composables/utils/zoomPositions";
 import {
 	calculateMousePosition,
@@ -12,18 +14,38 @@ import {
 	applyDeformationEffects,
 } from "~/composables/utils/motionBlur";
 
+// Cursor type mapping
+const cursorImages = {
+	default: defaultCursor,
+	pointer: pointerCursor,
+	text: textCursor,
+};
+
 export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 	// Mouse animasyonu için state
 	const previousPositions = ref([]);
 
 	// Cursor image yönetimi
-	const cursorImage = Object.assign(new Image(), {
-		src: cursorSvg,
-		onload: () =>
-			console.log("[useMouseCursor] Cursor image loaded successfully"),
-		onerror: (error) =>
-			console.error("[useMouseCursor] Cursor image loading error:", error),
-	});
+	const cursorImageCache = {};
+
+	const loadCursorImage = (type) => {
+		if (!cursorImageCache[type]) {
+			const image = Object.assign(new Image(), {
+				src: cursorImages[type] || cursorImages.default,
+				onload: () =>
+					console.log(
+						`[useMouseCursor] ${type} cursor image loaded successfully`
+					),
+				onerror: (error) =>
+					console.error(
+						`[useMouseCursor] ${type} cursor image loading error:`,
+						error
+					),
+			});
+			cursorImageCache[type] = image;
+		}
+		return cursorImageCache[type];
+	};
 
 	// Motion blur fonksiyonu
 	const applyMotionBlur = (
@@ -37,7 +59,8 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		mouseSize,
 		mouseMotionEnabled,
 		motionBlurValue,
-		videoScale
+		videoScale,
+		cursorType = "default"
 	) => {
 		const {
 			MIN_SPEED_THRESHOLD,
@@ -56,6 +79,9 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const size = mouseSize;
 		const offsetX = size * 0.3;
 		const offsetY = size * 0.2;
+
+		// Get the appropriate cursor image
+		const cursorImage = loadCursorImage(cursorType);
 
 		// Zoom durumunda scale'i kompanse et
 		if (videoScale > 1.001) {
@@ -151,8 +177,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			!mousePositions ||
 			mousePositions.length === 0 ||
 			!canvasRef ||
-			!videoElement ||
-			!cursorImage.complete
+			!videoElement
 		)
 			return;
 
@@ -247,7 +272,8 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			mouseSize,
 			mouseMotionEnabled,
 			motionBlurValue,
-			videoScale
+			videoScale,
+			currentPos.cursorType || "default"
 		);
 
 		ctx.restore();
@@ -255,7 +281,6 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 
 	return {
 		previousPositions,
-		cursorImage,
 		drawMousePosition,
 		applyMotionBlur,
 	};

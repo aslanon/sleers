@@ -63,9 +63,10 @@ export const useMediaDevices = () => {
 			// Ekran yakalama
 			const screenStream = await navigator.mediaDevices.getUserMedia({
 				audio: false,
+				systemAudio: "include",
 				video: {
-					// @ts-ignore
 					cursor: "never",
+					// @ts-ignore
 					mandatory: {
 						cursor: "never",
 						chromeMediaSource: "desktop",
@@ -116,7 +117,7 @@ export const useMediaDevices = () => {
 			mediaStream.value = combinedStream;
 			isRecording.value = true;
 
-			return { screenStream };
+			return { screenStream: combinedStream };
 		} catch (error) {
 			console.error("Kayıt başlatılırken hata oluştu:", error);
 			throw error;
@@ -200,17 +201,17 @@ export const useMediaDevices = () => {
 			}
 
 			// Editör sayfasına yönlendir
-			router.push({
-				path: "/editor",
-				query: {
-					screen: screenPath ? encodeURIComponent(screenPath) : undefined,
-					camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
-					audio: audioPath ? encodeURIComponent(audioPath) : undefined,
-					cropArea: cropArea
-						? encodeURIComponent(JSON.stringify(cropArea))
-						: undefined,
-				},
-			});
+			// router.push({
+			// 	path: "/editor",
+			// 	query: {
+			// 		screen: screenPath ? encodeURIComponent(screenPath) : undefined,
+			// 		camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
+			// 		audio: audioPath ? encodeURIComponent(audioPath) : undefined,
+			// 		cropArea: cropArea
+			// 			? encodeURIComponent(JSON.stringify(cropArea))
+			// 			: undefined,
+			// 	},
+			// });
 		} catch (error) {
 			console.error("Kayıtlar kaydedilirken hata:", error);
 			alert("Kayıtlar kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");

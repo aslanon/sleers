@@ -559,11 +559,13 @@ function startMouseTracking() {
 		if (!mouseTrackingInterval) {
 			mouseTrackingInterval = setInterval(() => {
 				const mousePos = screen.getCursorScreenPoint();
+				const cursorType = "default";
 				time = time + 1;
 				mediaStateManager.addMousePosition({
 					x: mousePos.x,
 					y: mousePos.y,
 					timestamp: time,
+					cursorType,
 				});
 			}, 16); // ~60fps
 		}
