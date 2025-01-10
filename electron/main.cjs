@@ -423,6 +423,53 @@ function setupIpcHandlers() {
 	ipcMain.on("TOGGLE_CAMERA_FOLLOW", (event, shouldFollow) => {
 		cameraManager.setFollowMouse(shouldFollow);
 	});
+
+	// Video kaydetme işleyicisi
+	ipcMain.handle("SAVE_VIDEO", async (event, base64Data, outputPath) => {
+		try {
+			console.log("[main] Video kaydediliyor...");
+
+			// Base64'ten buffer'a çevir
+			const base64String = base64Data.replace(/^data:video\/webm;base64,/, "");
+			const inputBuffer = Buffer.from(base64String, "base64");
+
+			// Geçici webm dosyası oluştur
+			const tempWebmPath = path.join(
+				app.getPath("temp"),
+				`temp_${Date.now()}.webm`
+			);
+			fs.writeFileSync(tempWebmPath, inputBuffer);
+
+			// FFmpeg ile MP4'e dönüştür ve kaliteyi ayarla
+			return new Promise((resolve, reject) => {
+				ffmpeg(tempWebmPath)
+					.outputOptions([
+						"-c:v libx264", // H.264 codec
+						"-preset fast", // Hızlı encoding
+						"-crf 18", // Yüksek kalite (0-51, düşük değer = yüksek kalite)
+						"-movflags +faststart", // Web playback için optimize
+						"-profile:v high", // Yüksek profil
+						"-level 4.2", // Uyumluluk seviyesi
+						"-pix_fmt yuv420p", // Renk formatı
+						"-r 60", // 60 FPS
+					])
+					.on("end", () => {
+						// Geçici dosyayı temizle
+						fs.unlinkSync(tempWebmPath);
+						console.log("[main] Video başarıyla kaydedildi:", outputPath);
+						resolve({ success: true });
+					})
+					.on("error", (err) => {
+						console.error("[main] Video dönüştürme hatası:", err);
+						reject(new Error("Video dönüştürülemedi: " + err.message));
+					})
+					.save(outputPath);
+			});
+		} catch (error) {
+			console.error("[main] Video kaydetme hatası:", error);
+			throw error;
+		}
+	});
 }
 
 async function createWindow() {
