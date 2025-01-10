@@ -40,7 +40,7 @@
 			<!-- @wheel.prevent="handleContainerWheel" -->
 			<div
 				ref="timelineRef"
-				class="timeline-ruler relative h-full select-none"
+				class="timeline-ruler px-6 py-4 relative h-full select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 				@mousemove="handleTimelineMouseMove"
