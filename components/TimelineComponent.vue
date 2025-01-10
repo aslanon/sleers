@@ -1390,6 +1390,7 @@ const handleKeyDown = (event) => {
 // Timeline hover state'i
 const isTimelineHovered = ref(false);
 const isZoomTrackHovered = ref(false);
+const isHovered = ref(false);
 
 // Zoom track'ten mouse çıktığında
 const handleZoomTrackLeave = () => {
