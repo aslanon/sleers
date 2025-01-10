@@ -526,16 +526,6 @@ export const useMediaDevices = () => {
 				);
 				console.log("4. Ses kaydı kaydedildi:", audioPath);
 			}
-
-			// Editör sayfasına yönlendir
-			// router.push({
-			// 	path: "/editor",
-			// 	query: {
-			// 		screen: screenPath ? encodeURIComponent(screenPath) : undefined,
-			// 		camera: cameraPath ? encodeURIComponent(cameraPath) : undefined,
-			// 		audio: audioPath ? encodeURIComponent(audioPath) : undefined,
-			// 	},
-			// });
 		} catch (error) {
 			console.error("Kayıtlar kaydedilirken hata:", error);
 			alert("Kayıtlar kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");

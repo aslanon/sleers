@@ -248,7 +248,10 @@ function setupIpcHandlers() {
 
 	ipcMain.handle(IPC_EVENTS.SHOW_SAVE_DIALOG, async (event, options) => {
 		const { dialog } = require("electron");
-		const result = await dialog.showSaveDialog(mainWindow, options);
+		const result = await dialog.showSaveDialog({
+			...options,
+			properties: ["showOverwriteConfirmation"],
+		});
 		return result.filePath;
 	});
 

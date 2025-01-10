@@ -131,6 +131,10 @@ class EditorManager {
 	cleanup() {
 		this.closeEditorWindow();
 	}
+
+	getEditorWindow() {
+		return this.editorWindow;
+	}
 }
 
 module.exports = EditorManager;
