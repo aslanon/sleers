@@ -13,6 +13,7 @@ export const useMediaDevices = () => {
 	const microphoneEnabled = ref(true);
 	const microphoneLevel = ref(0);
 	const currentAudioStream = ref(null);
+	const selectedDelay = ref(0);
 	let mediaRecorder = null;
 	let audioContext = null;
 	let audioAnalyser = null;
@@ -130,10 +131,38 @@ export const useMediaDevices = () => {
 		}
 	};
 
+	const startCountdown = async () => {
+		if (selectedDelay.value <= 0) return;
+
+		return new Promise((resolve) => {
+			const countdownElement = document.createElement("div");
+			countdownElement.className =
+				"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-3xl !text-white bg-black/80 rounded-full w-20 h-20 flex items-center justify-center z-50 countdown-number";
+
+			document.body.appendChild(countdownElement);
+
+			let countdown = selectedDelay.value / 1000;
+			countdownElement.textContent = countdown;
+
+			const countdownInterval = setInterval(() => {
+				countdown--;
+				countdownElement.textContent = countdown;
+
+				if (countdown <= 0) {
+					clearInterval(countdownInterval);
+					document.body.removeChild(countdownElement);
+					resolve();
+				}
+			}, 1000);
+		});
+	};
+
 	const startRecording = async (options = null) => {
 		try {
-			isRecording.value = true;
+			// Geri sayım başlat
+			await startCountdown();
 
+			isRecording.value = true;
 			document.body.classList.add("recording");
 
 			const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
@@ -487,6 +516,7 @@ export const useMediaDevices = () => {
 		microphoneLevel,
 		currentAudioStream,
 		isAudioAnalyserActive,
+		selectedDelay,
 		getDevices,
 		startRecording,
 		stopRecording,

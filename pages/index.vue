@@ -170,9 +170,8 @@
 	<RecordSettings
 		v-if="isSettingsOpen"
 		:delay-options="delayOptions"
-		v-model:selected-delay="selectedDelay"
+		v-model="selectedDelay"
 		v-model:selected-source="selectedSource"
-		@update:selected-delay="handleDelayChange"
 		@update:selected-source="selectSource"
 	/>
 </template>
@@ -197,6 +196,7 @@ const {
 	microphoneLevel,
 	currentAudioStream,
 	isAudioAnalyserActive,
+	selectedDelay,
 	getDevices,
 	startRecording,
 	stopRecording,
@@ -216,8 +216,17 @@ const closeWindow = () => {
 // Delay yönetimi için state
 const isSettingsOpen = ref(false);
 const delayOptions = [0, 1000, 3000, 5000]; // 1sn, 3sn, 5sn
-const selectedDelay = ref(0); // Varsayılan 1sn
 const selectedSource = ref("display"); // Varsayılan kaynak tipi
+
+// Delay değişikliğini izle
+watch(selectedDelay, (newValue) => {
+	if (electron?.ipcRenderer) {
+		electron.ipcRenderer.send(
+			IPC_EVENTS.UPDATE_RECORDING_DELAY,
+			parseInt(newValue)
+		);
+	}
+});
 
 // Pencere boyutunu ayarla
 const updateWindowSize = (isOpen) => {
@@ -232,16 +241,6 @@ const updateWindowSize = (isOpen) => {
 watch(isSettingsOpen, (newValue) => {
 	updateWindowSize(newValue);
 });
-
-// Delay değişikliği
-const handleDelayChange = (delay) => {
-	selectedDelay.value = parseInt(delay);
-	// Main process'e delay değerini gönder
-	electron?.ipcRenderer.send(
-		IPC_EVENTS.UPDATE_RECORDING_DELAY,
-		parseInt(delay)
-	);
-};
 
 // Kaynak seçimi
 const selectSource = (source) => {

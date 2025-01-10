@@ -13,7 +13,7 @@
 						@click="selectDelay(delay)"
 						class="px-3 py-1 rounded-lg text-sm"
 						:class="
-							selectedDelay === delay
+							modelValue === delay
 								? 'bg-blue-600'
 								: 'bg-gray-700 hover:bg-gray-600'
 						"
@@ -69,13 +69,16 @@
 
 <script setup>
 import { computed } from "vue";
+import { useMediaDevices } from "~/composables/useMediaDevices";
+
+const { selectedDelay } = useMediaDevices();
 
 const props = defineProps({
 	delayOptions: {
 		type: Array,
 		default: () => [0, 1000, 3000, 5000],
 	},
-	selectedDelay: {
+	modelValue: {
 		type: Number,
 		default: 1000,
 	},
@@ -90,7 +93,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits([
-	"update:selectedDelay",
+	"update:modelValue",
 	"update:selectedSource",
 	"update:followMouse",
 ]);
@@ -128,7 +131,7 @@ const sources = computed(() => [
 
 // Delay seçimi
 const selectDelay = (delay) => {
-	emit("update:selectedDelay", delay);
+	emit("update:modelValue", delay);
 };
 
 // Kaynak seçimi
