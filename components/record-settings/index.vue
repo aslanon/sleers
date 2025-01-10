@@ -3,28 +3,6 @@
 		class="w-full border border-gray-700 rounded-xl bg-[#1a1b26]/90 backdrop-blur-3xl p-4 shadow-lg mt-2"
 	>
 		<div class="flex flex-col space-y-4">
-			<!-- Kayıt Gecikmesi -->
-			<div class="text-white">
-				<div class="text-sm font-medium text-white mb-2">Kayıt Gecikmesi</div>
-				<div class="flex flex-wrap gap-2">
-					<button
-						v-for="delay in delayOptions"
-						:key="delay"
-						@click="selectDelay(delay)"
-						class="px-3 py-1 rounded-lg text-sm"
-						:class="
-							modelValue === delay
-								? 'bg-blue-600'
-								: 'bg-gray-700 hover:bg-gray-600'
-						"
-					>
-						{{ delay / 1000 }}sn
-					</button>
-				</div>
-			</div>
-
-			<div class="border-t border-gray-700 my-2"></div>
-
 			<!-- Kayıt Kaynağı -->
 			<div class="text-white">
 				<div class="text-sm font-medium text-white mb-2">Kayıt Kaynağı</div>
@@ -52,7 +30,7 @@
 							v-for="source in filteredSources"
 							:key="source.id"
 							@click="selectSource(source)"
-							class="w-[100px] flex flex-col items-center p-2 rounded-lg transition-all border"
+							class="max-w h-28 flex flex-col items-center justify-between p-2 rounded-lg transition-all border"
 							:class="[
 								selectedSourceId === source.id
 									? 'bg-blue-500/20 border-blue-500 text-blue-400'
@@ -64,7 +42,7 @@
 							>
 								<img
 									:src="source.thumbnail.toDataURL()"
-									class="w-full h-full object-contain"
+									class="w-[100px] h-24 m-auto object-contain"
 									:alt="source.name"
 								/>
 							</div>
@@ -73,6 +51,27 @@
 							}}</span>
 						</button>
 					</div>
+				</div>
+			</div>
+
+			<div class="border-t border-gray-700 my-2"></div>
+			<!-- Kayıt Gecikmesi -->
+			<div class="text-white">
+				<div class="text-sm font-medium text-white mb-2">Kayıt Gecikmesi</div>
+				<div class="flex flex-wrap gap-2">
+					<button
+						v-for="delay in delayOptions"
+						:key="delay"
+						@click="selectDelay(delay)"
+						class="px-3 py-1 rounded-lg text-sm"
+						:class="
+							modelValue === delay
+								? 'bg-blue-600'
+								: 'bg-gray-700 hover:bg-gray-600'
+						"
+					>
+						{{ delay / 1000 }}sn
+					</button>
 				</div>
 			</div>
 
@@ -86,7 +85,7 @@
 						<input
 							type="checkbox"
 							:checked="followMouse"
-							@change="$emit('update:followMouse', $event.target.checked)"
+							@change="toggleFollowMouse"
 							class="form-checkbox h-4 w-4 text-blue-600 rounded border-gray-700 bg-gray-800 focus:ring-blue-500"
 						/>
 						<span class="text-sm">Kamera fare imlecini takip etsin</span>
@@ -217,10 +216,7 @@ const selectDelay = (delay) => {
 
 // Kamera takip ayarı
 const toggleFollowMouse = (event) => {
-	emit("update:followMouse", event.target.checked);
-	window.electron?.ipcRenderer.send(
-		"TOGGLE_CAMERA_FOLLOW",
-		event.target.checked
-	);
+	const isChecked = event.target.checked;
+	emit("update:followMouse", isChecked);
 };
 </script>

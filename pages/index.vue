@@ -172,6 +172,7 @@
 		:delay-options="delayOptions"
 		v-model="selectedDelay"
 		v-model:selected-source="selectedSource"
+		v-model:follow-mouse="followMouse"
 		@update:selected-source="selectSource"
 	/>
 </template>
@@ -217,6 +218,7 @@ const closeWindow = () => {
 const isSettingsOpen = ref(false);
 const delayOptions = [0, 1000, 3000, 5000, 10000]; // 1sn, 3sn, 5sn
 const selectedSource = ref(null);
+const followMouse = ref(true);
 
 // Delay değişikliğini izle
 watch(selectedDelay, (newValue) => {
