@@ -435,12 +435,18 @@ const handleResize = () => {
 
 // Kırpma alanını güncelle
 const updateCropArea = () => {
-	if (!containerRef.value || !videoElement) return;
+	if (!containerRef.value || !videoElement || !canvasRef.value || !ctx) return;
 
+	// Container boyutlarını al
 	const container = containerRef.value.getBoundingClientRect();
+	const containerWidth = container.width;
+	const containerHeight = container.height;
+
+	// DPR'ı al
+	const dpr = window.devicePixelRatio || 1;
 
 	let canvasWidth, canvasHeight;
-	const containerRatio = container.width / container.height;
+	const containerRatio = containerWidth / containerHeight;
 
 	if (!cropRatio.value || cropRatio.value === "auto") {
 		// Auto modunda video'nun orijinal en-boy oranını kullan
@@ -452,12 +458,12 @@ const updateCropArea = () => {
 
 		if (videoRatio > containerRatio) {
 			// Video daha geniş, genişliğe göre ölçekle
-			canvasWidth = container.width;
-			canvasHeight = container.width / videoRatio;
+			canvasWidth = containerWidth;
+			canvasHeight = containerWidth / videoRatio;
 		} else {
 			// Video daha dar, yüksekliğe göre ölçekle
-			canvasHeight = container.height;
-			canvasWidth = container.height * videoRatio;
+			canvasHeight = containerHeight;
+			canvasWidth = containerHeight * videoRatio;
 		}
 	} else {
 		// Seçilen aspect ratio'yu al
@@ -467,16 +473,27 @@ const updateCropArea = () => {
 
 		if (containerRatio > targetRatio) {
 			// Container daha geniş, yüksekliğe göre hesapla
-			canvasHeight = container.height;
-			canvasWidth = canvasHeight * targetRatio;
+			canvasHeight = containerHeight;
+			canvasWidth = containerHeight * targetRatio;
 		} else {
 			// Container daha dar, genişliğe göre hesapla
-			canvasWidth = container.width;
-			canvasHeight = canvasWidth / targetRatio;
+			canvasWidth = containerWidth;
+			canvasHeight = containerWidth / targetRatio;
 		}
 	}
 
-	// Kırpma alanını güncelle (canvas boyutları)
+	// Canvas boyutlarını güncelle
+	canvasRef.value.width = canvasWidth * dpr;
+	canvasRef.value.height = canvasHeight * dpr;
+
+	// Canvas stil boyutlarını ayarla (CSS pixels)
+	canvasRef.value.style.width = `${canvasWidth}px`;
+	canvasRef.value.style.height = `${canvasHeight}px`;
+
+	// Canvas transform ayarları
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+	// Kırpma alanını güncelle
 	cropArea.value = {
 		width: canvasWidth,
 		height: canvasHeight,
@@ -484,13 +501,7 @@ const updateCropArea = () => {
 		y: 0,
 	};
 
-	// Canvas boyutlarını güncelle
-	if (canvasRef.value) {
-		canvasRef.value.width = canvasWidth;
-		canvasRef.value.height = canvasHeight;
-	}
-
-	// Canvas'ı güncelle
+	// Canvas'ı hemen güncelle
 	requestAnimationFrame(() => updateCanvas(performance.now()));
 
 	// Değişiklikleri emit et
@@ -549,13 +560,36 @@ const onAudioError = (error) => {
 
 // Aspect ratio güncelleme
 const updateAspectRatio = (ratio) => {
+	console.log("[MediaPlayer] Updating aspect ratio:", ratio);
 	selectedAspectRatio.value = ratio;
+	cropRatio.value = ratio;
 	updateCropArea();
-	// Hemen canvas'ı güncelle
-	requestAnimationFrame(() => {
-		updateCanvas(performance.now());
-	});
 };
+
+// Aspect ratio değişikliğini izle
+watch(
+	cropRatio,
+	(newRatio) => {
+		console.log("[MediaPlayer] Crop ratio changed:", newRatio);
+		updateCropArea();
+	},
+	{ immediate: true }
+);
+
+// Props'ları izle
+watch(
+	() => props.selectedAspectRatio,
+	(newRatio) => {
+		if (newRatio) {
+			console.log(
+				"[MediaPlayer] Selected aspect ratio prop changed:",
+				newRatio
+			);
+			updateAspectRatio(newRatio);
+		}
+	},
+	{ immediate: true }
+);
 
 // Kırpma verilerini al
 const getCropData = () => {
@@ -651,21 +685,30 @@ const updateCanvas = (timestamp) => {
 
 	// Video'nun orijinal en-boy oranını koru
 	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-	const canvasRatio = canvasRef.value.width / canvasRef.value.height;
+	const canvasWidth = canvasRef.value.width;
+	const canvasHeight = canvasRef.value.height;
 
-	// Padding'i hesaba katarak video boyutlarını hesapla
-	let drawWidth, drawHeight;
-	if (videoRatio > canvasRatio) {
-		drawWidth = canvasRef.value.width - padding.value * 2 * dpr;
+	// Video'yu canvas'a sığdırırken aspect ratio'yu koru
+	let drawWidth, drawHeight, x, y;
+
+	// Önce padding'i hesaba kat
+	const availableWidth = canvasWidth - padding.value * 2 * dpr;
+	const availableHeight = canvasHeight - padding.value * 2 * dpr;
+	const availableRatio = availableWidth / availableHeight;
+
+	if (videoRatio > availableRatio) {
+		// Video daha geniş, genişliğe göre ölçekle
+		drawWidth = availableWidth;
 		drawHeight = drawWidth / videoRatio;
+		x = padding.value * dpr;
+		y = padding.value * dpr + (availableHeight - drawHeight) / 2;
 	} else {
-		drawHeight = canvasRef.value.height - padding.value * 2 * dpr;
+		// Video daha dar, yüksekliğe göre ölçekle
+		drawHeight = availableHeight;
 		drawWidth = drawHeight * videoRatio;
+		x = padding.value * dpr + (availableWidth - drawWidth) / 2;
+		y = padding.value * dpr;
 	}
-
-	// Video'yu canvas'ın ortasına yerleştir
-	const x = (canvasRef.value.width - drawWidth) / 2;
-	const y = (canvasRef.value.height - drawHeight) / 2;
 
 	// Aktif zoom segmentini bul
 	const currentTime = videoElement.currentTime;
@@ -679,8 +722,8 @@ const updateCanvas = (timestamp) => {
 
 	// Zoom efektini uygula
 	if (videoScale.value > 1.001) {
-		const centerX = canvasRef.value.width / 2;
-		const centerY = canvasRef.value.height / 2;
+		const centerX = x + drawWidth / 2;
+		const centerY = y + drawHeight / 2;
 
 		// Zoom origin'i hesapla
 		const { originX: transformOriginX, originY: transformOriginY } =
