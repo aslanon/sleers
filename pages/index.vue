@@ -182,50 +182,29 @@ import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 import RecordSettings from "~/components/record-settings/index.vue";
 
-// Click outside direktifi
-const vClickOutside = {
-	mounted: (el, binding) => {
-		el._clickOutside = (event) => {
-			if (!(el === event.target || el.contains(event.target))) {
-				binding.value(event);
-			}
-		};
-		document.addEventListener("click", el._clickOutside);
-	},
-	unmounted: (el) => {
-		document.removeEventListener("click", el._clickOutside);
-	},
-};
-
 // IPC event isimlerini al
 const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
-
-let mediaRecorder = null;
-
-// Varsayılan değerler
-const selectedSource = ref("display"); // Varsayılan kaynak tipi
-const systemAudioEnabled = ref(true);
-const microphoneEnabled = ref(true);
-const microphoneLevel = ref(0);
-let audioContext = null;
-let audioAnalyser = null;
-let dataArray = null;
-let animationFrame = null;
-
-// Ses stream'i için ref
-const currentAudioStream = ref(null);
 
 const {
 	videoDevices,
 	audioDevices,
 	selectedVideoDevice,
 	selectedAudioDevice,
-	getDevices,
-	isRecording,
 	mediaStream,
-	startRecording: startMediaStream,
-	stopRecording: stopMediaStream,
-	saveRecording,
+	isRecording,
+	systemAudioEnabled,
+	microphoneEnabled,
+	microphoneLevel,
+	currentAudioStream,
+	isAudioAnalyserActive,
+	getDevices,
+	startRecording,
+	stopRecording,
+	initAudioAnalyser,
+	cleanupAudioAnalyser,
+	toggleMicrophone,
+	toggleSystemAudio,
+	throttle,
 } = useMediaDevices();
 
 const electron = window.electron;
@@ -234,174 +213,11 @@ const closeWindow = () => {
 	electron?.windowControls.close();
 };
 
-// Ses analizi için state
-const isAudioAnalyserActive = ref(false);
-
-const initAudioAnalyser = async () => {
-	try {
-		// Eğer zaten aktifse, önce temizle
-		if (isAudioAnalyserActive.value) {
-			cleanupAudioAnalyser();
-		}
-
-		if (!audioContext) {
-			audioContext = new (window.AudioContext || window.webkitAudioContext)();
-		}
-
-		// Eğer önceki stream varsa durdur
-		if (currentAudioStream.value) {
-			currentAudioStream.value.getTracks().forEach((track) => track.stop());
-		}
-
-		const stream = await navigator.mediaDevices.getUserMedia({
-			audio: {
-				deviceId: selectedAudioDevice.value
-					? { exact: selectedAudioDevice.value }
-					: undefined,
-			},
-		});
-
-		// Stream'i sakla
-		currentAudioStream.value = stream;
-
-		const source = audioContext.createMediaStreamSource(stream);
-		audioAnalyser = audioContext.createAnalyser();
-		audioAnalyser.fftSize = 256;
-		source.connect(audioAnalyser);
-
-		dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
-		isAudioAnalyserActive.value = true;
-		updateMicrophoneLevel();
-	} catch (error) {
-		console.error("[index.vue] Mikrofon analiz hatası:", error);
-		isAudioAnalyserActive.value = false;
-	}
-};
-
-const cleanupAudioAnalyser = () => {
-	if (animationFrame) {
-		cancelAnimationFrame(animationFrame);
-		animationFrame = null;
-	}
-
-	if (currentAudioStream.value) {
-		currentAudioStream.value.getTracks().forEach((track) => track.stop());
-		currentAudioStream.value = null;
-	}
-
-	if (audioContext) {
-		audioContext.close();
-		audioContext = null;
-	}
-
-	audioAnalyser = null;
-	dataArray = null;
-	isAudioAnalyserActive.value = false;
-};
-
-// Mikrofon seviyesi güncellendiğinde
-const updateMicrophoneLevel = () => {
-	if (!isAudioAnalyserActive.value || !audioAnalyser || !dataArray) return;
-
-	try {
-		audioAnalyser.getByteFrequencyData(dataArray);
-		const average =
-			dataArray.reduce((acc, value) => acc + value, 0) / dataArray.length;
-		microphoneLevel.value = Math.min(100, (average / 255) * 100);
-
-		// Sadece UI'da göstermek için kullanılacak, her frame'de main process'e göndermemize gerek yok
-		if (isAudioAnalyserActive.value) {
-			animationFrame = requestAnimationFrame(updateMicrophoneLevel);
-		}
-	} catch (error) {
-		console.error("[index.vue] Mikrofon seviyesi güncellenirken hata:", error);
-		cleanupAudioAnalyser();
-	}
-};
-
-// Throttled updateAudioSettings fonksiyonu
-const throttledUpdateAudioSettings = throttle((settings) => {
-	if (!electron?.ipcRenderer || !IPC_EVENTS?.UPDATE_AUDIO_SETTINGS) {
-		console.warn("[index.vue] Electron veya IPC_EVENTS tanımlı değil");
-		return;
-	}
-	try {
-		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, settings);
-	} catch (error) {
-		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
-	}
-}, 1000); // Her 1 saniyede bir güncelleme yap
-
-// Mikrofon değişikliğini izle
-watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
-	if (newDeviceId && newDeviceId !== oldDeviceId) {
-		try {
-			// MediaState'e yeni mikrofon cihazını bildir
-			throttledUpdateAudioSettings({
-				selectedAudioDevice: newDeviceId,
-			});
-
-			// Ses analizini yeniden başlat
-			await initAudioAnalyser();
-		} catch (error) {
-			console.error("[index.vue] Mikrofon değiştirme hatası:", error);
-		}
-	}
-});
-
-// Mikrofon durumu değiştiğinde
-const toggleMicrophone = () => {
-	microphoneEnabled.value = !microphoneEnabled.value;
-	throttledUpdateAudioSettings({
-		microphoneEnabled: microphoneEnabled.value,
-	});
-
-	// Mikrofon kapatıldığında ses analizini durdur
-	if (!microphoneEnabled.value) {
-		cleanupAudioAnalyser();
-	} else {
-		// Mikrofon açıldığında ses analizini başlat
-		initAudioAnalyser();
-	}
-};
-
-// Sistem sesi durumu değiştiğinde
-const toggleSystemAudio = () => {
-	systemAudioEnabled.value = !systemAudioEnabled.value;
-	throttledUpdateAudioSettings({
-		systemAudioEnabled: systemAudioEnabled.value,
-	});
-};
-
-// Kaynak seçimi
-const selectSource = (source) => {
-	selectedSource.value = source;
-	if (source === "area") {
-		electron?.ipcRenderer.send("START_AREA_SELECTION");
-	}
-};
-
-// Kamera değişikliği izleyicisi
-watch(selectedVideoDevice, async (deviceLabel) => {
-	if (deviceLabel) {
-		try {
-			console.log("[index.vue] Seçilen kamera label:", deviceLabel);
-			// Kamera değişikliğini main process'e bildir
-			electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", deviceLabel);
-			console.log(
-				"[index.vue] Kamera değişikliği main process'e gönderildi:",
-				deviceLabel
-			);
-		} catch (error) {
-			console.error("[index.vue] Kamera değişikliği sırasında hata:", error);
-		}
-	}
-});
-
 // Delay yönetimi için state
 const isSettingsOpen = ref(false);
 const delayOptions = [0, 1000, 3000, 5000]; // 1sn, 3sn, 5sn
 const selectedDelay = ref(0); // Varsayılan 1sn
+const selectedSource = ref("display"); // Varsayılan kaynak tipi
 
 // Pencere boyutunu ayarla
 const updateWindowSize = (isOpen) => {
@@ -426,6 +242,61 @@ const handleDelayChange = (delay) => {
 		parseInt(delay)
 	);
 };
+
+// Kaynak seçimi
+const selectSource = (source) => {
+	selectedSource.value = source;
+	if (source === "area") {
+		electron?.ipcRenderer.send("START_AREA_SELECTION");
+	}
+};
+
+// Throttled updateAudioSettings fonksiyonu
+const throttledUpdateAudioSettings = throttle((settings) => {
+	if (!electron?.ipcRenderer || !IPC_EVENTS?.UPDATE_AUDIO_SETTINGS) {
+		console.warn("[index.vue] Electron veya IPC_EVENTS tanımlı değil");
+		return;
+	}
+	try {
+		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, settings);
+	} catch (error) {
+		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
+	}
+}, 1000);
+
+// Mikrofon değişikliğini izle
+watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
+	if (newDeviceId && newDeviceId !== oldDeviceId) {
+		try {
+			// MediaState'e yeni mikrofon cihazını bildir
+			throttledUpdateAudioSettings({
+				selectedAudioDevice: newDeviceId,
+			});
+
+			// Ses analizini yeniden başlat
+			await initAudioAnalyser();
+		} catch (error) {
+			console.error("[index.vue] Mikrofon değiştirme hatası:", error);
+		}
+	}
+});
+
+// Kamera değişikliği izleyicisi
+watch(selectedVideoDevice, async (deviceLabel) => {
+	if (deviceLabel) {
+		try {
+			console.log("[index.vue] Seçilen kamera label:", deviceLabel);
+			// Kamera değişikliğini main process'e bildir
+			electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", deviceLabel);
+			console.log(
+				"[index.vue] Kamera değişikliği main process'e gönderildi:",
+				deviceLabel
+			);
+		} catch (error) {
+			console.error("[index.vue] Kamera değişikliği sırasında hata:", error);
+		}
+	}
+});
 
 onMounted(async () => {
 	// Cihazları yükle
@@ -498,7 +369,10 @@ onMounted(async () => {
 
 // Kayıt durumu değiştiğinde tray'i güncelle
 watch(isRecording, (newValue) => {
-	electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", newValue);
+	if (electron?.ipcRenderer) {
+		console.log("[index.vue] Kayıt durumu değişti:", newValue);
+		electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, newValue);
+	}
 });
 
 // Temizlik işlemleri
@@ -518,247 +392,7 @@ onUnmounted(() => {
 	document.removeEventListener("mousemove", handleMouseMove);
 	document.removeEventListener("mouseup", handleMouseUp);
 
-	if (audioContext) {
-		audioContext.close();
-	}
-	if (animationFrame) {
-		cancelAnimationFrame(animationFrame);
-	}
-
 	cleanupAudioAnalyser();
-});
-
-const startRecording = async (options = null) => {
-	try {
-		// Geri sayım başlat
-		const countdownElement = document.createElement("div");
-		countdownElement.className =
-			"fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-3xl !text-white bg-black/80 rounded-full w-20 h-20 flex items-center justify-center z-50";
-		document.body.appendChild(countdownElement);
-
-		let countdown = selectedDelay.value / 1000;
-		return new Promise((resolve) => {
-			const countdownInterval = setInterval(() => {
-				countdown--;
-				countdownElement.textContent = countdown;
-
-				if (countdown <= 0) {
-					clearInterval(countdownInterval);
-					document.body.removeChild(countdownElement);
-					resolve();
-				}
-			}, 1000);
-		}).then(async () => {
-			isRecording.value = true;
-
-			// Kayıt başlamadan önce body'e recording sınıfını ekle
-			document.body.classList.add("recording");
-
-			// Ses ayarlarını belirle (tray'den gelen veya mevcut ayarlar)
-			const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
-			const useMicrophone = options?.microphone ?? microphoneEnabled.value;
-			const micDeviceId =
-				options?.microphoneDeviceId ?? selectedAudioDevice.value;
-
-			// Ses yapılandırmasını oluştur
-			const audioConfig = {
-				mandatory: {
-					chromeMediaSource: useSystemAudio ? "desktop" : "none",
-				},
-			};
-
-			// Eğer mikrofon kullanılacaksa, mikrofon ayarlarını ekle
-			if (useMicrophone && micDeviceId) {
-				audioConfig.optional = [
-					{
-						deviceId: { exact: micDeviceId },
-					},
-				];
-			}
-
-			// Kayıt başlat
-			console.log("2. Stream başlatılıyor...", {
-				useSystemAudio,
-				useMicrophone,
-				micDeviceId,
-				audioConfig,
-			});
-
-			const { screenStream, cameraStream } = await startMediaStream({
-				audio: audioConfig,
-				video: {
-					mandatory: {
-						chromeMediaSource: "desktop",
-					},
-				},
-				sourceType: selectedSource.value,
-			});
-
-			console.log("3. Stream başlatıldı");
-
-			// Her stream için ayrı MediaRecorder oluştur
-			if (mediaStream.value) {
-				console.log("4. MediaRecorder'lar oluşturuluyor");
-
-				// Ekran kaydı için recorder
-				const screenRecorder = new MediaRecorder(screenStream, {
-					mimeType: "video/webm;codecs=vp9",
-					videoBitsPerSecond: 50000000,
-				});
-
-				// Kamera kaydı için recorder (eğer varsa)
-				let cameraRecorder = null;
-				if (cameraStream) {
-					cameraRecorder = new MediaRecorder(cameraStream, {
-						mimeType: "video/webm;codecs=vp9",
-						videoBitsPerSecond: 8000000,
-					});
-				}
-
-				// Ses kaydı için recorder
-				let audioRecorder = null;
-				if (mediaStream.value.getAudioTracks().length > 0) {
-					const audioStream = new MediaStream(
-						mediaStream.value.getAudioTracks()
-					);
-					audioRecorder = new MediaRecorder(audioStream, {
-						mimeType: "audio/webm;codecs=opus",
-						audioBitsPerSecond: 320000,
-					});
-
-					console.log("Ses kaydı yapılandırması:", {
-						systemAudio: useSystemAudio,
-						microphone: useMicrophone,
-						audioTracks: audioStream.getAudioTracks().length,
-					});
-				}
-
-				// Ekran kaydı chunks
-				const screenChunks = [];
-				screenRecorder.ondataavailable = (event) => {
-					if (event.data.size > 0) {
-						screenChunks.push(event.data);
-					}
-				};
-
-				// Kamera kaydı chunks
-				const cameraChunks = [];
-				if (cameraRecorder) {
-					cameraRecorder.ondataavailable = (event) => {
-						if (event.data.size > 0) {
-							cameraChunks.push(event.data);
-						}
-					};
-				}
-
-				// Ses kaydı chunks
-				const audioChunks = [];
-				if (audioRecorder) {
-					audioRecorder.ondataavailable = (event) => {
-						if (event.data.size > 0) {
-							audioChunks.push(event.data);
-						}
-					};
-				}
-
-				// Tüm recorder'ları başlat
-				screenRecorder.start(1000);
-				if (cameraRecorder) cameraRecorder.start(1000);
-				if (audioRecorder) audioRecorder.start(1000);
-
-				// Global mediaRecorder referansını güncelle
-				mediaRecorder = {
-					screen: screenRecorder,
-					camera: cameraRecorder,
-					audio: audioRecorder,
-					stop: async () => {
-						// Kayıt durduğunda recording sınıfını kaldır
-						document.body.classList.remove("recording");
-
-						screenRecorder.stop();
-						if (cameraRecorder) cameraRecorder.stop();
-						if (audioRecorder) audioRecorder.stop();
-
-						// Tüm kayıtlar bittiğinde editör sayfasına yönlendir
-						await saveRecording({
-							screen: screenChunks,
-							camera: cameraChunks,
-							audio: audioChunks,
-						});
-					},
-				};
-
-				console.log("8. Tüm MediaRecorder'lar başlatıldı");
-				isRecording.value = true;
-			}
-		});
-	} catch (error) {
-		console.error("Kayıt başlatılırken hata:", error);
-		// Hata durumunda recording sınıfını kaldır
-		document.body.classList.remove("recording");
-		isRecording.value = false;
-	}
-};
-
-const stopRecording = async () => {
-	isRecording.value = false;
-
-	try {
-		console.log("1. Kayıt durdurma başlatıldı");
-		if (mediaRecorder) {
-			console.log("2. MediaRecorder'lar durduruluyor");
-			await mediaRecorder.stop();
-			mediaRecorder = null;
-		}
-		console.log("3. Stream durduruluyor");
-		await stopMediaStream();
-		console.log("4. Kayıt durdurma tamamlandı");
-		isRecording.value = false;
-	} catch (error) {
-		console.error("Kayıt durdurulurken hata:", error);
-	}
-
-	// Temizlik işlemleri
-	document.body.classList.remove("recording");
-};
-
-// Pencere sürükleme işleyicileri
-const handleMouseDown = (e) => {
-	electron?.windowControls.startDrag({ x: e.screenX, y: e.screenY });
-};
-
-const handleMouseMove = (e) => {
-	electron?.windowControls.dragging({ x: e.screenX, y: e.screenY });
-};
-
-const handleMouseUp = () => {
-	electron?.windowControls.endDrag();
-};
-
-// Mikrofon değişikliğini izle
-watch(selectedAudioDevice, async (newDeviceId) => {
-	if (newDeviceId) {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: {
-					deviceId: { exact: newDeviceId },
-				},
-			});
-
-			// Yeni ses stream'ini kayıt için sakla
-			currentAudioStream.value = stream;
-		} catch (error) {
-			console.error("Mikrofon değiştirme hatası:", error);
-		}
-	}
-});
-
-// Kayıt durumu değiştiğinde tray'i güncelle
-watch(isRecording, (newValue) => {
-	if (electron?.ipcRenderer) {
-		console.log("[index.vue] Kayıt durumu değişti:", newValue);
-		electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, newValue);
-	}
 });
 
 // Pencere sürükleme fonksiyonları
@@ -779,18 +413,6 @@ const drag = (event) => {
 const endDrag = () => {
 	electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
-
-// Throttle fonksiyonu
-function throttle(func, limit) {
-	let inThrottle;
-	return function (...args) {
-		if (!inThrottle) {
-			func.apply(this, args);
-			inThrottle = true;
-			setTimeout(() => (inThrottle = false), limit);
-		}
-	};
-}
 </script>
 
 <style>
