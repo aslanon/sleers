@@ -2,21 +2,14 @@
 	<div class="flex flex-col gap-4">
 		<div v-if="isZoomSettingsActive" class="flex flex-col gap-4">
 			<!-- Zoom Level Slider -->
-			<div class="setting-group">
-				<label class="setting-label">Zoom Level</label>
-				<div class="setting-control">
-					<input
-						type="range"
-						:min="1"
-						:max="10"
-						:step="0.1"
-						:value="currentZoomRange?.scale || 1"
-						@input="updateZoomScale($event.target.value)"
-						class="setting-slider"
-					/>
-					<span class="setting-value">{{ currentZoomRange?.scale || 1 }}x</span>
-				</div>
-			</div>
+			<SliderInput
+				v-model="zoomScale"
+				label="Zoom Level"
+				:min="1"
+				:max="10"
+				:step="0.1"
+				unit="x"
+			/>
 
 			<!-- Zoom Position Selector -->
 			<div class="setting-group">
@@ -109,13 +102,17 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { ref, computed, watch } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import SliderInput from "~/components/ui/SliderInput.vue";
 
 const { currentZoomRange, updateZoomRange, zoomRanges } = usePlayerSettings();
 
-// Zoom scale güncelleme
-const updateZoomScale = (value) => {
+// Local state
+const zoomScale = ref(currentZoomRange.value?.scale || 1);
+
+// Watch local changes
+watch(zoomScale, (newValue) => {
 	if (!currentZoomRange.value) return;
 
 	const index = zoomRanges.value.findIndex(
@@ -127,11 +124,19 @@ const updateZoomScale = (value) => {
 	if (index !== -1) {
 		const updatedRange = {
 			...currentZoomRange.value,
-			scale: parseFloat(value),
+			scale: parseFloat(newValue),
 		};
 		updateZoomRange(index, updatedRange);
 	}
-};
+});
+
+// Watch store changes
+watch(
+	() => currentZoomRange.value?.scale,
+	(newValue) => {
+		zoomScale.value = newValue || 1;
+	}
+);
 
 // Zoom pozisyonu güncelleme
 const updateZoomPosition = (position) => {
@@ -172,27 +177,5 @@ const isZoomSettingsActive = computed(() => currentZoomRange.value !== null);
 
 .setting-label {
 	@apply text-sm font-medium text-gray-300;
-}
-
-.setting-control {
-	@apply flex items-center gap-3;
-}
-
-.setting-slider {
-	@apply w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer;
-}
-
-.setting-slider::-webkit-slider-thumb {
-	@apply appearance-none w-4 h-4 bg-blue-500 rounded-full cursor-pointer hover:bg-blue-400 transition-colors;
-	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-}
-
-.setting-slider::-webkit-slider-thumb:hover {
-	@apply bg-blue-400;
-	box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2);
-}
-
-.setting-value {
-	@apply text-sm text-gray-300 min-w-[3rem] text-right font-medium;
 }
 </style>

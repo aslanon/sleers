@@ -1,49 +1,31 @@
 <template>
 	<div class="flex flex-col gap-4">
-		<div class="setting-group">
-			<label class="setting-label">Padding</label>
-			<div class="setting-control">
-				<input
-					type="range"
-					v-model="paddingValue"
-					min="0"
-					max="100"
-					step="4"
-					class="setting-slider"
-				/>
-				<span class="setting-value">{{ paddingValue }}px</span>
-			</div>
-		</div>
+		<SliderInput
+			v-model="paddingValue"
+			label="Padding"
+			:min="0"
+			:max="200"
+			:step="4"
+			unit="px"
+		/>
 
-		<div class="setting-group">
-			<label class="setting-label">Radius</label>
-			<div class="setting-control">
-				<input
-					type="range"
-					v-model="radiusValue"
-					min="0"
-					max="50"
-					step="2"
-					class="setting-slider"
-				/>
-				<span class="setting-value">{{ radiusValue }}px</span>
-			</div>
-		</div>
+		<SliderInput
+			v-model="radiusValue"
+			label="Radius"
+			:min="0"
+			:max="50"
+			:step="2"
+			unit="px"
+		/>
 
-		<div class="setting-group">
-			<label class="setting-label">Shadow</label>
-			<div class="setting-control">
-				<input
-					type="range"
-					v-model="shadowValue"
-					min="0"
-					max="100"
-					step="5"
-					class="setting-slider"
-				/>
-				<span class="setting-value">{{ shadowValue }}px</span>
-			</div>
-		</div>
+		<SliderInput
+			v-model="shadowValue"
+			label="Shadow"
+			:min="0"
+			:max="100"
+			:step="5"
+			unit="px"
+		/>
 
 		<div class="setting-group">
 			<label class="setting-label">Arkaplan Rengi</label>
@@ -68,6 +50,7 @@
 <script setup>
 import { ref, watch } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import SliderInput from "~/components/ui/SliderInput.vue";
 
 const props = defineProps({
 	duration: {
@@ -205,6 +188,27 @@ const formatDuration = (seconds) => {
 	const remainingSeconds = Math.floor(seconds % 60);
 	return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 };
+
+// Progress çizgisini güncelle
+const updateProgress = (e) => {
+	const input = e.target;
+	const value = input.value;
+	const min = input.min || 0;
+	const max = input.max || 100;
+	const progress = ((value - min) / (max - min)) * 100;
+	input.style.setProperty("--progress", `${progress}%`);
+};
+
+// Event listener'ları ekle
+onMounted(() => {
+	const sliders = document.querySelectorAll(".setting-slider");
+	sliders.forEach((slider) => {
+		// Initial progress
+		updateProgress({ target: slider });
+		// Input event
+		slider.addEventListener("input", updateProgress);
+	});
+});
 </script>
 
 <style scoped>
@@ -214,32 +218,6 @@ const formatDuration = (seconds) => {
 
 .setting-label {
 	@apply text-sm font-medium text-gray-300;
-}
-
-.setting-control {
-	@apply flex items-center gap-3;
-}
-
-.setting-slider {
-	@apply w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer;
-}
-
-.setting-slider::-webkit-slider-thumb {
-	@apply appearance-none w-4 h-4 bg-blue-500 rounded-full cursor-pointer hover:bg-blue-400 transition-colors;
-	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-}
-
-.setting-slider::-webkit-slider-thumb:hover {
-	@apply bg-blue-400;
-	box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2);
-}
-
-.setting-value {
-	@apply text-sm text-gray-300 min-w-[3rem] text-right font-medium;
-}
-
-.setting-select {
-	@apply w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-1.5 text-sm text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500;
 }
 
 .color-grid {
