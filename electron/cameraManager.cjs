@@ -201,20 +201,27 @@ class CameraManager {
 				nodeIntegration: true,
 				contextIsolation: true,
 				backgroundThrottling: false,
-
 				preload: path.join(__dirname, "preload.cjs"),
 			},
-
 			backgroundColor: "#00000000",
 			hasShadow: false,
 			roundedCorners: true,
 			titleBarOverlay: false,
 			fullscreenable: false,
 			type: "panel",
+			show: false,
+			frame: true,
 			focusable: false,
 			vibrancy: "ultra-dark",
 			maximizable: false,
 			minimizable: false,
+			skipTaskbar: true,
+			excludedFromCapture: true,
+			paintWhenInitiallyHidden: true,
+			// titleBarStyle: "hidden",
+			hiddenInMissionControl: true,
+			visualEffectState: "active",
+			movable: true,
 		});
 
 		const cameraHtmlPath = path.join(

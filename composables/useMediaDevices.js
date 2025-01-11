@@ -333,7 +333,9 @@ export const useMediaDevices = () => {
 		try {
 			const sources = await window.electron?.desktopCapturer.getSources({
 				types: ["window", "screen"],
-				thumbnailSize: { width: 1280, height: 720 },
+				thumbnailSize: { width: 100, height: 100 },
+				fetchWindowIcons: true,
+				excludeTypes: ["panel", "popup", "toolbar"],
 			});
 
 			console.log("Ekran kaynakları:", sources);

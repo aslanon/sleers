@@ -3,7 +3,7 @@
 		class="w-full flex flex-col bg-black text-white h-screen overflow-hidden"
 	>
 		<div
-			class="w-full p-2 px-6 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
+			class="w-full p-2 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
 		>
 			<div class="flex flex-row gap-2 items-center">
 				<button

@@ -37,6 +37,13 @@ class EditorManager {
 				preload: path.join(__dirname, "preload.cjs"),
 			},
 			backgroundColor: "#1a1a1a",
+			titleBarOverlay: false,
+			titleBarStyle: "hidden",
+			trafficLightPosition: { x: 15, y: 15 },
+			hasShadow: true,
+			roundedCorners: true,
+			visualEffectState: "active",
+			movable: true,
 		});
 
 		this.editorWindow.center();
