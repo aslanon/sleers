@@ -2,6 +2,7 @@
 export default defineNuxtConfig({
 	ssr: false,
 	modules: ["@nuxtjs/tailwindcss"],
+	devtools: { enabled: false },
 
 	app: {
 		baseURL: "/",
