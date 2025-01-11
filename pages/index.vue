@@ -218,6 +218,12 @@ const delayOptions = [0, 1000, 3000, 5000, 10000]; // 1sn, 3sn, 5sn
 const selectedSource = ref(null);
 const followMouse = ref(true);
 
+watch(followMouse, (newValue) => {
+	if (electron?.ipcRenderer) {
+		electron.ipcRenderer.send("TOGGLE_CAMERA_FOLLOW", newValue);
+	}
+});
+
 // Delay değişikliğini izle
 watch(selectedDelay, (newValue) => {
 	if (electron?.ipcRenderer) {

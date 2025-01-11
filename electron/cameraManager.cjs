@@ -224,8 +224,6 @@ class CameraManager {
 			title: "Sleer Camera",
 		});
 
-		this.cameraWindow.setContentProtection(true);
-
 		const cameraHtmlPath = path.join(
 			__dirname,
 			"../.output/public/camera/index.html"
