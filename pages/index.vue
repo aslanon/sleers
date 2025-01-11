@@ -3,9 +3,6 @@
 	<div
 		class="w-full sticky top-0 z-50 flex items-center space-x-4 rounded-xl bg-[#1a1b26]/90 backdrop-blur-3xl px-4 py-2 text-white border border-gray-700 cursor-move"
 		@mousedown="startDrag"
-		@mousemove="drag"
-		@mouseup="endDrag"
-		@mouseleave="endDrag"
 	>
 		<button
 			@click="closeWindow"
@@ -323,6 +320,48 @@ const onRecordButtonClick = () => {
 	}
 };
 
+// Sürükleme durumu için ref
+const isDragging = ref(false);
+const initialMousePosition = ref({ x: 0, y: 0 });
+
+// Pencere sürükleme fonksiyonları
+const startDrag = (event) => {
+	isDragging.value = true;
+	initialMousePosition.value = {
+		x: event.screenX,
+		y: event.screenY,
+	};
+
+	// Global event listener'ları ekle
+	window.addEventListener("mousemove", handleGlobalMouseMove);
+	window.addEventListener("mouseup", handleGlobalMouseUp);
+
+	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const handleGlobalMouseMove = (event) => {
+	if (!isDragging.value) return;
+
+	electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const handleGlobalMouseUp = () => {
+	if (!isDragging.value) return;
+
+	isDragging.value = false;
+	// Global event listener'ları kaldır
+	window.removeEventListener("mousemove", handleGlobalMouseMove);
+	window.removeEventListener("mouseup", handleGlobalMouseUp);
+
+	electron?.ipcRenderer.send("END_WINDOW_DRAG");
+};
+
 onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
@@ -419,32 +458,10 @@ onBeforeUnmount(() => {
 });
 
 onUnmounted(() => {
-	// Olay dinleyicilerini temizle
-	document.removeEventListener("mousedown", handleMouseDown);
-	document.removeEventListener("mousemove", handleMouseMove);
-	document.removeEventListener("mouseup", handleMouseUp);
-
+	window.removeEventListener("mousemove", handleGlobalMouseMove);
+	window.removeEventListener("mouseup", handleGlobalMouseUp);
 	cleanupAudioAnalyser();
 });
-
-// Pencere sürükleme fonksiyonları
-const startDrag = (event) => {
-	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
-		x: event.screenX,
-		y: event.screenY,
-	});
-};
-
-const drag = (event) => {
-	electron?.ipcRenderer.send("WINDOW_DRAGGING", {
-		x: event.screenX,
-		y: event.screenY,
-	});
-};
-
-const endDrag = () => {
-	electron?.ipcRenderer.send("END_WINDOW_DRAG");
-};
 </script>
 
 <style>
