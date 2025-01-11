@@ -2,6 +2,48 @@
 
 const { contextBridge, ipcRenderer } = require("electron");
 const { IPC_EVENTS } = require("./constants.cjs");
+const path = require("path");
+
+// Cursor monitor'ü yükle
+let CursorMonitor;
+try {
+	const cursorMonitorPath = path.join(__dirname, "..", "cursor-monitor");
+	console.log("Cursor monitor path:", cursorMonitorPath);
+	CursorMonitor = require(cursorMonitorPath);
+	console.log("Cursor monitor loaded successfully");
+} catch (error) {
+	console.error("Cursor monitor yüklenemedi:", error);
+}
+
+// Cursor monitor API'sini expose et
+if (CursorMonitor) {
+	contextBridge.exposeInMainWorld("cursorMonitor", {
+		create: () => {
+			try {
+				const monitor = new CursorMonitor();
+				console.log("Cursor monitor instance created");
+				return {
+					start: () => {
+						console.log("Starting cursor monitor");
+						return monitor.start();
+					},
+					stop: () => {
+						console.log("Stopping cursor monitor");
+						return monitor.stop();
+					},
+					onCursorChanged: (callback) => {
+						console.log("Setting up cursor change listener");
+						monitor.on("cursor-changed", callback);
+						return () => monitor.removeListener("cursor-changed", callback);
+					},
+				};
+			} catch (error) {
+				console.error("Cursor monitor oluşturulamadı:", error);
+				return null;
+			}
+		},
+	});
+}
 
 contextBridge.exposeInMainWorld("electron", {
 	ipcRenderer: {

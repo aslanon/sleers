@@ -650,7 +650,20 @@ const {
 	previousPositions,
 	cursorImage,
 	drawMousePosition: drawMouseCursor,
+	cursorType,
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
+
+// Mouse pozisyonlarını kaydet
+const recordMousePosition = () => {
+	if (!isRecording.value) return;
+
+	mousePositions.value.push({
+		x: mouseX.value,
+		y: mouseY.value,
+		cursorType: cursorType.value,
+		timestamp: Date.now(),
+	});
+};
 
 // Mouse positions değişikliğini izle ve previousPositions'ı temizle
 watch(

@@ -1,9 +1,22 @@
 import { ref, onMounted, onUnmounted } from "vue";
 
-const cursorType = ref("default");
-let cursorMonitor = null;
+declare global {
+	interface Window {
+		cursorMonitor: {
+			create: () => {
+				start: () => void;
+				stop: () => void;
+				onCursorChanged: (callback: (type: string) => void) => void;
+			};
+		};
+	}
+}
+
+let cursorMonitor: ReturnType<Window["cursorMonitor"]["create"]> | null = null;
 
 export function useMouseCursor() {
+	const cursorType = ref("default");
+
 	onMounted(() => {
 		if (window.cursorMonitor) {
 			cursorMonitor = window.cursorMonitor.create();

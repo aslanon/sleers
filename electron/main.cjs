@@ -8,6 +8,7 @@ const {
 	nativeImage,
 	protocol,
 	screen,
+	systemPreferences,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -500,11 +501,13 @@ async function createWindow() {
 		hasShadow: true,
 		movable: true,
 		webPreferences: {
-			nodeIntegration: true,
+			nodeIntegration: false,
 			contextIsolation: true,
+			enableRemoteModule: false,
 			preload: path.join(__dirname, "preload.cjs"),
-			webSecurity: false,
-			allowRunningInsecureContent: true,
+			sandbox: false,
+			webSecurity: true,
+			allowRunningInsecureContent: false,
 			webviewTag: true,
 			additionalArguments: ["--disable-site-isolation-trials"],
 		},
@@ -572,10 +575,35 @@ function loadApplication() {
 	}
 }
 
+// Güvenlik politikalarını ayarla
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: "app",
+		privileges: {
+			standard: true,
+			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+			stream: true,
+		},
+	},
+]);
+
 // App lifecycle events
 app.whenReady().then(() => {
+	// Native modüllerin yüklenmesi için gerekli yapılandırma
+	app.allowRendererProcessReuse = false;
+
 	createWindow();
 	setupIpcHandlers();
+
+	// Request screen recording permission
+	if (process.platform === "darwin") {
+		systemPreferences.getMediaAccessStatus("screen");
+	}
+
+	// Request accessibility permission
+	systemPreferences.isTrustedAccessibilityClient(true);
 });
 
 app.on("window-all-closed", () => {

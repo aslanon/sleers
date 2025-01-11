@@ -1,0 +1,1 @@
+cmd_Release/cursor_monitor.node := c++ -bundle -arch arm64 -arch x86_64 -framework CoreGraphics -framework Cocoa -undefined dynamic_lookup -Wl,-search_paths_first -mmacosx-version-min=10.15 -arch x86_64 -L./Release -stdlib=libc++  -o Release/cursor_monitor.node Release/obj.target/cursor_monitor/cursor_monitor.o Release/nothing.a 
