@@ -1,5 +1,9 @@
 <template>
-	<div class="camera-container">
+	<div
+		class="camera-container"
+		:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
+		@mousedown="startDrag"
+	>
 		<video
 			ref="videoRef"
 			autoplay
@@ -34,6 +38,48 @@ import { ref, onMounted, onUnmounted } from "vue";
 const electron = window.electron;
 const videoRef = ref(null);
 let stream = null;
+
+// Sürükleme durumu için ref'ler
+const isDragging = ref(false);
+const initialMousePosition = ref({ x: 0, y: 0 });
+
+// Pencere sürükleme fonksiyonları
+const startDrag = (event) => {
+	isDragging.value = true;
+	initialMousePosition.value = {
+		x: event.screenX,
+		y: event.screenY,
+	};
+
+	// Global event listener'ları ekle
+	window.addEventListener("mousemove", handleGlobalMouseMove);
+	window.addEventListener("mouseup", handleGlobalMouseUp);
+
+	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const handleGlobalMouseMove = (event) => {
+	if (!isDragging.value) return;
+
+	electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const handleGlobalMouseUp = () => {
+	if (!isDragging.value) return;
+
+	isDragging.value = false;
+	// Global event listener'ları kaldır
+	window.removeEventListener("mousemove", handleGlobalMouseMove);
+	window.removeEventListener("mouseup", handleGlobalMouseUp);
+
+	electron?.ipcRenderer.send("END_WINDOW_DRAG");
+};
 
 // Kamerayı başlat
 const startCamera = async () => {
@@ -89,6 +135,9 @@ onUnmounted(() => {
 		window.electron.ipcRenderer.removeAllListeners("STOP_CAMERA");
 		window.electron.ipcRenderer.removeAllListeners("START_CAMERA");
 	}
+	// Sürükleme event listener'larını temizle
+	window.removeEventListener("mousemove", handleGlobalMouseMove);
+	window.removeEventListener("mouseup", handleGlobalMouseUp);
 });
 </script>
 
@@ -104,6 +153,7 @@ onUnmounted(() => {
 	justify-content: center;
 	align-items: center;
 	aspect-ratio: 1;
+	-webkit-app-region: no-drag; /* Electron'un varsayılan sürükleme davranışını devre dışı bırak */
 }
 
 .camera-video {
