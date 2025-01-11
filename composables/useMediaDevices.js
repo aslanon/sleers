@@ -344,15 +344,23 @@ export const useMediaDevices = () => {
 				throw new Error("Ekran kaynakları bulunamadı");
 			}
 
-			let selectedSource = sources[0];
+			// Kamera penceresini filtrele
+			const filteredSources = sources.filter(
+				(source) =>
+					!source.name.includes("camera") &&
+					!source.name.toLowerCase().includes("kamera") &&
+					!source.name.includes("Sleer Camera")
+			);
+
+			let selectedSource = filteredSources[0];
 			if (streamOptions?.sourceType === "display") {
 				selectedSource =
-					sources.find((source) => source.id.startsWith("screen:")) ||
-					sources[0];
+					filteredSources.find((source) => source.id.startsWith("screen:")) ||
+					filteredSources[0];
 			} else if (streamOptions?.sourceType === "window") {
 				selectedSource =
-					sources.find((source) => source.id.startsWith("window:")) ||
-					sources[0];
+					filteredSources.find((source) => source.id.startsWith("window:")) ||
+					filteredSources[0];
 			}
 
 			const screenStream = await navigator.mediaDevices.getUserMedia({

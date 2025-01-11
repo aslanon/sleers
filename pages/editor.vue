@@ -3,7 +3,9 @@
 		class="w-full flex flex-col bg-black text-white h-screen overflow-hidden"
 	>
 		<div
-			class="w-full p-2 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
+			class="editor-header w-full p-2 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
+			:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
+			@mousedown="startDrag"
 		>
 			<div class="flex flex-row gap-2 items-center">
 				<button
@@ -768,4 +770,52 @@ watch(
 	},
 	{ immediate: true }
 );
+
+// Sürükleme durumu için ref
+const isDragging = ref(false);
+const initialMousePosition = ref({ x: 0, y: 0 });
+
+// Pencere sürükleme fonksiyonları
+const startDrag = (event) => {
+	isDragging.value = true;
+	initialMousePosition.value = {
+		x: event.screenX,
+		y: event.screenY,
+	};
+
+	// Global event listener'ları ekle
+	window.addEventListener("mousemove", handleGlobalMouseMove);
+	window.addEventListener("mouseup", handleGlobalMouseUp);
+
+	electron?.ipcRenderer.send("START_WINDOW_DRAG", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const handleGlobalMouseMove = (event) => {
+	if (!isDragging.value) return;
+
+	electron?.ipcRenderer.send("WINDOW_DRAGGING", {
+		x: event.screenX,
+		y: event.screenY,
+	});
+};
+
+const handleGlobalMouseUp = () => {
+	if (!isDragging.value) return;
+
+	isDragging.value = false;
+	// Global event listener'ları kaldır
+	window.removeEventListener("mousemove", handleGlobalMouseMove);
+	window.removeEventListener("mouseup", handleGlobalMouseUp);
+
+	electron?.ipcRenderer.send("END_WINDOW_DRAG");
+};
+
+// Event listener'ları temizle
+onUnmounted(() => {
+	window.removeEventListener("mousemove", handleGlobalMouseMove);
+	window.removeEventListener("mouseup", handleGlobalMouseUp);
+});
 </script>

@@ -218,10 +218,10 @@ class CameraManager {
 			skipTaskbar: true,
 			excludedFromCapture: true,
 			paintWhenInitiallyHidden: true,
-			// titleBarStyle: "hidden",
 			hiddenInMissionControl: true,
 			visualEffectState: "active",
 			movable: true,
+			title: "Sleer Camera",
 		});
 
 		const cameraHtmlPath = path.join(
