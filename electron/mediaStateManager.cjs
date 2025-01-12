@@ -149,16 +149,21 @@ class MediaStateManager {
 				const cameraPath = tempFileManager.getFilePath("camera");
 				const elapsedTime = Date.now() - startTime;
 
-				// Her 10 denemede bir log yaz
-				if (this.fileCheckAttempts % 10 === 0) {
-					console.log("[MediaStateManager] Dosya kontrolü:", {
-						attempt: this.fileCheckAttempts,
-						videoPath,
-						audioPath,
-						cameraPath,
-						elapsedTime,
-					});
-				}
+				// Her dosya için detaylı log
+				console.log("[MediaStateManager] Dosya durumları:", {
+					video: {
+						path: videoPath,
+						exists: videoPath ? fs.existsSync(videoPath) : false,
+					},
+					audio: {
+						path: audioPath,
+						exists: audioPath ? fs.existsSync(audioPath) : false,
+					},
+					camera: {
+						path: cameraPath,
+						exists: cameraPath ? fs.existsSync(cameraPath) : false,
+					},
+				});
 
 				const progress = Math.min((elapsedTime / maxWaitTime) * 100, 99);
 
@@ -192,17 +197,67 @@ class MediaStateManager {
 						throw new Error("Video dosyası doğrulanamadı");
 					}
 
+					// Tüm dosya yollarını tekrar al (çünkü kayıt sırasında yeni dosyalar eklenmiş olabilir)
+					const finalVideoPath =
+						tempFileManager.getFilePath("screen") ||
+						tempFileManager.getFilePath("video");
+					const finalAudioPath = tempFileManager.getFilePath("audio");
+					const finalCameraPath = tempFileManager.getFilePath("camera");
+
+					console.log("[MediaStateManager] Son dosya yolları:", {
+						video: finalVideoPath,
+						audio: finalAudioPath,
+						camera: finalCameraPath,
+					});
+
 					// Ses dosyasını kontrol et
-					const isAudioValid = audioPath
-						? await this.validateMediaFile(audioPath, "audio", true)
+					const isAudioValid = finalAudioPath
+						? await this.validateMediaFile(finalAudioPath, "audio", true)
 						: false;
 
-					resolve({
+					// Kamera dosyasını kontrol et
+					let isCameraValid = false;
+					if (finalCameraPath && fs.existsSync(finalCameraPath)) {
+						isCameraValid = await this.validateMediaFile(
+							finalCameraPath,
+							"camera",
+							false
+						);
+						console.log("[MediaStateManager] Kamera dosyası kontrolü:", {
+							path: finalCameraPath,
+							exists: fs.existsSync(finalCameraPath),
+							isValid: isCameraValid,
+							size: fs.statSync(finalCameraPath).size,
+						});
+					}
+
+					const result = {
 						success: true,
-						videoPath,
-						audioPath: isAudioValid ? audioPath : null,
-						cameraPath,
+						videoPath: finalVideoPath,
+						audioPath: isAudioValid ? finalAudioPath : null,
+						cameraPath: isCameraValid ? finalCameraPath : null,
+					};
+
+					console.log("[MediaStateManager] Final dosya durumları:", {
+						video: {
+							path: result.videoPath,
+							exists: fs.existsSync(result.videoPath),
+						},
+						audio: {
+							path: result.audioPath,
+							exists: result.audioPath
+								? fs.existsSync(result.audioPath)
+								: false,
+						},
+						camera: {
+							path: result.cameraPath,
+							exists: result.cameraPath
+								? fs.existsSync(result.cameraPath)
+								: false,
+						},
 					});
+
+					resolve(result);
 					return;
 				}
 
@@ -215,9 +270,20 @@ class MediaStateManager {
 					console.error("[MediaStateManager] Dosya bekleme süresi aşıldı:", {
 						attempts: this.fileCheckAttempts,
 						elapsedTime,
-						videoPath,
-						audioPath,
-						cameraPath,
+						paths: {
+							video: {
+								path: videoPath,
+								exists: videoPath ? fs.existsSync(videoPath) : false,
+							},
+							audio: {
+								path: audioPath,
+								exists: audioPath ? fs.existsSync(audioPath) : false,
+							},
+							camera: {
+								path: cameraPath,
+								exists: cameraPath ? fs.existsSync(cameraPath) : false,
+							},
+						},
 					});
 					resolve({
 						success: false,
@@ -333,6 +399,8 @@ class MediaStateManager {
 						clearInterval(this.recordingCheckInterval);
 						this.recordingCheckInterval = null;
 					}
+
+					console.log("-------4", result.cameraPath);
 
 					this.updateState({
 						videoPath: result.videoPath,
