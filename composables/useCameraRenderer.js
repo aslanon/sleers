@@ -1,7 +1,9 @@
 import { useRoundRect } from "~/composables/useRoundRect";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const useCameraRenderer = () => {
 	const { cameraSettings } = usePlayerSettings();
+
 	// Kamera çizim fonksiyonu
 	const drawCamera = (ctx, cameraElement, canvasWidth, canvasHeight, dpr) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
@@ -50,13 +52,20 @@ export const useCameraRenderer = () => {
 		);
 		ctx.clip();
 
-		// Kamerayı çiz
+		// Crop ayarlarını hesapla
+		const crop = cameraSettings.value.crop;
+		const sourceX = (cameraElement.videoWidth * crop.x) / 100;
+		const sourceY = (cameraElement.videoHeight * crop.y) / 100;
+		const sourceWidth = (cameraElement.videoWidth * crop.width) / 100;
+		const sourceHeight = (cameraElement.videoHeight * crop.height) / 100;
+
+		// Kamerayı crop ayarlarıyla çiz
 		ctx.drawImage(
 			cameraElement,
-			0,
-			0,
-			cameraElement.videoWidth,
-			cameraElement.videoHeight,
+			sourceX,
+			sourceY,
+			sourceWidth,
+			sourceHeight,
 			cameraX,
 			cameraY,
 			cameraWidth,
