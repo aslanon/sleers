@@ -62,6 +62,21 @@
 							d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"
 						/>
 					</svg>
+					<svg
+						v-if="tab.id === 'camera'"
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-5 h-5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+						/>
+					</svg>
 				</button>
 			</div>
 
@@ -80,6 +95,9 @@
 
 				<!-- Zoom Ayarları Tab -->
 				<ZoomSettings v-if="currentTab === 'zoom'" />
+
+				<!-- Kamera Ayarları Tab -->
+				<CameraSettings v-if="currentTab === 'camera'" />
 			</div>
 		</div>
 	</div>
@@ -90,6 +108,7 @@ import { ref, watch } from "vue";
 import VideoSettings from "./player-settings/VideoSettings.vue";
 import MouseSettings from "./player-settings/MouseSettings.vue";
 import ZoomSettings from "./player-settings/ZoomSettings.vue";
+import CameraSettings from "./player-settings/CameraSettings.vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -121,9 +140,26 @@ const { currentZoomRange } = usePlayerSettings();
 
 // Tab yönetimi
 const tabs = [
-	{ id: "video", name: "Video", isShowInTab: true },
-	{ id: "mouse", name: "Mouse", isShowInTab: true },
-	{ id: "zoom", name: "Zoom", isShowInTab: false },
+	{
+		id: "video",
+		name: "Video Ayarları",
+		isShowInTab: true,
+	},
+	{
+		id: "mouse",
+		name: "Mouse Ayarları",
+		isShowInTab: true,
+	},
+	{
+		id: "zoom",
+		name: "Zoom Ayarları",
+		isShowInTab: true,
+	},
+	{
+		id: "camera",
+		name: "Kamera Ayarları",
+		isShowInTab: true,
+	},
 ];
 
 const currentTab = ref("video");
