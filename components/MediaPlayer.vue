@@ -55,6 +55,10 @@ const props = defineProps({
 		type: String,
 		default: "",
 	},
+	cameraUrl: {
+		type: String,
+		default: "",
+	},
 	audioUrl: {
 		type: String,
 		default: "",
@@ -62,6 +66,10 @@ const props = defineProps({
 	videoType: {
 		type: String,
 		default: "video/mp4",
+	},
+	cameraType: {
+		type: String,
+		default: "video/webm",
 	},
 	audioType: {
 		type: String,
@@ -143,6 +151,7 @@ let ctx = null;
 
 // Video objesi
 let videoElement = null;
+let cameraElement = null;
 
 // Zoom yönetimi
 const {
@@ -773,12 +782,54 @@ const updateCanvas = (timestamp) => {
 		0,
 		0,
 		videoElement.videoWidth,
-		videoElement.videoHeight, // Source rectangle
+		videoElement.videoHeight,
 		x,
 		y,
 		drawWidth,
-		drawHeight // Destination rectangle
+		drawHeight
 	);
+
+	// Kamera görüntüsünü çiz (varsa)
+	if (cameraElement && cameraElement.readyState >= 2) {
+		console.log("[MediaPlayer] Kamera çiziliyor:", {
+			readyState: cameraElement.readyState,
+			videoWidth: cameraElement.videoWidth,
+			videoHeight: cameraElement.videoHeight,
+			paused: cameraElement.paused,
+		});
+
+		// Kamera için picture-in-picture tarzı bir görüntü
+		const cameraWidth = drawWidth * 0.25; // Ana video genişliğinin %25'i
+		const cameraHeight =
+			(cameraWidth * cameraElement.videoHeight) / cameraElement.videoWidth;
+		const cameraX = x + drawWidth - cameraWidth - 20; // Sağ alt köşe
+		const cameraY = y + drawHeight - cameraHeight - 20;
+
+		// Kamera için yuvarlak köşeler
+		ctx.save();
+		ctx.beginPath();
+		useRoundRect(ctx, cameraX, cameraY, cameraWidth, cameraHeight, 8 * dpr);
+		ctx.clip();
+
+		// Kamera görüntüsünü çiz
+		ctx.drawImage(
+			cameraElement,
+			0,
+			0,
+			cameraElement.videoWidth,
+			cameraElement.videoHeight,
+			cameraX,
+			cameraY,
+			cameraWidth,
+			cameraHeight
+		);
+
+		// Kamera çerçevesi
+		ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+		ctx.lineWidth = 2 * dpr;
+		ctx.stroke();
+		ctx.restore();
+	}
 
 	// Ana context state'i geri yükle
 	ctx.restore();
@@ -844,6 +895,7 @@ watch(
 const initVideo = () => {
 	try {
 		console.log("[MediaPlayer] Video yükleniyor, URL:", props.videoUrl);
+		console.log("[MediaPlayer] Kamera yükleniyor, URL:", props.cameraUrl);
 
 		if (!props.videoUrl) {
 			console.warn("[MediaPlayer] Video URL'i boş!");
@@ -853,7 +905,61 @@ const initVideo = () => {
 		// Yeni video elementi oluştur
 		videoElement = document.createElement("video");
 
-		// Temel ayarlar
+		// Kamera elementi oluştur
+		if (props.cameraUrl) {
+			cameraElement = document.createElement("video");
+			cameraElement.crossOrigin = "anonymous";
+			cameraElement.muted = true;
+			cameraElement.playsInline = true;
+			cameraElement.preload = "auto";
+			cameraElement.volume = 0;
+			cameraElement.playbackRate = videoState.value.playbackRate;
+
+			// Kamera kalite ayarları
+			cameraElement.style.imageRendering = "high-quality";
+			cameraElement.style.webkitImageRendering = "high-quality";
+			cameraElement.style.objectFit = "contain";
+
+			// Kamera attributeleri
+			cameraElement.setAttribute("playsinline", "");
+			cameraElement.setAttribute("webkit-playsinline", "");
+			cameraElement.setAttribute("x-webkit-airplay", "allow");
+			cameraElement.setAttribute("preload", "auto");
+			cameraElement.setAttribute("poster", "");
+
+			// Kamera event listener'ları
+			cameraElement.addEventListener("play", () => {
+				if (videoElement.paused) {
+					videoElement.play();
+				}
+			});
+
+			cameraElement.addEventListener("pause", () => {
+				if (!videoElement.paused) {
+					videoElement.pause();
+				}
+			});
+
+			cameraElement.addEventListener("seeked", () => {
+				if (videoElement.currentTime !== cameraElement.currentTime) {
+					videoElement.currentTime = cameraElement.currentTime;
+				}
+			});
+
+			// Kamera yüklendiğinde
+			cameraElement.addEventListener("loadedmetadata", () => {
+				console.log("[MediaPlayer] Kamera metadata yüklendi:", {
+					width: cameraElement.videoWidth,
+					height: cameraElement.videoHeight,
+				});
+			});
+
+			// Kamera URL'ini set et
+			cameraElement.src = props.cameraUrl;
+			cameraElement.load();
+		}
+
+		// Ana video ayarları
 		videoElement.crossOrigin = "anonymous";
 		videoElement.muted = !props.systemAudioEnabled;
 		videoElement.playsInline = true;
@@ -871,19 +977,7 @@ const initVideo = () => {
 		videoElement.setAttribute("webkit-playsinline", "");
 		videoElement.setAttribute("x-webkit-airplay", "allow");
 		videoElement.setAttribute("preload", "auto");
-		videoElement.setAttribute("poster", ""); // Boş poster ile daha iyi ilk frame
-
-		// Video kalitesi için özel stil ayarları
-		Object.assign(videoElement.style, {
-			width: "100%",
-			height: "100%",
-			display: "block",
-			objectFit: "contain",
-			transform: "translateZ(0)",
-			backfaceVisibility: "hidden",
-			perspective: "1000px",
-			willChange: "transform",
-		});
+		videoElement.setAttribute("poster", "");
 
 		// Event listener'ları ekle
 		const { addEvents, removeEvents } = useVideoEvents(videoElement, {
@@ -908,20 +1002,21 @@ const initVideo = () => {
 
 		// Video URL'ini set et ve yüklemeyi başlat
 		videoElement.src = props.videoUrl;
+		videoElement.load();
 
-		// Video yüklemesini başlat
-		const loadPromise = videoElement.load();
-		if (loadPromise) {
-			loadPromise.catch((error) => {
-				console.error("[MediaPlayer] Video yükleme hatası:", error);
-			});
-		}
-
-		console.log("[MediaPlayer] Video element oluşturuldu ve yükleniyor:", {
-			src: videoElement.src,
-			readyState: videoElement.readyState,
-			networkState: videoElement.networkState,
-			style: videoElement.style,
+		console.log("[MediaPlayer] Video ve kamera elementleri oluşturuldu:", {
+			video: {
+				src: videoElement.src,
+				readyState: videoElement.readyState,
+				networkState: videoElement.networkState,
+			},
+			camera: cameraElement
+				? {
+						src: cameraElement.src,
+						readyState: cameraElement.readyState,
+						networkState: cameraElement.networkState,
+				  }
+				: null,
 		});
 	} catch (error) {
 		console.error("[MediaPlayer] Video yükleme hatası:", error);
@@ -1139,9 +1234,6 @@ const onVideoVolumeChange = () => {
 onMounted(() => {
 	initVideo();
 	window.addEventListener("resize", handleResize);
-	if (videoElement) {
-		videoElement.addEventListener("timeupdate", handleTimeUpdate);
-	}
 	if (videoRef.value && canvasRef.value) {
 		renderVideo();
 	}
@@ -1149,12 +1241,16 @@ onMounted(() => {
 
 onUnmounted(() => {
 	if (videoElement) {
-		// Kayıtlı removeEvents fonksiyonunu çağır
 		if (videoElement._removeEvents) {
 			videoElement._removeEvents();
 		}
 		videoElement.src = "";
 		videoElement = null;
+	}
+
+	if (cameraElement) {
+		cameraElement.src = "";
+		cameraElement = null;
 	}
 
 	window.removeEventListener("resize", handleResize);
@@ -1164,11 +1260,6 @@ onUnmounted(() => {
 		animationFrame = null;
 	}
 
-	if (videoElement) {
-		videoElement.removeEventListener("timeupdate", handleTimeUpdate);
-	}
-
-	// Video ve canvas referanslarını temizle
 	videoRef.value = null;
 	canvasRef.value = null;
 	cleanupZoom();
@@ -1186,6 +1277,23 @@ watch(
 
 		if (newUrl && newUrl !== oldUrl) {
 			initVideo();
+		}
+	},
+	{ immediate: true }
+);
+
+watch(
+	() => props.cameraUrl,
+	(newUrl, oldUrl) => {
+		console.log("[MediaPlayer] Kamera URL değişti:", {
+			newUrl,
+			oldUrl,
+			cameraElement: !!cameraElement,
+		});
+
+		if (newUrl && newUrl !== oldUrl && cameraElement) {
+			cameraElement.src = newUrl;
+			cameraElement.load();
 		}
 	},
 	{ immediate: true }

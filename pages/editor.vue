@@ -124,13 +124,16 @@ const electron = window.electron;
 const mediaPlayerRef = ref(null);
 const videoUrl = ref("");
 const audioUrl = ref("");
+const cameraUrl = ref("");
 const videoDuration = ref(0);
 const currentTime = ref(0);
 const currentVideoTime = ref(0);
 const videoType = ref("video/mp4");
 const audioType = ref("audio/webm");
+const cameraType = ref("video/webm");
 const videoBlob = ref(null);
 const audioBlob = ref(null);
+const cameraBlob = ref(null);
 const isPlaying = ref(false);
 const isTrimMode = ref(false);
 const selectedRatio = ref("");
@@ -194,6 +197,8 @@ const loadMedia = async (filePath, type = "video") => {
 				? extension === "webm"
 					? "video/webm"
 					: "video/mp4"
+				: type === "camera"
+				? "video/webm"
 				: extension === "webm"
 				? "audio/webm"
 				: "audio/mp4";
@@ -211,11 +216,11 @@ const loadMedia = async (filePath, type = "video") => {
 			videoBlob.value = URL.createObjectURL(blob);
 			videoUrl.value = videoBlob.value;
 			videoType.value = mimeType;
-
-			// Video yüklendikten sonra ilk frame'i göster
-			if (mediaPlayerRef.value) {
-				mediaPlayerRef.value.seek(0);
-			}
+		} else if (type === "camera") {
+			if (cameraBlob.value) URL.revokeObjectURL(cameraBlob.value);
+			cameraBlob.value = URL.createObjectURL(blob);
+			cameraUrl.value = cameraBlob.value;
+			cameraType.value = mimeType;
 		} else {
 			if (audioBlob.value) URL.revokeObjectURL(audioBlob.value);
 			audioBlob.value = URL.createObjectURL(blob);
@@ -224,8 +229,18 @@ const loadMedia = async (filePath, type = "video") => {
 		}
 
 		console.log(`[editor.vue] ${type} yüklendi:`, {
-			url: type === "video" ? videoUrl.value : audioUrl.value,
-			type: type === "video" ? videoType.value : audioType.value,
+			url:
+				type === "video"
+					? videoUrl.value
+					: type === "camera"
+					? cameraUrl.value
+					: audioUrl.value,
+			type:
+				type === "video"
+					? videoType.value
+					: type === "camera"
+					? cameraType.value
+					: audioType.value,
 			size: blob.size,
 			mimeType,
 		});
@@ -709,6 +724,14 @@ onMounted(async () => {
 				return;
 			}
 
+			if (mediaState.cameraPath) {
+				console.log(
+					"[editor.vue] Kamera dosyası yükleniyor:",
+					mediaState.cameraPath
+				);
+				await loadMedia(mediaState.cameraPath, "camera");
+			}
+
 			if (mediaState.audioPath) {
 				console.log(
 					"[editor.vue] Ses dosyası yükleniyor:",
@@ -724,6 +747,9 @@ onMounted(async () => {
 			if (state.videoPath && state.videoPath !== videoUrl.value) {
 				await loadMedia(state.videoPath, "video");
 			}
+			if (state.cameraPath && state.cameraPath !== cameraUrl.value) {
+				await loadMedia(state.cameraPath, "camera");
+			}
 			if (state.audioPath && state.audioPath !== audioUrl.value) {
 				await loadMedia(state.audioPath, "audio");
 			}
@@ -733,6 +759,7 @@ onMounted(async () => {
 		electron?.ipcRenderer.on(IPC_EVENTS.PROCESSING_COMPLETE, async (paths) => {
 			console.log("[editor.vue] Processing complete:", paths);
 			if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+			if (paths.cameraPath) await loadMedia(paths.cameraPath, "camera");
 			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 		});
 
@@ -740,6 +767,7 @@ onMounted(async () => {
 		electron?.ipcRenderer.on(IPC_EVENTS.MEDIA_PATHS, async (paths) => {
 			console.log("[editor.vue] Media paths güncellendi:", paths);
 			if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+			if (paths.cameraPath) await loadMedia(paths.cameraPath, "camera");
 			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 		});
 	} catch (error) {
@@ -750,6 +778,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
 	if (videoBlob.value) URL.revokeObjectURL(videoBlob.value);
+	if (cameraBlob.value) URL.revokeObjectURL(cameraBlob.value);
 	if (audioBlob.value) URL.revokeObjectURL(audioBlob.value);
 
 	if (window.electron) {

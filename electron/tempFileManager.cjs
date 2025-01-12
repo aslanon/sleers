@@ -9,6 +9,7 @@ class TempFileManager {
 			audio: null,
 			screen: null,
 			cursor: null,
+			camera: null,
 		};
 		this.appDir = path.join(app.getPath("downloads"), ".sleer");
 		this.ensureAppDir();

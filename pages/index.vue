@@ -63,7 +63,7 @@
 				<option
 					v-for="device in videoDevices"
 					:key="device.deviceId"
-					:value="device.label"
+					:value="device.deviceId"
 				>
 					{{ device.label || `Kamera ${device.deviceId}` }}
 				</option>

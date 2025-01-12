@@ -145,6 +145,7 @@ class MediaStateManager {
 					tempFileManager.getFilePath("screen") ||
 					tempFileManager.getFilePath("video");
 				const audioPath = tempFileManager.getFilePath("audio");
+				const cameraPath = tempFileManager.getFilePath("camera");
 				const elapsedTime = Date.now() - startTime;
 
 				// Her 10 denemede bir log yaz
@@ -153,6 +154,7 @@ class MediaStateManager {
 						attempt: this.fileCheckAttempts,
 						videoPath,
 						audioPath,
+						cameraPath,
 						elapsedTime,
 					});
 				}
@@ -198,6 +200,7 @@ class MediaStateManager {
 						success: true,
 						videoPath,
 						audioPath: isAudioValid ? audioPath : null,
+						cameraPath,
 					});
 					return;
 				}
@@ -213,6 +216,7 @@ class MediaStateManager {
 						elapsedTime,
 						videoPath,
 						audioPath,
+						cameraPath,
 					});
 					resolve({
 						success: false,
@@ -247,6 +251,7 @@ class MediaStateManager {
 	resetState() {
 		console.log("MediaState sıfırlanıyor...");
 		this.state = {
+			cameraPath: null,
 			videoPath: null,
 			audioPath: null,
 			systemAudioPath: null,
@@ -358,11 +363,13 @@ class MediaStateManager {
 						this.mainWindow.webContents.send(IPC_EVENTS.PROCESSING_COMPLETE, {
 							videoPath: result.videoPath,
 							audioPath: result.audioPath,
+							cameraPath: result.cameraPath,
 						});
 
 						this.mainWindow.webContents.send(IPC_EVENTS.MEDIA_PATHS, {
 							videoPath: result.videoPath,
 							audioPath: result.audioPath,
+							cameraPath: result.cameraPath,
 						});
 
 						// Editor açıldıktan sonra kontrolleri durdur

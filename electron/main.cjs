@@ -243,6 +243,7 @@ function setupIpcHandlers() {
 				tempFileManager.getFilePath("screen") ||
 				tempFileManager.getFilePath("video"),
 			audioPath: tempFileManager.getFilePath("audio"),
+			cameraPath: tempFileManager.getFilePath("camera"),
 		};
 	});
 

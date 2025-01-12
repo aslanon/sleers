@@ -67,7 +67,7 @@ export const useMediaDevices = () => {
 			);
 
 			if (videoDevices.value.length > 0) {
-				selectedVideoDevice.value = videoDevices.value[0].label;
+				selectedVideoDevice.value = videoDevices.value[0].deviceId;
 			}
 			if (audioDevices.value.length > 0) {
 				selectedAudioDevice.value = audioDevices.value[0].deviceId;
@@ -182,6 +182,14 @@ export const useMediaDevices = () => {
 
 	const startRecording = async (options = null) => {
 		try {
+			// Önceki kaydı temizle
+			if (mediaRecorder) {
+				console.log("Önceki kayıt durduruluyor");
+				await stopRecording();
+				// Kısa bir bekleme ekleyelim
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			}
+
 			// Mouse pozisyonlarını sıfırla
 			mousePositions.value = [];
 			previousPositions.value = [];
@@ -235,7 +243,7 @@ export const useMediaDevices = () => {
 
 			console.log("3. Stream başlatıldı");
 
-			if (mediaStream.value) {
+			if (screenStream) {
 				console.log("4. MediaRecorder'lar oluşturuluyor");
 
 				const screenRecorder = new MediaRecorder(screenStream, {
@@ -245,6 +253,7 @@ export const useMediaDevices = () => {
 
 				let cameraRecorder = null;
 				if (cameraStream) {
+					console.log("Kamera stream'i bulundu, recorder oluşturuluyor");
 					cameraRecorder = new MediaRecorder(cameraStream, {
 						mimeType: "video/webm;codecs=vp9",
 						videoBitsPerSecond: 8000000,
@@ -252,10 +261,8 @@ export const useMediaDevices = () => {
 				}
 
 				let audioRecorder = null;
-				if (mediaStream.value.getAudioTracks().length > 0) {
-					const audioStream = new MediaStream(
-						mediaStream.value.getAudioTracks()
-					);
+				if (screenStream.getAudioTracks().length > 0) {
+					const audioStream = new MediaStream(screenStream.getAudioTracks());
 					audioRecorder = new MediaRecorder(audioStream, {
 						mimeType: "audio/webm;codecs=opus",
 						audioBitsPerSecond: 320000,
@@ -277,11 +284,15 @@ export const useMediaDevices = () => {
 
 				const cameraChunks = [];
 				if (cameraRecorder) {
+					console.log("Kamera recorder event listener'ları ekleniyor");
 					cameraRecorder.ondataavailable = (event) => {
 						if (event.data.size > 0) {
+							console.log("Kamera chunk alındı:", event.data.size);
 							cameraChunks.push(event.data);
 						}
 					};
+					console.log("Kamera kaydı başlatılıyor");
+					cameraRecorder.start(1000);
 				}
 
 				const audioChunks = [];
@@ -293,9 +304,29 @@ export const useMediaDevices = () => {
 					};
 				}
 
+				console.log("5. Kayıt başlatılıyor");
+				if (screenRecorder.state === "recording") {
+					console.log("Ekran kaydı zaten çalışıyor, durduruluyor");
+					screenRecorder.stop();
+				}
 				screenRecorder.start(1000);
-				if (cameraRecorder) cameraRecorder.start(1000);
-				if (audioRecorder) audioRecorder.start(1000);
+
+				if (cameraRecorder) {
+					console.log("Kamera kaydı başlatılıyor");
+					if (cameraRecorder.state === "recording") {
+						console.log("Kamera kaydı zaten çalışıyor, durduruluyor");
+						cameraRecorder.stop();
+					}
+					cameraRecorder.start(1000);
+				}
+
+				if (audioRecorder) {
+					if (audioRecorder.state === "recording") {
+						console.log("Ses kaydı zaten çalışıyor, durduruluyor");
+						audioRecorder.stop();
+					}
+					audioRecorder.start(1000);
+				}
 
 				mediaRecorder = {
 					screen: screenRecorder,
@@ -304,9 +335,26 @@ export const useMediaDevices = () => {
 					stop: async () => {
 						document.body.classList.remove("recording");
 
+						console.log("MediaRecorder stop başlıyor:", {
+							hasScreen: !!screenRecorder,
+							hasCamera: !!cameraRecorder,
+							hasAudio: !!audioRecorder,
+							cameraChunksLength: cameraChunks.length,
+						});
+
 						screenRecorder.stop();
-						if (cameraRecorder) cameraRecorder.stop();
+						if (cameraRecorder) {
+							console.log("Kamera kaydı durduruluyor");
+							cameraRecorder.stop();
+						}
 						if (audioRecorder) audioRecorder.stop();
+
+						// saveRecording'e gönderilen chunks'ları kontrol et
+						console.log("saveRecording'e gönderilen chunks:", {
+							screenChunks: screenChunks.length,
+							cameraChunks: cameraChunks.length,
+							audioChunks: audioChunks.length,
+						});
 
 						await saveRecording({
 							screen: screenChunks,
@@ -363,6 +411,7 @@ export const useMediaDevices = () => {
 					filteredSources[0];
 			}
 
+			// Ekran kaydı için stream al
 			const screenStream = await navigator.mediaDevices.getUserMedia({
 				audio: false,
 				systemAudio: "include",
@@ -391,6 +440,89 @@ export const useMediaDevices = () => {
 				},
 			});
 
+			// Kamera kaydı için stream al
+			let cameraStream = null;
+			if (selectedVideoDevice.value) {
+				try {
+					console.log("Kamera cihazları:", videoDevices.value);
+					console.log("Seçili kamera cihazı:", {
+						deviceId: selectedVideoDevice.value,
+						device: videoDevices.value.find(
+							(d) => d.deviceId === selectedVideoDevice.value
+						),
+					});
+
+					// Önce basit bir kamera stream'i deneyelim
+					cameraStream = await navigator.mediaDevices.getUserMedia({
+						audio: false,
+						video: true,
+					});
+
+					console.log(
+						"Basit kamera stream'i alındı, şimdi detaylı ayarlar deneniyor"
+					);
+
+					// Eğer basit stream başarılıysa, detaylı ayarlarla tekrar deneyelim
+					if (cameraStream) {
+						// Önceki stream'i kapat
+						cameraStream.getTracks().forEach((track) => track.stop());
+
+						cameraStream = await navigator.mediaDevices.getUserMedia({
+							audio: false,
+							video: {
+								deviceId: { exact: selectedVideoDevice.value },
+								width: { ideal: 1280 },
+								height: { ideal: 720 },
+								frameRate: { ideal: 30 },
+							},
+						});
+
+						console.log("Kamera stream'i başarıyla alındı:", {
+							tracks: cameraStream.getTracks().length,
+							settings: cameraStream.getVideoTracks()[0]?.getSettings(),
+							constraints: cameraStream.getVideoTracks()[0]?.getConstraints(),
+						});
+					}
+				} catch (err) {
+					console.error("Kamera akışı alınamadı:", {
+						name: err.name,
+						message: err.message,
+						constraint: err.constraint,
+						deviceId: selectedVideoDevice.value,
+						availableDevices: videoDevices.value.map((d) => ({
+							deviceId: d.deviceId,
+							label: d.label,
+							kind: d.kind,
+						})),
+					});
+
+					// Hata OverconstrainedError ise, daha basit ayarlarla tekrar deneyelim
+					if (err.name === "OverconstrainedError") {
+						try {
+							console.log("Basit ayarlarla tekrar deneniyor...");
+							cameraStream = await navigator.mediaDevices.getUserMedia({
+								audio: false,
+								video: {
+									deviceId: { exact: selectedVideoDevice.value },
+								},
+							});
+							console.log("Basit ayarlarla kamera stream'i alındı");
+						} catch (retryErr) {
+							console.error("Basit ayarlarla da alınamadı:", retryErr);
+						}
+					}
+				}
+			} else {
+				console.warn(
+					"Seçili kamera cihazı bulunamadı. Mevcut cihazlar:",
+					videoDevices.value.map((d) => ({
+						deviceId: d.deviceId,
+						label: d.label,
+					}))
+				);
+			}
+
+			// Ses kaydı için stream al
 			let audioStream = null;
 			if (selectedAudioDevice.value) {
 				try {
@@ -410,13 +542,14 @@ export const useMediaDevices = () => {
 			const tracks = [
 				...screenStream.getVideoTracks(),
 				...(audioStream?.getAudioTracks() || []),
+				...(cameraStream?.getVideoTracks() || []),
 			];
 
 			const combinedStream = new MediaStream(tracks);
 			mediaStream.value = combinedStream;
 			isRecording.value = true;
 
-			return { screenStream: combinedStream };
+			return { screenStream: combinedStream, cameraStream };
 		} catch (error) {
 			console.error("Kayıt başlatılırken hata oluştu:", error);
 			throw error;
@@ -432,7 +565,11 @@ export const useMediaDevices = () => {
 		try {
 			console.log("1. Kayıt durdurma başlatıldı");
 			if (mediaRecorder) {
-				console.log("2. MediaRecorder'lar durduruluyor");
+				console.log("2. MediaRecorder durumu:", {
+					screen: !!mediaRecorder.screen,
+					camera: !!mediaRecorder.camera,
+					audio: !!mediaRecorder.audio,
+				});
 				await mediaRecorder.stop();
 				mediaRecorder = null;
 			}
@@ -474,10 +611,25 @@ export const useMediaDevices = () => {
 
 	const saveRecording = async (chunks) => {
 		try {
-			console.log("1. Kayıtlar kaydediliyor...", {
-				hasScreen: chunks.screen.length > 0,
-				hasCamera: chunks.camera.length > 0,
-				hasAudio: chunks.audio.length > 0,
+			console.log("saveRecording başlıyor, gelen chunks:", {
+				screen: {
+					exists: !!chunks.screen,
+					length: chunks.screen?.length || 0,
+					totalSize:
+						chunks.screen?.reduce((acc, chunk) => acc + chunk.size, 0) || 0,
+				},
+				camera: {
+					exists: !!chunks.camera,
+					length: chunks.camera?.length || 0,
+					totalSize:
+						chunks.camera?.reduce((acc, chunk) => acc + chunk.size, 0) || 0,
+				},
+				audio: {
+					exists: !!chunks.audio,
+					length: chunks.audio?.length || 0,
+					totalSize:
+						chunks.audio?.reduce((acc, chunk) => acc + chunk.size, 0) || 0,
+				},
 			});
 
 			// Ekran kaydını kaydet
@@ -495,12 +647,26 @@ export const useMediaDevices = () => {
 				"screen"
 			);
 
-			console.log("2. Ekran kaydı kaydedildi:", screenPath);
+			console.log("Ekran kaydı kaydedildi:", {
+				path: screenPath,
+				size: screenBlob.size,
+			});
 
 			// Kamera kaydını kaydet (varsa)
 			let cameraPath = null;
 			if (chunks.camera && chunks.camera.length > 0) {
+				console.log("Kamera chunks kontrol:", {
+					length: chunks.camera.length,
+					sizes: chunks.camera.map((chunk) => chunk.size),
+					totalSize: chunks.camera.reduce((acc, chunk) => acc + chunk.size, 0),
+				});
+
 				const cameraBlob = new Blob(chunks.camera, { type: "video/webm" });
+				console.log("Kamera blob oluşturuldu:", {
+					size: cameraBlob.size,
+					type: cameraBlob.type,
+				});
+
 				const cameraBuffer = await cameraBlob.arrayBuffer();
 				const cameraBase64 = btoa(
 					new Uint8Array(cameraBuffer).reduce(
@@ -513,7 +679,16 @@ export const useMediaDevices = () => {
 					cameraDataUrl,
 					"camera"
 				);
-				console.log("3. Kamera kaydı kaydedildi:", cameraPath);
+
+				console.log("Kamera kaydı kaydedildi:", {
+					path: cameraPath,
+					size: cameraBlob.size,
+				});
+			} else {
+				console.warn("Kamera chunks eksik veya boş:", {
+					exists: !!chunks.camera,
+					length: chunks.camera?.length || 0,
+				});
 			}
 
 			// Ses kaydını kaydet (varsa)
@@ -534,11 +709,28 @@ export const useMediaDevices = () => {
 					audioDataUrl,
 					"audio"
 				);
-				console.log("4. Ses kaydı kaydedildi:", audioPath);
+				console.log("Ses kaydı kaydedildi:", {
+					path: audioPath,
+					size: audioBlob.size,
+				});
 			}
+
+			// Tüm dosya yollarını logla
+			console.log("Tüm kayıt dosyaları:", {
+				screen: screenPath,
+				camera: cameraPath,
+				audio: audioPath,
+			});
+
+			return {
+				videoPath: screenPath,
+				cameraPath,
+				audioPath,
+			};
 		} catch (error) {
 			console.error("Kayıtlar kaydedilirken hata:", error);
 			alert("Kayıtlar kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.");
+			return null;
 		}
 	};
 
