@@ -94,7 +94,7 @@
 			</div>
 
 			<!-- Tab içerikleri -->
-			<div class="flex-1 pt-0 p-8 overflow-y-auto">
+			<div class="flex-1 pt-4 max-h-[calc(100vh-500px)] p-8 overflow-y-auto">
 				<!-- Video Ayarları Tab -->
 				<VideoSettings
 					v-if="currentTab === 'video'"

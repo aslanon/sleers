@@ -35,7 +35,7 @@
 		<!-- Ana İçerik -->
 		<div class="flex-1 flex flex-col min-h-0">
 			<div class="w-full flex flex-1">
-				<div class="flex-shrink-0 w-[520px] flex flex-col">
+				<div class="flex-shrink-0 w-[500px] h-full flex flex-col">
 					<div class="flex-1 p-4 relative">
 						<MediaPlayerSettings
 							:duration="videoDuration"
