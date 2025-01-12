@@ -197,40 +197,6 @@ const videoState = ref({
 const currentSegmentIndex = ref(0);
 const isPlayingSegments = ref(false);
 
-// Video zaman güncelleme
-const handleTimeUpdate = () => {
-	if (!videoElement) return;
-
-	const currentTime = videoElement.currentTime;
-
-	if (isPlayingSegments.value && props.segments && props.segments.length > 0) {
-		const currentSegment = props.segments[currentSegmentIndex.value];
-		if (!currentSegment) return;
-
-		const segmentEnd = currentSegment.end || currentSegment.endTime || 0;
-		const segmentStart = currentSegment.start || currentSegment.startTime || 0;
-
-		// Eğer segment dışına çıktıysa
-		if (currentTime < segmentStart || currentTime >= segmentEnd) {
-			// Sonraki segmente geç
-			if (currentSegmentIndex.value < props.segments.length - 1) {
-				currentSegmentIndex.value++;
-				const nextSegment = props.segments[currentSegmentIndex.value];
-				videoElement.currentTime =
-					nextSegment.start || nextSegment.startTime || 0;
-			} else {
-				// Tüm segmentler tamamlandı
-				isPlayingSegments.value = false;
-				videoElement.pause();
-				currentSegmentIndex.value = 0;
-				emit("videoEnded");
-			}
-		}
-	}
-
-	emit("timeUpdate", currentTime);
-};
-
 // Video oynatma kontrolü
 const togglePlay = async (e) => {
 	e.preventDefault();
@@ -253,13 +219,12 @@ const play = async () => {
 		if (videoElement.currentTime >= videoElement.duration) {
 			videoElement.currentTime = 0;
 			videoState.value.currentTime = 0;
+			if (cameraElement.currentTime >= cameraElement.duration) {
+				cameraElement.currentTime = 0;
+			}
 			if (audioRef.value) {
 				audioRef.value.currentTime = 0;
 			}
-		}
-
-		if (cameraElement.currentTime >= cameraElement.duration) {
-			cameraElement.currentTime = 0;
 		}
 
 		// Önce state'i güncelle
@@ -836,6 +801,7 @@ const updateCanvas = (timestamp) => {
 			100,
 			100
 		);
+		ctx.restore();
 	}
 
 	animationFrame = requestAnimationFrame(updateCanvas);
@@ -1237,6 +1203,7 @@ onUnmounted(() => {
 	}
 
 	videoRef.value = null;
+	cameraRef.value = null;
 	canvasRef.value = null;
 	cleanupZoom();
 });
@@ -1351,6 +1318,7 @@ const renderVideo = () => {
 	const canvas = canvasRef.value;
 	const ctx = canvas.getContext("2d");
 	const video = videoRef.value;
+	const camera = cameraRef.value;
 
 	// Canvas boyutlarını ayarla
 	canvas.width = containerRef.value.clientWidth;
@@ -1358,6 +1326,7 @@ const renderVideo = () => {
 
 	// Videoyu çiz
 	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+	if (camera) ctx.drawImage(camera, 0, 0, canvas.width, canvas.height);
 
 	// Bir sonraki frame'i iste
 	requestAnimationFrame(renderVideo);
@@ -1371,7 +1340,7 @@ defineExpose({
 	seek: (time) => {
 		if (!videoElement) return;
 		videoElement.currentTime = time;
-		cameraElement.currentTime = time;
+		if (cameraElement) cameraElement.currentTime = time;
 	},
 
 	// Audio controls
@@ -1396,7 +1365,7 @@ defineExpose({
 	setPlaybackRate: (rate) => {
 		if (!videoElement) return;
 		videoElement.playbackRate = rate;
-		cameraElement.playbackRate = rate;
+		if (cameraElement) cameraElement.playbackRate = rate;
 	},
 	updateAspectRatio,
 
