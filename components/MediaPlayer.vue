@@ -142,9 +142,6 @@ const {
 	setCurrentZoomRange,
 } = usePlayerSettings();
 
-// Store'dan camera settings'i al
-const { cameraSettings } = usePlayerSettings();
-
 // Kamera renderer'ı al
 const { drawCamera } = useCameraRenderer();
 
@@ -803,8 +800,7 @@ const updateCanvas = (timestamp) => {
 		cameraElement,
 		canvasRef.value.width,
 		canvasRef.value.height,
-		dpr,
-		cameraSettings.value
+		dpr
 	);
 
 	animationFrame = requestAnimationFrame(updateCanvas);

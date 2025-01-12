@@ -1,19 +1,13 @@
 import { useRoundRect } from "~/composables/useRoundRect";
+const { cameraSettings } = usePlayerSettings();
 
 export const useCameraRenderer = () => {
 	// Kamera çizim fonksiyonu
-	const drawCamera = (
-		ctx,
-		cameraElement,
-		canvasWidth,
-		canvasHeight,
-		dpr,
-		cameraSettings
-	) => {
+	const drawCamera = (ctx, cameraElement, canvasWidth, canvasHeight, dpr) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
 
 		// Kamera boyutlarını hesapla
-		const cameraWidth = (canvasWidth * cameraSettings.size) / 100;
+		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
 		const cameraHeight = (cameraWidth * 9) / 16; // 16:9 aspect ratio
 
 		// Kamera pozisyonunu hesapla (sağ alt köşe)
@@ -24,9 +18,9 @@ export const useCameraRenderer = () => {
 		ctx.save();
 
 		// Gölge efekti
-		if (cameraSettings.shadow > 0) {
+		if (cameraSettings.value.shadow > 0) {
 			ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-			ctx.shadowBlur = cameraSettings.shadow * dpr;
+			ctx.shadowBlur = cameraSettings.value.shadow * dpr;
 			ctx.shadowOffsetX = 0;
 			ctx.shadowOffsetY = 0;
 		}
@@ -39,7 +33,7 @@ export const useCameraRenderer = () => {
 			cameraY,
 			cameraWidth,
 			cameraHeight,
-			cameraSettings.radius * dpr
+			cameraSettings.value.radius * dpr
 		);
 		ctx.clip();
 
