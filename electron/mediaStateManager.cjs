@@ -8,6 +8,7 @@ class MediaStateManager {
 		this.state = {
 			videoPath: null,
 			audioPath: null,
+			cameraPath: null,
 			systemAudioPath: null,
 			cursorPath: null,
 			lastRecordingTime: null,
@@ -336,6 +337,7 @@ class MediaStateManager {
 					this.updateState({
 						videoPath: result.videoPath,
 						audioPath: result.audioPath,
+						cameraPath: result.cameraPath,
 						lastRecordingTime: new Date().toISOString(),
 						isEditing: true,
 						processingStatus: {
@@ -355,6 +357,7 @@ class MediaStateManager {
 						{
 							videoPath: result.videoPath,
 							audioPath: result.audioPath,
+							cameraPath: result.cameraPath,
 						}
 					);
 
