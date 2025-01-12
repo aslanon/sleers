@@ -13,10 +13,12 @@
 			<p class="text-sm text-gray-400">
 				Kamera görüntüsünün görünür alanını ayarlayın.
 			</p>
-			<div class="relative aspect-video bg-red-500 rounded-lg overflow-hidden">
+			<div
+				class="relative max-w-[150px] aspect-video border-2 border-zinc-800 bg-zinc-900 rounded-xl overflow-hidden"
+			>
 				<div
 					ref="cropArea"
-					class="absolute bg-green-500/50 cursor-move"
+					class="absolute bg-zinc-800 rounded-xl cursor-move"
 					:style="{
 						left: `${cameraCrop.x}%`,
 						top: `${cameraCrop.y}%`,
@@ -46,7 +48,7 @@
 			desc="Kamera'nın köşelerinin yuvarlaklığını ayarlar."
 			v-model="cameraRadius"
 			:min="0"
-			:max="50"
+			:max="100"
 			:step="1"
 			unit="px"
 		/>
@@ -76,7 +78,12 @@ const cameraSize = ref(cameraSettings.value?.size || 30);
 const cameraRadius = ref(cameraSettings.value?.radius || 12);
 const cameraShadow = ref(cameraSettings.value?.shadow || 30);
 const cameraCrop = ref(
-	cameraSettings.value?.crop || { x: 0, y: 0, width: 56.25, height: 100 }
+	cameraSettings.value?.crop || {
+		x: 21.875,
+		y: 0,
+		width: 56.25,
+		height: 100,
+	}
 );
 
 // Drag işlemleri için state
@@ -87,11 +94,7 @@ const cropArea = ref(null);
 
 // Başlangıç boyutlarını ayarla
 onMounted(() => {
-	// 16:9 container'da kare alan için width = 56.25% (height'ın 56.25%'i)
-	cameraCrop.value.width = 56.25;
-	cameraCrop.value.height = 100;
-	cameraCrop.value.x = 0;
-	cameraCrop.value.y = 0;
+	// Sadece cropArea ref'ini kullanmak için boş onMounted tutuyoruz
 });
 
 // Drag işlemleri

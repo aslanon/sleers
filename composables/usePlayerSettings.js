@@ -10,10 +10,10 @@ const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
 const cameraSettings = ref({
-	size: 30,
-	radius: 12,
-	shadow: 30,
-	blur: 30,
+	size: 15,
+	radius: 50,
+	shadow: 20,
+	blur: 50,
 	crop: {
 		x: 21.875,
 		y: 0,
