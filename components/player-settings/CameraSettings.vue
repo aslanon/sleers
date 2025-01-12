@@ -20,8 +20,8 @@
 					:style="{
 						left: `${cameraCrop.x}%`,
 						top: `${cameraCrop.y}%`,
-						width: `${cameraCrop.width}%`,
-						height: `${cameraCrop.height}%`,
+						width: '56.25%',
+						height: '100%',
 						aspectRatio: '1/1',
 					}"
 					@mousedown="startDrag"
@@ -76,7 +76,7 @@ const cameraSize = ref(cameraSettings.value?.size || 30);
 const cameraRadius = ref(cameraSettings.value?.radius || 12);
 const cameraShadow = ref(cameraSettings.value?.shadow || 30);
 const cameraCrop = ref(
-	cameraSettings.value?.crop || { x: 0, y: 0, width: 56.25, height: 56.25 }
+	cameraSettings.value?.crop || { x: 0, y: 0, width: 56.25, height: 100 }
 );
 
 // Drag işlemleri için state
@@ -87,16 +87,10 @@ const cropArea = ref(null);
 
 // Başlangıç boyutlarını ayarla
 onMounted(() => {
-	// Container yüksekliğine göre kare boyutunu hesapla
-	const containerHeight = cropArea.value.parentElement.offsetHeight;
-	const squareSize =
-		(containerHeight / cropArea.value.parentElement.offsetWidth) * 100;
-
-	cameraCrop.value.width = squareSize;
-	cameraCrop.value.height = squareSize;
-
-	// Merkeze konumlandır
-	cameraCrop.value.x = (100 - cameraCrop.value.width) / 2;
+	// 16:9 container'da kare alan için width = 56.25% (height'ın 56.25%'i)
+	cameraCrop.value.width = 56.25;
+	cameraCrop.value.height = 100;
+	cameraCrop.value.x = 0;
 	cameraCrop.value.y = 0;
 });
 

@@ -15,9 +15,9 @@ const cameraSettings = ref({
 	shadow: 30,
 	blur: 30,
 	crop: {
-		x: 0,
+		x: 21.875,
 		y: 0,
-		width: 100,
+		width: 56.25,
 		height: 100,
 	},
 });

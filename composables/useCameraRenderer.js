@@ -8,9 +8,9 @@ export const useCameraRenderer = () => {
 	const drawCamera = (ctx, cameraElement, canvasWidth, canvasHeight, dpr) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
 
-		// Kamera boyutlarını hesapla
+		// Kamera boyutlarını hesapla (kare olarak)
 		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
-		const cameraHeight = (cameraWidth * 9) / 16; // 16:9 aspect ratio
+		const cameraHeight = cameraWidth; // Kare yapmak için width = height
 
 		// Kamera pozisyonunu hesapla (sağ alt köşe)
 		const cameraX = canvasWidth - cameraWidth - 20 * dpr;
@@ -54,18 +54,24 @@ export const useCameraRenderer = () => {
 
 		// Crop ayarlarını hesapla
 		const crop = cameraSettings.value.crop;
-		const sourceX = (cameraElement.videoWidth * crop.x) / 100;
-		const sourceY = (cameraElement.videoHeight * crop.y) / 100;
-		const sourceWidth = (cameraElement.videoWidth * crop.width) / 100;
-		const sourceHeight = (cameraElement.videoHeight * crop.height) / 100;
+
+		// Video aspect ratio'sunu koru
+		const videoRatio = cameraElement.videoWidth / cameraElement.videoHeight;
+		const targetHeight = cameraElement.videoHeight;
+		const targetWidth = targetHeight;
+
+		// Crop pozisyonunu hesapla
+		const maxOffset = cameraElement.videoWidth - targetWidth;
+		const sourceX = (maxOffset * crop.x) / (100 - crop.width);
+		const sourceY = 0;
 
 		// Kamerayı crop ayarlarıyla çiz
 		ctx.drawImage(
 			cameraElement,
 			sourceX,
 			sourceY,
-			sourceWidth,
-			sourceHeight,
+			targetWidth,
+			targetHeight,
 			cameraX,
 			cameraY,
 			cameraWidth,
