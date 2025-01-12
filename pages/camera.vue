@@ -5,12 +5,19 @@
 		@mousedown="startDrag"
 	>
 		<video
+			v-show="!isLoading"
 			ref="videoRef"
 			autoplay
 			muted
 			playsinline
 			class="camera-video"
 		></video>
+		<div
+			v-if="isLoading"
+			class="text-white transition-all duration-300 ease-in-out text-center text-xs bg-[#1a1b26]/90 rounded-full w-full h-full flex items-center justify-center"
+		>
+			Loading...
+		</div>
 		<div
 			v-if="false"
 			class="absolute max-w-[220px] bottom-6 text-xl text-white bg-purple-600 text-center rounded-full rounded-tl-none px-4 py-2"
@@ -37,6 +44,7 @@ import { ref, onMounted, onUnmounted } from "vue";
 
 const electron = window.electron;
 const videoRef = ref(null);
+const isLoading = ref(true);
 let stream = null;
 
 // Sürükleme durumu için ref'ler
@@ -87,6 +95,7 @@ const startCamera = async () => {
 		if (stream) {
 			stopCamera();
 		}
+		isLoading.value = true;
 
 		stream = await navigator.mediaDevices.getUserMedia({
 			video: {
@@ -97,6 +106,9 @@ const startCamera = async () => {
 
 		if (videoRef.value) {
 			videoRef.value.srcObject = stream;
+			setTimeout(() => {
+				isLoading.value = false;
+			}, 500);
 		}
 	} catch (error) {
 		console.error("Kamera başlatılırken hata:", error);
