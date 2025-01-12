@@ -13,6 +13,7 @@ const cameraSettings = ref({
 	size: 30,
 	radius: 12,
 	shadow: 30,
+	blur: 30,
 });
 // Motion blur için sabitler
 const MOTION_BLUR_CONSTANTS = {

@@ -187,7 +187,7 @@ class CameraManager {
 	createCameraWindow() {
 		console.log("Kamera penceresi oluşturuluyor...");
 		const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-		const size = this.SMALL_SIZE;
+		const size = this.LARGE_SIZE;
 
 		this.cameraWindow = new BrowserWindow({
 			width: size,

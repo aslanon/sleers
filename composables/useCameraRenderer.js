@@ -1,7 +1,7 @@
 import { useRoundRect } from "~/composables/useRoundRect";
-const { cameraSettings } = usePlayerSettings();
 
 export const useCameraRenderer = () => {
+	const { cameraSettings } = usePlayerSettings();
 	// Kamera çizim fonksiyonu
 	const drawCamera = (ctx, cameraElement, canvasWidth, canvasHeight, dpr) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
@@ -19,10 +19,23 @@ export const useCameraRenderer = () => {
 
 		// Gölge efekti
 		if (cameraSettings.value.shadow > 0) {
-			ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+			ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
 			ctx.shadowBlur = cameraSettings.value.shadow * dpr;
 			ctx.shadowOffsetX = 0;
 			ctx.shadowOffsetY = 0;
+
+			// Gölge için arka plan çiz
+			ctx.beginPath();
+			useRoundRect(
+				ctx,
+				cameraX,
+				cameraY,
+				cameraWidth,
+				cameraHeight,
+				cameraSettings.value.radius * dpr
+			);
+			ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+			ctx.fill();
 		}
 
 		// Kamera alanını kırp ve radius uygula

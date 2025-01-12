@@ -16,7 +16,7 @@
 			v-if="isLoading"
 			class="text-white transition-all duration-300 ease-in-out text-center text-xs bg-[#1a1b26]/90 rounded-full w-full h-full flex items-center justify-center"
 		>
-			Loading...
+			Camera is starting...
 		</div>
 		<div
 			v-if="false"
