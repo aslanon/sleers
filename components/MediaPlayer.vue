@@ -33,6 +33,8 @@
 <script setup>
 import { useVideoZoom } from "~/composables/useVideoZoom";
 import { useMouseCursor } from "~/composables/useMouseCursor";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import { useCameraRenderer } from "~/composables/useCameraRenderer";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -139,6 +141,12 @@ const {
 	MOTION_BLUR_CONSTANTS,
 	setCurrentZoomRange,
 } = usePlayerSettings();
+
+// Store'dan camera settings'i al
+const { cameraSettings } = usePlayerSettings();
+
+// Kamera renderer'ı al
+const { drawCamera } = useCameraRenderer();
 
 // Referanslar
 const containerRef = ref(null);
@@ -789,20 +797,15 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
-	if (cameraElement) {
-		ctx.drawImage(
-			cameraElement,
-			100,
-			100,
-			cameraElement.videoWidth,
-			cameraElement.videoHeight,
-			x,
-			y,
-			100,
-			100
-		);
-		ctx.restore();
-	}
+	// Kamera çizimi
+	drawCamera(
+		ctx,
+		cameraElement,
+		canvasRef.value.width,
+		canvasRef.value.height,
+		dpr,
+		cameraSettings.value
+	);
 
 	animationFrame = requestAnimationFrame(updateCanvas);
 };
