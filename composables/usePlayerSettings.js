@@ -9,6 +9,11 @@ const shadowSize = ref(0);
 const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
+const cameraSettings = ref({
+	size: 30,
+	radius: 12,
+	shadow: 30,
+});
 // Motion blur için sabitler
 const MOTION_BLUR_CONSTANTS = {
 	MIN_SPEED_THRESHOLD: 1.2,
@@ -131,16 +136,28 @@ export const usePlayerSettings = () => {
 		}
 	};
 
+	const updateCameraSettings = (settings) => {
+		cameraSettings.value = {
+			...cameraSettings.value,
+			...settings,
+		};
+	};
+
 	return {
 		mouseSize,
 		motionBlurValue,
-		mouseMotionEnabled,
 		backgroundColor,
 		padding,
-		MOTION_BLUR_CONSTANTS,
 		radius,
 		shadowSize,
 		cropRatio,
+		zoomRanges,
+		currentZoomRange,
+		cameraSettings,
+		mouseMotionEnabled,
+		activeZoomScale,
+		activeZoomPosition,
+		MOTION_BLUR_CONSTANTS,
 		updateMouseSize,
 		updateMotionBlur,
 		updateBackgroundColor,
@@ -148,13 +165,10 @@ export const usePlayerSettings = () => {
 		updateRadius,
 		updateShadowSize,
 		updateCropRatio,
-		zoomRanges,
 		addZoomRange,
 		removeZoomRange,
 		updateZoomRange,
-		currentZoomRange,
 		setCurrentZoomRange,
-		activeZoomScale,
-		activeZoomPosition,
+		updateCameraSettings,
 	};
 };

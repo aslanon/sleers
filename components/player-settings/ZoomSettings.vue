@@ -1,9 +1,17 @@
 <template>
 	<div class="flex flex-col gap-4">
-		<div v-if="isZoomSettingsActive" class="flex flex-col gap-4">
+		<div v-if="isZoomSettingsActive" class="flex flex-col gap-12">
+			<div class="space-y-2">
+				<h3 class="text-lg font-medium">Zoom Ayarları</h3>
+				<p class="text-sm text-gray-400">
+					Zoom görüntüsü için ayarları buradan yapabilirsiniz.
+				</p>
+			</div>
+
 			<!-- Zoom Level Slider -->
 			<SliderInput
 				v-model="zoomScale"
+				desc="Zoom görüntüsünün büyütme seviyesini ayarlar."
 				label="Zoom Level"
 				:min="1"
 				:max="10"
@@ -14,6 +22,7 @@
 			<!-- Zoom Position Selector -->
 			<div class="setting-group">
 				<label class="setting-label">Zoom Position</label>
+				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
 					class="relative w-[100px] h-[100px] bg-gray-800 rounded-lg mx-auto border border-gray-700"
 				>
@@ -176,6 +185,10 @@ const isZoomSettingsActive = computed(() => currentZoomRange.value !== null);
 }
 
 .setting-label {
-	@apply text-sm font-medium text-gray-300;
+	@apply text-base font-semibold text-gray-300;
+}
+
+.setting-desc {
+	@apply text-sm font-semibold text-gray-500;
 }
 </style>

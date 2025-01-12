@@ -1,6 +1,7 @@
 <template>
 	<div class="setting-group">
 		<label class="setting-label">{{ label }}</label>
+		<span v-if="desc" class="setting-desc">{{ desc }}</span>
 		<div class="setting-control">
 			<input
 				type="range"
@@ -44,6 +45,10 @@ const props = defineProps({
 		type: String,
 		default: "",
 	},
+	desc: {
+		type: String,
+		default: "",
+	},
 });
 
 const emit = defineEmits(["update:modelValue"]);
@@ -79,7 +84,11 @@ onMounted(() => {
 }
 
 .setting-label {
-	@apply text-sm font-medium text-gray-300;
+	@apply text-base font-semibold text-gray-300;
+}
+
+.setting-desc {
+	@apply text-sm font-semibold text-gray-500;
 }
 
 .setting-control {

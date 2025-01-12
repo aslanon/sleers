@@ -1,8 +1,15 @@
 <template>
-	<div class="flex flex-col gap-4">
+	<div class="flex flex-col gap-12">
+		<div class="space-y-2">
+			<h3 class="text-lg font-medium">Video Ayarları</h3>
+			<p class="text-sm text-gray-400">
+				Video görüntüsü için ayarları buradan yapabilirsiniz.
+			</p>
+		</div>
 		<SliderInput
 			v-model="paddingValue"
 			label="Padding"
+			desc="Video'nun kenarlarına eklenen boşluk vererek daha güzel görünmesini sağlar."
 			:min="0"
 			:max="200"
 			:step="4"
@@ -12,6 +19,7 @@
 		<SliderInput
 			v-model="radiusValue"
 			label="Radius"
+			desc="Video'nun köşelerinin yuvarlaklığını ayarlar."
 			:min="0"
 			:max="50"
 			:step="2"
@@ -21,6 +29,7 @@
 		<SliderInput
 			v-model="shadowValue"
 			label="Shadow"
+			desc="Video'nun gölgesinin opaklığını ayarlar."
 			:min="0"
 			:max="100"
 			:step="5"

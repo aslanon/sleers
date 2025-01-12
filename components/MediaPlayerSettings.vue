@@ -70,18 +70,31 @@
 						fill="none"
 						stroke="currentColor"
 					>
+						<!-- Köşe işaretleri -->
 						<path
 							stroke-linecap="round"
 							stroke-linejoin="round"
 							stroke-width="2"
-							d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+							d="M4 4h3M4 4v3M20 4h-3M20 4v3M4 20h3M4 20v-3M20 20h-3M20 20v-3"
 						/>
+						<!-- Emoji yüz (daire) -->
+						<circle cx="12" cy="11" r="4" stroke-width="2" />
+						<!-- Gülümseyen gözler -->
+						<path
+							stroke-linecap="round"
+							stroke-width="2"
+							d="M10 10h0M14 10h0"
+						/>
+						<!-- Kamera -->
+						<rect x="14" y="13" width="4" height="4" rx="1" stroke-width="2" />
+						<!-- Kamera lensi -->
+						<circle cx="16" cy="15" r="0.5" stroke-width="2" />
 					</svg>
 				</button>
 			</div>
 
 			<!-- Tab içerikleri -->
-			<div class="flex-1 pt-0 p-8">
+			<div class="flex-1 pt-0 p-8 !max-h-[calc(100vh-300px)] overflow-y-auto">
 				<!-- Video Ayarları Tab -->
 				<VideoSettings
 					v-if="currentTab === 'video'"
@@ -146,6 +159,11 @@ const tabs = [
 		isShowInTab: true,
 	},
 	{
+		id: "camera",
+		name: "Kamera Ayarları",
+		isShowInTab: true,
+	},
+	{
 		id: "mouse",
 		name: "Mouse Ayarları",
 		isShowInTab: true,
@@ -153,11 +171,6 @@ const tabs = [
 	{
 		id: "zoom",
 		name: "Zoom Ayarları",
-		isShowInTab: true,
-	},
-	{
-		id: "camera",
-		name: "Kamera Ayarları",
 		isShowInTab: true,
 	},
 ];
