@@ -31,8 +31,8 @@
 
 		<!-- Kamera Gölgesi -->
 		<SliderInput
-			label="Gölge Opaklığı"
-			desc="Kamera'nın gölgesinin opaklığını ayarlar."
+			label="Shadow"
+			desc="Kameraya gölge efekti ekler."
 			v-model="cameraShadow"
 			:min="0"
 			:max="100"

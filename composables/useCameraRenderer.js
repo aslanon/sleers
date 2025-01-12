@@ -19,12 +19,7 @@ export const useCameraRenderer = () => {
 
 		// Gölge efekti
 		if (cameraSettings.value.shadow > 0) {
-			ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-			ctx.shadowBlur = cameraSettings.value.shadow * dpr;
-			ctx.shadowOffsetX = 0;
-			ctx.shadowOffsetY = 0;
-
-			// Gölge için arka plan çiz
+			ctx.save();
 			ctx.beginPath();
 			useRoundRect(
 				ctx,
@@ -34,8 +29,13 @@ export const useCameraRenderer = () => {
 				cameraHeight,
 				cameraSettings.value.radius * dpr
 			);
-			ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+			ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+			ctx.shadowBlur = cameraSettings.value.shadow * dpr;
+			ctx.shadowOffsetX = 0;
+			ctx.shadowOffsetY = 0;
+			ctx.fillStyle = "#000000";
 			ctx.fill();
+			ctx.restore();
 		}
 
 		// Kamera alanını kırp ve radius uygula
