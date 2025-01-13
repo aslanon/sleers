@@ -81,7 +81,7 @@
 			desc="Kamera'nın köşelerinin yuvarlaklığını ayarlar."
 			v-model="cameraRadius"
 			:min="0"
-			:max="50"
+			:max="100"
 			:step="1"
 			unit="px"
 		/>

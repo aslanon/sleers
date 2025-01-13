@@ -221,12 +221,16 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.setting-group {
-	@apply flex flex-col gap-2;
+.setting-label {
+	@apply text-base font-semibold text-gray-300;
 }
 
-.setting-label {
-	@apply text-sm font-medium text-gray-300;
+.setting-desc {
+	@apply text-sm font-semibold text-gray-500;
+}
+
+.setting-group {
+	@apply flex flex-col gap-2;
 }
 
 .color-grid {
