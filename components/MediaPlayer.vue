@@ -856,14 +856,23 @@ const updateCanvas = (timestamp) => {
 		// Mouse'dan Y ekseninde 150px aşağıya kaydır
 		const offsetY = 150 * dpr;
 
+		// Hedef pozisyonu hesapla
+		const targetX = currentMouseX;
+		const targetY = currentMouseY + offsetY;
+
+		// Smooth geçiş için lerp uygula
+		const ease = 0.1; // Düşük değer daha yavaş geçiş
+		lastCameraX.value += (targetX - lastCameraX.value) * ease;
+		lastCameraY.value += (targetY - lastCameraY.value) * ease;
+
 		drawCamera(
 			ctx,
 			cameraElement,
 			canvasRef.value.width,
 			canvasRef.value.height,
 			dpr,
-			currentMouseX,
-			currentMouseY + offsetY
+			lastCameraX.value,
+			lastCameraY.value
 		);
 	}
 
@@ -1523,6 +1532,10 @@ watch(
 	},
 	{ immediate: true }
 );
+
+// Kamera pozisyonu için state
+const lastCameraX = ref(0);
+const lastCameraY = ref(0);
 </script>
 
 <style scoped>
