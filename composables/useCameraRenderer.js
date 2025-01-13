@@ -2,19 +2,44 @@ import { useRoundRect } from "~/composables/useRoundRect";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const useCameraRenderer = () => {
-	const { cameraSettings, updateCameraSettings } = usePlayerSettings();
+	const { cameraSettings } = usePlayerSettings();
 
 	// Kamera çizim fonksiyonu
-	const drawCamera = (ctx, cameraElement, canvasWidth, canvasHeight, dpr) => {
+	const drawCamera = (
+		ctx,
+		cameraElement,
+		canvasWidth,
+		canvasHeight,
+		dpr,
+		mouseX,
+		mouseY
+	) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
 
 		// Kamera boyutlarını hesapla (kare olarak)
 		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
 		const cameraHeight = cameraWidth; // Kare yapmak için width = height
 
-		// Kamera pozisyonunu hesapla (sağ alt köşe)
-		const cameraX = canvasWidth - cameraWidth - 20 * dpr;
-		const cameraY = canvasHeight - cameraHeight - 20 * dpr;
+		// Kamera pozisyonunu hesapla
+		let cameraX, cameraY;
+
+		if (
+			cameraSettings.value.followMouse &&
+			mouseX !== undefined &&
+			mouseY !== undefined
+		) {
+			// Mouse pozisyonuna göre kamera pozisyonunu ayarla
+			cameraX = mouseX - cameraWidth / 2;
+			cameraY = mouseY - cameraHeight / 2;
+
+			// Sınırları kontrol et
+			cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
+			cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
+		} else {
+			// Default pozisyon (sağ alt köşe)
+			cameraX = canvasWidth - cameraWidth - 20 * dpr;
+			cameraY = canvasHeight - cameraHeight - 20 * dpr;
+		}
 
 		// Context state'i kaydet
 		ctx.save();

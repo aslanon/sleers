@@ -14,6 +14,7 @@ const cameraSettings = ref({
 	radius: 50,
 	shadow: 20,
 	blur: 50,
+	followMouse: false,
 	crop: {
 		x: 21.875,
 		y: 0,

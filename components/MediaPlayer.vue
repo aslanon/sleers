@@ -643,6 +643,7 @@ const {
 	previousPositions,
 	cursorImage,
 	drawMousePosition: drawMouseCursor,
+	mousePosition,
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
 
 // Mouse positions değişikliğini izle ve previousPositions'ı temizle
@@ -777,7 +778,63 @@ const updateCanvas = (timestamp) => {
 	ctx.restore();
 
 	// Mouse pozisyonlarını çiz
+	let currentMouseX, currentMouseY;
 	if (props.mousePositions && props.mousePositions.length > 0) {
+		// Video süresini al
+		const videoDuration = videoElement.duration;
+		if (!videoDuration) return;
+
+		// Mouse pozisyonları için toplam frame sayısı
+		const totalFrames = props.mousePositions.length;
+		const frameTime = videoDuration / totalFrames;
+		const exactFrame = videoElement.currentTime / frameTime;
+		const currentFrame = Math.floor(exactFrame);
+		const nextFrame = Math.min(currentFrame + 1, totalFrames - 1);
+		const framePart = exactFrame - currentFrame;
+
+		// İki frame arasında interpolasyon yap
+		const currentPos = props.mousePositions[currentFrame];
+		const nextPos = props.mousePositions[nextFrame];
+		if (!currentPos || !nextPos) return;
+
+		// İnterpolasyon ile ara pozisyonu hesapla
+		const interpolatedX = currentPos.x + (nextPos.x - currentPos.x) * framePart;
+		const interpolatedY = currentPos.y + (nextPos.y - currentPos.y) * framePart;
+
+		// Video koordinatlarından canvas koordinatlarına çevir
+		const canvasX = (interpolatedX / videoElement.videoWidth) * drawWidth + x;
+		const canvasY = (interpolatedY / videoElement.videoHeight) * drawHeight + y;
+
+		// Zoom durumunda pozisyonu ayarla
+		if (videoScale.value > 1.001) {
+			const centerX = x + drawWidth / 2;
+			const centerY = y + drawHeight / 2;
+			const { originX: transformOriginX, originY: transformOriginY } =
+				calculateZoomOrigin(
+					activeZoom?.position || lastZoomPosition.value || "center",
+					x,
+					y,
+					drawWidth,
+					drawHeight,
+					centerX,
+					centerY
+				);
+
+			// Zoom'u hesaba katarak pozisyonu güncelle
+			currentMouseX =
+				transformOriginX + (canvasX - transformOriginX) * videoScale.value;
+			currentMouseY =
+				transformOriginY + (canvasY - transformOriginY) * videoScale.value;
+		} else {
+			currentMouseX = canvasX;
+			currentMouseY = canvasY;
+		}
+
+		// DPR'ı hesaba kat
+		currentMouseX *= dpr;
+		currentMouseY *= dpr;
+
+		// Mouse cursor'ı çiz
 		drawMouseCursor(
 			ctx,
 			videoElement.currentTime,
@@ -794,14 +851,21 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
-	// Kamera çizimi
-	drawCamera(
-		ctx,
-		cameraElement,
-		canvasRef.value.width,
-		canvasRef.value.height,
-		dpr
-	);
+	// Kamera çizimi (followMouse aktifse mouse pozisyonunu kullan)
+	if (cameraElement) {
+		// Mouse'dan Y ekseninde 150px aşağıya kaydır
+		const offsetY = 150 * dpr;
+
+		drawCamera(
+			ctx,
+			cameraElement,
+			canvasRef.value.width,
+			canvasRef.value.height,
+			dpr,
+			currentMouseX,
+			currentMouseY + offsetY
+		);
+	}
 
 	animationFrame = requestAnimationFrame(updateCanvas);
 };

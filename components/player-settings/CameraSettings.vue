@@ -7,6 +7,22 @@
 			</p>
 		</div>
 
+		<!-- Kamera Mouse Takibi -->
+		<div class="flex items-center justify-between">
+			<div>
+				<h4 class="text-base font-medium">Mouse İmleci Takibi</h4>
+				<p class="text-sm text-gray-400">
+					Kamera görüntüsü mouse imlecini takip etsin
+				</p>
+			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input type="checkbox" v-model="followMouse" class="sr-only peer" />
+				<div
+					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
+				></div>
+			</label>
+		</div>
+
 		<!-- Kamera Crop Ayarı -->
 		<div class="space-y-2">
 			<h4 class="text-base font-medium">Kamera Kırpma</h4>
@@ -48,7 +64,7 @@
 			desc="Kamera'nın köşelerinin yuvarlaklığını ayarlar."
 			v-model="cameraRadius"
 			:min="0"
-			:max="100"
+			:max="50"
 			:step="1"
 			unit="px"
 		/>
@@ -85,6 +101,7 @@ const cameraCrop = ref(
 		height: 100,
 	}
 );
+const followMouse = ref(cameraSettings.value?.followMouse || false);
 
 // Drag işlemleri için state
 const isDragging = ref(false);
@@ -140,13 +157,14 @@ onUnmounted(() => {
 
 // Değişiklikleri izle ve store'u güncelle
 watch(
-	[cameraSize, cameraRadius, cameraShadow, cameraCrop],
-	([size, radius, shadow, crop]) => {
+	[cameraSize, cameraRadius, cameraShadow, cameraCrop, followMouse],
+	([size, radius, shadow, crop, follow]) => {
 		updateCameraSettings({
 			size,
 			radius,
 			shadow,
 			crop,
+			followMouse: follow,
 		});
 	},
 	{ immediate: true, deep: true }
