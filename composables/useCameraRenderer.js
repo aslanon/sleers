@@ -3,8 +3,9 @@ import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const useCameraRenderer = () => {
 	const { cameraSettings } = usePlayerSettings();
+	const lastCameraPosition = ref({ x: 0, y: 0 });
+	const isMouseOverCamera = ref(false);
 
-	// Kamera çizim fonksiyonu
 	const drawCamera = (
 		ctx,
 		cameraElement,
@@ -12,7 +13,8 @@ export const useCameraRenderer = () => {
 		canvasHeight,
 		dpr,
 		mouseX,
-		mouseY
+		mouseY,
+		dragPosition = null
 	) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
 
@@ -23,7 +25,11 @@ export const useCameraRenderer = () => {
 		// Kamera pozisyonunu hesapla
 		let cameraX, cameraY;
 
-		if (
+		if (dragPosition) {
+			// Sürükleme pozisyonunu kullan
+			cameraX = dragPosition.x;
+			cameraY = dragPosition.y;
+		} else if (
 			cameraSettings.value.followMouse &&
 			mouseX !== undefined &&
 			mouseY !== undefined
@@ -31,15 +37,20 @@ export const useCameraRenderer = () => {
 			// Mouse pozisyonuna göre kamera pozisyonunu ayarla
 			cameraX = mouseX - cameraWidth / 2;
 			cameraY = mouseY - cameraHeight / 2;
-
-			// Sınırları kontrol et
-			cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
-			cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
 		} else {
-			// Default pozisyon (sağ alt köşe)
-			cameraX = canvasWidth - cameraWidth - 20 * dpr;
-			cameraY = canvasHeight - cameraHeight - 20 * dpr;
+			// Default pozisyon (sağ alt köşe) veya son pozisyonu kullan
+			cameraX =
+				lastCameraPosition.value.x || canvasWidth - cameraWidth - 20 * dpr;
+			cameraY =
+				lastCameraPosition.value.y || canvasHeight - cameraHeight - 20 * dpr;
 		}
+
+		// Sınırları kontrol et
+		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
+		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
+
+		// Son pozisyonu kaydet
+		lastCameraPosition.value = { x: cameraX, y: cameraY };
 
 		// Context state'i kaydet
 		ctx.save();
@@ -121,6 +132,11 @@ export const useCameraRenderer = () => {
 			cameraSettings.value.radius * dpr
 		);
 
+		// Mouse'un kamera üzerinde olup olmadığını kontrol et
+		if (mouseX !== undefined && mouseY !== undefined) {
+			isMouseOverCamera.value = ctx.isPointInPath(mouseX, mouseY);
+		}
+
 		// Context state'i geri yükle
 		ctx.restore();
 
@@ -128,13 +144,9 @@ export const useCameraRenderer = () => {
 		return { cameraX, cameraY, cameraWidth, cameraHeight };
 	};
 
-	// Kamera alanının tıklanıp tıklanmadığını kontrol et
-	const isPointInPath = (ctx, x, y) => {
-		return ctx.isPointInPath(x, y);
-	};
-
 	return {
 		drawCamera,
-		isPointInPath,
+		isMouseOverCamera,
+		lastCameraPosition,
 	};
 };

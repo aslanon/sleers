@@ -35,6 +35,7 @@ import { useVideoZoom } from "~/composables/useVideoZoom";
 import { useMouseCursor } from "~/composables/useMouseCursor";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useCameraRenderer } from "~/composables/useCameraRenderer";
+import { useCameraDrag } from "~/composables/useCameraDrag";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -140,10 +141,18 @@ const {
 	currentZoomRange,
 	MOTION_BLUR_CONSTANTS,
 	setCurrentZoomRange,
+	cameraSettings,
 } = usePlayerSettings();
 
 // Kamera renderer'ı al
-const { drawCamera } = useCameraRenderer();
+const { drawCamera, isMouseOverCamera, lastCameraPosition } =
+	useCameraRenderer();
+const {
+	isDragging: isCameraDragging,
+	cameraPosition,
+	startDrag: startCameraDrag,
+	stopDrag: stopCameraDrag,
+} = useCameraDrag();
 
 // Referanslar
 const containerRef = ref(null);
@@ -656,7 +665,7 @@ watch(
 );
 
 // Canvas güncelleme fonksiyonu
-const updateCanvas = (timestamp) => {
+const updateCanvas = (timestamp, mouseX, mouseY) => {
 	if (!videoElement || !ctx || !canvasRef.value) return;
 
 	// FPS kontrolü
@@ -851,19 +860,30 @@ const updateCanvas = (timestamp) => {
 		);
 	}
 
-	// Kamera çizimi (followMouse aktifse mouse pozisyonunu kullan)
+	// Kamera çizimi
 	if (cameraElement) {
-		// Mouse'dan Y ekseninde 150px aşağıya kaydır
-		const offsetY = 150 * dpr;
+		let cameraPos;
+		if (isCameraDragging.value) {
+			cameraPos = cameraPosition.value;
+		} else if (
+			cameraSettings.value.followMouse &&
+			currentMouseX !== undefined &&
+			currentMouseY !== undefined
+		) {
+			// Mouse'dan Y ekseninde 150px aşağıya kaydır
+			const offsetY = 150 * dpr;
 
-		// Hedef pozisyonu hesapla
-		const targetX = currentMouseX;
-		const targetY = currentMouseY + offsetY;
+			// Hedef pozisyonu hesapla
+			const targetX = currentMouseX;
+			const targetY = currentMouseY + offsetY;
 
-		// Smooth geçiş için lerp uygula
-		const ease = 0.1; // Düşük değer daha yavaş geçiş
-		lastCameraX.value += (targetX - lastCameraX.value) * ease;
-		lastCameraY.value += (targetY - lastCameraY.value) * ease;
+			// Smooth geçiş için lerp uygula
+			const ease = 0.1; // Düşük değer daha yavaş geçiş
+			lastCameraX.value += (targetX - lastCameraX.value) * ease;
+			lastCameraY.value += (targetY - lastCameraY.value) * ease;
+
+			cameraPos = { x: lastCameraX.value, y: lastCameraY.value };
+		}
 
 		drawCamera(
 			ctx,
@@ -871,8 +891,9 @@ const updateCanvas = (timestamp) => {
 			canvasRef.value.width,
 			canvasRef.value.height,
 			dpr,
-			lastCameraX.value,
-			lastCameraY.value
+			mouseX,
+			mouseY,
+			cameraPos
 		);
 	}
 
@@ -1248,6 +1269,9 @@ onMounted(() => {
 	if (videoRef.value && canvasRef.value) {
 		renderVideo();
 	}
+	canvasRef.value.addEventListener("mousedown", handleMouseDown);
+	canvasRef.value.addEventListener("mousemove", handleMouseMove);
+	window.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
@@ -1278,6 +1302,11 @@ onUnmounted(() => {
 	cameraRef.value = null;
 	canvasRef.value = null;
 	cleanupZoom();
+	if (canvasRef.value) {
+		canvasRef.value.removeEventListener("mousedown", handleMouseDown);
+		canvasRef.value.removeEventListener("mousemove", handleMouseMove);
+	}
+	window.removeEventListener("mouseup", handleMouseUp);
 });
 
 // Props değişikliklerini izle
@@ -1536,6 +1565,36 @@ watch(
 // Kamera pozisyonu için state
 const lastCameraX = ref(0);
 const lastCameraY = ref(0);
+
+// Mouse event handlers
+const handleMouseDown = (e) => {
+	const rect = canvasRef.value.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	const mouseX = (e.clientX - rect.left) * dpr;
+	const mouseY = (e.clientY - rect.top) * dpr;
+
+	if (isMouseOverCamera.value && !cameraSettings.value.followMouse) {
+		startCameraDrag(e, lastCameraPosition.value);
+	}
+};
+
+const handleMouseMove = (e) => {
+	const rect = canvasRef.value.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	const mouseX = (e.clientX - rect.left) * dpr;
+	const mouseY = (e.clientY - rect.top) * dpr;
+
+	// Canvas'ı güncelle
+	requestAnimationFrame(() => {
+		updateCanvas(performance.now(), mouseX, mouseY);
+	});
+};
+
+const handleMouseUp = () => {
+	if (isCameraDragging.value) {
+		stopCameraDrag();
+	}
+};
 </script>
 
 <style scoped>
