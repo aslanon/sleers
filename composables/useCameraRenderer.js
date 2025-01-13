@@ -77,6 +77,13 @@ export const useCameraRenderer = () => {
 		);
 		ctx.clip();
 
+		// Mirror efekti için transform uygula
+		if (cameraSettings.value.mirror) {
+			ctx.translate(cameraX + cameraWidth, cameraY);
+			ctx.scale(-1, 1);
+			ctx.translate(-cameraX, -cameraY);
+		}
+
 		// Crop ayarlarını hesapla
 		const crop = cameraSettings.value.crop;
 

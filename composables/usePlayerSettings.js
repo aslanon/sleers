@@ -10,6 +10,7 @@ const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
 const cameraSettings = ref({
+	mirror: true,
 	size: 15,
 	radius: 50,
 	shadow: 20,

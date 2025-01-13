@@ -234,7 +234,7 @@ onMounted(() => {
 }
 
 .color-button {
-	@apply w-6 h-6 m-auto rounded-lg border-2 border-white/20 transition-all hover:scale-110;
+	@apply w-6 h-6 m-auto rounded-lg border-2 border-white/20 transition-all hover:scale-150;
 }
 
 .color-button-selected {

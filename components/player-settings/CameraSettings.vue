@@ -7,6 +7,31 @@
 			</p>
 		</div>
 
+		<!-- Kamera Crop Ayarı -->
+		<div class="space-y-2">
+			<h4 class="text-base font-medium">Kamera Kırpma</h4>
+			<p class="text-sm text-gray-400">
+				Kamera görüntüsünün görünür alanını ayarlayın.
+			</p>
+			<div
+				class="relative max-w-[150px] aspect-video border-zinc-800 bg-zinc-900 rounded-xl overflow-hidden"
+			>
+				<div
+					ref="cropArea"
+					class="absolute bg-zinc-800 ring-2 ring-inset ring-blue-500 rounded-xl cursor-move"
+					:style="{
+						borderRadius: cameraRadius + 'px',
+						left: `${cameraCrop.x}%`,
+						top: `${cameraCrop.y}%`,
+						width: '56.25%',
+						height: '100%',
+						aspectRatio: '1/1',
+					}"
+					@mousedown="startDrag"
+				></div>
+			</div>
+		</div>
+
 		<!-- Kamera Mouse Takibi -->
 		<div class="flex items-center justify-between">
 			<div>
@@ -23,28 +48,20 @@
 			</label>
 		</div>
 
-		<!-- Kamera Crop Ayarı -->
-		<div class="space-y-2">
-			<h4 class="text-base font-medium">Kamera Kırpma</h4>
-			<p class="text-sm text-gray-400">
-				Kamera görüntüsünün görünür alanını ayarlayın.
-			</p>
-			<div
-				class="relative max-w-[150px] aspect-video border-2 border-zinc-800 bg-zinc-900 rounded-xl overflow-hidden"
-			>
-				<div
-					ref="cropArea"
-					class="absolute bg-zinc-800 rounded-xl cursor-move"
-					:style="{
-						left: `${cameraCrop.x}%`,
-						top: `${cameraCrop.y}%`,
-						width: '56.25%',
-						height: '100%',
-						aspectRatio: '1/1',
-					}"
-					@mousedown="startDrag"
-				></div>
+		<!-- Kamera Yatay Çevirme -->
+		<div class="flex items-center justify-between">
+			<div>
+				<h4 class="text-base font-medium">Kamerayı Yatay Çevir</h4>
+				<p class="text-sm text-gray-400">
+					Kamera görüntüsünü yatay olarak aynala
+				</p>
 			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input type="checkbox" v-model="mirrorCamera" class="sr-only peer" />
+				<div
+					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
+				></div>
+			</label>
 		</div>
 
 		<!-- Kamera Boyutu -->
@@ -102,6 +119,7 @@ const cameraCrop = ref(
 	}
 );
 const followMouse = ref(cameraSettings.value?.followMouse || false);
+const mirrorCamera = ref(cameraSettings.value?.mirror || false);
 
 // Drag işlemleri için state
 const isDragging = ref(false);
@@ -157,14 +175,22 @@ onUnmounted(() => {
 
 // Değişiklikleri izle ve store'u güncelle
 watch(
-	[cameraSize, cameraRadius, cameraShadow, cameraCrop, followMouse],
-	([size, radius, shadow, crop, follow]) => {
+	[
+		cameraSize,
+		cameraRadius,
+		cameraShadow,
+		cameraCrop,
+		followMouse,
+		mirrorCamera,
+	],
+	([size, radius, shadow, crop, follow, mirror]) => {
 		updateCameraSettings({
 			size,
 			radius,
 			shadow,
 			crop,
 			followMouse: follow,
+			mirror,
 		});
 	},
 	{ immediate: true, deep: true }
