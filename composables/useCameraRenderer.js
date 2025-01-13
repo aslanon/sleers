@@ -2,7 +2,7 @@ import { useRoundRect } from "~/composables/useRoundRect";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const useCameraRenderer = () => {
-	const { cameraSettings } = usePlayerSettings();
+	const { cameraSettings, updateCameraSettings } = usePlayerSettings();
 
 	// Kamera çizim fonksiyonu
 	const drawCamera = (ctx, cameraElement, canvasWidth, canvasHeight, dpr) => {
@@ -78,11 +78,31 @@ export const useCameraRenderer = () => {
 			cameraHeight
 		);
 
+		// Tıklanabilir alan için path ekle
+		ctx.beginPath();
+		useRoundRect(
+			ctx,
+			cameraX,
+			cameraY,
+			cameraWidth,
+			cameraHeight,
+			cameraSettings.value.radius * dpr
+		);
+
 		// Context state'i geri yükle
 		ctx.restore();
+
+		// Kamera alanının koordinatlarını döndür
+		return { cameraX, cameraY, cameraWidth, cameraHeight };
+	};
+
+	// Kamera alanının tıklanıp tıklanmadığını kontrol et
+	const isPointInPath = (ctx, x, y) => {
+		return ctx.isPointInPath(x, y);
 	};
 
 	return {
 		drawCamera,
+		isPointInPath,
 	};
 };
