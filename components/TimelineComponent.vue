@@ -32,322 +32,315 @@
 		</div>
 
 		<!-- Timeline Ruler -->
-		<div class="p-6">
+		<div
+			ref="scrollContainerRef"
+			class="overflow-x-scroll overflow-y-hidden"
+			@wheel="handleZoom"
+		>
+			<!-- @wheel.prevent="handleContainerWheel" -->
 			<div
-				ref="scrollContainerRef"
-				class="overflow-x-scroll overflow-y-hidden"
-				@wheel="handleZoom"
+				ref="timelineRef"
+				class="timeline-ruler py-4 relative h-full select-none"
+				@mousedown="startDragging"
+				@click="handleTimelineClick"
+				@mousemove="handleTimelineMouseMove"
+				@mouseleave="handleTimelineMouseLeave"
 			>
-				<!-- @wheel.prevent="handleContainerWheel" -->
 				<div
-					ref="timelineRef"
-					class="timeline-ruler py-4 relative h-full select-none"
-					@mousedown="startDragging"
-					@click="handleTimelineClick"
-					@mousemove="handleTimelineMouseMove"
-					@mouseleave="handleTimelineMouseLeave"
+					class="timeline-content relative h-[220px] pt-6 transition-[width] duration-100 ease-linear"
+					:style="{ width: `${timelineWidth}px` }"
 				>
+					<!-- Zaman İşaretleri -->
 					<div
-						class="timeline-content relative h-[220px] pt-6 transition-[width] duration-100 ease-linear"
-						:style="{ width: `${timelineWidth}px` }"
+						v-for="marker in timeMarkers"
+						:key="marker.time"
+						class="absolute flex flex-col items-center"
+						:style="{
+							left: `${marker.position}%`,
+							transform: 'translateX(-50%)',
+						}"
 					>
-						<!-- Zaman İşaretleri -->
-						<div
-							v-for="marker in timeMarkers"
-							:key="marker.time"
-							class="absolute flex flex-col items-center"
-							:style="{
-								left: `${marker.position}%`,
-								transform: 'translateX(-50%)',
+						<span
+							v-if="marker.time != 0 && shouldShowTime(marker.time)"
+							class="text-[12px] text-white/20 mt-0.5"
+							:class="{
+								'font-medium': marker.isHour || marker.isMinute,
 							}"
 						>
-							<span
-								v-if="marker.time != 0 && shouldShowTime(marker.time)"
-								class="text-[12px] text-white/20 mt-0.5"
-								:class="{
-									'font-medium': marker.isHour || marker.isMinute,
-								}"
-							>
-								{{ marker.label }}
-							</span>
+							{{ marker.label }}
+						</span>
+						<div
+							v-if="marker.time != 0"
+							class="w-1 h-1 rounded-full bg-white/20"
+						></div>
+					</div>
+
+					<!-- Video Track -->
+					<div
+						class="absolute left-0 right-0 top-16 flex flex-col gap-2 px-2"
+						@mouseenter="isTimelineHovered = true"
+						@mouseleave="isTimelineHovered = false"
+					>
+						<!-- Segment Bar -->
+						<div class="timeline-layer-bar w-full rounded-xl relative">
+							<!-- Video Segments Container -->
 							<div
-								v-if="marker.time != 0"
-								class="w-1 h-1 rounded-full bg-white/20"
-							></div>
+								class="flex flex-row h-[50px] relative w-full"
+								@dragover.prevent
+								@drop.prevent="handleSegmentDrop"
+							>
+								<!-- Video Segments -->
+								<div
+									v-for="(segment, index) in props.segments"
+									:key="segment.id || index"
+									class="h-full ring-inset relative transition-all duration-200 group"
+									:class="{
+										'ring-[1px] ring-white z-50': activeSegmentIndex === index,
+										'hover:!ring-[1px] hover:!ring-white hover:z-50':
+											!isResizing && activeSegmentIndex !== index,
+										'z-10':
+											!isResizing && activeSegmentIndex !== index && !isHovered,
+									}"
+									:style="getSegmentStyle(segment, index)"
+									@click.stop="handleSegmentClick(index, $event)"
+									@mousemove="handleSegmentMouseMove($event, index)"
+									@mouseleave="handleSegmentMouseLeave"
+									@mousedown.stop="
+										isSplitMode ? handleSegmentSplit($event, index) : null
+									"
+								>
+									<!-- Split Indicator -->
+									<div
+										v-if="isSplitMode && mousePosition.segmentIndex === index"
+										class="absolute top-0 bottom-0 w-[1px] bg-white pointer-events-none transition-all duration-75"
+										:style="{
+											left: `${mousePosition.x}px`,
+											opacity: 0.8,
+											height: '100%',
+										}"
+									></div>
+
+									<!-- Sol Kenar İşareti -->
+									<div
+										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80': activeSegmentIndex === index,
+											'group-hover:opacity-80': !isResizing,
+										}"
+									>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
+											@mousedown.stop="
+												handleResizeStart($event, index, 'start')
+											"
+										></div>
+									</div>
+
+									<!-- Sağ Kenar İşareti -->
+									<div
+										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80': activeSegmentIndex === index,
+											'group-hover:opacity-80': !isResizing,
+										}"
+									>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
+											@mousedown.stop="handleResizeStart($event, index, 'end')"
+										></div>
+									</div>
+
+									<!-- Segment İçeriği -->
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center"
+									>
+										<span
+											class="text-white/70 text-[10px] font-medium tracking-wide"
+											>Clip</span
+										>
+										<span
+											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
+										>
+											{{ formatDuration(segment.end - segment.start) }} @ 1x
+										</span>
+									</div>
+								</div>
+							</div>
 						</div>
 
-						<!-- Video Track -->
+						<!-- Zoom Track -->
 						<div
-							class="absolute left-0 right-0 top-16 flex flex-col gap-2 px-2"
-							@mouseenter="isTimelineHovered = true"
-							@mouseleave="isTimelineHovered = false"
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleZoomTrackClick"
+							@mousemove="handleZoomTrackMouseMove"
+							@mouseenter="isZoomTrackHovered = true"
+							@mouseleave="handleZoomTrackLeave"
 						>
-							<!-- Segment Bar -->
-							<div class="timeline-layer-bar w-full rounded-xl relative">
-								<!-- Video Segments Container -->
+							<div
+								class="flex flex-row h-[50px] relative w-full"
+								:class="{ 'z-50': isZoomTrackHovered }"
+							>
+								<!-- Empty State Label -->
 								<div
-									class="flex flex-row h-[50px] relative w-full"
-									@dragover.prevent
-									@drop.prevent="handleSegmentDrop"
+									v-if="zoomRanges.length === 0"
+									class="absolute inset-0 flex items-center justify-center gap-1.5 text-white/50 transition-colors"
 								>
-									<!-- Video Segments -->
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										class="w-5 h-5"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+										/>
+									</svg>
+									<span class="text-sm font-medium tracking-wide"
+										>Zoom eklemek için tıklayın</span
+									>
+								</div>
+
+								<!-- Zoom Ranges -->
+								<div
+									v-for="(range, index) in zoomRanges"
+									:key="index"
+									class="h-full ring-inset relative transition-all duration-200 group"
+									:class="{
+										'ring-[1px] ring-white z-50 selected-zoom':
+											selectedZoomIndex === index,
+										'hover:!ring-[1px] hover:!ring-white hover:z-50':
+											!isZoomResizing && selectedZoomIndex !== index,
+										'z-10':
+											!isZoomResizing &&
+											selectedZoomIndex !== index &&
+											!isHovered,
+										'cursor-grab': !isZoomDragging,
+										'cursor-grabbing': isZoomDragging,
+									}"
+									:style="getZoomStyle(range, index)"
+									@mouseenter="handleZoomRangeEnter(range, index)"
+									@mouseleave="handleZoomRangeLeave"
+									@click.stop="handleZoomSegmentClick($event, index)"
+									@mousedown.stop="handleZoomDragStart($event, index)"
+								>
+									<!-- Sol Resize Handle -->
 									<div
-										v-for="(segment, index) in props.segments"
-										:key="segment.id || index"
-										class="h-full ring-inset relative transition-all duration-200 group"
+										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
 										:class="{
-											'ring-[1px] ring-white z-50':
-												activeSegmentIndex === index,
-											'hover:!ring-[1px] hover:!ring-white hover:z-50':
-												!isResizing && activeSegmentIndex !== index,
-											'z-10':
-												!isResizing &&
-												activeSegmentIndex !== index &&
-												!isHovered,
+											'opacity-80': selectedZoomIndex === index,
+											'group-hover:opacity-80':
+												!isZoomResizing && !isZoomDragging,
 										}"
-										:style="getSegmentStyle(segment, index)"
-										@click.stop="handleSegmentClick(index, $event)"
-										@mousemove="handleSegmentMouseMove($event, index)"
-										@mouseleave="handleSegmentMouseLeave"
 										@mousedown.stop="
-											isSplitMode ? handleSegmentSplit($event, index) : null
+											handleZoomResizeStart($event, index, 'start')
 										"
 									>
-										<!-- Split Indicator -->
 										<div
-											v-if="isSplitMode && mousePosition.segmentIndex === index"
-											class="absolute top-0 bottom-0 w-[1px] bg-white pointer-events-none transition-all duration-75"
-											:style="{
-												left: `${mousePosition.x}px`,
-												opacity: 0.8,
-												height: '100%',
-											}"
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 										></div>
-
-										<!-- Sol Kenar İşareti -->
-										<div
-											class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
-											:class="{
-												'opacity-80': activeSegmentIndex === index,
-												'group-hover:opacity-80': !isResizing,
-											}"
-										>
-											<div
-												class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
-												@mousedown.stop="
-													handleResizeStart($event, index, 'start')
-												"
-											></div>
-										</div>
-
-										<!-- Sağ Kenar İşareti -->
-										<div
-											class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
-											:class="{
-												'opacity-80': activeSegmentIndex === index,
-												'group-hover:opacity-80': !isResizing,
-											}"
-										>
-											<div
-												class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
-												@mousedown.stop="
-													handleResizeStart($event, index, 'end')
-												"
-											></div>
-										</div>
-
-										<!-- Segment İçeriği -->
-										<div
-											class="absolute inset-0 flex flex-col items-center justify-center text-center"
-										>
-											<span
-												class="text-white/70 text-[10px] font-medium tracking-wide"
-												>Clip</span
-											>
-											<span
-												class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
-											>
-												{{ formatDuration(segment.end - segment.start) }} @ 1x
-											</span>
-										</div>
-									</div>
-								</div>
-							</div>
-
-							<!-- Zoom Track -->
-							<div
-								class="timeline-layer-bar w-full rounded-xl relative"
-								@click="handleZoomTrackClick"
-								@mousemove="handleZoomTrackMouseMove"
-								@mouseenter="isZoomTrackHovered = true"
-								@mouseleave="handleZoomTrackLeave"
-							>
-								<div
-									class="flex flex-row h-[50px] relative w-full"
-									:class="{ 'z-50': isZoomTrackHovered }"
-								>
-									<!-- Empty State Label -->
-									<div
-										v-if="zoomRanges.length === 0"
-										class="absolute inset-0 flex items-center justify-center gap-1.5 text-white/50 transition-colors"
-									>
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											class="w-5 h-5"
-											viewBox="0 0 24 24"
-											fill="none"
-											stroke="currentColor"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-											/>
-										</svg>
-										<span class="text-sm font-medium tracking-wide"
-											>Zoom eklemek için tıklayın</span
-										>
 									</div>
 
-									<!-- Zoom Ranges -->
+									<!-- Sağ Resize Handle -->
 									<div
-										v-for="(range, index) in zoomRanges"
-										:key="index"
-										class="h-full ring-inset relative transition-all duration-200 group"
+										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
 										:class="{
-											'ring-[1px] ring-white z-50 selected-zoom':
-												selectedZoomIndex === index,
-											'hover:!ring-[1px] hover:!ring-white hover:z-50':
-												!isZoomResizing && selectedZoomIndex !== index,
-											'z-10':
-												!isZoomResizing &&
-												selectedZoomIndex !== index &&
-												!isHovered,
-											'cursor-grab': !isZoomDragging,
-											'cursor-grabbing': isZoomDragging,
+											'opacity-80': selectedZoomIndex === index,
+											'group-hover:opacity-80':
+												!isZoomResizing && !isZoomDragging,
 										}"
-										:style="getZoomStyle(range, index)"
-										@mouseenter="handleZoomRangeEnter(range, index)"
-										@mouseleave="handleZoomRangeLeave"
-										@click.stop="handleZoomSegmentClick($event, index)"
-										@mousedown.stop="handleZoomDragStart($event, index)"
+										@mousedown.stop="
+											handleZoomResizeStart($event, index, 'end')
+										"
 									>
-										<!-- Sol Resize Handle -->
 										<div
-											class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
-											:class="{
-												'opacity-80': selectedZoomIndex === index,
-												'group-hover:opacity-80':
-													!isZoomResizing && !isZoomDragging,
-											}"
-											@mousedown.stop="
-												handleZoomResizeStart($event, index, 'start')
-											"
-										>
-											<div
-												class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
-											></div>
-										</div>
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
+										></div>
+									</div>
 
-										<!-- Sağ Resize Handle -->
-										<div
-											class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
-											:class="{
-												'opacity-80': selectedZoomIndex === index,
-												'group-hover:opacity-80':
-													!isZoomResizing && !isZoomDragging,
-											}"
-											@mousedown.stop="
-												handleZoomResizeStart($event, index, 'end')
-											"
+									<!-- Zoom İçeriği -->
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
+									>
+										<span
+											class="text-white/70 text-[10px] font-medium tracking-wide"
+											>Zoom</span
 										>
-											<div
-												class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
-											></div>
-										</div>
-
-										<!-- Zoom İçeriği -->
-										<div
-											class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
+										<span
+											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
 										>
-											<span
-												class="text-white/70 text-[10px] font-medium tracking-wide"
-												>Zoom</span
-											>
-											<span
-												class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
-											>
-												{{ formatDuration(range.end - range.start) }} @
-												{{ range.scale }}x
-											</span>
-										</div>
+											{{ formatDuration(range.end - range.start) }} @
+											{{ range.scale }}x
+										</span>
 									</div>
 								</div>
 							</div>
 						</div>
+					</div>
 
-						<!-- Preview Playhead -->
+					<!-- Preview Playhead -->
+					<div
+						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
+						class="absolute top-4 bottom-0 w-[1px]"
+						:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						:style="{
+							left: `${previewPlayheadPosition}%`,
+							transform: 'translateX(-50%)',
+							background:
+								'linear-gradient(to bottom, rgb(26 26 26) 0%, transparent 100%)',
+						}"
+					></div>
+
+					<!-- Preview Playhead Handle -->
+					<div
+						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
+						class="absolute top-4 w-3 h-5"
+						:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						:style="{
+							left: `${previewPlayheadPosition}%`,
+							transform: 'translateX(-50%)',
+						}"
+						@mousedown="handlePlayheadDragStart"
+					>
 						<div
-							v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-							class="absolute top-4 bottom-0 w-[1px] transition-all duration-75"
-							:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
+							class="w-3 h-3 rounded-full"
 							:style="{
-								left: `${previewPlayheadPosition}%`,
-								transform: 'translateX(-50%)',
-								background:
-									'linear-gradient(to bottom, rgb(26 26 26) 0%, transparent 100%)',
+								background: 'rgb(26 26 26)',
 							}"
 						></div>
+					</div>
 
-						<!-- Preview Playhead Handle -->
-						<div
-							v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-							class="absolute top-4 w-3 h-5 transition-all duration-75"
-							:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
-							:style="{
-								left: `${previewPlayheadPosition}%`,
-								transform: 'translateX(-50%)',
-							}"
-							@mousedown="handlePlayheadDragStart"
-						>
-							<div
-								class="w-3 h-3 rounded-full"
-								:style="{
-									background: 'rgb(26 26 26)',
-								}"
-							></div>
-						</div>
+					<!-- Playhead -->
+					<div
+						class="absolute top-0 bottom-0 w-[1px] transition-[left] duration-[250ms] ease-linear will-change-[left]"
+						:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						:style="{
+							left: `${playheadPosition}%`,
+							transform: 'translateX(-50%)',
+							background:
+								'linear-gradient(to bottom, rgb(67 42 244) 0%, transparent 100%)',
+						}"
+					></div>
 
-						<!-- Playhead -->
+					<!-- Playhead Handle -->
+					<div
+						class="absolute top-0 w-3 h-5 cursor-move transition-[left] duration-[250ms] ease-linear will-change-[left]"
+						:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						:style="{
+							left: `${playheadPosition}%`,
+							transform: 'translateX(-50%)',
+						}"
+						@mousedown="handlePlayheadDragStart"
+					>
 						<div
-							class="absolute top-0 bottom-0 w-[1px] transition-[left] duration-[50ms] ease-linear will-change-[left]"
-							:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
+							class="w-3 h-3 rounded-full"
 							:style="{
-								left: `${playheadPosition}%`,
-								transform: 'translateX(-50%)',
-								background:
-									'linear-gradient(to bottom, rgb(67 42 244) 0%, transparent 100%)',
+								background: 'rgb(67 42 244)',
 							}"
 						></div>
-
-						<!-- Playhead Handle -->
-						<div
-							class="absolute top-0 w-3 h-5 cursor-move transition-[left] duration-[50ms] ease-linear will-change-[left]"
-							:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
-							:style="{
-								left: `${playheadPosition}%`,
-								transform: 'translateX(-50%)',
-							}"
-							@mousedown="handlePlayheadDragStart"
-						>
-							<div
-								class="w-3 h-3 rounded-full"
-								:style="{
-									background: 'rgb(67 42 244)',
-								}"
-							></div>
-						</div>
 					</div>
 				</div>
 			</div>

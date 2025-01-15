@@ -7,31 +7,6 @@
 			</p>
 		</div>
 
-		<!-- Kamera Crop Ayarı -->
-		<div class="space-y-2">
-			<h4 class="text-base font-medium">Kamera Kırpma</h4>
-			<p class="text-sm text-gray-400">
-				Kamera görüntüsünün görünür alanını ayarlayın.
-			</p>
-			<div
-				class="relative max-w-[150px] aspect-video border-zinc-800 bg-zinc-900 rounded-xl overflow-hidden"
-			>
-				<div
-					ref="cropArea"
-					class="absolute bg-zinc-800 ring-2 ring-inset ring-blue-500 rounded-xl cursor-move"
-					:style="{
-						borderRadius: cameraRadius + 'px',
-						left: `${cameraCrop.x}%`,
-						top: `${cameraCrop.y}%`,
-						width: '56.25%',
-						height: '100%',
-						aspectRatio: '1/1',
-					}"
-					@mousedown="startDrag"
-				></div>
-			</div>
-		</div>
-
 		<!-- Kamera Mouse Takibi -->
 		<div class="flex items-center justify-between">
 			<div>
@@ -74,7 +49,30 @@
 			:step="1"
 			unit="%"
 		/>
-
+		<!-- Kamera Crop Ayarı -->
+		<div class="space-y-2">
+			<h4 class="text-base font-medium">Kamera Kırpma</h4>
+			<p class="text-sm text-gray-400">
+				Kamera görüntüsünün görünür alanını ayarlayın.
+			</p>
+			<div
+				class="relative max-w-[150px] aspect-video border-zinc-800 bg-zinc-900 rounded-xl overflow-hidden"
+			>
+				<div
+					ref="cropArea"
+					class="absolute bg-zinc-800 ring-2 ring-inset ring-blue-500 rounded-xl cursor-move"
+					:style="{
+						borderRadius: cameraRadius + 'px',
+						left: `${cameraCrop.x}%`,
+						top: `${cameraCrop.y}%`,
+						width: '56.25%',
+						height: '100%',
+						aspectRatio: '1/1',
+					}"
+					@mousedown="startDrag"
+				></div>
+			</div>
+		</div>
 		<!-- Kamera Köşe Yuvarlaklığı -->
 		<SliderInput
 			label="Köşe Yuvarlaklığı"

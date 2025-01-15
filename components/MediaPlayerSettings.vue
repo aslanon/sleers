@@ -10,9 +10,9 @@
 					v-for="tab in tabs.filter((tab) => tab.isShowInTab)"
 					:key="tab.id"
 					@click="currentTab = tab.id"
-					class="w-12 flex items-center justify-center p-2 rounded-lg transition-colors"
+					class="w-12 flex items-center justify-center p-2 rounded-xl transition-colors"
 					:class="{
-						'bg-white/10': currentTab === tab.id,
+						'bg-white/5': currentTab === tab.id,
 						'hover:bg-white/5': currentTab !== tab.id,
 					}"
 					:title="tab.name"
@@ -94,7 +94,9 @@
 			</div>
 
 			<!-- Tab içerikleri -->
-			<div class="flex-1 pt-4 max-h-[calc(100vh-500px)] p-8 overflow-y-auto">
+			<div
+				class="flex-1 rounded-2xl max-h-[calc(100vh-400px)] px-8 overflow-y-auto"
+			>
 				<!-- Video Ayarları Tab -->
 				<VideoSettings
 					v-if="currentTab === 'video'"

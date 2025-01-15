@@ -128,6 +128,9 @@ const stopCamera = () => {
 
 // Component mount olduğunda
 onMounted(() => {
+	if (document) {
+		document.body.style.overflow = "hidden";
+	}
 	startCamera();
 
 	// Kamera kontrol mesajlarını dinle

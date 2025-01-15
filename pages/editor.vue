@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="w-full flex flex-col bg-black text-white h-screen overflow-hidden"
+		class="w-full !select-none flex flex-col bg-black text-white h-screen overflow-hidden"
 	>
 		<div
 			class="editor-header w-full p-2 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
