@@ -46,8 +46,14 @@ export const useCameraRenderer = () => {
 		}
 
 		// Sınırları kontrol et
-		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
-		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
+		cameraX = Math.max(
+			32 * dpr,
+			Math.min(canvasWidth - cameraWidth - 32 * dpr, cameraX)
+		);
+		cameraY = Math.max(
+			32 * dpr,
+			Math.min(canvasHeight - cameraHeight - 32 * dpr, cameraY)
+		);
 
 		// Son pozisyonu kaydet
 		lastCameraPosition.value = { x: cameraX, y: cameraY };
