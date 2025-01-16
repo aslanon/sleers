@@ -4,6 +4,8 @@ export default defineNuxtConfig({
 	modules: ["@nuxtjs/tailwindcss"],
 	devtools: { enabled: false },
 
+	css: ["~/assets/css/scrollbar.css"],
+
 	app: {
 		baseURL: "/",
 		buildAssetsDir: "assets",
