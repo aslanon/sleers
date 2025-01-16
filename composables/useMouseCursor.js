@@ -198,6 +198,14 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const nextPos = mousePositions[nextFrame];
 		if (!currentPos || !nextPos) return;
 
+		// Easing fonksiyonu ekle
+		const easeInOutCubic = (t) => {
+			return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+		};
+
+		// Smooth interpolasyon için easing uygula
+		const smoothFramePart = easeInOutCubic(framePart);
+
 		// Video boyutlarını hesapla
 		const { displayWidth, displayHeight, videoX, videoY } =
 			calculateVideoDisplaySize(
@@ -212,7 +220,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const { finalX, finalY } = calculateMousePosition(
 			currentPos,
 			nextPos,
-			framePart,
+			smoothFramePart,
 			videoElement.videoWidth,
 			videoElement.videoHeight,
 			displayWidth,

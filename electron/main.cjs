@@ -606,19 +606,19 @@ function startMouseTracking() {
 	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
 	setTimeout(() => {
 		console.log("Mouse tracking başladı");
-		let time = 0;
+		const startTime = Date.now();
 		if (!mouseTrackingInterval) {
 			mouseTrackingInterval = setInterval(() => {
 				const mousePos = screen.getCursorScreenPoint();
 				const cursorType = "default";
-				time = time + 1;
+				const currentTime = Date.now() - startTime;
 				mediaStateManager.addMousePosition({
 					x: mousePos.x,
 					y: mousePos.y,
-					timestamp: time,
+					timestamp: currentTime,
 					cursorType,
 				});
-			}, 16); // ~60fps
+			}, 8); // ~120fps için daha yüksek sampling rate
 		}
 	}, recordingDelay);
 }
