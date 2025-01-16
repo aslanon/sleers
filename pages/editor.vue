@@ -354,14 +354,12 @@ const startEditing = (videoData) => {
 
 // Video kaydetme
 const saveVideo = async () => {
+	const dpr = window.devicePixelRatio || 1;
 	let canvasID = document.getElementById("canvasID");
-	canvasID.style.position = "fixed";
-	canvasID.style.top = "50%";
-	canvasID.style.left = "50%";
-	canvasID.style.zIndex = "49";
-	canvasID.style.width = "100%";
-	canvasID.style.height = "100%";
 
+	// Container boyutlarını al
+	const containerWidth = canvasID.clientWidth * 3;
+	const containerHeight = canvasID.clientHeight * 3;
 	try {
 		const filePath = await electron?.ipcRenderer.invoke("SHOW_SAVE_DIALOG", {
 			title: "Videoyu Kaydet",
@@ -386,11 +384,19 @@ const saveVideo = async () => {
 				(targetHeight * originalWidth) / originalHeight
 			);
 
-			// Geçici yüksek çözünürlüklü canvas oluştur
-			const tempCanvas = document.createElement("canvas");
-			tempCanvas.width = targetWidth;
-			tempCanvas.height = targetHeight;
-			const tempCtx = tempCanvas.getContext("2d");
+			const ctx = sourceCanvas.getContext("2d");
+
+			// Device Pixel Ratio'yu hesaba katın
+
+			// Canvas çözünürlüğünü artırın
+			canvasID.width = containerWidth * dpr;
+			canvasID.height = containerHeight * dpr;
+
+			// Stil boyutunu ayarlayın (CSS pixel boyutu)
+			canvasID.style.width = `${containerWidth}px`;
+			canvasID.style.height = `${containerHeight}px`;
+
+			ctx.scale(dpr, dpr);
 
 			// Kayıt durumunu göster
 			const loadingMessage = document.createElement("div");
@@ -407,10 +413,10 @@ const saveVideo = async () => {
 			return new Promise(async (resolve, reject) => {
 				try {
 					// Video kaydını başlat - en yüksek kalite için ayarlar
-					const stream = tempCanvas.captureStream(60); // 60 FPS
+					const stream = sourceCanvas.captureStream(120); // 60 FPS
 					const mediaRecorder = new MediaRecorder(stream, {
 						mimeType: "video/webm", // VP9 codec ile daha yüksek kalite
-						videoBitsPerSecond: 50000000, // 50 Mbps
+						videoBitsPerSecond: 5000000, // 50 Mbps
 					});
 
 					const chunks = [];
@@ -444,8 +450,8 @@ const saveVideo = async () => {
 							await mediaPlayerRef.value.seek(videoTime);
 
 							// Source canvas'ı yüksek çözünürlüklü canvas'a çiz
-							tempCtx.clearRect(0, 0, targetWidth, targetHeight);
-							tempCtx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
+							// tempCtx.clearRect(0, 0, targetWidth, targetHeight);
+							// tempCtx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
 
 							// Bir sonraki frame için devam et
 							requestAnimationFrame(renderFrame);
@@ -486,9 +492,6 @@ const saveVideo = async () => {
 								document.body.removeChild(loadingMessage);
 							}
 
-							let canvasID = document.getElementById("canvasID");
-							canvasID.style.position = "relative";
-
 							resolve(result);
 						} catch (error) {
 							console.error("[editor.vue] Kayıt sonlandırma hatası:", error);
@@ -510,9 +513,6 @@ const saveVideo = async () => {
 					reject(error);
 				}
 			});
-		} else {
-			let canvasID = document.getElementById("canvasID");
-			canvasID.style.position = "relative";
 		}
 	} catch (error) {
 		console.error("[editor.vue] Video kaydedilirken hata:", error);
@@ -522,6 +522,13 @@ const saveVideo = async () => {
 		});
 		alert("Videoyu kaydederken bir hata oluştu: " + error.message);
 	}
+
+	canvasID.width = (containerWidth / 3) * dpr;
+	canvasID.height = (containerHeight / 3) * dpr;
+
+	// Stil boyutunu ayarlayın (CSS pixel boyutu)
+	canvasID.style.width = `${containerWidth}px`;
+	canvasID.style.height = `${containerHeight}px`;
 };
 
 // Değişiklikleri iptal et
