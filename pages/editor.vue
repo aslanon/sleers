@@ -141,6 +141,8 @@ import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
 
+const { updateCameraSettings } = usePlayerSettings();
+
 // IPC event isimlerini al
 const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
 
@@ -731,6 +733,17 @@ onMounted(async () => {
 		const cursorData = await electron.mediaStateManager.loadCursorData();
 		mousePositions.value = cursorData;
 	}
+
+	let editorSettings = await electron?.ipcRenderer.invoke(
+		IPC_EVENTS.GET_EDITOR_SETTINGS
+	);
+
+	console.log("aslanon", editorSettings);
+	let isCameraFollowMouse = editorSettings.camera.followMouse;
+
+	updateCameraSettings({
+		followMouse: isCameraFollowMouse,
+	});
 });
 
 onUnmounted(() => {

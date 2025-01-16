@@ -69,6 +69,10 @@ const IPC_EVENTS = {
 
 	// Load Cursor Data
 	LOAD_CURSOR_DATA: "LOAD_CURSOR_DATA",
+
+	// Editor Settings
+	UPDATE_EDITOR_SETTINGS: "UPDATE_EDITOR_SETTINGS",
+	GET_EDITOR_SETTINGS: "GET_EDITOR_SETTINGS",
 };
 
 module.exports = {

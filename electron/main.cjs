@@ -30,6 +30,11 @@ let selectionManager = null;
 let editorManager = null;
 let tempFileManager = null;
 let mediaStateManager = null;
+let editorSettings = {
+	camera: {
+		followMouse: true,
+	},
+};
 
 // Pencere sürükleme için değişkenler
 let isDragging = false;
@@ -40,6 +45,18 @@ let mousePositions = [];
 
 // Delay yönetimi için state
 let recordingDelay = 1000; // Varsayılan 1sn
+
+// UPDATE_EDITOR_SETTINGS
+ipcMain.on(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, (event, settings) => {
+	editorSettings = {
+		...editorSettings,
+		...settings,
+	};
+});
+
+ipcMain.handle(IPC_EVENTS.GET_EDITOR_SETTINGS, () => {
+	return editorSettings;
+});
 
 // IPC handlers'a eklenecek
 ipcMain.on(IPC_EVENTS.UPDATE_RECORDING_DELAY, (event, delay) => {

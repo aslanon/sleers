@@ -106,8 +106,8 @@ const { cameraSettings, updateCameraSettings } = usePlayerSettings();
 
 // Kamera ayarları için state
 const cameraSize = ref(cameraSettings.value?.size || 30);
-const cameraRadius = ref(cameraSettings.value?.radius || 12);
-const cameraShadow = ref(cameraSettings.value?.shadow || 30);
+const cameraRadius = ref(cameraSettings.value?.radius || 15);
+const cameraShadow = ref(cameraSettings.value?.shadow || 0);
 const cameraCrop = ref(
 	cameraSettings.value?.crop || {
 		x: 21.875,

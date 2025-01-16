@@ -217,6 +217,13 @@ const selectDelay = (delay) => {
 // Kamera takip ayarı
 const toggleFollowMouse = (event) => {
 	const isChecked = event.target.checked;
+
+	window.electron.ipcRenderer.send("UPDATE_EDITOR_SETTINGS", {
+		camera: {
+			followMouse: isChecked,
+		},
+	});
+
 	emit("update:followMouse", isChecked);
 };
 </script>

@@ -20,7 +20,7 @@
 					<svg
 						v-if="tab.id === 'video'"
 						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
+						class="w-6 h-6"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -35,7 +35,7 @@
 					<svg
 						v-if="tab.id === 'mouse'"
 						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
+						class="w-6 h-6"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -50,7 +50,7 @@
 					<svg
 						v-if="tab.id === 'zoom'"
 						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
+						class="w-6 h-6"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -65,7 +65,7 @@
 					<svg
 						v-if="tab.id === 'camera'"
 						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
+						class="w-6 h-6"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -95,7 +95,7 @@
 
 			<!-- Tab içerikleri -->
 			<div
-				class="flex-1 rounded-2xl max-h-[calc(100vh-400px)] px-8 overflow-y-auto"
+				class="flex-1 pt-2 pr-8 rounded-2xl max-h-[calc(100vh-400px)] px-8 overflow-y-auto"
 			>
 				<!-- Video Ayarları Tab -->
 				<VideoSettings
@@ -173,7 +173,7 @@ const tabs = [
 	{
 		id: "zoom",
 		name: "Zoom Ayarları",
-		isShowInTab: true,
+		isShowInTab: false,
 	},
 ];
 
