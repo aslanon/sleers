@@ -3,24 +3,51 @@
 		class="w-full !select-none flex flex-col bg-black text-white h-screen overflow-hidden"
 	>
 		<div
-			class="editor-header w-full p-2 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
+			class="editor-header w-full p-3 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
 			:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
 			@mousedown="startDrag"
 		>
-			<div class="flex flex-row gap-2 items-center">
-				<button
-					class="px-4 py-1 bg-gray-600 hover:bg-gray-700 rounded-lg"
-					@click="startNewRecording()"
+			<button
+				class="btn-new-record flex flex-row gap-2 items-center"
+				@click="startNewRecording()"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
 				>
-					Yeni Kayıt
-				</button>
-			</div>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+					/>
+				</svg>
+				Yeni Kayıt
+			</button>
+
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
 				<button
-					class="px-4 py-1 bg-blue-600 hover:bg-blue-700 rounded-lg"
+					class="btn-export flex flex-row gap-2 items-center"
 					@click="saveVideo()"
 				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+						/>
+					</svg>
 					Kaydet
 				</button>
 
