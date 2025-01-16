@@ -875,7 +875,8 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 			currentMouseY !== undefined
 		) {
 			// Mouse'dan Y ekseninde 150px aşağıya kaydır
-			const offsetY = 150 * dpr;
+			// camera offset
+			const offsetY = 50 * dpr;
 
 			// Hedef pozisyonu hesapla
 			const targetX = currentMouseX;

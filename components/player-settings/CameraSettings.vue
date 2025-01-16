@@ -60,7 +60,7 @@
 			>
 				<div
 					ref="cropArea"
-					class="absolute bg-zinc-800 ring-2 ring-inset ring-blue-500 rounded-xl cursor-move"
+					class="absolute bg-zinc-800 ring-2 ring-inset ring-blue-500 rounded-xl cursor-grab"
 					:style="{
 						borderRadius: cameraRadius + 'px',
 						left: `${cameraCrop.x}%`,
@@ -133,6 +133,10 @@ onMounted(() => {
 // Drag işlemleri
 const startDrag = (e) => {
 	isDragging.value = true;
+	if (e.target.classList.contains("cursor-grab")) {
+		e.target.classList.remove("cursor-grab");
+		e.target.classList.add("cursor-grabbing");
+	}
 	const rect = cropArea.value.parentElement.getBoundingClientRect();
 	startX.value = e.clientX - (cameraCrop.value.x * rect.width) / 100;
 	startY.value = e.clientY - (cameraCrop.value.y * rect.height) / 100;
@@ -161,6 +165,10 @@ const onDrag = (e) => {
 
 const stopDrag = () => {
 	isDragging.value = false;
+	if (cropArea.value.classList.contains("cursor-grabbing")) {
+		cropArea.value.classList.remove("cursor-grabbing");
+		cropArea.value.classList.add("cursor-grab");
+	}
 	document.removeEventListener("mousemove", onDrag);
 	document.removeEventListener("mouseup", stopDrag);
 };
