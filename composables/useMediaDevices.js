@@ -15,34 +15,12 @@ export const useMediaDevices = () => {
 	const currentAudioStream = ref(null);
 	const selectedDelay = ref(0);
 	const mousePositions = ref([]);
-	const previousPositions = ref([]);
 	const isAudioAnalyserActive = ref(false);
 	let mediaRecorder = null;
 	let audioContext = null;
 	let audioAnalyser = null;
 	let dataArray = null;
 	let animationFrame = null;
-
-	// Mouse pozisyonunu kaydet
-	const setupMouseTracking = () => {
-		if (!window.electron?.ipcRenderer) return;
-
-		window.electron.ipcRenderer.on("MOUSE_POSITION", (event, position) => {
-			if (isRecording.value) {
-				const mousePosition = {
-					x: position.x,
-					y: position.y,
-					timestamp: Date.now(),
-					cursorType: position.cursorType || "default",
-				};
-				mousePositions.value.push(mousePosition);
-				previousPositions.value = [
-					...previousPositions.value,
-					mousePosition,
-				].slice(-5);
-			}
-		});
-	};
 
 	// Throttle fonksiyonu
 	const throttle = (func, limit) => {
@@ -188,15 +166,6 @@ export const useMediaDevices = () => {
 				await stopRecording();
 				// Kısa bir bekleme ekleyelim
 				await new Promise((resolve) => setTimeout(resolve, 100));
-			}
-
-			// Mouse pozisyonlarını sıfırla
-			mousePositions.value = [];
-			previousPositions.value = [];
-
-			// Mouse takibini başlat
-			if (window.electron?.ipcRenderer) {
-				window.electron.ipcRenderer.send("START_MOUSE_TRACKING");
 			}
 
 			// Geri sayım başlat
@@ -348,13 +317,6 @@ export const useMediaDevices = () => {
 							cameraRecorder.stop();
 						}
 						if (audioRecorder) audioRecorder.stop();
-
-						// saveRecording'e gönderilen chunks'ları kontrol et
-						console.log("saveRecording'e gönderilen chunks:", {
-							screenChunks: screenChunks.length,
-							cameraChunks: cameraChunks.length,
-							audioChunks: audioChunks.length,
-						});
 
 						await saveRecording({
 							screen: screenChunks,
@@ -734,9 +696,6 @@ export const useMediaDevices = () => {
 		}
 	};
 
-	// Mouse tracking setup'ı başlat
-	setupMouseTracking();
-
 	return {
 		videoDevices,
 		audioDevices,
@@ -751,7 +710,6 @@ export const useMediaDevices = () => {
 		isAudioAnalyserActive,
 		selectedDelay,
 		mousePositions,
-		previousPositions,
 		getDevices,
 		startRecording,
 		stopRecording,

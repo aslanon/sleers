@@ -34,8 +34,8 @@ export const calculateMousePosition = (
 export const calculateMouseMovement = (currentPos, nextPos) => {
 	const moveX = nextPos.x - currentPos.x;
 	const moveY = nextPos.y - currentPos.y;
-	const speed = Math.sqrt(moveX * moveX + moveY * moveY);
-	const moveDistance = Math.sqrt(moveX * moveX + moveY * moveY);
+	const speed = 0; //Math.sqrt(moveX * moveX + moveY * moveY);
+	const moveDistance = 0; //Math.sqrt(moveX * moveX + moveY * moveY);
 
 	// Hareket yönünü hesapla ve normalize et
 	const dirX = speed > 0 ? moveX / speed : 0;

@@ -14,7 +14,11 @@
 					height: `${cropArea.height}px`,
 				}"
 			>
-				<canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
+				<canvas
+					id="canvasID"
+					ref="canvasRef"
+					class="absolute inset-0 w-full h-full"
+				></canvas>
 			</div>
 
 			<!-- Ses -->

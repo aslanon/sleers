@@ -352,6 +352,14 @@ const startEditing = (videoData) => {
 
 // Video kaydetme
 const saveVideo = async () => {
+	let canvasID = document.getElementById("canvasID");
+	canvasID.style.position = "fixed";
+	canvasID.style.top = "50%";
+	canvasID.style.left = "50%";
+	canvasID.style.zIndex = "49";
+	canvasID.style.width = "100%";
+	canvasID.style.height = "100%";
+
 	try {
 		const filePath = await electron?.ipcRenderer.invoke("SHOW_SAVE_DIALOG", {
 			title: "Videoyu Kaydet",
@@ -380,18 +388,15 @@ const saveVideo = async () => {
 			const tempCanvas = document.createElement("canvas");
 			tempCanvas.width = targetWidth;
 			tempCanvas.height = targetHeight;
-			const tempCtx = tempCanvas.getContext("2d", {
-				alpha: true,
-				willReadFrequently: true,
-			});
+			const tempCtx = tempCanvas.getContext("2d");
 
 			// Kayıt durumunu göster
 			const loadingMessage = document.createElement("div");
 			loadingMessage.className =
-				"fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50";
+				"fixed inset-0 flex items-center text-center justify-center bg-black bg-opacity-50 z-50";
 			loadingMessage.innerHTML = `
-				<div class="bg-gray-800 p-4 rounded-lg text-white">
-					<p class="text-lg">Video kaydediliyor...</p>
+				<div class="bg-black/80 p-8 rounded-xl shadow-3xl text-white">
+					<p class="text-lg font-bold">Video kaydediliyor...</p>
 					<p class="text-sm mt-2">Lütfen bekleyin...</p>
 				</div>
 			`;
@@ -402,8 +407,8 @@ const saveVideo = async () => {
 					// Video kaydını başlat - en yüksek kalite için ayarlar
 					const stream = tempCanvas.captureStream(60); // 60 FPS
 					const mediaRecorder = new MediaRecorder(stream, {
-						mimeType: "video/webm",
-						videoBitsPerSecond: 50000000, // 50 Mbps for ultra high quality
+						mimeType: "video/webm", // VP9 codec ile daha yüksek kalite
+						videoBitsPerSecond: 50000000, // 50 Mbps
 					});
 
 					const chunks = [];
@@ -415,7 +420,7 @@ const saveVideo = async () => {
 
 					let startTime = 0;
 					let lastFrameTime = 0;
-					const frameInterval = 1000 / 60; // 60 FPS için frame aralığı
+					const frameInterval = 1000 / 120; // 60 FPS için frame aralığı
 
 					// Frame çizme fonksiyonu
 					const renderFrame = async (currentTime) => {
@@ -479,6 +484,9 @@ const saveVideo = async () => {
 								document.body.removeChild(loadingMessage);
 							}
 
+							let canvasID = document.getElementById("canvasID");
+							canvasID.style.position = "relative";
+
 							resolve(result);
 						} catch (error) {
 							console.error("[editor.vue] Kayıt sonlandırma hatası:", error);
@@ -500,6 +508,9 @@ const saveVideo = async () => {
 					reject(error);
 				}
 			});
+		} else {
+			let canvasID = document.getElementById("canvasID");
+			canvasID.style.position = "relative";
 		}
 	} catch (error) {
 		console.error("[editor.vue] Video kaydedilirken hata:", error);
