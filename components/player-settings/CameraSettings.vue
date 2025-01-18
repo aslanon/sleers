@@ -1,11 +1,11 @@
 <template>
 	<div class="space-y-12">
-		<div class="space-y-2">
+		<!-- <div class="space-y-2">
 			<h3 class="text-lg font-medium">Kamera Ayarları</h3>
 			<p class="text-sm text-gray-400">
 				Kamera görüntüsü için ayarları buradan yapabilirsiniz.
 			</p>
-		</div>
+		</div> -->
 
 		<!-- Kamera Mouse Takibi -->
 		<div class="flex items-center justify-between">

@@ -1,11 +1,11 @@
 <template>
 	<div class="flex flex-col gap-12">
-		<div class="space-y-2">
+		<!-- <div class="space-y-2">
 			<h3 class="text-lg font-medium">İmleç Ayarları</h3>
 			<p class="text-sm text-gray-400">
 				İmleç görüntüsü için ayarları buradan yapabilirsiniz.
 			</p>
-		</div>
+		</div> -->
 		<SliderInput
 			v-model="mouseSize"
 			label="Mouse Size"
