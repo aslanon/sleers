@@ -22,6 +22,16 @@ export const useCameraRenderer = () => {
 		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
 		const cameraHeight = cameraWidth; // Kare yapmak için width = height
 
+		// Maksimum radius hesapla - boyutun yarısını geçemez
+		const maxRadius = Math.min(cameraWidth, cameraHeight) / 2;
+		// Kullanıcının istediği radius değerini sınırla
+		const safeRadius = Math.min(cameraSettings.value.radius * dpr, maxRadius);
+
+		// Maksimum gölge boyutunu hesapla - kamera boyutunun %20'sini geçmesin
+		const maxShadowBlur = Math.min(cameraWidth, cameraHeight) * 0.2;
+		// Kullanıcının istediği gölge değerini sınırla
+		const safeShadowBlur = Math.min(cameraSettings.value.shadow * dpr, maxShadowBlur);
+
 		// Kamera pozisyonunu hesapla
 		let cameraX, cameraY;
 
@@ -71,10 +81,10 @@ export const useCameraRenderer = () => {
 				cameraY,
 				cameraWidth,
 				cameraHeight,
-				cameraSettings.value.radius * dpr
+				safeRadius
 			);
 			ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-			ctx.shadowBlur = cameraSettings.value.shadow * dpr;
+			ctx.shadowBlur = safeShadowBlur;
 			ctx.shadowOffsetX = 0;
 			ctx.shadowOffsetY = 0;
 			ctx.fillStyle = "#000000";
@@ -83,6 +93,7 @@ export const useCameraRenderer = () => {
 		}
 
 		// Kamera alanını kırp ve radius uygula
+		ctx.save(); // Yeni state kaydet
 		ctx.beginPath();
 		useRoundRect(
 			ctx,
@@ -90,7 +101,7 @@ export const useCameraRenderer = () => {
 			cameraY,
 			cameraWidth,
 			cameraHeight,
-			cameraSettings.value.radius * dpr
+			safeRadius
 		);
 		ctx.clip();
 
@@ -127,7 +138,9 @@ export const useCameraRenderer = () => {
 			cameraHeight
 		);
 
-		// Tıklanabilir alan için path ekle
+		ctx.restore(); // Clip state'ini geri yükle
+
+		// Tıklanabilir alan için path ekle (clip dışında)
 		ctx.beginPath();
 		useRoundRect(
 			ctx,
@@ -135,7 +148,7 @@ export const useCameraRenderer = () => {
 			cameraY,
 			cameraWidth,
 			cameraHeight,
-			cameraSettings.value.radius * dpr
+			safeRadius
 		);
 
 		// Mouse'un kamera üzerinde olup olmadığını kontrol et

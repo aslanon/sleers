@@ -57,6 +57,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		speed,
 		moveDistance,
 		mouseSize,
+		dpr,
 		mouseMotionEnabled,
 		motionBlurValue,
 		videoScale,
@@ -76,7 +77,8 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		} = MOTION_BLUR_CONSTANTS;
 
 		// Mouse boyutunu kesinlikle sabit tut
-		const size = mouseSize;
+		const size = mouseSize * dpr; // DPR ile ölçekle
+		// Offset'leri boyuta göre oransal olarak hesapla
 		const offsetX = size * 0.3;
 		const offsetY = size * 0.2;
 
@@ -170,6 +172,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		zoomRanges,
 		lastZoomPosition,
 		mouseSize,
+		dpr,
 		mouseMotionEnabled,
 		motionBlurValue
 	) => {
@@ -278,6 +281,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			speed,
 			moveDistance,
 			mouseSize,
+			dpr,
 			mouseMotionEnabled,
 			motionBlurValue,
 			videoScale,
