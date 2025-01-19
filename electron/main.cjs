@@ -77,7 +77,9 @@ function setupIpcHandlers() {
 		}
 		if (status) {
 			console.log(1232);
-			startMouseTracking();
+			setTimeout(() => {
+				startMouseTracking();
+			}, recordingDelay);
 		} else {
 			console.log(423);
 			stopMouseTracking();

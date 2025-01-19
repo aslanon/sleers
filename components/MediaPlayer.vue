@@ -1441,6 +1441,7 @@ const renderVideo = () => {
 // Component metodlarını dışa aktar
 defineExpose({
 	// Playback controls
+	updateCanvas,
 	play,
 	pause,
 	seek: (time) => {

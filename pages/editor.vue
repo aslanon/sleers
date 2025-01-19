@@ -355,11 +355,12 @@ const startEditing = (videoData) => {
 // Video kaydetme
 const saveVideo = async () => {
 	const dpr = window.devicePixelRatio || 1;
-	let canvasID = document.getElementById("canvasID");
+	const canvasID = document.getElementById("canvasID");
 
 	// Container boyutlarını al
 	const containerWidth = canvasID.clientWidth * 3;
 	const containerHeight = canvasID.clientHeight * 3;
+
 	try {
 		const filePath = await electron?.ipcRenderer.invoke("SHOW_SAVE_DIALOG", {
 			title: "Videoyu Kaydet",
@@ -368,7 +369,6 @@ const saveVideo = async () => {
 		});
 
 		if (filePath) {
-			// Canvas'ı al
 			const sourceCanvas = mediaPlayerRef.value?.getCanvas();
 			if (!sourceCanvas) {
 				throw new Error("Canvas bulunamadı");
@@ -378,45 +378,34 @@ const saveVideo = async () => {
 			const originalWidth = sourceCanvas.width;
 			const originalHeight = sourceCanvas.height;
 
-			// 2K çözünürlük için yeni boyutları hesapla (aspect ratio'yu koru)
-			const targetHeight = 1440; // 2K dikey çözünürlük
+			// 2K çözünürlük için boyutları ayarla
+			const targetHeight = 1440; // 2K çözünürlük
 			const targetWidth = Math.round(
 				(targetHeight * originalWidth) / originalHeight
 			);
 
-			const ctx = sourceCanvas.getContext("2d");
+			// Kaydedilecek canvas'ın çözünürlüğünü artır
+			sourceCanvas.width = targetWidth;
+			sourceCanvas.height = targetHeight;
 
-			// Device Pixel Ratio'yu hesaba katın
-
-			// Canvas çözünürlüğünü artırın
-			canvasID.width = containerWidth * dpr;
-			canvasID.height = containerHeight * dpr;
-
-			// Stil boyutunu ayarlayın (CSS pixel boyutu)
-			canvasID.style.width = `${containerWidth}px`;
-			canvasID.style.height = `${containerHeight}px`;
-
-			ctx.scale(dpr, dpr);
-
-			// Kayıt durumunu göster
+			// Kayıt durumu mesajı göster
 			const loadingMessage = document.createElement("div");
 			loadingMessage.className =
 				"fixed inset-0 flex items-center text-center justify-center bg-black bg-opacity-50 z-50";
 			loadingMessage.innerHTML = `
-				<div class="bg-black/80 p-8 rounded-xl shadow-3xl text-white">
-					<p class="text-lg font-bold">Video kaydediliyor...</p>
-					<p class="text-sm mt-2">Lütfen bekleyin...</p>
-				</div>
-			`;
+                <div class="bg-black/80 p-8 rounded-xl shadow-3xl text-white">
+                    <p class="text-lg font-bold">Video kaydediliyor...</p>
+                    <p class="text-sm mt-2">Lütfen bekleyin...</p>
+                </div>
+            `;
 			document.body.appendChild(loadingMessage);
 
 			return new Promise(async (resolve, reject) => {
 				try {
-					// Video kaydını başlat - en yüksek kalite için ayarlar
-					const stream = sourceCanvas.captureStream(120); // 60 FPS
+					const stream = sourceCanvas.captureStream(60); // 60 FPS
 					const mediaRecorder = new MediaRecorder(stream, {
-						mimeType: "video/webm", // VP9 codec ile daha yüksek kalite
-						videoBitsPerSecond: 5000000, // 50 Mbps
+						mimeType: "video/webm",
+						videoBitsPerSecond: 5000000, // 5 Mbps
 					});
 
 					const chunks = [];
@@ -426,46 +415,33 @@ const saveVideo = async () => {
 						}
 					};
 
-					let startTime = 0;
+					let startTime = null;
 					let lastFrameTime = 0;
-					const frameInterval = 1000 / 120; // 60 FPS için frame aralığı
+					const frameInterval = 1000 / 60; // 60 FPS için
 
-					// Frame çizme fonksiyonu
+					// Frame çizim fonksiyonu
 					const renderFrame = async (currentTime) => {
 						if (!startTime) startTime = currentTime;
 						const elapsed = currentTime - startTime;
 
-						// FPS kontrolü
 						if (currentTime - lastFrameTime >= frameInterval) {
 							lastFrameTime = currentTime;
 
-							// Video süresini kontrol et
 							const videoTime = elapsed / 1000;
 							if (videoTime >= videoDuration.value) {
 								mediaRecorder.stop();
 								return;
 							}
 
-							// Videoyu ilgili zamana getir
 							await mediaPlayerRef.value.seek(videoTime);
-
-							// Source canvas'ı yüksek çözünürlüklü canvas'a çiz
-							// tempCtx.clearRect(0, 0, targetWidth, targetHeight);
-							// tempCtx.drawImage(sourceCanvas, 0, 0, targetWidth, targetHeight);
-
-							// Bir sonraki frame için devam et
-							requestAnimationFrame(renderFrame);
-						} else {
-							requestAnimationFrame(renderFrame);
 						}
+
+						requestAnimationFrame(renderFrame);
 					};
 
-					// Kayıt tamamlandığında
 					mediaRecorder.onstop = async () => {
 						try {
-							// Son frame'e geri dön
-							await mediaPlayerRef.value.seek(currentTime.value);
-
+							await mediaPlayerRef.value.seek(0);
 							const webmBlob = new Blob(chunks, { type: "video/webm" });
 							const arrayBuffer = await webmBlob.arrayBuffer();
 							const base64Data = btoa(
@@ -475,7 +451,6 @@ const saveVideo = async () => {
 								)
 							);
 
-							// Base64'ü Electron'a gönder ve MP4'e dönüştür
 							const result = await electron?.ipcRenderer.invoke(
 								"SAVE_VIDEO",
 								`data:video/webm;base64,${base64Data}`,
@@ -483,7 +458,7 @@ const saveVideo = async () => {
 							);
 
 							if (result?.success) {
-								console.log("[editor.vue] Video başarıyla kaydedildi");
+								console.log("Video başarıyla kaydedildi");
 							} else {
 								throw new Error(result?.error || "Video kaydedilemedi");
 							}
@@ -494,19 +469,17 @@ const saveVideo = async () => {
 
 							resolve(result);
 						} catch (error) {
-							console.error("[editor.vue] Kayıt sonlandırma hatası:", error);
+							console.error("Kayıt sonlandırma hatası:", error);
 							reject(error);
 						}
 					};
 
-					// Kayıt işlemini başlat
 					mediaRecorder.start();
 
-					// Video başlangıca sar ve frame çizmeyi başlat
 					await mediaPlayerRef.value.seek(0);
 					requestAnimationFrame(renderFrame);
 				} catch (error) {
-					console.error("[editor.vue] Kayıt başlatma hatası:", error);
+					console.error("Kayıt başlatma hatası:", error);
 					if (loadingMessage.parentNode) {
 						document.body.removeChild(loadingMessage);
 					}
@@ -515,18 +488,13 @@ const saveVideo = async () => {
 			});
 		}
 	} catch (error) {
-		console.error("[editor.vue] Video kaydedilirken hata:", error);
-		console.error("[editor.vue] Hata detayları:", {
-			message: error.message,
-			stack: error.stack,
-		});
+		console.error("Video kaydedilirken hata:", error);
 		alert("Videoyu kaydederken bir hata oluştu: " + error.message);
 	}
 
 	canvasID.width = (containerWidth / 3) * dpr;
 	canvasID.height = (containerHeight / 3) * dpr;
 
-	// Stil boyutunu ayarlayın (CSS pixel boyutu)
 	canvasID.style.width = `${containerWidth}px`;
 	canvasID.style.height = `${containerHeight}px`;
 };
