@@ -433,7 +433,7 @@ const saveVideo = async () => {
 								return;
 							}
 
-							await mediaPlayerRef.value.seek(videoTime);
+							await mediaPlayerRef.value.play(videoTime);
 						}
 
 						requestAnimationFrame(renderFrame);
