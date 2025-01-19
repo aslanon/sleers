@@ -25,82 +25,16 @@
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
 					class="relative w-[100px] h-[100px] bg-gray-800 rounded-lg mx-auto border border-gray-700"
+					@mousedown="startDragging"
+					@mousemove="handleDrag"
+					@mouseup="stopDragging"
+					@mouseleave="stopDragging"
+					ref="dragArea"
 				>
-					<!-- Köşe ve Kenar Noktaları -->
-					<div class="absolute inset-0 grid grid-cols-3 grid-rows-3">
-						<!-- Sol Üst -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('top-left')"
-								@click="updateZoomPosition('top-left')"
-							></div>
-						</div>
-						<!-- Üst Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('top-center')"
-								@click="updateZoomPosition('top-center')"
-							></div>
-						</div>
-						<!-- Sağ Üst -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('top-right')"
-								@click="updateZoomPosition('top-right')"
-							></div>
-						</div>
-						<!-- Sol Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('middle-left')"
-								@click="updateZoomPosition('middle-left')"
-							></div>
-						</div>
-						<!-- Merkez -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('center')"
-								@click="updateZoomPosition('center')"
-							></div>
-						</div>
-						<!-- Sağ Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('middle-right')"
-								@click="updateZoomPosition('middle-right')"
-							></div>
-						</div>
-						<!-- Sol Alt -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('bottom-left')"
-								@click="updateZoomPosition('bottom-left')"
-							></div>
-						</div>
-						<!-- Alt Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('bottom-center')"
-								@click="updateZoomPosition('bottom-center')"
-							></div>
-						</div>
-						<!-- Sağ Alt -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('bottom-right')"
-								@click="updateZoomPosition('bottom-right')"
-							></div>
-						</div>
-					</div>
+					<div
+						class="absolute w-4 h-4 bg-indigo-500 rounded-full cursor-move transform -translate-x-1/2 -translate-y-1/2"
+						:style="{ left: `${position.x}%`, top: `${position.y}%` }"
+					></div>
 				</div>
 			</div>
 		</div>
@@ -119,6 +53,19 @@ const { currentZoomRange, updateZoomRange, zoomRanges } = usePlayerSettings();
 
 // Local state
 const zoomScale = ref(currentZoomRange.value?.scale || 1);
+const isDragging = ref(false);
+const dragArea = ref(null);
+const position = ref({ x: 50, y: 50 }); // Default to center
+
+// Initialize position based on current range
+watch(currentZoomRange, (newRange) => {
+	if (newRange?.position) {
+		const { x, y } = newRange.position;
+		position.value = { x, y };
+	} else {
+		position.value = { x: 50, y: 50 }; // Default to center
+	}
+}, { immediate: true });
 
 // Watch local changes
 watch(zoomScale, (newValue) => {
@@ -147,8 +94,33 @@ watch(
 	}
 );
 
+const startDragging = (event) => {
+	isDragging.value = true;
+	updatePosition(event);
+};
+
+const stopDragging = () => {
+	isDragging.value = false;
+};
+
+const handleDrag = (event) => {
+	if (!isDragging.value) return;
+	updatePosition(event);
+};
+
+const updatePosition = (event) => {
+	if (!dragArea.value) return;
+
+	const rect = dragArea.value.getBoundingClientRect();
+	const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+	const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+
+	position.value = { x, y };
+	updateZoomPosition({ x, y });
+};
+
 // Zoom pozisyonu güncelleme
-const updateZoomPosition = (position) => {
+const updateZoomPosition = (newPosition) => {
 	if (!currentZoomRange.value) return;
 
 	const index = zoomRanges.value.findIndex(
@@ -160,19 +132,10 @@ const updateZoomPosition = (position) => {
 	if (index !== -1) {
 		const updatedRange = {
 			...currentZoomRange.value,
-			position,
+			position: newPosition,
 		};
 		updateZoomRange(index, updatedRange);
 	}
-};
-
-// Pozisyon noktası stil sınıfları
-const getPositionClass = (position) => {
-	const isSelected = currentZoomRange.value?.position === position;
-	return {
-		"bg-white/20 hover:bg-white/30": !isSelected,
-		"bg-indigo-500": isSelected,
-	};
 };
 
 // Zoom ayarları aktif mi?

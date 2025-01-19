@@ -21,43 +21,13 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		centerX,
 		centerY
 	) => {
-		let originX = centerX;
-		let originY = centerY;
+		// position artık { x, y } şeklinde yüzdelik değerler içeriyor
+		const relativeX = position.x / 100; // 0-1 arası değere dönüştür
+		const relativeY = position.y / 100;
 
-		switch (position) {
-			case "top-left":
-				originX = x;
-				originY = y;
-				break;
-			case "top-center":
-				originX = centerX;
-				originY = y;
-				break;
-			case "top-right":
-				originX = x + drawWidth;
-				originY = y;
-				break;
-			case "middle-left":
-				originX = x;
-				originY = centerY;
-				break;
-			case "middle-right":
-				originX = x + drawWidth;
-				originY = centerY;
-				break;
-			case "bottom-left":
-				originX = x;
-				originY = y + drawHeight;
-				break;
-			case "bottom-center":
-				originX = centerX;
-				originY = y + drawHeight;
-				break;
-			case "bottom-right":
-				originX = x + drawWidth;
-				originY = y + drawHeight;
-				break;
-		}
+		// Kenar sınırlarını hesapla
+		const originX = x + (drawWidth * relativeX);
+		const originY = y + (drawHeight * relativeY);
 
 		return { originX, originY };
 	};
