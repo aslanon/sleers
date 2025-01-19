@@ -403,6 +403,20 @@ const saveVideo = async () => {
 			return new Promise(async (resolve, reject) => {
 				try {
 					const stream = sourceCanvas.captureStream(60); // 60 FPS
+
+					// Get the audio from the video element directly
+					const videoElement = mediaPlayerRef.value.getVideoElement();
+					const audioContext = new AudioContext();
+					const source = audioContext.createMediaElementSource(videoElement);
+					const destination = audioContext.createMediaStreamDestination();
+					source.connect(destination);
+					source.connect(audioContext.destination); // To continue hearing the audio
+
+					// Add the audio track to our stream
+					destination.stream
+						.getAudioTracks()
+						.forEach((track) => stream.addTrack(track));
+
 					const mediaRecorder = new MediaRecorder(stream, {
 						mimeType: "video/webm",
 						videoBitsPerSecond: 5000000, // 5 Mbps
@@ -433,7 +447,7 @@ const saveVideo = async () => {
 								return;
 							}
 
-							await mediaPlayerRef.value.play(videoTime);
+							await mediaPlayerRef.value.play();
 						}
 
 						requestAnimationFrame(renderFrame);
