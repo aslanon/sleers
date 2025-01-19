@@ -20,7 +20,7 @@
 			/>
 
 			<!-- Zoom Position Selector -->
-			<div class="setting-group">
+			<div class="setting-group pb-4">
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
