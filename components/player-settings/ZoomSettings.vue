@@ -24,7 +24,7 @@
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
-					class="relative w-[100px] h-[100px] bg-gray-800 rounded-lg mx-auto border border-gray-700"
+					class="relative w-full max-w-[160px] h-[90px] bg-zinc-900 rounded-lg border border-gray-700"
 					@mousedown="startDragging"
 					@mousemove="handleDrag"
 					@mouseup="stopDragging"
@@ -32,8 +32,9 @@
 					ref="dragArea"
 				>
 					<div
-						class="absolute w-4 h-4 bg-indigo-500 rounded-full cursor-move transform -translate-x-1/2 -translate-y-1/2"
+						class="absolute z-10 w-6 h-6 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab transform -translate-x-1/2 -translate-y-1/2"
 						:style="{ left: `${position.x}%`, top: `${position.y}%` }"
+						:class="{ 'cursor-grabbing': isDragging }"
 					></div>
 				</div>
 			</div>
@@ -58,14 +59,18 @@ const dragArea = ref(null);
 const position = ref({ x: 50, y: 50 }); // Default to center
 
 // Initialize position based on current range
-watch(currentZoomRange, (newRange) => {
-	if (newRange?.position) {
-		const { x, y } = newRange.position;
-		position.value = { x, y };
-	} else {
-		position.value = { x: 50, y: 50 }; // Default to center
-	}
-}, { immediate: true });
+watch(
+	currentZoomRange,
+	(newRange) => {
+		if (newRange?.position) {
+			const { x, y } = newRange.position;
+			position.value = { x, y };
+		} else {
+			position.value = { x: 50, y: 50 }; // Default to center
+		}
+	},
+	{ immediate: true }
+);
 
 // Watch local changes
 watch(zoomScale, (newValue) => {
@@ -112,8 +117,14 @@ const updatePosition = (event) => {
 	if (!dragArea.value) return;
 
 	const rect = dragArea.value.getBoundingClientRect();
-	const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
-	const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+	const x = Math.max(
+		0,
+		Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)
+	);
+	const y = Math.max(
+		0,
+		Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)
+	);
 
 	position.value = { x, y };
 	updateZoomPosition({ x, y });
