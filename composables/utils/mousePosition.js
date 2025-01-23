@@ -50,23 +50,27 @@ export const calculateVideoDisplaySize = (
 	videoHeight,
 	canvasWidth,
 	canvasHeight,
-	padding
+	padding = 0 // Default to 0 if not provided
 ) => {
+	// Padding'i her iki taraftan uygula
+	const effectiveCanvasWidth = canvasWidth - (padding * 2);
+	const effectiveCanvasHeight = canvasHeight - (padding * 2);
+	
 	const videoRatio = videoWidth / videoHeight;
-	const canvasRatio = canvasWidth / canvasHeight;
+	const canvasRatio = effectiveCanvasWidth / effectiveCanvasHeight;
 	let displayWidth, displayHeight;
 
 	if (videoRatio > canvasRatio) {
-		displayWidth = canvasWidth - padding * 2;
-		displayHeight = displayWidth / videoRatio;
+		displayWidth = effectiveCanvasWidth;
+		displayHeight = effectiveCanvasWidth / videoRatio;
 	} else {
-		displayHeight = canvasHeight - padding * 2;
-		displayWidth = displayHeight * videoRatio;
+		displayHeight = effectiveCanvasHeight;
+		displayWidth = effectiveCanvasHeight * videoRatio;
 	}
 
 	// Video'nun canvas içindeki pozisyonunu hesapla (padding dahil)
-	const videoX = (canvasWidth - displayWidth) / 2;
-	const videoY = (canvasHeight - displayHeight) / 2;
+	const videoX = padding + (effectiveCanvasWidth - displayWidth) / 2;
+	const videoY = padding + (effectiveCanvasHeight - displayHeight) / 2;
 
 	return { displayWidth, displayHeight, videoX, videoY };
 };

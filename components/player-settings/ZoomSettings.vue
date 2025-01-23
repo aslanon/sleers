@@ -20,87 +20,22 @@
 			/>
 
 			<!-- Zoom Position Selector -->
-			<div class="setting-group">
+			<div class="setting-group pb-4">
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
-					class="relative w-[100px] h-[100px] bg-gray-800 rounded-lg mx-auto border border-gray-700"
+					class="relative w-full max-w-[160px] h-[90px] bg-zinc-900 rounded-lg border border-gray-700"
+					@mousedown="startDragging"
+					@mousemove="handleDrag"
+					@mouseup="stopDragging"
+					@mouseleave="stopDragging"
+					ref="dragArea"
 				>
-					<!-- Köşe ve Kenar Noktaları -->
-					<div class="absolute inset-0 grid grid-cols-3 grid-rows-3">
-						<!-- Sol Üst -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('top-left')"
-								@click="updateZoomPosition('top-left')"
-							></div>
-						</div>
-						<!-- Üst Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('top-center')"
-								@click="updateZoomPosition('top-center')"
-							></div>
-						</div>
-						<!-- Sağ Üst -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('top-right')"
-								@click="updateZoomPosition('top-right')"
-							></div>
-						</div>
-						<!-- Sol Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('middle-left')"
-								@click="updateZoomPosition('middle-left')"
-							></div>
-						</div>
-						<!-- Merkez -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('center')"
-								@click="updateZoomPosition('center')"
-							></div>
-						</div>
-						<!-- Sağ Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('middle-right')"
-								@click="updateZoomPosition('middle-right')"
-							></div>
-						</div>
-						<!-- Sol Alt -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('bottom-left')"
-								@click="updateZoomPosition('bottom-left')"
-							></div>
-						</div>
-						<!-- Alt Orta -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('bottom-center')"
-								@click="updateZoomPosition('bottom-center')"
-							></div>
-						</div>
-						<!-- Sağ Alt -->
-						<div class="flex items-center justify-center">
-							<div
-								class="w-3 h-3 rounded-full transition-colors cursor-pointer"
-								:class="getPositionClass('bottom-right')"
-								@click="updateZoomPosition('bottom-right')"
-							></div>
-						</div>
-					</div>
+					<div
+						class="absolute z-10 w-6 h-6 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab transform -translate-x-1/2 -translate-y-1/2"
+						:style="{ left: `${position.x}%`, top: `${position.y}%` }"
+						:class="{ 'cursor-grabbing': isDragging }"
+					></div>
 				</div>
 			</div>
 		</div>
@@ -115,10 +50,15 @@ import { ref, computed, watch } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import SliderInput from "~/components/ui/SliderInput.vue";
 
-const { currentZoomRange, updateZoomRange, zoomRanges } = usePlayerSettings();
+// First, import the usePlayerSettings at the top of script setup
+const { currentZoomRange, updateZoomRange, zoomRanges, padding } = usePlayerSettings();
 
 // Local state
+// Local state
 const zoomScale = ref(currentZoomRange.value?.scale || 1);
+const isDragging = ref(false);
+const dragArea = ref(null);
+const position = ref({ x: 50, y: 50 }); // Default to center
 
 // Watch local changes
 watch(zoomScale, (newValue) => {
@@ -164,6 +104,44 @@ const updateZoomPosition = (position) => {
 		};
 		updateZoomRange(index, updatedRange);
 	}
+};
+
+const startDragging = (event) => {
+	isDragging.value = true;
+	updatePosition(event);
+};
+
+const stopDragging = () => {
+	isDragging.value = false;
+};
+
+const handleDrag = (event) => {
+	if (!isDragging.value) return;
+	updatePosition(event);
+};
+
+const updatePosition = (event) => {
+    if (!dragArea.value) return;
+
+    const rect = dragArea.value.getBoundingClientRect();
+    const cursorSize = 24; // w-6 = 24px
+    const halfCursor = cursorSize / 2;
+    const currentPadding = padding.value;
+
+    // Calculate available space considering padding
+    const availableWidth = rect.width - (currentPadding * 2);
+    const availableHeight = rect.height - (currentPadding * 2);
+
+    // Adjust mouse position relative to the padded area
+    const adjustedX = event.clientX - rect.left - currentPadding;
+    const adjustedY = event.clientY - rect.top - currentPadding;
+
+    // Calculate percentage based on available space
+    const x = Math.max(0, Math.min(100, (adjustedX / availableWidth) * 100));
+    const y = Math.max(0, Math.min(100, (adjustedY / availableHeight) * 100));
+
+    position.value = { x, y };
+    updateZoomPosition(position.value);
 };
 
 // Pozisyon noktası stil sınıfları

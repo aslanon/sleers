@@ -8,7 +8,7 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 	const targetPosition = ref({ x: 0, y: 0 });
 	const isZoomAnimating = ref(false);
 	const currentSegmentId = ref(null);
-	const lastZoomPosition = ref(null);
+	const lastZoomPosition = ref({ x: 0, y: 0 });
 	let zoomAnimationFrame = null;
 
 	// Zoom origin pozisyonlarını hesapla
@@ -21,43 +21,8 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		centerX,
 		centerY
 	) => {
-		let originX = centerX;
-		let originY = centerY;
-
-		switch (position) {
-			case "top-left":
-				originX = x;
-				originY = y;
-				break;
-			case "top-center":
-				originX = centerX;
-				originY = y;
-				break;
-			case "top-right":
-				originX = x + drawWidth;
-				originY = y;
-				break;
-			case "middle-left":
-				originX = x;
-				originY = centerY;
-				break;
-			case "middle-right":
-				originX = x + drawWidth;
-				originY = centerY;
-				break;
-			case "bottom-left":
-				originX = x;
-				originY = y + drawHeight;
-				break;
-			case "bottom-center":
-				originX = centerX;
-				originY = y + drawHeight;
-				break;
-			case "bottom-right":
-				originX = x + drawWidth;
-				originY = y + drawHeight;
-				break;
-		}
+		let originX = position.x * 10;
+		let originY = position.y * 10;
 
 		return { originX, originY };
 	};
