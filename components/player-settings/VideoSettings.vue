@@ -62,9 +62,15 @@
 					:key="`image${index}`"
 					@click="selectBackgroundImage(`image${index}`)"
 					class="wallpaper-button"
-					:class="{ 'wallpaper-button-selected': selectedWallpaper === `image${index}` }"
+					:class="{
+						'wallpaper-button-selected': selectedWallpaper === `image${index}`,
+					}"
 				>
-					<img :src="`/backgrounds/image${index}.jpg`" :alt="`Wallpaper ${index}`" class="w-full h-full object-cover" />
+					<img
+						:src="`/backgrounds/image${index}.jpg`"
+						:alt="`Wallpaper ${index}`"
+						class="w-full h-full object-cover"
+					/>
 				</button>
 			</div>
 		</div>
@@ -281,7 +287,7 @@ onMounted(() => {
 
 .wallpaper-button {
 	aspect-ratio: 16/9;
-	border-radius: 4px;
+	border-radius: 8px;
 	overflow: hidden;
 	border: 2px solid transparent;
 	transition: all 0.2s;
@@ -289,10 +295,10 @@ onMounted(() => {
 }
 
 .wallpaper-button:hover {
-	transform: scale(1.05);
+	transform: scale(1.2);
 }
 
 .wallpaper-button-selected {
-	border-color: #3B82F6;
+	border-color: #3b82f6;
 }
 </style>
