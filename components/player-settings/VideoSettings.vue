@@ -58,7 +58,7 @@
 			<label class="setting-label">Arkaplan Görseli</label>
 			<div class="wallpaper-grid">
 				<button
-					v-for="index in 13"
+					v-for="index in 17"
 					:key="`image${index}`"
 					@click="selectBackgroundImage(`image${index}`)"
 					class="wallpaper-button"
@@ -299,6 +299,6 @@ onMounted(() => {
 }
 
 .wallpaper-button-selected {
-	border-color: #3b82f6;
+	border-color: #ffffff;
 }
 </style>

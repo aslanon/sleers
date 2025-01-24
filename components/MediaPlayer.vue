@@ -674,6 +674,18 @@ watch(
 const bgImageElement = ref(null);
 const bgImageLoaded = ref(false);
 
+// Arkaplan rengi değiştiğinde canvas'ı güncelle
+watch(backgroundColor, () => {
+	if (!ctx || !canvasRef.value) return;
+	ctx.fillStyle = backgroundColor.value;
+	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+	bgImageLoaded.value = false;
+	bgImageElement.value = null;
+	if (videoElement && !videoState.value.isPlaying) {
+		requestAnimationFrame(updateCanvas);
+	}
+});
+
 // Arkaplan resmi değiştiğinde yükle
 watch(backgroundImage, (newImage) => {
 	if (newImage) {
@@ -954,16 +966,6 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 
 	animationFrame = requestAnimationFrame(updateCanvas);
 };
-
-// Arkaplan rengi değiştiğinde canvas'ı güncelle
-watch(backgroundColor, () => {
-	if (!ctx || !canvasRef.value) return;
-	ctx.fillStyle = backgroundColor.value;
-	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-	if (videoElement && !videoState.value.isPlaying) {
-		requestAnimationFrame(updateCanvas);
-	}
-});
 
 // Props'ları izle
 watch(
