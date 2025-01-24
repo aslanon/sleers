@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-col gap-12">
+	<div class="flex flex-col gap-12 pb-12">
 		<!-- <div class="space-y-2">
 			<h3 class="text-lg font-medium">Video Ayarları</h3>
 			<p class="text-sm text-gray-400">
@@ -58,7 +58,7 @@
 			<label class="setting-label">Arkaplan Görseli</label>
 			<div class="wallpaper-grid">
 				<button
-					v-for="index in 12"
+					v-for="index in 13"
 					:key="`image${index}`"
 					@click="selectBackgroundImage(`image${index}`)"
 					class="wallpaper-button"
