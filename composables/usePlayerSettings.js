@@ -2,7 +2,8 @@ import { ref, computed } from "vue";
 
 const mouseSize = ref(65);
 const motionBlurValue = ref(50);
-const backgroundColor = ref("#000000");
+const backgroundColor = ref("#1A1A1A");
+const backgroundImage = ref(null);
 const padding = ref(0);
 const radius = ref(0);
 const shadowSize = ref(0);
@@ -57,6 +58,10 @@ export const usePlayerSettings = () => {
 
 	const updateBackgroundColor = (color) => {
 		backgroundColor.value = color;
+	};
+
+	const updateBackgroundImage = (imagePath) => {
+		backgroundImage.value = imagePath;
 	};
 
 	const updatePadding = (value) => {
@@ -156,6 +161,7 @@ export const usePlayerSettings = () => {
 		mouseSize,
 		motionBlurValue,
 		backgroundColor,
+		backgroundImage,
 		padding,
 		radius,
 		shadowSize,
@@ -170,6 +176,7 @@ export const usePlayerSettings = () => {
 		updateMouseSize,
 		updateMotionBlur,
 		updateBackgroundColor,
+		updateBackgroundImage,
 		updatePadding,
 		updateRadius,
 		updateShadowSize,

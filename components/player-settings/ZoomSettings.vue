@@ -31,11 +31,14 @@
 					@mouseleave="stopDragging"
 					ref="dragArea"
 				>
-					<div
-						class="absolute z-10 w-6 h-6 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab transform -translate-x-1/2 -translate-y-1/2"
-						:style="{ left: `${position.x}%`, top: `${position.y}%` }"
-						:class="{ 'cursor-grabbing': isDragging }"
-					></div>
+					<!-- İç kısım için ayrı bir container -->
+					<div class="absolute inset-0 m-3">
+						<div
+							class="absolute z-20 w-8 h-8 -m-4 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95"
+							:style="{ left: `${position.x}%`, top: `${position.y}%` }"
+							:class="{ 'cursor-grabbing ring-zinc-400 scale-95': isDragging }"
+						></div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -124,23 +127,22 @@ const updatePosition = (event) => {
     if (!dragArea.value) return;
 
     const rect = dragArea.value.getBoundingClientRect();
-    const cursorSize = 24; // w-6 = 24px
-    const halfCursor = cursorSize / 2;
-    const currentPadding = padding.value;
+    const margin = 12; // m-3 = 12px
 
-    // Calculate available space considering padding
-    const availableWidth = rect.width - (currentPadding * 2);
-    const availableHeight = rect.height - (currentPadding * 2);
+    // Calculate available space considering margins
+    const availableWidth = rect.width - (margin * 2);
+    const availableHeight = rect.height - (margin * 2);
 
-    // Adjust mouse position relative to the padded area
-    const adjustedX = event.clientX - rect.left - currentPadding;
-    const adjustedY = event.clientY - rect.top - currentPadding;
+    // Adjust mouse position relative to the margins
+    const x = ((event.clientX - rect.left - margin) / availableWidth) * 100;
+    const y = ((event.clientY - rect.top - margin) / availableHeight) * 100;
 
-    // Calculate percentage based on available space
-    const x = Math.max(0, Math.min(100, (adjustedX / availableWidth) * 100));
-    const y = Math.max(0, Math.min(100, (adjustedY / availableHeight) * 100));
-
-    position.value = { x, y };
+    // Clamp values between 0 and 100
+    position.value = {
+        x: Math.max(0, Math.min(100, x)),
+        y: Math.max(0, Math.min(100, y))
+    };
+    
     updateZoomPosition(position.value);
 };
 

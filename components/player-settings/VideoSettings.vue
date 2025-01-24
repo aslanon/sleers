@@ -53,6 +53,21 @@
 				></button>
 			</div>
 		</div>
+
+		<div class="setting-group">
+			<label class="setting-label">Arkaplan Görseli</label>
+			<div class="wallpaper-grid">
+				<button
+					v-for="index in 12"
+					:key="`image${index}`"
+					@click="selectBackgroundImage(`image${index}`)"
+					class="wallpaper-button"
+					:class="{ 'wallpaper-button-selected': selectedWallpaper === `image${index}` }"
+				>
+					<img :src="`/backgrounds/image${index}.jpg`" :alt="`Wallpaper ${index}`" class="w-full h-full object-cover" />
+				</button>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -88,6 +103,7 @@ const {
 	updatePadding,
 	updateRadius,
 	updateShadowSize,
+	updateBackgroundImage,
 } = usePlayerSettings();
 
 // Renk paleti
@@ -140,11 +156,18 @@ const selectedColor = ref(backgroundColor.value);
 const paddingValue = ref(padding.value);
 const radiusValue = ref(radius.value);
 const shadowValue = ref(shadowSize.value);
+const selectedWallpaper = ref(null);
 
 // Renk seçimi
 const selectColor = (color) => {
 	selectedColor.value = color;
 	updateBackgroundColor(color);
+};
+
+// Arkaplan görseli seçimi
+const selectBackgroundImage = (imageName) => {
+	selectedWallpaper.value = imageName;
+	updateBackgroundImage(`/backgrounds/${imageName}.jpg`);
 };
 
 // Padding değişikliğini izle
@@ -247,5 +270,29 @@ onMounted(() => {
 
 .color-button-unselected {
 	@apply border-transparent;
+}
+
+.wallpaper-grid {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.wallpaper-button {
+	aspect-ratio: 16/9;
+	border-radius: 4px;
+	overflow: hidden;
+	border: 2px solid transparent;
+	transition: all 0.2s;
+	cursor: pointer;
+}
+
+.wallpaper-button:hover {
+	transform: scale(1.05);
+}
+
+.wallpaper-button-selected {
+	border-color: #3B82F6;
 }
 </style>

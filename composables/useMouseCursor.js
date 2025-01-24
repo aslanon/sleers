@@ -98,8 +98,16 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const isSignificantMovement =
 			speed > MIN_SPEED_THRESHOLD && moveDistance > MIN_DISTANCE_THRESHOLD;
 
+		// Shadow özelliklerini ayarla
+		ctx.save();
+		ctx.shadowColor = "rgba(0, 0, 0, 0.8 )";
+		ctx.shadowBlur = 10 * dpr;
+		ctx.shadowOffsetX = 1 * dpr;
+		ctx.shadowOffsetY = 1 * dpr;
+
 		if (!mouseMotionEnabled || !isSignificantMovement) {
 			ctx.drawImage(cursorImage, x - offsetX, y - offsetY, size, size);
+			ctx.restore();
 			if (videoScale > 1.001) {
 				ctx.restore();
 			}
@@ -152,12 +160,11 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		);
 
 		ctx.drawImage(cursorImage, -offsetX, -offsetY, size, size);
+		ctx.restore();
 
 		if (videoScale > 1.001) {
 			ctx.restore();
 		}
-
-		ctx.restore();
 	};
 
 	// Mouse pozisyonunu çiz
@@ -178,7 +185,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 	) => {
 		if (
 			!mousePositions ||
-			mousePositions.length === 0 ||
+			mousePositions.length < 2 ||
 			!canvasRef ||
 			!videoElement
 		)
@@ -188,26 +195,53 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const videoDuration = videoElement.duration;
 		if (!videoDuration) return;
 
-		// Mouse pozisyonları için toplam frame sayısı
-		const totalFrames = mousePositions.length;
-		const frameTime = videoDuration / totalFrames;
-		const exactFrame = currentTime / frameTime;
-		const currentFrame = Math.floor(exactFrame);
-		const nextFrame = Math.min(currentFrame + 1, totalFrames - 1);
-		const framePart = exactFrame - currentFrame;
+		// Mouse pozisyonları için frame hesaplama
+		const MOUSE_DELAY_MS = 1350; // 1 saniye gecikme
+		const currentTimeMs = currentTime * 1000 - MOUSE_DELAY_MS; // Delay uygula
 
-		// İki frame arasında interpolasyon yap
-		const currentPos = mousePositions[currentFrame];
-		const nextPos = mousePositions[nextFrame];
-		if (!currentPos || !nextPos) return;
+		// Eğer mouse pozisyonları yoksa veya boşsa return
+		if (!mousePositions || mousePositions.length < 2) return;
 
-		// Easing fonksiyonu ekle
-		const easeInOutCubic = (t) => {
-			return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-		};
+		// İlk ve son timestamp'i al
+		const firstTimestamp = mousePositions[0].timestamp;
+		const lastTimestamp = mousePositions[mousePositions.length - 1].timestamp;
 
-		// Smooth interpolasyon için easing uygula
-		const smoothFramePart = easeInOutCubic(framePart);
+		// Video süresine göre normalize et ve delay uygula
+		const normalizedTime = currentTimeMs - firstTimestamp;
+		const totalDuration = lastTimestamp - firstTimestamp;
+
+		// Eğer normalize edilmiş zaman negatifse veya toplam süreyi aşıyorsa return
+		if (normalizedTime < -MOUSE_DELAY_MS || normalizedTime > totalDuration)
+			return;
+
+		// Gecikmeli zamanı hesapla ve sınırla
+		const delayedTime = Math.max(0, normalizedTime);
+
+		// En yakın frame'leri bul
+		let currentFrameIndex = 0;
+		for (let i = 0; i < mousePositions.length - 1; i++) {
+			const currentTimestamp = mousePositions[i].timestamp - firstTimestamp;
+			const nextTimestamp = mousePositions[i + 1].timestamp - firstTimestamp;
+
+			if (delayedTime >= currentTimestamp && delayedTime <= nextTimestamp) {
+				currentFrameIndex = i;
+				break;
+			}
+		}
+
+		const nextFrameIndex = Math.min(
+			currentFrameIndex + 1,
+			mousePositions.length - 1
+		);
+		const currentPos = mousePositions[currentFrameIndex];
+		const nextPos = mousePositions[nextFrameIndex];
+
+		// Frame'ler arası interpolasyon faktörünü hesapla
+		const currentNormalizedTime = currentPos.timestamp - firstTimestamp;
+		const nextNormalizedTime = nextPos.timestamp - firstTimestamp;
+		const framePart =
+			(delayedTime - currentNormalizedTime) /
+			(nextNormalizedTime - currentNormalizedTime);
 
 		// Video boyutlarını hesapla
 		const { displayWidth, displayHeight, videoX, videoY } =
@@ -223,7 +257,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const { finalX, finalY } = calculateMousePosition(
 			currentPos,
 			nextPos,
-			smoothFramePart,
+			framePart,
 			videoElement.videoWidth,
 			videoElement.videoHeight,
 			displayWidth,

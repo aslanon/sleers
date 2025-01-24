@@ -14,7 +14,8 @@ export const useCameraRenderer = () => {
 		dpr,
 		mouseX,
 		mouseY,
-		dragPosition = null
+		dragPosition = null,
+		zoomScale = 1
 	) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
 
@@ -36,33 +37,34 @@ export const useCameraRenderer = () => {
 		let cameraX, cameraY;
 
 		if (dragPosition) {
-			// Sürükleme pozisyonunu kullan
-			cameraX = dragPosition.x;
-			cameraY = dragPosition.y;
+			// Sürükleme pozisyonunu kullan ve zoom'u kompanse et
+			cameraX = dragPosition.x / zoomScale;
+			cameraY = dragPosition.y / zoomScale;
 		} else if (
 			cameraSettings.value.followMouse &&
 			mouseX !== undefined &&
 			mouseY !== undefined
 		) {
-			// Mouse pozisyonuna göre kamera pozisyonunu ayarla
-			cameraX = mouseX - cameraWidth / 2;
-			cameraY = mouseY - cameraHeight / 2;
+			// Mouse pozisyonuna göre kamera pozisyonunu ayarla ve zoom'u kompanse et
+			cameraX = (mouseX / zoomScale) - (cameraWidth / 2);
+			cameraY = (mouseY / zoomScale) - (cameraHeight / 2);
 		} else {
 			// Default pozisyon (sağ alt köşe) veya son pozisyonu kullan
-			cameraX =
-				lastCameraPosition.value.x || canvasWidth - cameraWidth - 20 * dpr;
-			cameraY =
-				lastCameraPosition.value.y || canvasHeight - cameraHeight - 20 * dpr;
+			cameraX = lastCameraPosition.value.x || (canvasWidth / zoomScale) - cameraWidth - 20 * dpr;
+			cameraY = lastCameraPosition.value.y || (canvasHeight / zoomScale) - cameraHeight - 20 * dpr;
 		}
 
-		// Sınırları kontrol et
+		// Sınırları kontrol et (zoom'a göre ayarlanmış)
+		const effectiveCanvasWidth = canvasWidth / zoomScale;
+		const effectiveCanvasHeight = canvasHeight / zoomScale;
+
 		cameraX = Math.max(
 			32 * dpr,
-			Math.min(canvasWidth - cameraWidth - 32 * dpr, cameraX)
+			Math.min(effectiveCanvasWidth - cameraWidth - 32 * dpr, cameraX)
 		);
 		cameraY = Math.max(
 			32 * dpr,
-			Math.min(canvasHeight - cameraHeight - 32 * dpr, cameraY)
+			Math.min(effectiveCanvasHeight - cameraHeight - 32 * dpr, cameraY)
 		);
 
 		// Son pozisyonu kaydet
@@ -70,6 +72,9 @@ export const useCameraRenderer = () => {
 
 		// Context state'i kaydet
 		ctx.save();
+
+		// Zoom ölçeğini uygula
+		ctx.scale(zoomScale, zoomScale);
 
 		// Gölge efekti
 		if (cameraSettings.value.shadow > 0) {
