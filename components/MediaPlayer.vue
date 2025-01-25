@@ -133,14 +133,17 @@ const props = defineProps({
 
 // Player settings'i al
 const {
-	mouseSize,
-	motionBlurValue,
-	mouseMotionEnabled,
 	backgroundColor,
+	backgroundImage,
 	padding,
 	radius,
 	shadowSize,
 	cropRatio,
+	mouseSize,
+	lastMouseX,
+	lastMouseY,
+	mouseMotionEnabled,
+	motionBlurValue,
 	zoomRanges,
 	currentZoomRange,
 	MOTION_BLUR_CONSTANTS,
@@ -401,9 +404,11 @@ const handleResize = () => {
 		const targetRatio = targetWidth / targetHeight;
 
 		if (containerRatio > targetRatio) {
+			// Container daha geniş, yüksekliğe göre hesapla
 			canvasHeight = containerHeight;
 			canvasWidth = containerHeight * targetRatio;
 		} else {
+			// Container daha dar, genişliğe göre hesapla
 			canvasWidth = containerWidth;
 			canvasHeight = containerWidth / targetRatio;
 		}
@@ -445,12 +450,12 @@ const updateCropArea = () => {
 	const containerWidth = container.width;
 	const containerHeight = container.height;
 
-	// DPR'ı al
-	const dpr = window.devicePixelRatio || 1;
-
-	let canvasWidth, canvasHeight;
+	// Video aspect ratio'sunu hesapla
+	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
 	const containerRatio = containerWidth / containerHeight;
 
+	// Canvas boyutlarını container'a göre ayarla
+	let canvasWidth, canvasHeight;
 	if (!cropRatio.value || cropRatio.value === "auto") {
 		// Auto modunda video'nun orijinal en-boy oranını kullan
 		const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
@@ -668,6 +673,47 @@ watch(
 	{ deep: true }
 );
 
+// Arkaplan resmi için
+const bgImageElement = ref(null);
+const bgImageLoaded = ref(false);
+
+// Arkaplan rengi değiştiğinde canvas'ı güncelle
+watch(backgroundColor, () => {
+	if (!ctx || !canvasRef.value) return;
+	ctx.fillStyle = backgroundColor.value;
+	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+	bgImageLoaded.value = false;
+	bgImageElement.value = null;
+	if (videoElement && !videoState.value.isPlaying) {
+		requestAnimationFrame(updateCanvas);
+	}
+});
+
+// Arkaplan resmi değiştiğinde yükle
+watch(backgroundImage, (newImage) => {
+	if (newImage) {
+		bgImageElement.value = new Image();
+		bgImageElement.value.onload = () => {
+			bgImageLoaded.value = true;
+			if (ctx) {
+				updateCanvas(performance.now(), lastMouseX, lastMouseY);
+			}
+		};
+		bgImageElement.value.onerror = () => {
+			console.error("Background image failed to load:", newImage);
+			bgImageLoaded.value = false;
+			bgImageElement.value = null;
+		};
+		bgImageElement.value.src = newImage;
+	} else {
+		bgImageLoaded.value = false;
+		bgImageElement.value = null;
+		if (ctx) {
+			updateCanvas(performance.now(), lastMouseX, lastMouseY);
+		}
+	}
+});
+
 // Canvas güncelleme fonksiyonu
 const updateCanvas = (timestamp, mouseX, mouseY) => {
 	if (!videoElement || !ctx || !canvasRef.value) return;
@@ -684,8 +730,34 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 	const dpr = window.devicePixelRatio || 1;
 
 	// Canvas'ı temizle
-	ctx.fillStyle = backgroundColor.value;
-	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+	ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+
+	// Arkaplan
+	if (bgImageLoaded.value && bgImageElement.value) {
+		try {
+			// Resmi canvas'a sığacak şekilde ölçekle
+			const scale = Math.max(
+				canvasRef.value.width / bgImageElement.value.width,
+				canvasRef.value.height / bgImageElement.value.height
+			);
+
+			const scaledWidth = bgImageElement.value.width * scale;
+			const scaledHeight = bgImageElement.value.height * scale;
+
+			// Resmi ortala
+			const x = (canvasRef.value.width - scaledWidth) / 2;
+			const y = (canvasRef.value.height - scaledHeight) / 2;
+
+			ctx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
+		} catch (error) {
+			console.error("Error drawing background image:", error);
+			ctx.fillStyle = backgroundColor.value;
+			ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+		}
+	} else {
+		ctx.fillStyle = backgroundColor.value;
+		ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+	}
 
 	// Ana context state'i kaydet
 	ctx.save();
@@ -854,11 +926,11 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 			props.mousePositions,
 			canvasRef.value,
 			videoElement,
-			padding.value * dpr,
+			padding.value,
 			videoScale.value,
 			zoomRanges.value,
 			lastZoomPosition,
-			mouseSize.value * dpr,
+			mouseSize.value,
 			mouseMotionEnabled.value,
 			motionBlurValue.value
 		);
@@ -876,7 +948,7 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 		) {
 			// Mouse'dan Y ekseninde 150px aşağıya kaydır
 			// camera offset
-			const offsetY = 50 * dpr;
+			const offsetY = 50;
 
 			// Hedef pozisyonu hesapla
 			const targetX = currentMouseX;
@@ -895,7 +967,7 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 			cameraElement,
 			canvasRef.value.width,
 			canvasRef.value.height,
-			dpr,
+			1,
 			mouseX,
 			mouseY,
 			cameraPos
@@ -904,16 +976,6 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 
 	animationFrame = requestAnimationFrame(updateCanvas);
 };
-
-// Arkaplan rengi değiştiğinde canvas'ı güncelle
-watch(backgroundColor, () => {
-	if (!ctx || !canvasRef.value) return;
-	ctx.fillStyle = backgroundColor.value;
-	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-	if (videoElement && !videoState.value.isPlaying) {
-		requestAnimationFrame(updateCanvas);
-	}
-});
 
 // Props'ları izle
 watch(
@@ -969,24 +1031,26 @@ const initCameraVideo = () => {
 		cameraElement.setAttribute("preload", "auto");
 		cameraElement.setAttribute("poster", "");
 
-		// // Event listener'ları ekle
-		// const { addEvents, removeEvents } = useVideoEvents(cameraElement, {
-		// 	onVideoMetadataLoaded,
-		// 	onVideoDataLoaded,
-		// 	onDurationChange,
-		// 	onTimeUpdate,
-		// 	onVideoEnded,
-		// 	onVideoError,
-		// 	onVideoPlay,
-		// 	onVideoPause,
-		// 	onVideoSeeking,
-		// 	onVideoSeeked,
-		// });
+		// Event listener'ları ekle
+		const { addEvents, removeEvents } = useVideoEvents(cameraElement, {
+			onVideoMetadataLoaded,
+			onVideoDataLoaded,
+			onDurationChange,
+			onTimeUpdate,
+			onVideoEnded,
+			onVideoError,
+			onVideoPlay,
+			onVideoPause,
+			onVideoSeeking,
+			onVideoSeeked,
+			onVideoRateChange,
+			onVideoVolumeChange,
+		});
 
-		// addEvents();
+		addEvents();
 
-		// // Cleanup için removeEvents'i sakla
-		// cameraElement._removeEvents = removeEvents;
+		// Cleanup için removeEvents'i sakla
+		cameraElement._removeEvents = removeEvents;
 
 		// Video URL'ini set et ve yüklemeyi başlat
 		console.log("1111111111111111cameraElement.src", props.cameraUrl);

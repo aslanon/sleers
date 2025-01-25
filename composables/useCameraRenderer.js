@@ -14,7 +14,8 @@ export const useCameraRenderer = () => {
 		dpr,
 		mouseX,
 		mouseY,
-		dragPosition = null
+		dragPosition = null,
+		zoomScale = 1
 	) => {
 		if (!cameraElement || cameraElement.readyState < 2) return;
 
@@ -30,39 +31,47 @@ export const useCameraRenderer = () => {
 		// Maksimum gölge boyutunu hesapla - kamera boyutunun %20'sini geçmesin
 		const maxShadowBlur = Math.min(cameraWidth, cameraHeight) * 0.2;
 		// Kullanıcının istediği gölge değerini sınırla
-		const safeShadowBlur = Math.min(cameraSettings.value.shadow * dpr, maxShadowBlur);
+		const safeShadowBlur = Math.min(
+			cameraSettings.value.shadow * dpr,
+			maxShadowBlur
+		);
 
 		// Kamera pozisyonunu hesapla
 		let cameraX, cameraY;
 
 		if (dragPosition) {
-			// Sürükleme pozisyonunu kullan
-			cameraX = dragPosition.x;
-			cameraY = dragPosition.y;
+			// Sürükleme pozisyonunu kullan ve zoom'u kompanse et
+			cameraX = dragPosition.x / zoomScale;
+			cameraY = dragPosition.y / zoomScale;
 		} else if (
 			cameraSettings.value.followMouse &&
 			mouseX !== undefined &&
 			mouseY !== undefined
 		) {
-			// Mouse pozisyonuna göre kamera pozisyonunu ayarla
-			cameraX = mouseX - cameraWidth / 2;
-			cameraY = mouseY - cameraHeight / 2;
+			// Mouse pozisyonuna göre kamera pozisyonunu ayarla ve zoom'u kompanse et
+			cameraX = mouseX / zoomScale - cameraWidth / 2;
+			cameraY = mouseY / zoomScale - cameraHeight / 2;
 		} else {
 			// Default pozisyon (sağ alt köşe) veya son pozisyonu kullan
 			cameraX =
-				lastCameraPosition.value.x || canvasWidth - cameraWidth - 20 * dpr;
+				lastCameraPosition.value.x ||
+				canvasWidth / zoomScale - cameraWidth - 20 * dpr;
 			cameraY =
-				lastCameraPosition.value.y || canvasHeight - cameraHeight - 20 * dpr;
+				lastCameraPosition.value.y ||
+				canvasHeight / zoomScale - cameraHeight - 20 * dpr;
 		}
 
-		// Sınırları kontrol et
+		// Sınırları kontrol et (zoom'a göre ayarlanmış)
+		const effectiveCanvasWidth = canvasWidth / zoomScale;
+		const effectiveCanvasHeight = canvasHeight / zoomScale;
+
 		cameraX = Math.max(
 			32 * dpr,
-			Math.min(canvasWidth - cameraWidth - 32 * dpr, cameraX)
+			Math.min(effectiveCanvasWidth - cameraWidth - 32 * dpr, cameraX)
 		);
 		cameraY = Math.max(
 			32 * dpr,
-			Math.min(canvasHeight - cameraHeight - 32 * dpr, cameraY)
+			Math.min(effectiveCanvasHeight - cameraHeight - 32 * dpr, cameraY)
 		);
 
 		// Son pozisyonu kaydet
@@ -70,6 +79,9 @@ export const useCameraRenderer = () => {
 
 		// Context state'i kaydet
 		ctx.save();
+
+		// Zoom ölçeğini uygula
+		ctx.scale(zoomScale, zoomScale);
 
 		// Gölge efekti
 		if (cameraSettings.value.shadow > 0) {
@@ -95,14 +107,7 @@ export const useCameraRenderer = () => {
 		// Kamera alanını kırp ve radius uygula
 		ctx.save(); // Yeni state kaydet
 		ctx.beginPath();
-		useRoundRect(
-			ctx,
-			cameraX,
-			cameraY,
-			cameraWidth,
-			cameraHeight,
-			safeRadius
-		);
+		useRoundRect(ctx, cameraX, cameraY, cameraWidth, cameraHeight, safeRadius);
 		ctx.clip();
 
 		// Mirror efekti için transform uygula
@@ -142,14 +147,7 @@ export const useCameraRenderer = () => {
 
 		// Tıklanabilir alan için path ekle (clip dışında)
 		ctx.beginPath();
-		useRoundRect(
-			ctx,
-			cameraX,
-			cameraY,
-			cameraWidth,
-			cameraHeight,
-			safeRadius
-		);
+		useRoundRect(ctx, cameraX, cameraY, cameraWidth, cameraHeight, safeRadius);
 
 		// Mouse'un kamera üzerinde olup olmadığını kontrol et
 		if (mouseX !== undefined && mouseY !== undefined) {
