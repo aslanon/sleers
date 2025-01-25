@@ -491,6 +491,7 @@ const updateCropArea = () => {
 	}
 
 	// Canvas boyutlarını güncelle
+	const dpr = window.devicePixelRatio || 1;
 	canvasRef.value.width = canvasWidth * dpr;
 	canvasRef.value.height = canvasHeight * dpr;
 
