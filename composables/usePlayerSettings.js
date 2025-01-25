@@ -2,11 +2,11 @@ import { ref, computed } from "vue";
 
 const mouseSize = ref(65);
 const motionBlurValue = ref(50);
-const backgroundColor = ref("#1A1A1A");
-const backgroundImage = ref(null);
-const padding = ref(0);
-const radius = ref(0);
-const shadowSize = ref(0);
+const backgroundColor = ref("");
+const backgroundImage = ref(`/backgrounds/image7.jpg`);
+const padding = ref(32);
+const radius = ref(16);
+const shadowSize = ref(50);
 const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);

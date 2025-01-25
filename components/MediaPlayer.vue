@@ -1334,6 +1334,25 @@ const onVideoVolumeChange = () => {
 // Component lifecycle
 onMounted(() => {
 	initVideo();
+
+	let newImage = backgroundImage.value;
+
+	if (newImage) {
+		bgImageElement.value = new Image();
+		bgImageElement.value.onload = () => {
+			bgImageLoaded.value = true;
+			if (ctx) {
+				updateCanvas(performance.now(), lastMouseX, lastMouseY);
+			}
+		};
+		bgImageElement.value.onerror = () => {
+			console.error("Background image failed to load:", newImage);
+			bgImageLoaded.value = false;
+			bgImageElement.value = null;
+		};
+		bgImageElement.value.src = newImage;
+	}
+
 	window.addEventListener("resize", handleResize);
 	if (videoRef.value && canvasRef.value) {
 		renderVideo();
