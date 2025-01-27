@@ -152,21 +152,27 @@ export const useCameraRenderer = () => {
 
 		// Kamera alanını kırp ve radius uygula - kenar pürüzlerini önle
 		ctx.save();
+
+		// Ana clip path
 		ctx.beginPath();
 		useRoundRect(ctx, cameraX, cameraY, cameraWidth, cameraHeight, safeRadius);
 		ctx.clip();
 
-		// Ek clip path ile pürüzleri önle
+		// Ek clip path ile pürüzleri önle - biraz daha geniş alan
 		ctx.beginPath();
 		useRoundRect(
 			ctx,
-			cameraX - 1,
-			cameraY - 1,
-			cameraWidth + 2,
-			cameraHeight + 2,
-			safeRadius
+			cameraX - 2,
+			cameraY - 2,
+			cameraWidth + 4,
+			cameraHeight + 4,
+			safeRadius + 2
 		);
 		ctx.clip();
+
+		// Smooth edges için arka plan
+		ctx.fillStyle = "rgba(0, 0, 0, 0)";
+		ctx.fill();
 
 		// Mirror efekti için transform uygula
 		if (cameraSettings.value.mirror) {
@@ -175,17 +181,17 @@ export const useCameraRenderer = () => {
 			ctx.translate(-cameraX, -cameraY);
 		}
 
-		// Kamerayı çiz
+		// Kamerayı çiz - biraz daha geniş alan için
 		ctx.drawImage(
 			cameraElement,
 			sourceX,
 			sourceY,
 			sourceWidth,
 			sourceHeight,
-			cameraX,
-			cameraY,
-			cameraWidth,
-			cameraHeight
+			cameraX - 1,
+			cameraY - 1,
+			cameraWidth + 2,
+			cameraHeight + 2
 		);
 
 		ctx.restore();
