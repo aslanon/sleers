@@ -354,13 +354,6 @@ const startEditing = (videoData) => {
 
 // Video kaydetme
 const saveVideo = async () => {
-	const dpr = window.devicePixelRatio || 1;
-	const canvasID = document.getElementById("canvasID");
-
-	// Container boyutlarını al
-	const containerWidth = canvasID.clientWidth * 3;
-	const containerHeight = canvasID.clientHeight * 3;
-
 	try {
 		const filePath = await electron?.ipcRenderer.invoke("SHOW_SAVE_DIALOG", {
 			title: "Videoyu Kaydet",
@@ -374,19 +367,9 @@ const saveVideo = async () => {
 				throw new Error("Canvas bulunamadı");
 			}
 
-			// Orijinal boyutları kaydet
-			const originalWidth = sourceCanvas.width;
-			const originalHeight = sourceCanvas.height;
-
-			// 2K çözünürlük için boyutları ayarla
-			const targetHeight = 1440; // 2K çözünürlük
-			const targetWidth = Math.round(
-				(targetHeight * originalWidth) / originalHeight
-			);
-
 			// Kaydedilecek canvas'ın çözünürlüğünü artır
-			sourceCanvas.width = targetWidth;
-			sourceCanvas.height = targetHeight;
+			// sourceCanvas.width = targetWidth;
+			// sourceCanvas.height = targetHeight;
 
 			// Kayıt durumu mesajı göster
 			const loadingMessage = document.createElement("div");
@@ -505,12 +488,6 @@ const saveVideo = async () => {
 		console.error("Video kaydedilirken hata:", error);
 		alert("Videoyu kaydederken bir hata oluştu: " + error.message);
 	}
-
-	canvasID.width = (containerWidth / 3) * dpr;
-	canvasID.height = (containerHeight / 3) * dpr;
-
-	canvasID.style.width = `${containerWidth}px`;
-	canvasID.style.height = `${containerHeight}px`;
 };
 
 // Değişiklikleri iptal et

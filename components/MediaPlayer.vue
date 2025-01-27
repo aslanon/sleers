@@ -57,6 +57,8 @@ const emit = defineEmits([
 	"muteChange",
 ]);
 
+const scaleValue = 3;
+
 const props = defineProps({
 	videoUrl: {
 		type: String,
@@ -416,8 +418,8 @@ const handleResize = () => {
 
 	// DPR'ı kullanarak canvas çözünürlüğünü artır
 	const dpr = window.devicePixelRatio || 1;
-	canvasRef.value.width = canvasWidth * dpr;
-	canvasRef.value.height = canvasHeight * dpr;
+	canvasRef.value.width = canvasWidth * dpr * scaleValue;
+	canvasRef.value.height = canvasHeight * dpr * scaleValue;
 
 	// Canvas stil boyutlarını ayarla (CSS pixels)
 	canvasRef.value.style.width = `${canvasWidth}px`;
@@ -492,8 +494,8 @@ const updateCropArea = () => {
 
 	// Canvas boyutlarını güncelle
 	const dpr = window.devicePixelRatio || 1;
-	canvasRef.value.width = canvasWidth * dpr;
-	canvasRef.value.height = canvasHeight * dpr;
+	canvasRef.value.width = canvasWidth * dpr * scaleValue;
+	canvasRef.value.height = canvasHeight * dpr * scaleValue;
 
 	// Canvas stil boyutlarını ayarla (CSS pixels)
 	canvasRef.value.style.width = `${canvasWidth}px`;
@@ -539,14 +541,24 @@ const onVideoEnded = () => {
 	if (videoElement) {
 		videoElement.currentTime = 0;
 		videoState.value.currentTime = 0;
-		if (cameraElement) {
-			cameraElement.currentTime = 0;
-		}
 	}
 
+	// Kamera elementini durdur ve başa sar
+	if (cameraElement) {
+		cameraElement.pause();
+		cameraElement.currentTime = 0;
+	}
+
+	// Sesi durdur ve başa sar
 	if (audioRef.value) {
 		audioRef.value.pause();
 		audioRef.value.currentTime = 0;
+	}
+
+	// Canvas animasyonunu durdur
+	if (animationFrame) {
+		cancelAnimationFrame(animationFrame);
+		animationFrame = null;
 	}
 
 	// Event'i emit et
@@ -935,6 +947,33 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 			mouseMotionEnabled.value,
 			motionBlurValue.value
 		);
+
+		// Kamera pozisyonunu güncelle
+		if (cameraElement && cameraSettings.value.followMouse) {
+			// Kamera için offset değerleri
+			const offsetX = 0; // X ekseninde offset
+			const offsetY = 50 * dpr * scaleValue; // Y ekseninde offset
+
+			// Hedef pozisyonu hesapla (mouse pozisyonuna göre)
+			const targetX = currentMouseX + offsetX;
+			const targetY = currentMouseY + offsetY;
+
+			// Smooth geçiş için lerp faktörü (0-1 arası)
+			const lerpFactor = 0.15; // Daha yumuşak hareket için düşük değer
+
+			// Lerp ile yumuşak geçiş uygula
+			if (!lastCameraX.value) lastCameraX.value = targetX;
+			if (!lastCameraY.value) lastCameraY.value = targetY;
+
+			lastCameraX.value += (targetX - lastCameraX.value) * lerpFactor;
+			lastCameraY.value += (targetY - lastCameraY.value) * lerpFactor;
+
+			// Kamera pozisyonunu güncelle
+			lastCameraPosition.value = {
+				x: lastCameraX.value,
+				y: lastCameraY.value,
+			};
+		}
 	}
 
 	// Kamera çizimi
@@ -942,25 +981,8 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 		let cameraPos;
 		if (isCameraDragging.value) {
 			cameraPos = cameraPosition.value;
-		} else if (
-			cameraSettings.value.followMouse &&
-			currentMouseX !== undefined &&
-			currentMouseY !== undefined
-		) {
-			// Mouse'dan Y ekseninde 150px aşağıya kaydır
-			// camera offset
-			const offsetY = 50;
-
-			// Hedef pozisyonu hesapla
-			const targetX = currentMouseX;
-			const targetY = currentMouseY + offsetY;
-
-			// Smooth geçiş için lerp uygula
-			const ease = 0.1; // Düşük değer daha yavaş geçiş
-			lastCameraX.value += (targetX - lastCameraX.value) * ease;
-			lastCameraY.value += (targetY - lastCameraY.value) * ease;
-
-			cameraPos = { x: lastCameraX.value, y: lastCameraY.value };
+		} else if (cameraSettings.value.followMouse && lastCameraPosition.value) {
+			cameraPos = lastCameraPosition.value;
 		}
 
 		drawCamera(
@@ -1169,8 +1191,8 @@ const onVideoMetadataLoaded = () => {
 
 		// DPR'ı kullanarak canvas çözünürlüğünü artır
 		const dpr = window.devicePixelRatio || 1;
-		canvasRef.value.width = canvasWidth * dpr;
-		canvasRef.value.height = canvasHeight * dpr;
+		canvasRef.value.width = canvasWidth * dpr * scaleValue;
+		canvasRef.value.height = canvasHeight * dpr * scaleValue;
 
 		// Canvas stil boyutlarını ayarla (CSS pixels)
 		canvasRef.value.style.width = `${canvasWidth}px`;
@@ -1658,21 +1680,28 @@ const lastCameraY = ref(0);
 
 // Mouse event handlers
 const handleMouseDown = (e) => {
+	if (
+		!canvasRef.value ||
+		!isMouseOverCamera.value ||
+		cameraSettings.value.followMouse
+	)
+		return;
+
 	const rect = canvasRef.value.getBoundingClientRect();
 	const dpr = window.devicePixelRatio || 1;
-	const mouseX = (e.clientX - rect.left) * dpr;
-	const mouseY = (e.clientY - rect.top) * dpr;
+	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
+	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
 
-	if (isMouseOverCamera.value && !cameraSettings.value.followMouse) {
-		startCameraDrag(e, lastCameraPosition.value);
-	}
+	startCameraDrag(e, lastCameraPosition.value, mouseX, mouseY);
 };
 
 const handleMouseMove = (e) => {
+	if (!canvasRef.value) return;
+
 	const rect = canvasRef.value.getBoundingClientRect();
 	const dpr = window.devicePixelRatio || 1;
-	const mouseX = (e.clientX - rect.left) * dpr;
-	const mouseY = (e.clientY - rect.top) * dpr;
+	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
+	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
 
 	// Canvas'ı güncelle
 	requestAnimationFrame(() => {

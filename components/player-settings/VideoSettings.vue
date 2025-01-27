@@ -21,7 +21,7 @@
 			label="Radius"
 			desc="Video'nun köşelerinin yuvarlaklığını ayarlar."
 			:min="0"
-			:max="50"
+			:max="320"
 			:step="2"
 			unit="px"
 		/>

@@ -21,8 +21,8 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		centerX,
 		centerY
 	) => {
-		let originX = position.x * 10;
-		let originY = position.y * 10;
+		let originX = position.x * 40;
+		let originY = position.y * 40;
 
 		return { originX, originY };
 	};

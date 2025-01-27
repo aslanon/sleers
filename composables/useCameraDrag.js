@@ -2,18 +2,21 @@ import { ref } from "vue";
 
 export const useCameraDrag = () => {
 	const isDragging = ref(false);
-	const dragStart = ref({ x: 0, y: 0 });
+	const dragOffset = ref({ x: 0, y: 0 });
 	const cameraPosition = ref({ x: 0, y: 0 });
 
-	const startDrag = (e, currentPosition) => {
+	const startDrag = (e, currentPosition, mouseX, mouseY) => {
 		isDragging.value = true;
-		dragStart.value = {
-			x: e.clientX - currentPosition.x,
-			y: e.clientY - currentPosition.y,
+		const dpr = window.devicePixelRatio || 1;
+
+		// Mouse ile kamera arasındaki offset'i hesapla
+		dragOffset.value = {
+			x: mouseX - currentPosition.x,
+			y: mouseY - currentPosition.y,
 		};
+
 		cameraPosition.value = currentPosition;
 
-		// Add global event listeners
 		window.addEventListener("mousemove", handleDrag);
 		window.addEventListener("mouseup", stopDrag);
 	};
@@ -21,9 +24,15 @@ export const useCameraDrag = () => {
 	const handleDrag = (e) => {
 		if (!isDragging.value) return;
 
+		const dpr = window.devicePixelRatio || 1;
+		const rect = document.getElementById("canvasID").getBoundingClientRect();
+		const mouseX = (e.clientX - rect.left) * dpr * 3; // scaleValue = 3
+		const mouseY = (e.clientY - rect.top) * dpr * 3;
+
+		// Mouse pozisyonundan offset'i çıkararak kamera pozisyonunu hesapla
 		cameraPosition.value = {
-			x: e.clientX - dragStart.value.x,
-			y: e.clientY - dragStart.value.y,
+			x: mouseX - dragOffset.value.x,
+			y: mouseY - dragOffset.value.y,
 		};
 	};
 

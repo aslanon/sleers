@@ -21,6 +21,8 @@ const cursorImages = {
 	text: textCursor,
 };
 
+const scaleValue = 3;
+
 export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 	// Mouse animasyonu için state
 	const previousPositions = ref([]);
@@ -77,7 +79,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		} = MOTION_BLUR_CONSTANTS;
 
 		// Mouse boyutunu kesinlikle sabit tut
-		const size = mouseSize * dpr; // DPR ile ölçekle
+		const size = mouseSize * dpr * scaleValue; // DPR ile ölçekle
 		// Offset'leri boyuta göre oransal olarak hesapla
 		const offsetX = size * 0.3;
 		const offsetY = size * 0.2;
@@ -101,9 +103,9 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		// Shadow özelliklerini ayarla
 		ctx.save();
 		ctx.shadowColor = "rgba(0, 0, 0, 0.8 )";
-		ctx.shadowBlur = 10 * dpr;
-		ctx.shadowOffsetX = 1 * dpr;
-		ctx.shadowOffsetY = 1 * dpr;
+		ctx.shadowBlur = 10 * dpr * scaleValue;
+		ctx.shadowOffsetX = 1 * dpr * scaleValue;
+		ctx.shadowOffsetY = 1 * dpr * scaleValue;
 
 		if (!mouseMotionEnabled || !isSignificantMovement) {
 			ctx.drawImage(cursorImage, x - offsetX, y - offsetY, size, size);
