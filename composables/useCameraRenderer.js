@@ -198,6 +198,17 @@ export const useCameraRenderer = () => {
 
 		// Mouse'un kamera üzerinde olup olmadığını kontrol et
 		if (mouseX !== undefined && mouseY !== undefined) {
+			// Mouse koordinatlarını canvas koordinat sistemine çevir
+			const canvasRect = ctx.canvas.getBoundingClientRect();
+			const scaleX = ctx.canvas.width / canvasRect.width;
+			const scaleY = ctx.canvas.height / canvasRect.height;
+
+			// Mouse'un canvas üzerindeki pozisyonunu hesapla
+			const canvasMouseX = mouseX;
+			const canvasMouseY = mouseY;
+
+			// Kamera alanını belirle
+			ctx.save();
 			ctx.beginPath();
 			useRoundRect(
 				ctx,
@@ -207,7 +218,10 @@ export const useCameraRenderer = () => {
 				cameraHeight,
 				safeRadius
 			);
-			isMouseOverCamera.value = ctx.isPointInPath(mouseX, mouseY);
+
+			// Mouse'un kamera alanı içinde olup olmadığını kontrol et
+			isMouseOverCamera.value = ctx.isPointInPath(canvasMouseX, canvasMouseY);
+			ctx.restore();
 		}
 
 		// Context state'i geri yükle

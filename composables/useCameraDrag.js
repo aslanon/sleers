@@ -7,15 +7,14 @@ export const useCameraDrag = () => {
 
 	const startDrag = (e, currentPosition, mouseX, mouseY) => {
 		isDragging.value = true;
-		const dpr = window.devicePixelRatio || 1;
 
 		// Mouse ile kamera arasındaki offset'i hesapla
 		dragOffset.value = {
-			x: mouseX - currentPosition.x,
-			y: mouseY - currentPosition.y,
+			x: mouseX - (currentPosition?.x || 0),
+			y: mouseY - (currentPosition?.y || 0),
 		};
 
-		cameraPosition.value = currentPosition;
+		cameraPosition.value = currentPosition || { x: 0, y: 0 };
 
 		window.addEventListener("mousemove", handleDrag);
 		window.addEventListener("mouseup", stopDrag);
@@ -24,12 +23,16 @@ export const useCameraDrag = () => {
 	const handleDrag = (e) => {
 		if (!isDragging.value) return;
 
-		const dpr = window.devicePixelRatio || 1;
-		const rect = document.getElementById("canvasID").getBoundingClientRect();
-		const mouseX = (e.clientX - rect.left) * dpr * 3; // scaleValue = 3
-		const mouseY = (e.clientY - rect.top) * dpr * 3;
+		const canvas = e.target.closest("canvas");
+		if (!canvas) return;
 
-		// Mouse pozisyonundan offset'i çıkararak kamera pozisyonunu hesapla
+		const rect = canvas.getBoundingClientRect();
+		const dpr = window.devicePixelRatio || 1;
+		const scaleValue = 3;
+
+		const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
+		const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
+
 		cameraPosition.value = {
 			x: mouseX - dragOffset.value.x,
 			y: mouseY - dragOffset.value.y,
@@ -44,6 +47,7 @@ export const useCameraDrag = () => {
 
 	return {
 		isDragging,
+		dragOffset,
 		cameraPosition,
 		startDrag,
 		handleDrag,

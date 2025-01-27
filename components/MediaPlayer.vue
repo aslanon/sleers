@@ -7,17 +7,11 @@
 			ref="containerRef"
 			class="relative w-full h-full overflow-hidden flex items-center justify-center"
 		>
-			<div
-				class="relative"
-				:style="{
-					width: `${cropArea.width}px`,
-					height: `${cropArea.height}px`,
-				}"
-			>
+			<div class="relative w-full h-full">
 				<canvas
 					id="canvasID"
 					ref="canvasRef"
-					class="absolute inset-0 w-full h-full"
+					class="w-full m-auto h-full object-contain"
 				></canvas>
 			</div>
 
@@ -148,6 +142,7 @@ const {
 	motionBlurValue,
 	zoomRanges,
 	currentZoomRange,
+	videoCrop,
 	MOTION_BLUR_CONSTANTS,
 	setCurrentZoomRange,
 	cameraSettings,
@@ -159,6 +154,7 @@ const { drawCamera, isMouseOverCamera, lastCameraPosition } =
 const {
 	isDragging: isCameraDragging,
 	cameraPosition,
+	dragOffset,
 	startDrag: startCameraDrag,
 	stopDrag: stopCameraDrag,
 } = useCameraDrag();
@@ -391,29 +387,14 @@ const handleResize = () => {
 
 	// Canvas boyutlarını container'a göre ayarla
 	let canvasWidth, canvasHeight;
-	if (!cropRatio.value || cropRatio.value === "auto") {
-		// Auto modunda video aspect ratio'sunu koru
-		if (videoRatio > containerRatio) {
-			canvasWidth = containerWidth;
-			canvasHeight = containerWidth / videoRatio;
-		} else {
-			canvasHeight = containerHeight;
-			canvasWidth = containerHeight * videoRatio;
-		}
+	if (videoRatio > containerRatio) {
+		// Video daha geniş, genişliğe göre ölçekle
+		canvasWidth = containerWidth;
+		canvasHeight = containerWidth / videoRatio;
 	} else {
-		// Seçilen aspect ratio'yu kullan
-		const [targetWidth, targetHeight] = cropRatio.value.split(":").map(Number);
-		const targetRatio = targetWidth / targetHeight;
-
-		if (containerRatio > targetRatio) {
-			// Container daha geniş, yüksekliğe göre hesapla
-			canvasHeight = containerHeight;
-			canvasWidth = containerHeight * targetRatio;
-		} else {
-			// Container daha dar, genişliğe göre hesapla
-			canvasWidth = containerWidth;
-			canvasHeight = containerWidth / targetRatio;
-		}
+		// Video daha dar, yüksekliğe göre ölçekle
+		canvasHeight = containerHeight;
+		canvasWidth = containerHeight * videoRatio;
 	}
 
 	// DPR'ı kullanarak canvas çözünürlüğünü artır
@@ -428,19 +409,8 @@ const handleResize = () => {
 	// Canvas transform ayarları
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-	// Kırpma alanını güncelle
-	cropArea.value = {
-		width: canvasWidth,
-		height: canvasHeight,
-		x: 0,
-		y: 0,
-	};
-
 	// Canvas'ı hemen güncelle
 	requestAnimationFrame(() => updateCanvas(performance.now()));
-
-	// Değişiklikleri emit et
-	emit("cropChange", getCropData());
 };
 
 // Kırpma alanını güncelle
@@ -733,7 +703,9 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 
 	// FPS kontrolü
 	if (timestamp - lastFrameTime < frameInterval) {
-		animationFrame = requestAnimationFrame(updateCanvas);
+		animationFrame = requestAnimationFrame((t) =>
+			updateCanvas(t, mouseX, mouseY)
+		);
 		return;
 	}
 
@@ -775,32 +747,68 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 	// Ana context state'i kaydet
 	ctx.save();
 
-	// Video'nun orijinal en-boy oranını koru
-	const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
-	const canvasWidth = canvasRef.value.width;
-	const canvasHeight = canvasRef.value.height;
-
 	// Video'yu canvas'a sığdırırken aspect ratio'yu koru
 	let drawWidth, drawHeight, x, y;
+	let sourceX, sourceY, sourceWidth, sourceHeight;
 
 	// Önce padding'i hesaba kat
-	const availableWidth = canvasWidth - padding.value * 2 * dpr;
-	const availableHeight = canvasHeight - padding.value * 2 * dpr;
-	const availableRatio = availableWidth / availableHeight;
+	const availableWidth = canvasRef.value.width - padding.value * 2 * dpr;
+	const availableHeight = canvasRef.value.height - padding.value * 2 * dpr;
 
-	if (videoRatio > availableRatio) {
-		// Video daha geniş, genişliğe göre ölçekle
-		drawWidth = availableWidth;
-		drawHeight = drawWidth / videoRatio;
-		x = padding.value * dpr;
-		y = padding.value * dpr + (availableHeight - drawHeight) / 2;
+	// Video'nun orijinal boyutları
+	const videoWidth = videoElement.videoWidth;
+	const videoHeight = videoElement.videoHeight;
+	const originalVideoRatio = videoWidth / videoHeight;
+
+	// Seçilen aspect ratio'ya göre boyutları hesapla
+	if (videoCrop.value.aspectRatio === "original") {
+		// Orijinal video oranını kullan
+		sourceX = 0;
+		sourceY = 0;
+		sourceWidth = videoWidth;
+		sourceHeight = videoHeight;
+
+		if (originalVideoRatio > availableWidth / availableHeight) {
+			drawWidth = availableWidth;
+			drawHeight = drawWidth / originalVideoRatio;
+		} else {
+			drawHeight = availableHeight;
+			drawWidth = drawHeight * originalVideoRatio;
+		}
 	} else {
-		// Video daha dar, yüksekliğe göre ölçekle
-		drawHeight = availableHeight;
-		drawWidth = drawHeight * videoRatio;
-		x = padding.value * dpr + (availableWidth - drawWidth) / 2;
-		y = padding.value * dpr;
+		// Seçilen aspect ratio'yu kullan
+		const [widthRatio, heightRatio] = videoCrop.value.aspectRatio
+			.split(":")
+			.map(Number);
+		const targetRatio = widthRatio / heightRatio;
+
+		if (originalVideoRatio > targetRatio) {
+			// Video daha geniş, yükseklikten kırp
+			sourceHeight = videoHeight;
+			sourceWidth = videoHeight * targetRatio;
+			sourceY = 0;
+			sourceX = (videoWidth - sourceWidth) / 2 + videoDragOffset.value.x;
+		} else {
+			// Video daha dar, genişlikten kırp
+			sourceWidth = videoWidth;
+			sourceHeight = videoWidth / targetRatio;
+			sourceX = 0;
+			sourceY = (videoHeight - sourceHeight) / 2 + videoDragOffset.value.y;
+		}
+
+		// Çizim boyutlarını hesapla
+		if (targetRatio > availableWidth / availableHeight) {
+			drawWidth = availableWidth;
+			drawHeight = drawWidth / targetRatio;
+		} else {
+			drawHeight = availableHeight;
+			drawWidth = drawHeight * targetRatio;
+		}
 	}
+
+	// Pozisyonu ortala
+	x = padding.value * dpr + (availableWidth - drawWidth) / 2;
+	y = padding.value * dpr + (availableHeight - drawHeight) / 2;
 
 	// Aktif zoom segmentini bul
 	const currentTime = videoElement.currentTime;
@@ -855,17 +863,19 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 	}
 
 	// Video alanını kırp ve radius uygula
-	ctx.beginPath();
-	useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
-	ctx.clip();
+	if (radius.value > 0) {
+		ctx.beginPath();
+		useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
+		ctx.clip();
+	}
 
 	// Video'yu yüksek kalitede çiz
 	ctx.drawImage(
 		videoElement,
-		0,
-		0,
-		videoElement.videoWidth,
-		videoElement.videoHeight,
+		sourceX,
+		sourceY,
+		sourceWidth,
+		sourceHeight,
 		x,
 		y,
 		drawWidth,
@@ -997,8 +1007,20 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 		);
 	}
 
-	animationFrame = requestAnimationFrame(updateCanvas);
+	animationFrame = requestAnimationFrame((t) =>
+		updateCanvas(t, mouseX, mouseY)
+	);
 };
+
+// Watch videoCrop changes
+watch(
+	() => videoCrop.value,
+	() => {
+		if (!videoElement || !canvasRef.value) return;
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	},
+	{ deep: true }
+);
 
 // Props'ları izle
 watch(
@@ -1088,7 +1110,6 @@ const initCameraVideo = () => {
 const initVideo = () => {
 	try {
 		console.log("[MediaPlayer] Video yükleniyor, URL:", props.videoUrl);
-		console.log("[MediaPlayer] Kamera yükleniyor, URL:", props.cameraUrl);
 
 		if (!props.videoUrl) {
 			console.warn("[MediaPlayer] Video URL'i boş!");
@@ -1142,6 +1163,9 @@ const initVideo = () => {
 		// Video URL'ini set et ve yüklemeyi başlat
 		videoElement.src = props.videoUrl;
 		videoElement.load();
+
+		// İlk frame'i çiz
+		requestAnimationFrame(() => updateCanvas(performance.now()));
 	} catch (error) {
 		console.error("[MediaPlayer] Video yükleme hatası:", error);
 	}
@@ -1161,11 +1185,10 @@ const onVideoMetadataLoaded = () => {
 
 		// Context'i oluştur
 		ctx = canvasRef.value.getContext("2d", {
-			alpha: false,
+			alpha: true,
 			desynchronized: false,
 			willReadFrequently: false,
 			preserveDrawingBuffer: true,
-			antialias: true,
 		});
 
 		// Container boyutlarını al
@@ -1204,21 +1227,6 @@ const onVideoMetadataLoaded = () => {
 
 		// Canvas transform ayarları
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-		// Canvas stil ayarları
-		Object.assign(canvasRef.value.style, {
-			display: "block",
-			transform: "translateZ(0)",
-			backfaceVisibility: "hidden",
-			perspective: "1000px",
-			willChange: "transform",
-			imageRendering: "high-quality",
-			webkitImageRendering: "high-quality",
-			position: "absolute",
-			left: "50%",
-			top: "50%",
-			transform: "translate(-50%, -50%)",
-		});
 
 		// Video boyutlarını kaydet
 		videoSize.value = {
@@ -1380,9 +1388,12 @@ onMounted(() => {
 	if (videoRef.value && canvasRef.value) {
 		renderVideo();
 	}
-	canvasRef.value.addEventListener("mousedown", handleMouseDown);
-	canvasRef.value.addEventListener("mousemove", handleMouseMove);
-	window.addEventListener("mouseup", handleMouseUp);
+
+	// Event listener'ları ekle
+	if (canvasRef.value) {
+		canvasRef.value.addEventListener("mousedown", handleMouseDown);
+		canvasRef.value.addEventListener("mousemove", handleMouseMove);
+	}
 });
 
 onUnmounted(() => {
@@ -1409,15 +1420,19 @@ onUnmounted(() => {
 		animationFrame = null;
 	}
 
-	videoRef.value = null;
-	cameraRef.value = null;
-	canvasRef.value = null;
-	cleanupZoom();
+	// Event listener'ları temizle
 	if (canvasRef.value) {
 		canvasRef.value.removeEventListener("mousedown", handleMouseDown);
 		canvasRef.value.removeEventListener("mousemove", handleMouseMove);
 	}
+	window.removeEventListener("mousemove", handleCameraDrag);
+	window.removeEventListener("mousemove", handleVideoMouseMove);
 	window.removeEventListener("mouseup", handleMouseUp);
+
+	videoRef.value = null;
+	cameraRef.value = null;
+	canvasRef.value = null;
+	cleanupZoom();
 });
 
 // Props değişikliklerini izle
@@ -1603,96 +1618,61 @@ defineExpose({
 	},
 });
 
-// cropRatio değişikliğini izle
-watch(cropRatio, (newRatio) => {
-	if (!videoElement) return;
-
-	if (!newRatio || newRatio === "auto") {
-		// Auto seçildiğinde orijinal boyutları kullan
-		cropArea.value = {
-			x: 0,
-			y: 0,
-			width: videoElement.videoWidth,
-			height: videoElement.videoHeight,
-		};
-	} else {
-		// Diğer aspect ratio'lar için mevcut hesaplama
-		const [widthRatio, heightRatio] = newRatio.split(":").map(Number);
-		const targetRatio = widthRatio / heightRatio;
-		const currentRatio = videoElement.videoWidth / videoElement.videoHeight;
-
-		if (currentRatio > targetRatio) {
-			// Video daha geniş, yüksekliği kullan
-			const newWidth = videoElement.videoHeight * targetRatio;
-			cropArea.value = {
-				x: (videoElement.videoWidth - newWidth) / 2,
-				y: 0,
-				width: newWidth,
-				height: videoElement.videoHeight,
-			};
-		} else {
-			// Video daha dar, genişliği kullan
-			const newHeight = videoElement.videoWidth / targetRatio;
-			cropArea.value = {
-				x: 0,
-				y: (videoElement.videoHeight - newHeight) / 2,
-				width: videoElement.videoWidth,
-				height: newHeight,
-			};
-		}
-	}
-
-	// Crop değişikliğini bildir
-	emit("cropChange", cropArea.value);
-});
-
-// Aspect ratio değişikliğini izle ve canvas'ı güncelle
-watch(
-	cropRatio,
-	(newRatio) => {
-		console.log("[MediaPlayer] Aspect ratio changed:", newRatio);
-
-		// Canvas'ı yeniden boyutlandır
-		if (containerRef.value && canvasRef.value) {
-			const container = containerRef.value;
-			const canvas = canvasRef.value;
-
-			// Container boyutlarını güncelle
-			requestAnimationFrame(() => {
-				// Canvas boyutlarını güncelle
-				canvas.width = container.clientWidth;
-				canvas.height = container.clientHeight;
-
-				// Kırpma alanını ve video pozisyonunu güncelle
-				updateCropArea();
-
-				// Canvas'ı hemen güncelle
-				updateCanvas(performance.now());
-			});
-		}
-	},
-	{ immediate: true }
-);
-
 // Kamera pozisyonu için state
 const lastCameraX = ref(0);
 const lastCameraY = ref(0);
 
 // Mouse event handlers
 const handleMouseDown = (e) => {
-	if (
-		!canvasRef.value ||
-		!isMouseOverCamera.value ||
-		cameraSettings.value.followMouse
-	)
-		return;
+	if (!canvasRef.value) return;
 
 	const rect = canvasRef.value.getBoundingClientRect();
 	const dpr = window.devicePixelRatio || 1;
 	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
 	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
 
-	startCameraDrag(e, lastCameraPosition.value, mouseX, mouseY);
+	// Eğer kamera üzerindeyse ve takip modu kapalıysa kamerayı sürükle
+	if (isMouseOverCamera.value && !cameraSettings.value.followMouse) {
+		e.preventDefault();
+		e.stopPropagation();
+		startCameraDrag(e, lastCameraPosition.value, mouseX, mouseY);
+	}
+};
+
+const handleCameraDrag = (e) => {
+	if (!canvasRef.value || !isCameraDragging.value) return;
+
+	e.preventDefault();
+	e.stopPropagation();
+
+	const rect = canvasRef.value.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
+	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
+
+	// Mouse pozisyonundan offset'i çıkararak kamera pozisyonunu güncelle
+	const newPosition = {
+		x: mouseX - dragOffset.value.x,
+		y: mouseY - dragOffset.value.y,
+	};
+
+	// Sınırları kontrol et
+	const canvas = canvasRef.value;
+	const cameraSize = (canvas.width * cameraSettings.value.size) / 100;
+
+	newPosition.x = Math.max(
+		-cameraSize / 2,
+		Math.min(canvas.width - cameraSize / 2, newPosition.x)
+	);
+	newPosition.y = Math.max(
+		-cameraSize / 2,
+		Math.min(canvas.height - cameraSize / 2, newPosition.y)
+	);
+
+	lastCameraPosition.value = newPosition;
+
+	// Canvas'ı güncelle
+	requestAnimationFrame(() => updateCanvas(performance.now()));
 };
 
 const handleMouseMove = (e) => {
@@ -1712,8 +1692,110 @@ const handleMouseMove = (e) => {
 const handleMouseUp = () => {
 	if (isCameraDragging.value) {
 		stopCameraDrag();
+		window.removeEventListener("mousemove", handleCameraDrag);
+		window.removeEventListener("mouseup", handleMouseUp);
 	}
 };
+
+// Video drag state'leri
+const isDraggingVideo = ref(false);
+const dragStartPos = ref({ x: 0, y: 0 });
+const videoDragOffset = ref({ x: 0, y: 0 });
+
+// Video drag handlers
+const handleVideoMouseDown = (e) => {
+	// Kamera sürükleniyorsa video sürüklemeyi engelle
+	if (isCameraDragging.value) return;
+
+	if (!videoElement || videoCrop.value.aspectRatio === "original") return;
+
+	const rect = canvasRef.value.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	const mouseX = (e.clientX - rect.left) * dpr;
+	const mouseY = (e.clientY - rect.top) * dpr;
+
+	isDraggingVideo.value = true;
+	dragStartPos.value = {
+		x: mouseX - videoDragOffset.value.x,
+		y: mouseY - videoDragOffset.value.y,
+	};
+
+	window.addEventListener("mousemove", handleVideoMouseMove);
+	window.addEventListener("mouseup", handleVideoMouseUp);
+};
+
+const handleVideoMouseMove = (e) => {
+	// Kamera sürüklenmeye başlarsa video sürüklemeyi durdur
+	if (isCameraDragging.value) {
+		handleVideoMouseUp();
+		return;
+	}
+
+	if (!isDraggingVideo.value || !videoElement || !canvasRef.value) return;
+
+	const rect = canvasRef.value.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	const mouseX = (e.clientX - rect.left) * dpr;
+	const mouseY = (e.clientY - rect.top) * dpr;
+
+	// Yeni offset'i hesapla
+	const newOffsetX = mouseX - dragStartPos.value.x;
+	const newOffsetY = mouseY - dragStartPos.value.y;
+
+	// Video boyutlarını al
+	const videoWidth = videoElement.videoWidth;
+	const videoHeight = videoElement.videoHeight;
+
+	// Seçilen aspect ratio'ya göre maksimum offset'leri hesapla
+	const [widthRatio, heightRatio] = videoCrop.value.aspectRatio
+		.split(":")
+		.map(Number);
+	const targetRatio = widthRatio / heightRatio;
+	const originalRatio = videoWidth / videoHeight;
+
+	let maxOffsetX = 0;
+	let maxOffsetY = 0;
+
+	if (originalRatio > targetRatio) {
+		// Video daha geniş, yatayda sınırla
+		maxOffsetX = (videoWidth - videoHeight * targetRatio) / 2;
+		maxOffsetY = 0;
+	} else {
+		// Video daha dar, dikeyde sınırla
+		maxOffsetX = 0;
+		maxOffsetY = (videoHeight - videoWidth / targetRatio) / 2;
+	}
+
+	// Offset'leri sınırla
+	videoDragOffset.value = {
+		x: Math.max(-maxOffsetX, Math.min(maxOffsetX, newOffsetX)),
+		y: Math.max(-maxOffsetY, Math.min(maxOffsetY, newOffsetY)),
+	};
+
+	// Canvas'ı güncelle
+	requestAnimationFrame(() => updateCanvas(performance.now()));
+};
+
+const handleVideoMouseUp = () => {
+	isDraggingVideo.value = false;
+	window.removeEventListener("mousemove", handleVideoMouseMove);
+	window.removeEventListener("mouseup", handleVideoMouseUp);
+};
+
+// Template'e event listener'ları ekle
+onMounted(() => {
+	if (canvasRef.value) {
+		canvasRef.value.addEventListener("mousedown", handleVideoMouseDown);
+	}
+});
+
+onUnmounted(() => {
+	if (canvasRef.value) {
+		canvasRef.value.removeEventListener("mousedown", handleVideoMouseDown);
+	}
+	window.removeEventListener("mousemove", handleVideoMouseMove);
+	window.removeEventListener("mouseup", handleMouseUp);
+});
 </script>
 
 <style scoped>

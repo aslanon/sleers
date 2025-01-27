@@ -1,13 +1,13 @@
 import { ref, computed } from "vue";
 
-const mouseSize = ref(65);
+const mouseSize = ref(64);
 const motionBlurValue = ref(50);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const padding = ref(128);
 const radius = ref(64);
 const shadowSize = ref(50);
-const cropRatio = ref("");
+const cropRatio = ref("original");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
 const cameraSettings = ref({
@@ -46,6 +46,15 @@ const activeZoomScale = computed(() => currentZoomRange.value?.scale || 1.25);
 const activeZoomPosition = computed(
 	() => currentZoomRange.value?.position || "center"
 );
+
+// Video crop ayarları
+const videoCrop = ref({
+	aspectRatio: "original", // original, 16:9, 9:16, 4:3, 3:4
+	x: 0,
+	y: 0,
+	width: 100,
+	height: 100,
+});
 
 export const usePlayerSettings = () => {
 	const updateMouseSize = (size) => {
@@ -157,6 +166,14 @@ export const usePlayerSettings = () => {
 		};
 	};
 
+	// Video crop ayarlarını güncelle
+	const updateVideoCrop = (newCrop) => {
+		videoCrop.value = {
+			...videoCrop.value,
+			...newCrop,
+		};
+	};
+
 	return {
 		mouseSize,
 		motionBlurValue,
@@ -186,5 +203,7 @@ export const usePlayerSettings = () => {
 		updateZoomRange,
 		setCurrentZoomRange,
 		updateCameraSettings,
+		videoCrop,
+		updateVideoCrop,
 	};
 };

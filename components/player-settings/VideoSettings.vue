@@ -6,6 +6,26 @@
 				Video görüntüsü için ayarları buradan yapabilirsiniz.
 			</p>
 		</div> -->
+		<div class="setting-group">
+			<label class="setting-label">Video Kırpma</label>
+			<p class="text-sm text-gray-400 mb-4">
+				Video görüntüsünün en-boy oranını ayarlayın.
+			</p>
+			<div class="grid grid-cols-3 gap-2">
+				<button
+					v-for="ratio in aspectRatios"
+					:key="ratio.value"
+					@click="selectAspectRatio(ratio.value)"
+					class="aspect-ratio-button"
+					:class="{
+						'aspect-ratio-selected': videoCrop.aspectRatio === ratio.value,
+					}"
+				>
+					{{ ratio.label }}
+				</button>
+			</div>
+		</div>
+
 		<SliderInput
 			v-model="paddingValue"
 			label="Padding"
@@ -105,11 +125,13 @@ const {
 	padding,
 	radius,
 	shadowSize,
+	videoCrop,
 	updateBackgroundColor,
 	updatePadding,
 	updateRadius,
 	updateShadowSize,
 	updateBackgroundImage,
+	updateVideoCrop,
 } = usePlayerSettings();
 
 // Renk paleti
@@ -164,6 +186,16 @@ const radiusValue = ref(radius.value);
 const shadowValue = ref(shadowSize.value);
 const selectedWallpaper = ref(null);
 
+// Aspect ratio options
+const aspectRatios = [
+	{ value: "original", label: "Özgün" },
+	{ value: "16:9", label: "16:9" },
+	{ value: "9:16", label: "9:16" },
+	{ value: "4:3", label: "4:3" },
+	{ value: "3:4", label: "3:4" },
+	{ value: "1:1", label: "1:1" },
+];
+
 // Renk seçimi
 const selectColor = (color) => {
 	selectedColor.value = color;
@@ -174,6 +206,13 @@ const selectColor = (color) => {
 const selectBackgroundImage = (imageName) => {
 	selectedWallpaper.value = imageName;
 	updateBackgroundImage(`/backgrounds/${imageName}.jpg`);
+};
+
+// Select aspect ratio
+const selectAspectRatio = (ratio) => {
+	updateVideoCrop({
+		aspectRatio: ratio,
+	});
 };
 
 // Padding değişikliğini izle
@@ -300,5 +339,14 @@ onMounted(() => {
 
 .wallpaper-button-selected {
 	border-color: #ffffff;
+}
+
+.aspect-ratio-button {
+	@apply px-4 py-2 rounded-lg bg-zinc-800 text-sm font-medium text-gray-300 
+	transition-all duration-200 hover:bg-zinc-700 hover:text-white;
+}
+
+.aspect-ratio-selected {
+	@apply bg-blue-600 text-white hover:bg-blue-500;
 }
 </style>
