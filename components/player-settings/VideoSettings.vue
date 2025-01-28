@@ -94,6 +94,16 @@
 				</button>
 			</div>
 		</div>
+
+		<SliderInput
+			v-model="blurValue"
+			label="Arkaplan Bulanıklığı"
+			desc="Arkaplan görselinin bulanıklık seviyesini ayarlar."
+			:min="0"
+			:max="100"
+			:step="1"
+			unit="px"
+		/>
 	</div>
 </template>
 
@@ -126,12 +136,14 @@ const {
 	radius,
 	shadowSize,
 	videoCrop,
+	backgroundBlur,
 	updateBackgroundColor,
 	updatePadding,
 	updateRadius,
 	updateShadowSize,
 	updateBackgroundImage,
 	updateVideoCrop,
+	updateBackgroundBlur,
 } = usePlayerSettings();
 
 // Renk paleti
@@ -185,6 +197,7 @@ const paddingValue = ref(padding.value);
 const radiusValue = ref(radius.value);
 const shadowValue = ref(shadowSize.value);
 const selectedWallpaper = ref(null);
+const blurValue = ref(backgroundBlur.value);
 
 // Aspect ratio options
 const aspectRatios = [
@@ -256,6 +269,19 @@ watch(
 	() => shadowSize.value,
 	(newValue) => {
 		shadowValue.value = newValue;
+	}
+);
+
+// Watch blur value changes
+watch(blurValue, (newValue) => {
+	updateBackgroundBlur(Number(newValue));
+});
+
+// Watch store blur changes
+watch(
+	() => backgroundBlur.value,
+	(newValue) => {
+		blurValue.value = newValue;
 	}
 );
 

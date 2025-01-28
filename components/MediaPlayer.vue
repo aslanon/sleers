@@ -131,6 +131,7 @@ const props = defineProps({
 const {
 	backgroundColor,
 	backgroundImage,
+	backgroundBlur,
 	padding,
 	radius,
 	shadowSize,
@@ -733,7 +734,25 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 			const x = (canvasRef.value.width - scaledWidth) / 2;
 			const y = (canvasRef.value.height - scaledHeight) / 2;
 
-			ctx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
+			// Blur efekti için yeni bir canvas oluştur
+			const tempCanvas = document.createElement("canvas");
+			const tempCtx = tempCanvas.getContext("2d");
+			tempCanvas.width = canvasRef.value.width;
+			tempCanvas.height = canvasRef.value.height;
+
+			// Önce geçici canvas'a resmi çiz
+			tempCtx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
+
+			// Blur efektini uygula
+			if (backgroundBlur.value > 0) {
+				ctx.filter = `blur(${backgroundBlur.value}px)`;
+			}
+
+			// Blur'lu resmi ana canvas'a çiz
+			ctx.drawImage(tempCanvas, 0, 0);
+
+			// Filtre ayarlarını sıfırla
+			ctx.filter = "none";
 		} catch (error) {
 			console.error("Error drawing background image:", error);
 			ctx.fillStyle = backgroundColor.value;
