@@ -23,20 +23,27 @@
 			<div class="setting-group pb-4">
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
-				<div
-					class="relative w-full max-w-[160px] h-[90px] bg-zinc-900 rounded-lg border border-gray-700"
-					@mousedown="startDragging"
-					@mousemove="handleDrag"
-					@mouseup="stopDragging"
-					@mouseleave="stopDragging"
-					ref="dragArea"
-				>
-					<!-- İç kısım için ayrı bir container -->
-					<div class="absolute inset-0 m-3">
+				<div class="relative">
+					<!-- Arka plan alanı -->
+					<div
+						class="w-full max-w-[160px] h-[90px] bg-zinc-900 rounded-lg border border-gray-700 relative"
+						@mousedown="startDragging"
+						@mousemove="handleDrag"
+						@mouseup="stopDragging"
+						@mouseleave="stopDragging"
+						ref="dragArea"
+					>
+						<!-- Handle -->
 						<div
-							class="absolute z-20 w-8 h-8 -m-4 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95"
-							:style="{ left: `${position.x}%`, top: `${position.y}%` }"
-							:class="{ 'cursor-grabbing ring-zinc-400 scale-95': isDragging }"
+							class="absolute z-50 w-6 h-6 -translate-x-1/2 -translate-y-1/2 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95 shadow-lg"
+							:style="{
+								left: `${position.x}%`,
+								top: `${position.y}%`,
+							}"
+							:class="{
+								'cursor-grabbing ring-zinc-400 scale-95': isDragging,
+								'hover:ring-zinc-300': !isDragging,
+							}"
 						></div>
 					</div>
 				</div>
@@ -85,14 +92,28 @@ watch(zoomScale, (newValue) => {
 
 // Watch store changes
 watch(
-	() => currentZoomRange.value?.scale,
-	(newValue) => {
-		zoomScale.value = newValue || 1;
-	}
+	() => currentZoomRange.value,
+	(newRange) => {
+		if (newRange) {
+			zoomScale.value = newRange.scale || 1;
+			if (newRange.position) {
+				position.value = {
+					x: newRange.position.x || 50,
+					y: newRange.position.y || 50,
+				};
+			} else {
+				position.value = { x: 50, y: 50 };
+			}
+		} else {
+			zoomScale.value = 1;
+			position.value = { x: 50, y: 50 };
+		}
+	},
+	{ immediate: true, deep: true }
 );
 
 // Zoom pozisyonu güncelleme
-const updateZoomPosition = (position) => {
+const updateZoomPosition = (newPosition) => {
 	if (!currentZoomRange.value) return;
 
 	const index = zoomRanges.value.findIndex(
@@ -104,8 +125,12 @@ const updateZoomPosition = (position) => {
 	if (index !== -1) {
 		const updatedRange = {
 			...currentZoomRange.value,
-			position,
+			position: {
+				x: Math.round(newPosition.x),
+				y: Math.round(newPosition.y),
+			},
 		};
+		console.log("Updating zoom position:", updatedRange.position);
 		updateZoomRange(index, updatedRange);
 	}
 };
@@ -128,20 +153,31 @@ const updatePosition = (event) => {
 	if (!dragArea.value) return;
 
 	const rect = dragArea.value.getBoundingClientRect();
-	const margin = 12; // m-3 = 12px
+	const handleSize = 24; // 6rem = 24px
+	const handleOffset = handleSize / 2;
 
-	// Calculate available space considering margins
-	const availableWidth = rect.width - margin * 2;
-	const availableHeight = rect.height - margin * 2;
+	// Mouse pozisyonunu hesapla
+	const x = event.clientX - rect.left;
+	const y = event.clientY - rect.top;
 
-	// Adjust mouse position relative to the margins
-	const x = ((event.clientX - rect.left - margin) / availableWidth) * 100;
-	const y = ((event.clientY - rect.top - margin) / availableHeight) * 100;
+	// Handle'ın sınırlar içinde kalması için offset'leri hesaba kat
+	const minX = 0;
+	const maxX = rect.width;
+	const minY = 0;
+	const maxY = rect.height;
 
-	// Clamp values between 0 and 100
+	// Sınırlandırılmış pozisyonu hesapla
+	const clampedX = Math.max(minX, Math.min(maxX, x));
+	const clampedY = Math.max(minY, Math.min(maxY, y));
+
+	// Yüzdelik değerleri hesapla
+	const percentX = (clampedX / rect.width) * 100;
+	const percentY = (clampedY / rect.height) * 100;
+
+	// Pozisyonu güncelle
 	position.value = {
-		x: Math.max(0, Math.min(100, x)),
-		y: Math.max(0, Math.min(100, y)),
+		x: percentX,
+		y: percentY,
 	};
 
 	updateZoomPosition(position.value);
