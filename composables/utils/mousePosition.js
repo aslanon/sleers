@@ -27,7 +27,7 @@ export const calculateMousePosition = (
 	const finalX = videoX + normalizedX * displayWidth;
 	const finalY = videoY + normalizedY * displayHeight;
 
-	return { finalX, finalY };
+	return { finalX, finalY, normalizedX, normalizedY };
 };
 
 // Mouse hareketi hesaplama
@@ -53,9 +53,9 @@ export const calculateVideoDisplaySize = (
 	padding = 0 // Default to 0 if not provided
 ) => {
 	// Padding'i her iki taraftan uygula
-	const effectiveCanvasWidth = canvasWidth - (padding * 2);
-	const effectiveCanvasHeight = canvasHeight - (padding * 2);
-	
+	const effectiveCanvasWidth = canvasWidth - padding * 2;
+	const effectiveCanvasHeight = canvasHeight - padding * 2;
+
 	const videoRatio = videoWidth / videoHeight;
 	const canvasRatio = effectiveCanvasWidth / effectiveCanvasHeight;
 	let displayWidth, displayHeight;
@@ -73,4 +73,17 @@ export const calculateVideoDisplaySize = (
 	const videoY = padding + (effectiveCanvasHeight - displayHeight) / 2;
 
 	return { displayWidth, displayHeight, videoX, videoY };
+};
+
+// Zoom scale'e göre pozisyon düzeltme
+export const adjustPositionForZoom = (x, y, originX, originY, scale) => {
+	// Origin'e göre pozisyonu normalize et
+	const relativeX = x - originX;
+	const relativeY = y - originY;
+
+	// Scale'e göre pozisyonu düzelt
+	const adjustedX = originX + relativeX / scale;
+	const adjustedY = originY + relativeY / scale;
+
+	return { adjustedX, adjustedY };
 };

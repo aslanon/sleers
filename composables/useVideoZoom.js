@@ -5,16 +5,17 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 	const scale = ref(1);
 	const videoScale = ref(1);
 	const targetScale = ref(1);
-	const targetPosition = ref({ x: 0, y: 0 });
+	const targetPosition = ref({ x: 50, y: 50 });
 	const isZoomAnimating = ref(false);
 	const currentSegmentId = ref(null);
-	const lastZoomPosition = ref("center");
+	const lastZoomPosition = ref({ x: 50, y: 50 });
 	let zoomAnimationFrame = null;
 	const position = ref({ x: 50, y: 50 });
-	const startPosition = ref({ x: 50, y: 50 }); // Animasyon başlangıç pozisyonu
-	const animationProgress = ref(0); // Animasyon ilerleme değeri
+	const startPosition = ref({ x: 50, y: 50 });
+	const animationProgress = ref(0);
 	const transitionOffset = ref({ x: 0, y: 0 }); // Geçiş animasyonu için offset
 	const transitionDirection = ref(1); // 1: sağdan sola, -1: soldan sağa
+	const padding = ref({ x: 0, y: 0 });
 
 	// Zoom origin pozisyonlarını hesapla
 	const calculateZoomOrigin = (
@@ -34,26 +35,46 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		const percentX = position.x || 50;
 		const percentY = position.y || 50;
 
-		// Canvas koordinatlarına çevir
-		const originX = x + (drawWidth * percentX) / 100;
-		const originY = y + (drawHeight * percentY) / 100;
+		// Padding'i hesaba kat
+		const paddingX = padding.value.x;
+		const paddingY = padding.value.y;
 
-		// Debug için
-		console.log("Zoom Origin:", {
-			position,
-			x,
-			y,
-			drawWidth,
-			drawHeight,
-			centerX,
-			centerY,
-			percentX,
-			percentY,
-			originX,
-			originY,
-		});
+		// Normalize edilmiş koordinatlar (0-1 arasında)
+		const normalizedX = percentX / 100;
+		const normalizedY = percentY / 100;
+
+		// Efektif çizim alanını hesapla
+		const effectiveWidth = drawWidth - paddingX * 2;
+		const effectiveHeight = drawHeight - paddingY * 2;
+
+		// Origin'i hesapla (scale'den bağımsız)
+		const originX = x + paddingX + effectiveWidth * normalizedX;
+		const originY = y + paddingY + effectiveHeight * normalizedY;
 
 		return { originX, originY };
+	};
+
+	// Cursor pozisyonunu hesapla
+	const calculateCursorPosition = (mouseX, mouseY) => {
+		if (!containerRef.value || !videoElement) return { x: 0, y: 0 };
+
+		const rect = containerRef.value.getBoundingClientRect();
+		const paddingX = padding.value.x;
+		const paddingY = padding.value.y;
+
+		// Mouse pozisyonunu container'a göre normalize et
+		const relativeX = mouseX - rect.left;
+		const relativeY = mouseY - rect.top;
+
+		// Padding'i çıkar ve scale'i hesaba kat
+		const normalizedX = (relativeX - paddingX) / (rect.width - paddingX * 2);
+		const normalizedY = (relativeY - paddingY) / (rect.height - paddingY * 2);
+
+		// 0-100 arasına çevir
+		return {
+			x: Math.max(0, Math.min(100, normalizedX * 100)),
+			y: Math.max(0, Math.min(100, normalizedY * 100)),
+		};
 	};
 
 	// Geçiş yönünü hesapla
@@ -114,6 +135,17 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 			cancelAnimationFrame(zoomAnimationFrame);
 		}
 		zoomAnimationFrame = requestAnimationFrame(animateZoom);
+
+		// Zoom pozisyonunu güncelle
+		if (zoomRange?.position) {
+			const normalizedPosition = {
+				x: Math.max(0, Math.min(100, zoomRange.position.x || 50)),
+				y: Math.max(0, Math.min(100, zoomRange.position.y || 50)),
+			};
+			lastZoomPosition.value = normalizedPosition;
+		} else {
+			lastZoomPosition.value = { x: 50, y: 50 };
+		}
 	};
 
 	// Zoom segmentlerini kontrol et
@@ -149,7 +181,13 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 
 	// Zoom animasyonu
 	const animateZoom = (timestamp) => {
-		if (!isZoomAnimating.value) return;
+		if (!isZoomAnimating.value) {
+			if (zoomAnimationFrame) {
+				cancelAnimationFrame(zoomAnimationFrame);
+				zoomAnimationFrame = null;
+			}
+			return;
+		}
 
 		// Daha yavaş ve yumuşak geçiş için faktörleri ayarla
 		const scaleLerpFactor = 0.04;
@@ -184,6 +222,12 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		const scaleDiff = Math.abs(scale.value - targetScale.value);
 		const isPositionAnimationComplete = animationProgress.value >= 1;
 
+		// Önceki frame'i iptal et
+		if (zoomAnimationFrame) {
+			cancelAnimationFrame(zoomAnimationFrame);
+			zoomAnimationFrame = null;
+		}
+
 		if (scaleDiff > 0.001 || !isPositionAnimationComplete) {
 			zoomAnimationFrame = requestAnimationFrame(animateZoom);
 		} else {
@@ -208,9 +252,13 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		scale.value = 1;
 		videoScale.value = 1;
 		targetScale.value = 1;
+		targetPosition.value = { x: 50, y: 50 };
+		position.value = { x: 50, y: 50 };
+		startPosition.value = { x: 50, y: 50 };
+		animationProgress.value = 0;
 		isZoomAnimating.value = false;
 		currentSegmentId.value = null;
-		lastZoomPosition.value = "center";
+		lastZoomPosition.value = { x: 50, y: 50 };
 	};
 
 	return {
@@ -221,6 +269,7 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		isZoomAnimating,
 		lastZoomPosition,
 		calculateZoomOrigin,
+		calculateCursorPosition,
 		applyZoomSegment,
 		checkZoomSegments,
 		cleanup,

@@ -171,6 +171,11 @@ export const useMediaDevices = () => {
 			isRecording.value = true;
 			document.body.classList.add("recording");
 
+			// İmleci gizle
+			if (window.electron?.ipcRenderer) {
+				window.electron.ipcRenderer.send("HIDE_CURSOR");
+			}
+
 			const useSystemAudio = options?.systemAudio ?? systemAudioEnabled.value;
 			const useMicrophone = options?.microphone ?? microphoneEnabled.value;
 			const micDeviceId =
@@ -375,11 +380,10 @@ export const useMediaDevices = () => {
 				audio: false,
 				systemAudio: "include",
 				video: {
-					cursor: "never",
 					mandatory: {
-						cursor: "never",
 						chromeMediaSource: "desktop",
 						chromeMediaSourceId: selectedSource.id,
+						cursor: "never",
 						...(streamOptions?.width && {
 							minWidth: streamOptions.width,
 							maxWidth: streamOptions.width,
@@ -396,6 +400,7 @@ export const useMediaDevices = () => {
 								y: streamOptions.y,
 							}),
 					},
+					cursor: "never",
 				},
 			});
 
@@ -517,6 +522,12 @@ export const useMediaDevices = () => {
 
 	const stopRecording = async () => {
 		isRecording.value = false;
+
+		// İmleci göster
+		if (window.electron?.ipcRenderer) {
+			window.electron.ipcRenderer.send("SHOW_CURSOR");
+		}
+
 		if (window.electron?.ipcRenderer) {
 			window.electron.ipcRenderer.send("STOP_MOUSE_TRACKING");
 		}

@@ -283,21 +283,9 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			canvasRef.height / 2
 		);
 
-		// Mouse pozisyonunu zoom origin'e göre ayarla
-		const relativeX = finalX - originX;
-		const relativeY = finalY - originY;
-
-		// Zoom geçişlerinde smooth pozisyon hesaplama
-		const activeZoom = zoomRanges.find(
-			(range) => currentTime >= range.start && currentTime <= range.end
-		);
-		const targetScale = activeZoom ? activeZoom.scale : 1;
-		const lerpFactor = 0.1;
-		const smoothScale = videoScale + (targetScale - videoScale) * lerpFactor;
-
-		// Pozisyonu smooth scale ile hesapla
-		const adjustedX = originX + relativeX * smoothScale;
-		const adjustedY = originY + relativeY * smoothScale;
+		// Mouse pozisyonunu zoom scale'den bağımsız olarak kullan
+		const cursorX = finalX;
+		const cursorY = finalY;
 
 		// Mouse hareketini hesapla
 		const { speed, moveDistance, dirX, dirY } = calculateMouseMovement(
@@ -310,8 +298,8 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		// Motion blur efektini uygula
 		applyMotionBlur(
 			ctx,
-			adjustedX,
-			adjustedY,
+			cursorX,
+			cursorY,
 			dirX,
 			dirY,
 			speed,
@@ -320,7 +308,7 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			dpr,
 			mouseMotionEnabled,
 			motionBlurValue,
-			videoScale,
+			1, // Scale'i 1 olarak gönder - cursor'ı zoom'dan bağımsız yap
 			currentPos.cursorType || "default"
 		);
 

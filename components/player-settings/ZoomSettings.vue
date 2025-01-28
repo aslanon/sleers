@@ -90,30 +90,17 @@ watch(zoomScale, (newValue) => {
 	}
 });
 
-// Watch store changes
-watch(
-	() => currentZoomRange.value,
-	(newRange) => {
-		if (newRange) {
-			zoomScale.value = newRange.scale || 1;
-			if (newRange.position) {
-				position.value = {
-					x: newRange.position.x || 50,
-					y: newRange.position.y || 50,
-				};
-			} else {
-				position.value = { x: 50, y: 50 };
-			}
-		} else {
-			zoomScale.value = 1;
-			position.value = { x: 50, y: 50 };
-		}
-	},
-	{ immediate: true, deep: true }
-);
+// Debounce fonksiyonu
+const debounce = (fn, delay) => {
+	let timeoutId;
+	return (...args) => {
+		if (timeoutId) clearTimeout(timeoutId);
+		timeoutId = setTimeout(() => fn(...args), delay);
+	};
+};
 
-// Zoom pozisyonu güncelleme
-const updateZoomPosition = (newPosition) => {
+// Zoom pozisyonu güncelleme (debounced)
+const updateZoomPosition = debounce((newPosition) => {
 	if (!currentZoomRange.value) return;
 
 	const index = zoomRanges.value.findIndex(
@@ -133,7 +120,7 @@ const updateZoomPosition = (newPosition) => {
 		console.log("Updating zoom position:", updatedRange.position);
 		updateZoomRange(index, updatedRange);
 	}
-};
+}, 16); // 60fps'e yakın bir değer
 
 const startDragging = (event) => {
 	isDragging.value = true;
@@ -153,35 +140,46 @@ const updatePosition = (event) => {
 	if (!dragArea.value) return;
 
 	const rect = dragArea.value.getBoundingClientRect();
-	const handleSize = 24; // 6rem = 24px
-	const handleOffset = handleSize / 2;
 
-	// Mouse pozisyonunu hesapla
-	const x = event.clientX - rect.left;
-	const y = event.clientY - rect.top;
+	// Normalize edilmiş pozisyonu hesapla (0-100 arası)
+	const normalizedX = ((event.clientX - rect.left) / rect.width) * 100;
+	const normalizedY = ((event.clientY - rect.top) / rect.height) * 100;
 
-	// Handle'ın sınırlar içinde kalması için offset'leri hesaba kat
-	const minX = 0;
-	const maxX = rect.width;
-	const minY = 0;
-	const maxY = rect.height;
-
-	// Sınırlandırılmış pozisyonu hesapla
-	const clampedX = Math.max(minX, Math.min(maxX, x));
-	const clampedY = Math.max(minY, Math.min(maxY, y));
-
-	// Yüzdelik değerleri hesapla
-	const percentX = (clampedX / rect.width) * 100;
-	const percentY = (clampedY / rect.height) * 100;
+	// Sınırlar içinde tut ve yuvarla
+	const clampedX = Math.round(Math.max(0, Math.min(100, normalizedX)));
+	const clampedY = Math.round(Math.max(0, Math.min(100, normalizedY)));
 
 	// Pozisyonu güncelle
 	position.value = {
-		x: percentX,
-		y: percentY,
+		x: clampedX,
+		y: clampedY,
 	};
 
+	// Debounced update
 	updateZoomPosition(position.value);
 };
+
+// Watch store changes - pozisyon değişikliklerini daha iyi handle et
+watch(
+	() => currentZoomRange.value,
+	(newRange) => {
+		if (newRange) {
+			zoomScale.value = newRange.scale || 1;
+			if (newRange.position && typeof newRange.position === "object") {
+				position.value = {
+					x: Math.round(newRange.position.x ?? 50),
+					y: Math.round(newRange.position.y ?? 50),
+				};
+			} else {
+				position.value = { x: 50, y: 50 };
+			}
+		} else {
+			zoomScale.value = 1;
+			position.value = { x: 50, y: 50 };
+		}
+	},
+	{ immediate: true, deep: true }
+);
 
 // Pozisyon noktası stil sınıfları
 const getPositionClass = (position) => {

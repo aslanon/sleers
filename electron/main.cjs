@@ -22,6 +22,7 @@ const EditorManager = require("./editorManager.cjs");
 const SelectionManager = require("./selectionManager.cjs");
 const TempFileManager = require("./tempFileManager.cjs");
 const MediaStateManager = require("./mediaStateManager.cjs");
+const cursorManager = require("./cursorManager.cjs");
 
 let mainWindow = null;
 let trayManager = null;
@@ -445,6 +446,15 @@ function setupIpcHandlers() {
 	// Kamera takip ayarı
 	ipcMain.on("TOGGLE_CAMERA_FOLLOW", (event, shouldFollow) => {
 		cameraManager.setFollowMouse(shouldFollow);
+	});
+
+	// İmleç yönetimi
+	ipcMain.on("HIDE_CURSOR", () => {
+		cursorManager.hideCursor();
+	});
+
+	ipcMain.on("SHOW_CURSOR", () => {
+		cursorManager.showCursor();
 	});
 
 	// Video kaydetme işleyicisi

@@ -1,0 +1,1 @@
+cmd_Release/cursor_manager.node := c++ -bundle -undefined dynamic_lookup -Wl,-search_paths_first -mmacosx-version-min=13.0 -arch arm64 -L./Release -stdlib=libc++  -o Release/cursor_manager.node Release/obj.target/cursor_manager/native/cursor_manager.o -framework Cocoa
