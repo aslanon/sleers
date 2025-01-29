@@ -1,19 +1,29 @@
 #import <Foundation/Foundation.h>
-#import <AVFoundation/AVFoundation.h>
+#import <AVFoundation/AVAsset.h>
+#import <AVFoundation/AVAssetWriter.h>
+#import <AVFoundation/AVAssetWriterInput.h>
+#import <AVFoundation/AVMediaFormat.h>
 #import <CoreMedia/CoreMedia.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <QuartzCore/QuartzCore.h>
 #import <node_api.h>
 
-@interface ScreenRecorder : NSObject
+@interface ScreenRecorder : NSObject {
+    CGDirectDisplayID _displayID;
+    dispatch_queue_t _queue;
+    BOOL _isRecording;
+    CGRect _recordingRect;
+    NSString *_outputPath;
+    AVAssetWriter *_assetWriter;
+    AVAssetWriterInput *_assetWriterInput;
+    AVAssetWriterInputPixelBufferAdaptor *_pixelBufferAdaptor;
+    NSError *_lastError;
+}
 
 @property (nonatomic, strong) AVAssetWriter *assetWriter;
 @property (nonatomic, strong) AVAssetWriterInput *assetWriterInput;
 @property (nonatomic, strong) AVAssetWriterInputPixelBufferAdaptor *pixelBufferAdaptor;
-@property (nonatomic, strong) dispatch_queue_t queue;
-@property (nonatomic, assign) CGDirectDisplayID displayID;
-@property (nonatomic, assign) BOOL isRecording;
-@property (nonatomic, assign) CGRect recordingRect;
-@property (nonatomic, copy) NSString *outputPath;
+@property (nonatomic, strong, readonly) NSError *lastError;
 
 - (instancetype)initWithDisplayID:(CGDirectDisplayID)displayID;
 - (BOOL)startRecordingToFile:(NSString *)path withRect:(CGRect)rect error:(NSError **)error;
@@ -23,25 +33,59 @@
 
 @implementation ScreenRecorder
 
+@synthesize assetWriter = _assetWriter;
+@synthesize assetWriterInput = _assetWriterInput;
+@synthesize pixelBufferAdaptor = _pixelBufferAdaptor;
+@synthesize lastError = _lastError;
+
 - (instancetype)initWithDisplayID:(CGDirectDisplayID)displayID {
     self = [super init];
     if (self) {
         _displayID = displayID;
         _queue = dispatch_queue_create("com.sleer.screenrecorder", DISPATCH_QUEUE_SERIAL);
         _isRecording = NO;
+        _lastError = nil;
     }
     return self;
 }
 
 - (BOOL)startRecordingToFile:(NSString *)path withRect:(CGRect)rect error:(NSError **)error {
-    if (_isRecording) return NO;
+    if (_isRecording) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"com.sleer.screenrecorder"
+                                       code:1
+                                   userInfo:@{NSLocalizedDescriptionKey: @"Kayıt zaten devam ediyor"}];
+        }
+        return NO;
+    }
+    
+    if (!path || [path length] == 0) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"com.sleer.screenrecorder"
+                                       code:2
+                                   userInfo:@{NSLocalizedDescriptionKey: @"Geçersiz dosya yolu"}];
+        }
+        return NO;
+    }
+    
+    if (rect.size.width <= 0 || rect.size.height <= 0) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"com.sleer.screenrecorder"
+                                       code:3
+                                   userInfo:@{NSLocalizedDescriptionKey: @"Geçersiz kayıt alanı boyutları"}];
+        }
+        return NO;
+    }
     
     _outputPath = path;
     _recordingRect = rect;
     
     NSError *setupError = nil;
     if (![self setupAssetWriterWithError:&setupError]) {
-        if (error) *error = setupError;
+        if (error) {
+            *error = setupError;
+        }
+        _lastError = setupError;
         return NO;
     }
     
@@ -53,10 +97,10 @@
 
 - (BOOL)setupAssetWriterWithError:(NSError **)error {
     NSURL *fileURL = [NSURL fileURLWithPath:_outputPath];
-    _assetWriter = [[AVAssetWriter alloc] initWithURL:fileURL
+    self.assetWriter = [[AVAssetWriter alloc] initWithURL:fileURL
                                            fileType:AVFileTypeQuickTimeMovie
                                               error:error];
-    if (!_assetWriter) return NO;
+    if (!self.assetWriter) return NO;
     
     NSDictionary *videoSettings = @{
         AVVideoCodecKey: AVVideoCodecTypeH264,
@@ -64,9 +108,9 @@
         AVVideoHeightKey: @((NSInteger)_recordingRect.size.height)
     };
     
-    _assetWriterInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo
+    self.assetWriterInput = [[AVAssetWriterInput alloc] initWithMediaType:AVMediaTypeVideo
                                                       outputSettings:videoSettings];
-    _assetWriterInput.expectsMediaDataInRealTime = YES;
+    self.assetWriterInput.expectsMediaDataInRealTime = YES;
     
     NSDictionary *pixelBufferAttributes = @{
         (NSString*)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA),
@@ -74,14 +118,14 @@
         (NSString*)kCVPixelBufferHeightKey: @((NSInteger)_recordingRect.size.height)
     };
     
-    _pixelBufferAdaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc]
-                          initWithAssetWriterInput:_assetWriterInput
+    self.pixelBufferAdaptor = [[AVAssetWriterInputPixelBufferAdaptor alloc]
+                          initWithAssetWriterInput:self.assetWriterInput
                           sourcePixelBufferAttributes:pixelBufferAttributes];
     
-    if (![_assetWriter canAddInput:_assetWriterInput]) return NO;
-    [_assetWriter addInput:_assetWriterInput];
+    if (![self.assetWriter canAddInput:self.assetWriterInput]) return NO;
+    [self.assetWriter addInput:self.assetWriterInput];
     
-    return [_assetWriter startWriting];
+    return [self.assetWriter startWriting];
 }
 
 - (void)captureFrames {
@@ -90,14 +134,14 @@
         CGImageRef screenImage = NULL;
         
         CMTime startTime = CMTimeMake(0, 1000);
-        [self->_assetWriter startSessionAtSourceTime:startTime];
+        [self.assetWriter startSessionAtSourceTime:startTime];
         
-        while (self.isRecording) {
+        while (self->_isRecording) {
             @autoreleasepool {
-                screenImage = CGDisplayCreateImage(self.displayID);
+                screenImage = CGDisplayCreateImage(self->_displayID);
                 if (!screenImage) continue;
                 
-                CGImageRef croppedImage = CGImageCreateWithImageInRect(screenImage, self.recordingRect);
+                CGImageRef croppedImage = CGImageCreateWithImageInRect(screenImage, self->_recordingRect);
                 CGImageRelease(screenImage);
                 
                 if (!croppedImage) continue;
@@ -176,6 +220,11 @@ napi_value StartRecording(napi_env env, napi_callback_info info) {
     napi_value args[5];
     napi_get_cb_info(env, info, &argc, args, NULL, NULL);
     
+    if (argc < 5) {
+        napi_throw_error(env, NULL, "Eksik parametreler");
+        return NULL;
+    }
+    
     char path[1024];
     size_t path_len;
     napi_get_value_string_utf8(env, args[0], path, 1024, &path_len);
@@ -186,6 +235,11 @@ napi_value StartRecording(napi_env env, napi_callback_info info) {
     napi_get_value_double(env, args[3], &width);
     napi_get_value_double(env, args[4], &height);
     
+    if (width <= 0 || height <= 0) {
+        napi_throw_error(env, NULL, "Geçersiz kayıt alanı boyutları");
+        return NULL;
+    }
+    
     if (!recorder) {
         recorder = [[ScreenRecorder alloc] initWithDisplayID:CGMainDisplayID()];
     }
@@ -194,6 +248,11 @@ napi_value StartRecording(napi_env env, napi_callback_info info) {
     BOOL success = [recorder startRecordingToFile:[NSString stringWithUTF8String:path]
                                        withRect:CGRectMake(x, y, width, height)
                                          error:&error];
+    
+    if (!success && error) {
+        napi_throw_error(env, NULL, [[error localizedDescription] UTF8String]);
+        return NULL;
+    }
     
     napi_value result;
     napi_get_boolean(env, success, &result);

@@ -16,14 +16,18 @@
             "CLANG_CXX_LIBRARY": "libc++",
             "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
             "OTHER_CFLAGS": [
-              "-fobjc-arc"
+              "-fobjc-arc",
+              "-arch arm64"
             ],
             "OTHER_LDFLAGS": [
               "-framework AVFoundation",
               "-framework CoreMedia",
               "-framework CoreGraphics",
-              "-framework Foundation"
-            ]
+              "-framework Foundation",
+              "-arch arm64"
+            ],
+            "ARCHS": ["arm64"],
+            "VALID_ARCHS": ["arm64"]
           }
         }]
       ]

@@ -56,6 +56,18 @@ contextBridge.exposeInMainWorld("electron", {
 				callback(state)
 			),
 	},
+	screenRecorder: {
+		startRecording: (outputPath, x, y, width, height) =>
+			ipcRenderer.invoke(
+				IPC_EVENTS.START_SCREEN_RECORDING,
+				outputPath,
+				x,
+				y,
+				width,
+				height
+			),
+		stopRecording: () => ipcRenderer.invoke(IPC_EVENTS.STOP_SCREEN_RECORDING),
+	},
 	removeAllListeners: () => {
 		Object.values(IPC_EVENTS).forEach((channel) => {
 			ipcRenderer.removeAllListeners(channel);

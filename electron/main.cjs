@@ -23,6 +23,12 @@ const SelectionManager = require("./selectionManager.cjs");
 const TempFileManager = require("./tempFileManager.cjs");
 const MediaStateManager = require("./mediaStateManager.cjs");
 
+// Native screen recorder
+const screenRecorder = require(path.join(
+	__dirname,
+	"../build/Release/screen_recorder.node"
+));
+
 let mainWindow = null;
 let trayManager = null;
 let cameraManager = null;
@@ -227,6 +233,20 @@ function setupIpcHandlers() {
 	// File operations
 	ipcMain.handle(IPC_EVENTS.SAVE_TEMP_VIDEO, async (event, data, type) => {
 		return await tempFileManager.saveTempVideo(data, type);
+	});
+
+	ipcMain.handle(IPC_EVENTS.GET_TEMP_VIDEO_PATH, async () => {
+		try {
+			const tempPath = path.join(
+				tempFileManager.appDir,
+				`temp-recording-${Date.now()}.mp4`
+			);
+			console.log("[main.cjs] Geçici video yolu oluşturuldu:", tempPath);
+			return tempPath;
+		} catch (error) {
+			console.error("[main.cjs] Geçici video yolu oluşturulurken hata:", error);
+			return null;
+		}
 	});
 
 	ipcMain.handle(IPC_EVENTS.READ_VIDEO_FILE, async (event, filePath) => {
@@ -491,6 +511,36 @@ function setupIpcHandlers() {
 		} catch (error) {
 			console.error("[main] Video kaydetme hatası:", error);
 			throw error;
+		}
+	});
+
+	// Screen recording
+	ipcMain.handle(
+		IPC_EVENTS.START_SCREEN_RECORDING,
+		async (event, outputPath, x, y, width, height) => {
+			try {
+				return await screenRecorder.startRecording(
+					outputPath,
+					x,
+					y,
+					width,
+					height
+				);
+			} catch (error) {
+				console.error("Ekran kaydı başlatılırken hata:", error);
+				event.sender.send(IPC_EVENTS.RECORDING_ERROR, error.message);
+				return false;
+			}
+		}
+	);
+
+	ipcMain.handle(IPC_EVENTS.STOP_SCREEN_RECORDING, async (event) => {
+		try {
+			return await screenRecorder.stopRecording();
+		} catch (error) {
+			console.error("Ekran kaydı durdurulurken hata:", error);
+			event.sender.send(IPC_EVENTS.RECORDING_ERROR, error.message);
+			return false;
 		}
 	});
 }

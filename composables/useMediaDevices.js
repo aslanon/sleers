@@ -176,13 +176,13 @@ export const useMediaDevices = () => {
 				options?.microphoneDeviceId ?? selectedAudioDevice.value;
 
 			// Ekran kaydını başlat
-			const screenStream = await screenRecorder.startScreenRecording({
-				sourceType: options?.sourceType || "display",
-				width: options?.width,
-				height: options?.height,
-				x: options?.x,
-				y: options?.y,
-			});
+			const screenStream = await window.electron.screenRecorder.startRecording(
+				options?.outputPath,
+				options?.x || 0,
+				options?.y || 0,
+				options?.width || 1440,
+				options?.height || 900
+			);
 
 			if (!screenStream) {
 				throw new Error("Ekran kaydı başlatılamadı");
