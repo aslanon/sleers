@@ -1,0 +1,1 @@
+cmd_Release/screen_recorder.node := c++ -bundle -framework AVFoundation -framework CoreMedia -framework CoreGraphics -framework Foundation -undefined dynamic_lookup -Wl,-search_paths_first -mmacosx-version-min=10.15 -arch x86_64 -L./Release -stdlib=libc++  -o Release/screen_recorder.node Release/obj.target/screen_recorder/native/screen_recorder.o Release/nothing.a 

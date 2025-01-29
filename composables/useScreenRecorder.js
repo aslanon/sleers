@@ -1,122 +1,286 @@
-import { ref } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 
-export const useScreenRecorder = () => {
+export function useScreenRecorder() {
 	const isRecording = ref(false);
-	const mediaStream = ref(null);
-	let mediaRecorder = null;
+	const mediaRecorder = ref(null);
+	const recordedChunks = ref([]);
+	const recordingStartTime = ref(null);
+	const processingStatus = ref({
+		isProcessing: false,
+		progress: 0,
+		error: null,
+	});
 
+	// Electron API kontrolü
+	const hasElectronAPI = typeof window !== "undefined" && window.electron;
+
+	// Kayıt başlatma
 	const startScreenRecording = async (options = {}) => {
+		if (!hasElectronAPI) {
+			console.error("[useScreenRecorder] Electron API bulunamadı");
+			handleRecordingError(new Error("Electron API bulunamadı"));
+			return null;
+		}
+
 		try {
-			const sources = await window.electron?.desktopCapturer.getSources({
-				types: ["window", "screen"],
-				thumbnailSize: { width: 100, height: 100 },
-				fetchWindowIcons: true,
-				excludeTypes: ["panel", "popup", "toolbar"],
+			console.log("[useScreenRecorder] Kayıt başlatılıyor...");
+
+			// Önceki kayıt verilerini temizle
+			recordedChunks.value = [];
+			processingStatus.value = {
+				isProcessing: false,
+				progress: 0,
+				error: null,
+			};
+
+			// Ekran kaynağını seç
+			const sources = await window.electron.desktopCapturer.getSources({
+				types: ["screen", "window"],
 			});
 
 			if (!sources || sources.length === 0) {
-				throw new Error("Ekran kaynakları bulunamadı");
+				throw new Error("Ekran kaynağı bulunamadı");
 			}
 
-			// Kamera penceresini filtrele
-			const filteredSources = sources.filter(
-				(source) =>
-					!source.name.includes("camera") &&
-					!source.name.toLowerCase().includes("kamera") &&
-					!source.name.includes("Sleer Camera")
-			);
+			// İlk kaynağı kullan (tüm ekran)
+			const source = sources[0];
 
-			let selectedSource = filteredSources[0];
-			if (options?.sourceType === "display") {
-				selectedSource =
-					filteredSources.find((source) => source.id.startsWith("screen:")) ||
-					filteredSources[0];
-			} else if (options?.sourceType === "window") {
-				selectedSource =
-					filteredSources.find((source) => source.id.startsWith("window:")) ||
-					filteredSources[0];
-			}
-
-			const screenStream = await navigator.mediaDevices.getUserMedia({
+			// MediaStream oluştur
+			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: false,
 				video: {
-					cursor: "never",
 					mandatory: {
-						cursor: "never",
 						chromeMediaSource: "desktop",
-						chromeMediaSourceId: selectedSource.id,
-						...(options?.width && {
-							minWidth: options.width,
-							maxWidth: options.width,
-							width: options.width,
-						}),
-						...(options?.height && {
-							minHeight: options.height,
-							maxHeight: options.height,
-							height: options.height,
-						}),
-						...(options?.x &&
-							options?.y && {
-								x: options.x,
-								y: options.y,
-							}),
+						chromeMediaSourceId: source.id,
+						minWidth: 1280,
+						maxWidth: 4096,
+						minHeight: 720,
+						maxHeight: 2160,
 					},
 				},
 			});
 
-			mediaStream.value = screenStream;
-			isRecording.value = true;
-
-			return screenStream;
-		} catch (error) {
-			console.error("Ekran kaydı başlatılırken hata:", error);
-			throw error;
-		}
-	};
-
-	const stopScreenRecording = async () => {
-		if (mediaStream.value) {
-			mediaStream.value.getTracks().forEach((track) => {
-				track.stop();
+			// MediaRecorder oluştur
+			mediaRecorder.value = new MediaRecorder(stream, {
+				mimeType: "video/webm;codecs=vp8,opus",
+				videoBitsPerSecond: 2500000, // 2.5 Mbps
 			});
-			mediaStream.value = null;
-			isRecording.value = false;
+
+			// Kayıt olaylarını dinle
+			mediaRecorder.value.ondataavailable = handleDataAvailable;
+			mediaRecorder.value.onstop = handleRecordingStop;
+			mediaRecorder.value.onerror = handleRecordingError;
+
+			// Kayıt başlangıç zamanını kaydet
+			recordingStartTime.value = new Date().toISOString();
+
+			// Kayıt durumunu güncelle
+			isRecording.value = true;
+			window.electron.recording.setRecordingStatus(true);
+
+			// Kayıt başlat
+			mediaRecorder.value.start(1000); // Her 1 saniyede bir veri al
+
+			console.log("[useScreenRecorder] Kayıt başlatıldı");
+
+			// Stream'i döndür
+			return stream;
+		} catch (error) {
+			console.error("[useScreenRecorder] Kayıt başlatma hatası:", error);
+			handleRecordingError(error);
+			return null;
 		}
 	};
 
+	// Kayıt durdurma
+	const stopScreenRecording = async () => {
+		try {
+			console.log("[useScreenRecorder] Kayıt durduruluyor...");
+
+			if (mediaRecorder.value && mediaRecorder.value.state !== "inactive") {
+				mediaRecorder.value.stop();
+				isRecording.value = false;
+				window.electron.recording.setRecordingStatus(false);
+
+				// Stream'i kapat
+				const tracks = mediaRecorder.value.stream.getTracks();
+				tracks.forEach((track) => track.stop());
+			}
+		} catch (error) {
+			console.error("[useScreenRecorder] Kayıt durdurma hatası:", error);
+			handleRecordingError(error);
+		}
+	};
+
+	// Veri parçası geldiğinde
+	const handleDataAvailable = (event) => {
+		if (event.data && event.data.size > 0) {
+			recordedChunks.value.push(event.data);
+		}
+	};
+
+	// Kayıt durduğunda
+	const handleRecordingStop = async () => {
+		try {
+			console.log("[useScreenRecorder] Kayıt tamamlandı, veriler işleniyor...");
+
+			// İşleme durumunu güncelle
+			processingStatus.value = {
+				isProcessing: true,
+				progress: 0,
+				error: null,
+			};
+
+			// Blob oluştur
+			const blob = new Blob(recordedChunks.value, {
+				type: "video/webm",
+			});
+
+			// Base64'e çevir
+			const reader = new FileReader();
+			reader.readAsDataURL(blob);
+
+			reader.onloadend = async () => {
+				try {
+					const base64data = reader.result;
+
+					// Geçici dosyaya kaydet
+					const videoPath = await window.electron.fileSystem.saveTempVideo(
+						base64data,
+						"screen"
+					);
+
+					console.log("[useScreenRecorder] Video kaydedildi:", videoPath);
+
+					// İşleme durumunu güncelle
+					processingStatus.value = {
+						isProcessing: false,
+						progress: 100,
+						error: null,
+					};
+				} catch (error) {
+					console.error("[useScreenRecorder] Video kaydetme hatası:", error);
+					handleRecordingError(error);
+				}
+			};
+
+			reader.onerror = (error) => {
+				console.error("[useScreenRecorder] Base64 dönüştürme hatası:", error);
+				handleRecordingError(error);
+			};
+		} catch (error) {
+			console.error("[useScreenRecorder] Kayıt tamamlama hatası:", error);
+			handleRecordingError(error);
+		}
+	};
+
+	// Kayıt hatası
+	const handleRecordingError = (error) => {
+		console.error("[useScreenRecorder] Kayıt hatası:", error);
+
+		// Kayıt durumunu güncelle
+		isRecording.value = false;
+		if (hasElectronAPI) {
+			window.electron.recording.setRecordingStatus(false);
+		}
+
+		// İşleme durumunu güncelle
+		processingStatus.value = {
+			isProcessing: false,
+			progress: 0,
+			error: error.message || "Kayıt sırasında bir hata oluştu",
+		};
+
+		// Stream'i kapat
+		if (mediaRecorder.value && mediaRecorder.value.stream) {
+			const tracks = mediaRecorder.value.stream.getTracks();
+			tracks.forEach((track) => track.stop());
+		}
+	};
+
+	// Hata dinleyicisi
+	const setupErrorListener = () => {
+		if (!hasElectronAPI) {
+			console.error(
+				"[useScreenRecorder] Electron API bulunamadı - Hata dinleyicisi kurulamadı"
+			);
+			return;
+		}
+
+		window.electron.recording.onRecordingError((error) => {
+			console.error("[useScreenRecorder] IPC kayıt hatası:", error);
+			handleRecordingError(new Error(error));
+		});
+	};
+
+	// Temizlik
+	const cleanup = () => {
+		if (mediaRecorder.value && mediaRecorder.value.state !== "inactive") {
+			mediaRecorder.value.stop();
+		}
+		if (hasElectronAPI) {
+			window.electron.removeAllListeners();
+		}
+	};
+
+	// Ekran kaydını kaydet
 	const saveScreenRecording = async (chunks) => {
 		try {
-			const screenBlob = new Blob(chunks, { type: "video/webm" });
-			const screenBuffer = await screenBlob.arrayBuffer();
-			const screenBase64 = btoa(
-				new Uint8Array(screenBuffer).reduce(
+			console.log("[useScreenRecorder] Ekran kaydı kaydediliyor...");
+
+			// Blob oluştur
+			const blob = new Blob(chunks, {
+				type: "video/webm",
+			});
+
+			// Base64'e çevir
+			const buffer = await blob.arrayBuffer();
+			const base64 = btoa(
+				new Uint8Array(buffer).reduce(
 					(data, byte) => data + String.fromCharCode(byte),
 					""
 				)
 			);
-			const screenDataUrl = `data:video/webm;base64,${screenBase64}`;
-			const screenPath = await window.electron?.fileSystem.saveTempVideo(
-				screenDataUrl,
+			const dataUrl = `data:video/webm;base64,${base64}`;
+
+			// Geçici dosyaya kaydet
+			const videoPath = await window.electron.fileSystem.saveTempVideo(
+				dataUrl,
 				"screen"
 			);
 
-			console.log("Ekran kaydı kaydedildi:", {
-				path: screenPath,
-				size: screenBlob.size,
-			});
-
-			return screenPath;
+			console.log("[useScreenRecorder] Ekran kaydı kaydedildi:", videoPath);
+			return videoPath;
 		} catch (error) {
-			console.error("Ekran kaydı kaydedilirken hata:", error);
-			throw error;
+			console.error(
+				"[useScreenRecorder] Ekran kaydı kaydedilirken hata:",
+				error
+			);
+			handleRecordingError(error);
+			return null;
 		}
 	};
 
+	onMounted(() => {
+		if (hasElectronAPI) {
+			setupErrorListener();
+		} else {
+			console.warn(
+				"[useScreenRecorder] Electron API bulunamadı - Bileşen yüklenirken"
+			);
+		}
+	});
+
+	onUnmounted(() => {
+		cleanup();
+	});
+
 	return {
 		isRecording,
-		mediaStream,
+		processingStatus,
 		startScreenRecording,
 		stopScreenRecording,
 		saveScreenRecording,
+		hasElectronAPI,
 	};
-};
+}

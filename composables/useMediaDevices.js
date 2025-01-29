@@ -184,6 +184,10 @@ export const useMediaDevices = () => {
 				y: options?.y,
 			});
 
+			if (!screenStream) {
+				throw new Error("Ekran kaydı başlatılamadı");
+			}
+
 			// Kamera kaydı için stream al
 			let cameraStream = null;
 			if (selectedVideoDevice.value) {
@@ -219,11 +223,16 @@ export const useMediaDevices = () => {
 				}
 			}
 
+			// Tüm akışları birleştir
 			const tracks = [
-				...screenStream.getVideoTracks(),
+				...(screenStream?.getVideoTracks() || []),
 				...(audioStream?.getAudioTracks() || []),
 				...(cameraStream?.getVideoTracks() || []),
 			];
+
+			if (tracks.length === 0) {
+				throw new Error("Kayıt için gerekli akışlar alınamadı");
+			}
 
 			const combinedStream = new MediaStream(tracks);
 			mediaStream.value = combinedStream;
@@ -346,6 +355,7 @@ export const useMediaDevices = () => {
 			if (window.electron?.ipcRenderer) {
 				window.electron.ipcRenderer.send("STOP_MOUSE_TRACKING");
 			}
+			throw error; // Hatayı yukarı fırlat
 		}
 	};
 
