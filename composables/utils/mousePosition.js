@@ -1,4 +1,4 @@
-// Mouse pozisyonlarını interpolasyon ile hesapla
+// Mouse pozisyonlarını hesapla
 export const calculateMousePosition = (
 	currentPos,
 	nextPos,
@@ -10,22 +10,9 @@ export const calculateMousePosition = (
 	videoX,
 	videoY
 ) => {
-	// İki pozisyon arasında cubic interpolasyon yap
-	const t = framePart;
-	const t2 = t * t;
-	const t3 = t2 * t;
-	const interpolatedX =
-		currentPos.x + (nextPos.x - currentPos.x) * (3 * t2 - 2 * t3);
-	const interpolatedY =
-		currentPos.y + (nextPos.y - currentPos.y) * (3 * t2 - 2 * t3);
-
-	// Video içindeki oransal pozisyonu hesapla (0-1 arası)
-	const normalizedX = interpolatedX / videoWidth;
-	const normalizedY = interpolatedY / videoHeight;
-
-	// Mouse'un temel pozisyonunu hesapla
-	const finalX = videoX + normalizedX * displayWidth;
-	const finalY = videoY + normalizedY * displayHeight;
+	// Direkt pozisyonları kullan
+	const finalX = videoX + (currentPos.x * displayWidth) / videoWidth;
+	const finalY = videoY + (currentPos.y * displayHeight) / videoHeight;
 
 	return { finalX, finalY };
 };
@@ -53,9 +40,9 @@ export const calculateVideoDisplaySize = (
 	padding = 0 // Default to 0 if not provided
 ) => {
 	// Padding'i her iki taraftan uygula
-	const effectiveCanvasWidth = canvasWidth - (padding * 2);
-	const effectiveCanvasHeight = canvasHeight - (padding * 2);
-	
+	const effectiveCanvasWidth = canvasWidth - padding * 2;
+	const effectiveCanvasHeight = canvasHeight - padding * 2;
+
 	const videoRatio = videoWidth / videoHeight;
 	const canvasRatio = effectiveCanvasWidth / effectiveCanvasHeight;
 	let displayWidth, displayHeight;
