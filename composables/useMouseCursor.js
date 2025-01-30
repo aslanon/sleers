@@ -197,9 +197,33 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const videoDuration = videoElement.duration;
 		if (!videoDuration) return;
 
+		// Video başlangıç zamanını kontrol et
+		if (!videoElement.currentTime || videoElement.readyState < 2) {
+			// Video henüz başlamamış, ilk frame'i göster
+			const currentPos = mousePositions[0];
+			const nextPos = mousePositions[1];
+			renderMouseFrame(
+				ctx,
+				currentPos,
+				nextPos,
+				0,
+				canvasRef,
+				videoElement,
+				padding,
+				videoScale,
+				zoomRanges,
+				lastZoomPosition,
+				mouseSize,
+				dpr,
+				mouseMotionEnabled,
+				motionBlurValue,
+				currentTime
+			);
+			return;
+		}
+
 		// Mouse pozisyonları için frame hesaplama
-		const MOUSE_DELAY_MS = 1350; // 1 saniye gecikme
-		const currentTimeMs = currentTime * 1000 - MOUSE_DELAY_MS; // Delay uygula
+		const currentTimeMs = currentTime * 1000;
 
 		// Eğer mouse pozisyonları yoksa veya boşsa return
 		if (!mousePositions || mousePositions.length < 2) return;
@@ -208,16 +232,57 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const firstTimestamp = mousePositions[0].timestamp;
 		const lastTimestamp = mousePositions[mousePositions.length - 1].timestamp;
 
-		// Video süresine göre normalize et ve delay uygula
+		// Video süresine göre normalize et
 		const normalizedTime = currentTimeMs - firstTimestamp;
 		const totalDuration = lastTimestamp - firstTimestamp;
 
-		// Eğer normalize edilmiş zaman negatifse veya toplam süreyi aşıyorsa return
-		if (normalizedTime < -MOUSE_DELAY_MS || normalizedTime > totalDuration)
+		// Eğer normalize edilmiş zaman negatifse veya toplam süreyi aşıyorsa, ilk frame'i göster
+		if (normalizedTime < 0) {
+			const currentPos = mousePositions[0];
+			const nextPos = mousePositions[1];
+			renderMouseFrame(
+				ctx,
+				currentPos,
+				nextPos,
+				0,
+				canvasRef,
+				videoElement,
+				padding,
+				videoScale,
+				zoomRanges,
+				lastZoomPosition,
+				mouseSize,
+				dpr,
+				mouseMotionEnabled,
+				motionBlurValue,
+				currentTime
+			);
 			return;
+		}
 
-		// Gecikmeli zamanı hesapla ve sınırla
-		const delayedTime = Math.max(0, normalizedTime);
+		// Eğer toplam süreyi aşıyorsa, son frame'i göster
+		if (normalizedTime > totalDuration) {
+			const currentPos = mousePositions[mousePositions.length - 2];
+			const nextPos = mousePositions[mousePositions.length - 1];
+			renderMouseFrame(
+				ctx,
+				currentPos,
+				nextPos,
+				1,
+				canvasRef,
+				videoElement,
+				padding,
+				videoScale,
+				zoomRanges,
+				lastZoomPosition,
+				mouseSize,
+				dpr,
+				mouseMotionEnabled,
+				motionBlurValue,
+				currentTime
+			);
+			return;
+		}
 
 		// En yakın frame'leri bul
 		let currentFrameIndex = 0;
@@ -225,7 +290,10 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			const currentTimestamp = mousePositions[i].timestamp - firstTimestamp;
 			const nextTimestamp = mousePositions[i + 1].timestamp - firstTimestamp;
 
-			if (delayedTime >= currentTimestamp && delayedTime <= nextTimestamp) {
+			if (
+				normalizedTime >= currentTimestamp &&
+				normalizedTime <= nextTimestamp
+			) {
 				currentFrameIndex = i;
 				break;
 			}
@@ -242,9 +310,46 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const currentNormalizedTime = currentPos.timestamp - firstTimestamp;
 		const nextNormalizedTime = nextPos.timestamp - firstTimestamp;
 		const framePart =
-			(delayedTime - currentNormalizedTime) /
+			(normalizedTime - currentNormalizedTime) /
 			(nextNormalizedTime - currentNormalizedTime);
 
+		renderMouseFrame(
+			ctx,
+			currentPos,
+			nextPos,
+			framePart,
+			canvasRef,
+			videoElement,
+			padding,
+			videoScale,
+			zoomRanges,
+			lastZoomPosition,
+			mouseSize,
+			dpr,
+			mouseMotionEnabled,
+			motionBlurValue,
+			currentTime
+		);
+	};
+
+	// Mouse frame'ini render et
+	const renderMouseFrame = (
+		ctx,
+		currentPos,
+		nextPos,
+		framePart,
+		canvasRef,
+		videoElement,
+		padding,
+		videoScale,
+		zoomRanges,
+		lastZoomPosition,
+		mouseSize,
+		dpr,
+		mouseMotionEnabled,
+		motionBlurValue,
+		currentTime
+	) => {
 		// Video boyutlarını hesapla
 		const { displayWidth, displayHeight, videoX, videoY } =
 			calculateVideoDisplaySize(

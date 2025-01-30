@@ -10,9 +10,21 @@ export const calculateMousePosition = (
 	videoX,
 	videoY
 ) => {
-	// Direkt pozisyonları kullan
+	// Video boyutlarına göre pozisyonu ölçeklendir
 	const finalX = videoX + (currentPos.x * displayWidth) / videoWidth;
 	const finalY = videoY + (currentPos.y * displayHeight) / videoHeight;
+
+	// İki frame arasında interpolasyon yap
+	if (nextPos && framePart) {
+		const nextX = videoX + (nextPos.x * displayWidth) / videoWidth;
+		const nextY = videoY + (nextPos.y * displayHeight) / videoHeight;
+
+		// Lineer interpolasyon
+		return {
+			finalX: finalX + (nextX - finalX) * framePart,
+			finalY: finalY + (nextY - finalY) * framePart,
+		};
+	}
 
 	return { finalX, finalY };
 };
