@@ -77,9 +77,7 @@ function setupIpcHandlers() {
 		}
 		if (status) {
 			console.log(1232);
-			setTimeout(() => {
-				startMouseTracking();
-			}, recordingDelay);
+			startMouseTracking();
 		} else {
 			console.log(423);
 			stopMouseTracking();
@@ -623,23 +621,21 @@ app.on("before-quit", () => {
 
 function startMouseTracking() {
 	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
-	setTimeout(() => {
-		console.log("Mouse tracking başladı");
-		const startTime = Date.now();
-		if (!mouseTrackingInterval) {
-			mouseTrackingInterval = setInterval(() => {
-				const mousePos = screen.getCursorScreenPoint();
-				const cursorType = "default";
-				const currentTime = Date.now() - startTime;
-				mediaStateManager.addMousePosition({
-					x: mousePos.x,
-					y: mousePos.y,
-					timestamp: currentTime,
-					cursorType,
-				});
-			}, 8); // ~120fps için daha yüksek sampling rate
-		}
-	}, recordingDelay);
+	console.log("Mouse tracking başladı");
+	const startTime = Date.now();
+	if (!mouseTrackingInterval) {
+		mouseTrackingInterval = setInterval(() => {
+			const mousePos = screen.getCursorScreenPoint();
+			const cursorType = "default";
+			const currentTime = Date.now() - startTime;
+			mediaStateManager.addMousePosition({
+				x: mousePos.x,
+				y: mousePos.y,
+				timestamp: currentTime,
+				cursorType,
+			});
+		}, 8); // ~120fps için daha yüksek sampling rate
+	}
 }
 
 function stopMouseTracking() {

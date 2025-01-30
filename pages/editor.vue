@@ -74,7 +74,15 @@
 					</div>
 				</div>
 				<div class="w-full p-4 flex-1 flex flex-col">
-					<div class="flex-1 relative min-h-0">
+					<div
+						class="flex-1 relative min-h-0 m-auto"
+						style="
+							width: 800px;
+							height: 600px;
+							min-width: 800px;
+							min-height: 600px;
+						"
+					>
 						<MediaPlayer
 							ref="mediaPlayerRef"
 							:video-url="videoUrl"

@@ -189,7 +189,8 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			!mousePositions ||
 			mousePositions.length < 2 ||
 			!canvasRef ||
-			!videoElement
+			!videoElement ||
+			videoElement.readyState < 3
 		)
 			return;
 
@@ -197,9 +198,8 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 		const videoDuration = videoElement.duration;
 		if (!videoDuration) return;
 
-		// Video başlangıç zamanını kontrol et
-		if (!videoElement.currentTime || videoElement.readyState < 2) {
-			// Video henüz başlamamış, ilk frame'i göster
+		// Video henüz başlamamışsa ilk frame'i göster
+		if (!videoElement.currentTime) {
 			const currentPos = mousePositions[0];
 			const nextPos = mousePositions[1];
 			renderMouseFrame(
@@ -222,46 +222,65 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			return;
 		}
 
-		// Mouse pozisyonları için frame hesaplama
-		const currentTimeMs = currentTime * 1000;
+		// Her mouse pozisyonunun video zamanındaki karşılığını hesapla
+		const startTime = mousePositions[0].timestamp;
+		const endTime = mousePositions[mousePositions.length - 1].timestamp;
+		const recordingDuration = endTime - startTime;
 
-		// Eğer mouse pozisyonları yoksa veya boşsa return
-		if (!mousePositions || mousePositions.length < 2) return;
+		// Video zamanını kayıt zamanına dönüştür (microsaniye hassasiyetinde)
+		const exactVideoTime = videoElement.currentTime * 1000000; // microsaniye
+		const exactRecordingTime =
+			(exactVideoTime / (videoDuration * 1000000)) * recordingDuration;
+		const targetTimestamp = startTime + exactRecordingTime;
 
-		// İlk ve son timestamp'i al
-		const firstTimestamp = mousePositions[0].timestamp;
-		const lastTimestamp = mousePositions[mousePositions.length - 1].timestamp;
+		// Tam eşleşen frame'i bul
+		let currentFrame = 0;
+		let nextFrame = 1;
+		let bestMatchDiff = Infinity;
 
-		// Video süresine göre normalize et
-		const normalizedTime = currentTimeMs - firstTimestamp;
-		const totalDuration = lastTimestamp - firstTimestamp;
+		// İlk olarak binary search ile yaklaşık konumu bul
+		let left = 0;
+		let right = mousePositions.length - 2;
 
-		// Eğer normalize edilmiş zaman negatifse veya toplam süreyi aşıyorsa, ilk frame'i göster
-		if (normalizedTime < 0) {
-			const currentPos = mousePositions[0];
-			const nextPos = mousePositions[1];
-			renderMouseFrame(
-				ctx,
-				currentPos,
-				nextPos,
-				0,
-				canvasRef,
-				videoElement,
-				padding,
-				videoScale,
-				zoomRanges,
-				lastZoomPosition,
-				mouseSize,
-				dpr,
-				mouseMotionEnabled,
-				motionBlurValue,
-				currentTime
-			);
-			return;
+		while (left <= right) {
+			const mid = Math.floor((left + right) / 2);
+			const midDiff = Math.abs(mousePositions[mid].timestamp - targetTimestamp);
+
+			if (midDiff < bestMatchDiff) {
+				bestMatchDiff = midDiff;
+				currentFrame = mid;
+			}
+
+			if (mousePositions[mid].timestamp < targetTimestamp) {
+				left = mid + 1;
+			} else {
+				right = mid - 1;
+			}
 		}
 
-		// Eğer toplam süreyi aşıyorsa, son frame'i göster
-		if (normalizedTime > totalDuration) {
+		// Bulunan konumun etrafında daha hassas arama yap
+		const searchWindow = 5; // Arama penceresi boyutu
+		const start = Math.max(0, currentFrame - searchWindow);
+		const end = Math.min(
+			mousePositions.length - 2,
+			currentFrame + searchWindow
+		);
+
+		for (let i = start; i <= end; i++) {
+			const currentDiff = Math.abs(
+				mousePositions[i].timestamp - targetTimestamp
+			);
+			if (currentDiff < bestMatchDiff) {
+				bestMatchDiff = currentDiff;
+				currentFrame = i;
+			}
+		}
+
+		// Sonraki frame'i belirle
+		nextFrame = Math.min(currentFrame + 1, mousePositions.length - 1);
+
+		// Frame sınırlarını kontrol et
+		if (currentFrame >= mousePositions.length - 1) {
 			const currentPos = mousePositions[mousePositions.length - 2];
 			const nextPos = mousePositions[mousePositions.length - 1];
 			renderMouseFrame(
@@ -284,40 +303,34 @@ export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
 			return;
 		}
 
-		// En yakın frame'leri bul
-		let currentFrameIndex = 0;
-		for (let i = 0; i < mousePositions.length - 1; i++) {
-			const currentTimestamp = mousePositions[i].timestamp - firstTimestamp;
-			const nextTimestamp = mousePositions[i + 1].timestamp - firstTimestamp;
+		const currentPos = mousePositions[currentFrame];
+		const nextPos = mousePositions[nextFrame];
 
-			if (
-				normalizedTime >= currentTimestamp &&
-				normalizedTime <= nextTimestamp
-			) {
-				currentFrameIndex = i;
-				break;
-			}
-		}
+		if (!currentPos || !nextPos) return;
 
-		const nextFrameIndex = Math.min(
-			currentFrameIndex + 1,
-			mousePositions.length - 1
+		// Hassas interpolasyon hesapla
+		const frameInterval = nextPos.timestamp - currentPos.timestamp;
+		const preciseFramePart = Math.max(
+			0,
+			Math.min(1, (targetTimestamp - currentPos.timestamp) / frameInterval)
 		);
-		const currentPos = mousePositions[currentFrameIndex];
-		const nextPos = mousePositions[nextFrameIndex];
 
-		// Frame'ler arası interpolasyon faktörünü hesapla
-		const currentNormalizedTime = currentPos.timestamp - firstTimestamp;
-		const nextNormalizedTime = nextPos.timestamp - firstTimestamp;
-		const framePart =
-			(normalizedTime - currentNormalizedTime) /
-			(nextNormalizedTime - currentNormalizedTime);
+		// Hermite interpolasyon uygula (daha yumuşak geçişler için)
+		const t = preciseFramePart;
+		const t2 = t * t;
+		const t3 = t2 * t;
+		const h1 = 2 * t3 - 3 * t2 + 1;
+		const h2 = -2 * t3 + 3 * t2;
+		const h3 = t3 - 2 * t2 + t;
+		const h4 = t3 - t2;
+
+		const finalFramePart = h1 + h2 * preciseFramePart + h3 + h4;
 
 		renderMouseFrame(
 			ctx,
 			currentPos,
 			nextPos,
-			framePart,
+			finalFramePart,
 			canvasRef,
 			videoElement,
 			padding,

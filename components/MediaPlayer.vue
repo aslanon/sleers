@@ -1,7 +1,8 @@
 <template>
 	<div
-		class="media-player w-full h-full rounded-lg overflow-hidden bg-black/80"
+		class="media-player w-full h-full m-auto rounded-lg overflow-hidden bg-black/80"
 		@togglePlayback="togglePlay"
+		style="width: 800px; height: 600px; min-width: 800px; min-height: 600px"
 	>
 		<div
 			ref="containerRef"
@@ -235,9 +236,6 @@ const togglePlay = async (e) => {
 const play = async () => {
 	if (!videoElement) return;
 	try {
-		// Eğer zaten oynatılıyorsa işlemi durdur
-		if (videoState.value.isPlaying) return;
-
 		// Video bitmiş ise başa sar
 		if (videoElement.currentTime >= videoElement.duration) {
 			videoElement.currentTime = 0;
@@ -248,6 +246,20 @@ const play = async () => {
 			if (audioRef.value) {
 				audioRef.value.currentTime = 0;
 			}
+		}
+
+		// Video hazır olana kadar bekle
+		if (videoElement.readyState < 3) {
+			await new Promise((resolve) => {
+				const checkReady = () => {
+					if (videoElement.readyState >= 3) {
+						resolve();
+					} else {
+						requestAnimationFrame(checkReady);
+					}
+				};
+				checkReady();
+			});
 		}
 
 		// Önce state'i güncelle
@@ -263,16 +275,16 @@ const play = async () => {
 			if (audioRef.value && !audioRef.value.paused) {
 				await audioRef.value.play();
 			}
+
+			// Video başladıktan sonra canvas animasyonunu başlat
+			if (!animationFrame) {
+				animationFrame = requestAnimationFrame(updateCanvas);
+			}
 		} catch (error) {
 			// Oynatma başarısız olursa state'i geri al
 			videoState.value.isPlaying = false;
 			videoState.value.isPaused = true;
 			throw error;
-		}
-
-		// Canvas animasyonunu başlat
-		if (!animationFrame) {
-			animationFrame = requestAnimationFrame(updateCanvas);
 		}
 
 		emit("play");
@@ -1315,6 +1327,24 @@ const onDurationChange = () => {
 
 // Video event handlers
 const onVideoPlay = () => {
+	if (!videoElement || videoElement.readyState < 3) {
+		// Video henüz hazır değilse, hazır olana kadar bekle
+		const waitForVideo = () => {
+			if (videoElement.readyState >= 3) {
+				videoState.value.isPlaying = true;
+				videoState.value.isPaused = false;
+				if (!animationFrame) {
+					animationFrame = requestAnimationFrame(updateCanvas);
+				}
+				emit("play", videoState.value);
+			} else {
+				requestAnimationFrame(waitForVideo);
+			}
+		};
+		waitForVideo();
+		return;
+	}
+
 	videoState.value.isPlaying = true;
 	videoState.value.isPaused = false;
 	if (!animationFrame) {
