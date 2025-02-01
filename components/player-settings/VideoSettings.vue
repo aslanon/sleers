@@ -58,7 +58,7 @@
 			<label class="setting-label">Arkaplan Görseli</label>
 			<div class="wallpaper-grid">
 				<button
-					v-for="index in 23"
+					v-for="index in 28"
 					:key="`image${index}`"
 					@click="selectBackgroundImage(`image${index}`)"
 					class="wallpaper-button"
