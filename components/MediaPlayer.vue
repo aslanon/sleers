@@ -221,6 +221,13 @@ const videoState = ref({
 const currentSegmentIndex = ref(0);
 const isPlayingSegments = ref(false);
 
+// Mouse pozisyonları için state
+const mousePosition = ref({ x: 0, y: 0 });
+
+// Zoom state'leri
+const isZoomTransitioning = ref(false);
+const previousScale = ref(1);
+
 // Video oynatma kontrolü
 const togglePlay = async (e) => {
 	e.preventDefault();
@@ -675,14 +682,17 @@ const {
 	previousPositions,
 	cursorImage,
 	drawMousePosition: drawMouseCursor,
-	mousePosition,
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
 
 // Mouse positions değişikliğini izle ve previousPositions'ı temizle
 watch(
 	() => props.mousePositions,
 	() => {
+		if (!ctx || !canvasRef.value) return;
 		previousPositions.value = []; // Trail'i temizle
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
 	},
 	{ deep: true }
 );
@@ -737,9 +747,12 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 	// FPS kontrolü
 	if (timestamp - lastFrameTime < frameInterval) {
-		animationFrame = requestAnimationFrame((t) =>
-			updateCanvas(t, mouseX, mouseY)
-		);
+		// Sadece video oynatılıyorsa veya zoom geçişi varsa animasyonu devam ettir
+		if (videoState.value.isPlaying || isZoomTransitioning.value) {
+			animationFrame = requestAnimationFrame((t) =>
+				updateCanvas(t, mouseX, mouseY)
+			);
+		}
 		return;
 	}
 
@@ -749,8 +762,14 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// DPR'ı al
 		const dpr = window.devicePixelRatio || 1;
 
-		// Canvas'ı temizle
-		ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+		// Canvas'ı sadece gerektiğinde temizle
+		if (
+			!videoState.value.isPlaying &&
+			!isZoomTransitioning.value &&
+			!isCameraDragging.value
+		) {
+			ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+		}
 
 		// Arkaplan
 		if (bgImageLoaded.value && bgImageElement.value) {
@@ -816,13 +835,13 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// Store'dan gelen scale değerini kullan
 		const targetScale = activeZoom ? activeZoom.scale : 1;
 		const lerpFactor = 0.1;
-		const previousScale = videoScale.value;
+		previousScale.value = videoScale.value;
 		videoScale.value =
 			videoScale.value + (targetScale - videoScale.value) * lerpFactor;
 
 		// Scale değişim hızını hesapla
-		const scaleVelocity = Math.abs(videoScale.value - previousScale);
-		const isZoomTransitioning = scaleVelocity > 0.01; // Eşik değeri
+		const scaleVelocity = Math.abs(videoScale.value - previousScale.value);
+		isZoomTransitioning.value = scaleVelocity > 0.01; // Eşik değeri
 
 		// Zoom efektini uygula
 		if (videoScale.value > 1.001) {
@@ -880,7 +899,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			ctx.restore();
 
 			// Sadece zoom geçişi sırasında motion blur efektini uygula
-			if (isZoomTransitioning) {
+			if (isZoomTransitioning.value) {
 				// Zoom motion blur için geçici canvas oluştur
 				const tempCanvas = document.createElement("canvas");
 				tempCanvas.width = canvasWidth;
@@ -893,7 +912,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				// Motion blur efekti için birden fazla kopya oluştur
 				const blurSteps = 12;
 				const maxScale = videoScale.value;
-				const minScale = previousScale; // Önceki scale değerini kullan
+				const minScale = previousScale.value; // Önceki scale değerini kullan
 				const angleStep = (Math.PI * 2) / blurSteps;
 				const radiusOffset =
 					Math.min(drawWidth, drawHeight) * 0.03 * scaleVelocity; // Hıza bağlı offset
@@ -1116,9 +1135,16 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			);
 		}
 
-		animationFrame = requestAnimationFrame((t) =>
-			updateCanvas(t, mouseX, mouseY)
-		);
+		// Animasyon frame'ini sadece gerektiğinde talep et
+		if (
+			videoState.value.isPlaying ||
+			isZoomTransitioning.value ||
+			isCameraDragging.value
+		) {
+			animationFrame = requestAnimationFrame((t) =>
+				updateCanvas(t, mouseX, mouseY)
+			);
+		}
 	} catch (error) {
 		console.error("[MediaPlayer] Canvas update error:", error);
 		animationFrame = null;
@@ -1474,9 +1500,9 @@ const onVideoMetadataLoaded = () => {
 		handleResize();
 
 		// İlk frame'i hemen çiz
-		if (!animationFrame) {
-			animationFrame = requestAnimationFrame(updateCanvas);
-		}
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
 
 		// Duration değerini kontrol et ve güncelle
 		if (videoElement.duration && videoElement.duration !== Infinity) {
@@ -1498,6 +1524,38 @@ const onVideoMetadataLoaded = () => {
 		console.error("[MediaPlayer] Metadata yükleme hatası:", error);
 	}
 };
+
+// Settings değişikliklerini izle ve canvas'ı güncelle
+watch(
+	[
+		backgroundColor,
+		radius,
+		shadowSize,
+		padding,
+		cameraSettings,
+		mouseSize,
+		mouseMotionEnabled,
+		motionBlurValue,
+		zoomRanges,
+		currentZoomRange,
+	],
+	() => {
+		if (!ctx || !canvasRef.value) return;
+
+		// Canvas'ı hemen güncelle
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
+
+		// Kamera ayarları değiştiğinde kamera pozisyonunu sıfırla
+		if (cameraSettings.value.followMouse) {
+			lastCameraPosition.value = null;
+			lastCameraX.value = 0;
+			lastCameraY.value = 0;
+		}
+	},
+	{ immediate: true, deep: true }
+);
 
 // İlk frame'e seek etmek için yardımcı fonksiyon
 const seekToFirstFrame = async () => {
@@ -1521,9 +1579,15 @@ const seekToFirstFrame = async () => {
 		// İlk frame'e git
 		videoElement.currentTime = 0;
 
-		// Canvas'ı güncelle
-		if (!animationFrame) {
-			animationFrame = requestAnimationFrame(updateCanvas);
+		// Canvas'ı hemen güncelle
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
+
+		// Eğer video oynatılmıyorsa, animasyon frame'ini iptal et
+		if (!videoState.value.isPlaying && animationFrame) {
+			cancelAnimationFrame(animationFrame);
+			animationFrame = null;
 		}
 	} catch (error) {
 		console.error("[MediaPlayer] First frame seek error:", error);
@@ -1617,11 +1681,16 @@ const onVideoPlay = () => {
 const onVideoPause = () => {
 	videoState.value.isPlaying = false;
 	videoState.value.isPaused = true;
+
+	// Canvas animasyonunu durdur
 	if (animationFrame) {
 		cancelAnimationFrame(animationFrame);
 		animationFrame = null;
 	}
+
+	// Son frame'i çiz ve bırak
 	updateCanvas(performance.now());
+
 	emit("pause", videoState.value);
 };
 
@@ -1996,12 +2065,7 @@ const lastCameraY = ref(0);
 
 // Mouse event handlers
 const handleMouseDown = (e) => {
-	if (
-		!canvasRef.value ||
-		!isMouseOverCamera.value ||
-		cameraSettings.value.followMouse
-	)
-		return;
+	if (!canvasRef.value || cameraSettings.value.followMouse) return;
 
 	const rect = canvasRef.value.getBoundingClientRect();
 	const dpr = window.devicePixelRatio || 1;
@@ -2019,10 +2083,15 @@ const handleMouseMove = (e) => {
 	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
 	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
 
-	// Canvas'ı güncelle
-	requestAnimationFrame(() => {
-		updateCanvas(performance.now(), mouseX, mouseY);
-	});
+	// Mouse pozisyonlarını güncelle
+	mousePosition.value = { x: mouseX, y: mouseY };
+
+	// Sadece video oynatılıyorsa veya kamera sürükleniyorsa canvas'ı güncelle
+	if (videoState.value.isPlaying || isCameraDragging.value) {
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now(), mouseX, mouseY);
+		});
+	}
 };
 
 const handleMouseUp = () => {
