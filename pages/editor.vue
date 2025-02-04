@@ -69,6 +69,7 @@
 							:width="videoWidth"
 							:height="videoHeight"
 							v-model="mouseSize"
+							:media-player="mediaPlayerRef"
 							class="relative"
 						/>
 					</div>

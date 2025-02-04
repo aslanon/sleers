@@ -24,17 +24,27 @@
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
-					class="relative w-full max-w-[160px] h-[90px] bg-zinc-900 rounded-lg border border-gray-700"
+					class="relative w-full max-w-[160px] overflow-hidden border border-gray-700 rounded-lg"
+					:style="{
+						aspectRatio: `${
+							props.mediaPlayer?.getVideoElement()?.videoWidth || 16
+						}/${props.mediaPlayer?.getVideoElement()?.videoHeight || 9}`,
+					}"
 					@mousedown="startDragging"
 					@mousemove="handleDrag"
 					@mouseup="stopDragging"
 					@mouseleave="stopDragging"
 					ref="dragArea"
 				>
+					<!-- Video frame background -->
+					<div
+						class="absolute inset-0 bg-cover bg-center bg-no-repeat"
+						:style="{ backgroundImage: `url(${frameDataUrl})` }"
+					></div>
 					<!-- İç kısım için ayrı bir container -->
 					<div class="absolute inset-0 m-3">
 						<div
-							class="absolute z-20 w-8 h-8 -m-4 bg-zinc-700 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95"
+							class="absolute z-20 w-8 h-8 -m-4 bg-zinc-700/80 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95"
 							:style="{ left: `${position.x}%`, top: `${position.y}%` }"
 							:class="{ 'cursor-grabbing ring-zinc-400 scale-95': isDragging }"
 						></div>
@@ -49,20 +59,53 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import SliderInput from "~/components/ui/SliderInput.vue";
+
+const props = defineProps({
+	mediaPlayer: {
+		type: Object,
+		required: true,
+	},
+});
 
 // First, import the usePlayerSettings at the top of script setup
 const { currentZoomRange, updateZoomRange, zoomRanges, padding } =
 	usePlayerSettings();
 
 // Local state
-// Local state
 const zoomScale = ref(currentZoomRange.value?.scale || 1);
 const isDragging = ref(false);
 const dragArea = ref(null);
 const position = ref({ x: 50, y: 50 }); // Default to center
+
+// Frame data URL
+const frameDataUrl = ref(null);
+
+// Frame güncelleme fonksiyonu
+const updateFrame = () => {
+	if (props.mediaPlayer) {
+		frameDataUrl.value = props.mediaPlayer.captureFrame();
+	}
+};
+
+// Frame güncelleme interval'i
+let frameUpdateInterval = null;
+
+onMounted(() => {
+	// İlk frame'i yakala
+	updateFrame();
+
+	// Her 500ms'de bir frame'i güncelle
+	frameUpdateInterval = setInterval(updateFrame, 500);
+});
+
+onUnmounted(() => {
+	if (frameUpdateInterval) {
+		clearInterval(frameUpdateInterval);
+	}
+});
 
 // Watch local changes
 watch(zoomScale, (newValue) => {

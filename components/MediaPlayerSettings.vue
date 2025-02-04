@@ -109,7 +109,10 @@
 				<MouseSettings v-if="currentTab === 'mouse'" v-model="mouseSize" />
 
 				<!-- Zoom Ayarları Tab -->
-				<ZoomSettings v-if="currentTab === 'zoom'" />
+				<ZoomSettings
+					v-if="currentTab === 'zoom'"
+					:media-player="mediaPlayer"
+				/>
 
 				<!-- Kamera Ayarları Tab -->
 				<CameraSettings v-if="currentTab === 'camera'" />
@@ -145,6 +148,10 @@ const props = defineProps({
 	modelValue: {
 		type: Number,
 		default: 42,
+	},
+	mediaPlayer: {
+		type: Object,
+		required: true,
 	},
 });
 

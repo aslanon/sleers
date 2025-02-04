@@ -1631,6 +1631,32 @@ defineExpose({
 		if (cameraElement) cameraElement.currentTime = time;
 	},
 
+	// Video element access
+	getVideoElement: () => videoElement,
+
+	// Video frame capture
+	captureFrame: () => {
+		if (!videoElement || !canvasRef.value) return null;
+
+		// Geçici bir canvas oluştur
+		const tempCanvas = document.createElement("canvas");
+		const tempCtx = tempCanvas.getContext("2d");
+
+		// Video boyutlarını al
+		const videoWidth = videoElement.videoWidth;
+		const videoHeight = videoElement.videoHeight;
+
+		// Canvas boyutlarını ayarla
+		tempCanvas.width = videoWidth;
+		tempCanvas.height = videoHeight;
+
+		// Video frame'ini çiz
+		tempCtx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
+
+		// Base64 formatında frame'i döndür
+		return tempCanvas.toDataURL("image/jpeg", 0.5);
+	},
+
 	// Audio controls
 	setVolume: (volume) => {
 		if (!videoElement) return;
@@ -1661,7 +1687,6 @@ defineExpose({
 	getState: () => ({ ...videoState.value }),
 	getCropData,
 	getCanvas: () => canvasRef.value,
-	getVideoElement: () => videoElement,
 
 	// Event handlers
 	on: (event, handler) => {
