@@ -183,8 +183,8 @@ const updatePosition = (event) => {
 
 	// Clamp values between 0 and 100
 	position.value = {
-		x: Math.max(0, Math.min(100, x)),
-		y: Math.max(0, Math.min(100, y)),
+		x,
+		y,
 	};
 
 	updateZoomPosition(position.value);
