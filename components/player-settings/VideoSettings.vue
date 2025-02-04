@@ -280,7 +280,7 @@ onMounted(() => {
 
 .wallpaper-grid {
 	display: grid;
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(5, 1fr);
 	gap: 8px;
 	margin-top: 8px;
 }
@@ -292,6 +292,7 @@ onMounted(() => {
 	border: 2px solid transparent;
 	transition: all 0.2s;
 	cursor: pointer;
+	width: 64px;
 }
 
 .wallpaper-button:hover {
