@@ -821,8 +821,13 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 	// Store'dan gelen scale değerini kullan
 	const targetScale = activeZoom ? activeZoom.scale : 1;
 	const lerpFactor = 0.1;
+	const previousScale = videoScale.value;
 	videoScale.value =
 		videoScale.value + (targetScale - videoScale.value) * lerpFactor;
+
+	// Scale değişim hızını hesapla
+	const scaleVelocity = Math.abs(videoScale.value - previousScale);
+	const isZoomTransitioning = scaleVelocity > 0.01; // Eşik değeri
 
 	// Zoom efektini uygula
 	if (videoScale.value > 1.001) {
@@ -846,43 +851,83 @@ const updateCanvas = (timestamp, mouseX, mouseY) => {
 			lastZoomPosition.value = activeZoom.position;
 		}
 
-		// Scale transformasyonu uygula
+		// Orijinal görüntüyü çiz
+		ctx.save();
 		ctx.translate(transformOriginX, transformOriginY);
 		ctx.scale(videoScale.value, videoScale.value);
 		ctx.translate(-transformOriginX, -transformOriginY);
-	}
-
-	// Shadow için yeni bir state kaydet
-	if (shadowSize.value > 0) {
-		ctx.save();
-		ctx.beginPath();
-		useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
-		ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-		ctx.shadowBlur = shadowSize.value * dpr;
-		ctx.shadowOffsetX = 0;
-		ctx.shadowOffsetY = 0;
-		ctx.fillStyle = backgroundColor.value;
-		ctx.fill();
+		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 		ctx.restore();
+
+		// Sadece zoom geçişi sırasında motion blur efektini uygula
+		if (isZoomTransitioning) {
+			// Zoom motion blur için geçici canvas oluştur
+			const tempCanvas = document.createElement("canvas");
+			tempCanvas.width = canvasWidth;
+			tempCanvas.height = canvasHeight;
+			const tempCtx = tempCanvas.getContext("2d");
+
+			// Video frame'ini geçici canvas'a çiz
+			tempCtx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+
+			// Motion blur efekti için birden fazla kopya oluştur
+			const blurSteps = 12;
+			const maxScale = videoScale.value;
+			const minScale = previousScale; // Önceki scale değerini kullan
+			const angleStep = (Math.PI * 2) / blurSteps;
+			const radiusOffset =
+				Math.min(drawWidth, drawHeight) * 0.03 * scaleVelocity; // Hıza bağlı offset
+
+			ctx.save();
+
+			// Radyal motion blur efekti
+			for (let i = 0; i < blurSteps; i++) {
+				const progress = i / blurSteps;
+				const angle = angleStep * i;
+				const scale = minScale + (maxScale - minScale) * progress;
+				const alpha = 0.2 * (1 - progress) * scaleVelocity * 5; // Hıza bağlı opaklık
+
+				// Radyal offset hesapla
+				const offsetX = Math.cos(angle) * radiusOffset * progress;
+				const offsetY = Math.sin(angle) * radiusOffset * progress;
+
+				ctx.globalAlpha = alpha;
+				ctx.translate(transformOriginX + offsetX, transformOriginY + offsetY);
+				ctx.scale(scale, scale);
+				ctx.translate(
+					-(transformOriginX + offsetX),
+					-(transformOriginY + offsetY)
+				);
+				ctx.drawImage(tempCanvas, 0, 0);
+				ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+			}
+
+			ctx.restore();
+
+			// Odak noktasını vurgulamak için parlama efekti
+			ctx.save();
+			const glowRadius = Math.min(drawWidth, drawHeight) * 0.2;
+			const glow = ctx.createRadialGradient(
+				transformOriginX,
+				transformOriginY,
+				0,
+				transformOriginX,
+				transformOriginY,
+				glowRadius
+			);
+			glow.addColorStop(0, `rgba(255, 255, 255, ${0.2 * scaleVelocity * 5})`);
+			glow.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * scaleVelocity * 5})`);
+			glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+			ctx.globalCompositeOperation = "screen";
+			ctx.fillStyle = glow;
+			ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+			ctx.restore();
+		}
+	} else {
+		// Normal video çizimi
+		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	}
-
-	// Video alanını kırp ve radius uygula
-	ctx.beginPath();
-	useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
-	ctx.clip();
-
-	// Video'yu yüksek kalitede çiz
-	ctx.drawImage(
-		videoElement,
-		0,
-		0,
-		videoElement.videoWidth,
-		videoElement.videoHeight,
-		x,
-		y,
-		drawWidth,
-		drawHeight
-	);
 
 	// Ana context state'i geri yükle
 	ctx.restore();
