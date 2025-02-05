@@ -7,6 +7,19 @@ export const useCameraRenderer = () => {
 	const lastCameraPosition = ref({ x: 0, y: 0 });
 	const isMouseOverCamera = ref(false);
 	const scaleValue = 3;
+	const hoverScale = ref(1);
+	const HOVER_SCALE = 1.1; // Hover durumunda %10 büyüme
+	const TRANSITION_SPEED = 0.5; // Daha hızlı geçiş
+
+	// Hover scale değerini güncelle
+	const updateHoverScale = () => {
+		const targetScale = isMouseOverCamera.value ? HOVER_SCALE : 1;
+
+		hoverScale.value += (targetScale - hoverScale.value) * TRANSITION_SPEED;
+
+		const canvas = document.getElementById("canvasID");
+		canvas.style.cursor = isMouseOverCamera.value ? "grab" : "default";
+	};
 
 	const drawCamera = (
 		ctx,
@@ -20,6 +33,9 @@ export const useCameraRenderer = () => {
 		zoomScale = 1
 	) => {
 		if (!cameraElement || cameraElement.readyState < 2) return false;
+
+		// Hover scale'i güncelle
+		updateHoverScale();
 
 		// Kamera boyutlarını hesapla (kare olarak)
 		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
@@ -43,11 +59,11 @@ export const useCameraRenderer = () => {
 
 			// Crop X pozisyonunu hesapla
 			const maxOffset = cameraElement.videoWidth - sourceWidth;
-			sourceX = (maxOffset * cropX) / 43.75; // 43.75 = 100 - 56.25 (max crop width)
+			sourceX = (maxOffset * cropX) / 43.75;
 			sourceY = 0;
 
 			// Crop width'e göre source width'i ayarla
-			sourceWidth = sourceWidth * (cropWidth / 56.25); // 56.25 = default crop width
+			sourceWidth = sourceWidth * (cropWidth / 56.25);
 		} else {
 			// Video daha dar
 			sourceWidth = cameraElement.videoWidth;
@@ -82,7 +98,6 @@ export const useCameraRenderer = () => {
 		let cameraX, cameraY;
 
 		if (dragPosition) {
-			// Sürükleme pozisyonunu kullan
 			cameraX = dragPosition.x;
 			cameraY = dragPosition.y;
 		} else if (
@@ -90,15 +105,12 @@ export const useCameraRenderer = () => {
 			mouseX !== undefined &&
 			mouseY !== undefined
 		) {
-			// Mouse pozisyonuna göre kamera pozisyonunu ayarla
-			const offsetY = 50 * dpr * scaleValue; // Mouse'dan Y ekseninde offset
+			const offsetY = 50 * dpr * scaleValue;
 			cameraX = mouseX - cameraWidth / 2;
 			cameraY = mouseY + offsetY;
 
-			// Direkt pozisyon güncelle
 			lastCameraPosition.value = { x: cameraX, y: cameraY };
 		} else {
-			// Default pozisyon (sağ alt köşe) veya son pozisyonu kullan
 			cameraX =
 				lastCameraPosition.value.x ||
 				canvasWidth - cameraWidth - 20 * dpr * scaleValue;
@@ -107,7 +119,7 @@ export const useCameraRenderer = () => {
 				canvasHeight - cameraHeight - 20 * dpr * scaleValue;
 		}
 
-		// Sınırları kontrol et - sınırlara değince konumu değiştirme
+		// Sınırları kontrol et
 		cameraX = Math.max(
 			-cameraWidth * 0.5,
 			Math.min(canvasWidth - cameraWidth * 0.5, cameraX)
@@ -117,13 +129,24 @@ export const useCameraRenderer = () => {
 			Math.min(canvasHeight - cameraHeight * 0.5, cameraY)
 		);
 
-		// Son pozisyonu kaydet (sürükleme durumunda)
+		// Son pozisyonu kaydet
 		if (dragPosition) {
 			lastCameraPosition.value = { x: cameraX, y: cameraY };
 		}
 
 		// Context state'i kaydet
 		ctx.save();
+
+		// Hover efekti için scale transform uygula
+		const scaledWidth = cameraWidth * hoverScale.value;
+		const scaledHeight = cameraHeight * hoverScale.value;
+		const scaleOffsetX = (scaledWidth - cameraWidth) / 2;
+		const scaleOffsetY = (scaledHeight - cameraHeight) / 2;
+
+		// Scale origin'i kamera merkezine ayarla
+		ctx.translate(cameraX + cameraWidth / 2, cameraY + cameraHeight / 2);
+		ctx.scale(hoverScale.value, hoverScale.value);
+		ctx.translate(-(cameraX + cameraWidth / 2), -(cameraY + cameraHeight / 2));
 
 		// Anti-aliasing ayarları
 		ctx.imageSmoothingEnabled = true;
@@ -220,5 +243,6 @@ export const useCameraRenderer = () => {
 		drawCamera,
 		isMouseOverCamera,
 		lastCameraPosition,
+		hoverScale,
 	};
 };

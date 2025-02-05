@@ -2086,12 +2086,10 @@ const handleMouseMove = (e) => {
 	// Mouse pozisyonlarını güncelle
 	mousePosition.value = { x: mouseX, y: mouseY };
 
-	// Sadece video oynatılıyorsa veya kamera sürükleniyorsa canvas'ı güncelle
-	if (videoState.value.isPlaying || isCameraDragging.value) {
-		requestAnimationFrame(() => {
-			updateCanvas(performance.now(), mouseX, mouseY);
-		});
-	}
+	// Canvas'ı sürekli güncelle (hover efekti için)
+	requestAnimationFrame(() => {
+		updateCanvas(performance.now(), mouseX, mouseY);
+	});
 };
 
 const handleMouseUp = () => {
