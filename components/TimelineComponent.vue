@@ -277,6 +277,31 @@
 										</span>
 									</div>
 								</div>
+
+								<!-- Ghost Zoom Preview -->
+								<div
+									v-if="
+										ghostZoomPosition !== null &&
+										!isZoomResizing &&
+										!isZoomDragging
+									"
+									class="absolute h-full transition-all rounded-[10px] duration-75 opacity-30 bg-white/20 ring-1 ring-white/20"
+									:style="{
+										left: `${ghostZoomPosition}%`,
+										width: `${calculateGhostBarWidth()}%`,
+										background:
+											'linear-gradient(rgb(87, 62, 244) 0%, rgb(134 119 233) 100%)',
+									}"
+								>
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center"
+									>
+										<span
+											class="text-white text-[14px] font-medium tracking-wide"
+											>Add zoom effect</span
+										>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
@@ -1132,8 +1157,7 @@ const handleZoomDragEnd = () => {
 
 // Zoom range'den mouse çıktığında deaktif et
 const handleZoomRangeLeave = () => {
-	// Mouse çıkınca ayarları kapatmayı kaldır
-	// setCurrentZoomRange(null);
+	ghostZoomPosition.value = null;
 };
 
 // Zoom range yeniden boyutlandırma
@@ -1254,13 +1278,18 @@ const handleZoomResizeEnd = () => {
 };
 
 // Zoom range'e mouse girdiğinde aktif et
-const handleZoomRangeEnter = (range) => {
-	// Hover'da ayarları açmayı kaldır
-	// setCurrentZoomRange(range);
+const handleZoomRangeEnter = (range, index) => {
+	if (selectedZoomIndex !== index && !isZoomResizing && !isZoomDragging) {
+		ghostZoomPosition.value = range.start;
+		ghostZoomDuration.value = range.duration;
+		ghostZoomScale.value = range.scale;
+	}
 };
 
 // Script kısmına eklenecek state ve fonksiyonlar:
 const ghostZoomPosition = ref(null);
+const ghostZoomDuration = ref(1); // Default 1 second
+const ghostZoomScale = ref(2); // Default 2x zoom
 
 // Ghost zoom pozisyonunu güncelle
 const handleZoomTrackMouseMove = (event) => {
@@ -1307,7 +1336,8 @@ const hideGhostZoom = () => {
 
 // Ghost bar genişliği hesaplama
 const calculateGhostBarWidth = () => {
-	return (1 / maxDuration.value) * 100;
+	if (ghostZoomPosition.value === null) return 0;
+	return (ghostZoomDuration.value / maxDuration.value) * 100;
 };
 
 // Zoom segmentleri için style hesaplama
