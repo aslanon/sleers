@@ -183,7 +183,7 @@
 								<!-- Empty State Label -->
 								<div
 									v-if="zoomRanges.length === 0"
-									class="absolute w-[90vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
 								>
 									<span class="text-sm font-medium tracking-wide"
 										>Add zoom effect</span
