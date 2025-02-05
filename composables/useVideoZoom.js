@@ -45,14 +45,14 @@ const blurSettings = ref({
 	// Blur tipi
 	type: "gaussian", // 'gaussian', 'box', 'stack'
 	// Blur yoğunluğu
-	intensity: 0.5,
+	intensity: 0.05,
 });
 
 // Clean Zone ayarları
 const cleanZoneSettings = ref({
 	// Clean Zone Limitleri
 	limits: {
-		radius: 100, // Varsayılan temiz bölge yarıçapı
+		radius: 200, // Varsayılan temiz bölge yarıçapı
 		feather: 50, // Varsayılan yumuşatma değeri
 	},
 	// Aktif şekil
@@ -135,20 +135,17 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 			? zoomSettings.value.direction.zoomIn
 			: zoomSettings.value.direction.zoomOut;
 
-		// Blur efekti için yön hesaplama
-		const blurIntensity =
-			direction.blur === "inside-out"
-				? progress * blurSettings.value.intensity
-				: (1 - progress) * blurSettings.value.intensity;
+		// Blur için ters eğri (başta yüksek, sonda hızlı düşüş)
+		const blurProgress = Math.pow(1 - progress, 2); // Quadratic easing out
+		const blurIntensity = blurProgress * blurSettings.value.intensity * 2; // 2x daha güçlü blur başlangıcı
 
-		// Distortion efekti için yön hesaplama
-		const distortionCenter = direction.distortion.startsWith("center")
-			? progress
-			: 1 - progress;
+		// Distortion için yumuşak geçiş
+		const distortionProgress = Math.sin((progress * Math.PI) / 2); // Smooth easing
+		const distortionIntensity = distortionProgress * 0.8; // %80 şiddetinde distortion
 
 		return {
 			blur: blurIntensity * blurSettings.value.limits.maxRadius,
-			distortion: distortionCenter * scale,
+			distortion: 1 + (scale - 1) * distortionIntensity,
 		};
 	};
 
@@ -281,49 +278,99 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		const ctx = canvasRef.value.getContext("2d");
 		if (!ctx) return;
 
-		// Blur efekti
+		const width = canvasRef.value.width;
+		const height = canvasRef.value.height;
+		const centerX = width / 2;
+		const centerY = height / 2;
+
+		// Ana canvas'ı temizle
+		ctx.clearRect(0, 0, width, height);
+
+		// Orijinal videoyu çiz
+		ctx.drawImage(videoElement, 0, 0, width, height);
+
+		// Önce blur efekti uygula (başlangıçta daha güçlü)
 		if (effects.blur > 0) {
-			ctx.filter = `blur(${effects.blur}px)`;
-		}
-
-		// Distortion efekti
-		if (effects.distortion !== 1) {
-			const centerX = canvasRef.value.width / 2;
-			const centerY = canvasRef.value.height / 2;
-
-			// Distortion için transform matrix'i hesapla
-			const distortionMatrix = [
-				effects.distortion,
-				0,
-				0,
-				0,
-				effects.distortion,
-				0,
-				0,
-				0,
-				1,
-			];
-
-			ctx.setTransform(...distortionMatrix);
-			ctx.translate(
-				centerX * (1 - effects.distortion),
-				centerY * (1 - effects.distortion)
+			const blurRadius = Math.min(
+				effects.blur,
+				blurSettings.value.limits.maxRadius
 			);
+
+			if (blurRadius > 0) {
+				ctx.save();
+				ctx.filter = `blur(${blurRadius}px)`;
+				ctx.globalCompositeOperation = "source-over";
+				ctx.globalAlpha = 0.9; // Daha belirgin blur
+				ctx.drawImage(canvasRef.value, 0, 0);
+				ctx.restore();
+			}
 		}
 
-		// Clean zone efektini uygula
+		// Sonra distortion efekti
+		if (effects.distortion !== 1) {
+			const maxRadius = Math.max(width, height) / 2;
+			const distortionStrength = (effects.distortion - 1) * 0.12; // Daha hafif distortion
+
+			const imageData = ctx.getImageData(0, 0, width, height);
+			const pixels = imageData.data;
+			const tempPixels = new Uint8ClampedArray(pixels);
+
+			for (let y = 0; y < height; y++) {
+				for (let x = 0; x < width; x++) {
+					const dx = x - centerX;
+					const dy = y - centerY;
+					const distance = Math.sqrt(dx * dx + dy * dy);
+					const angle = Math.atan2(dy, dx);
+
+					// Yumuşak distortion
+					const normalizedDistance = distance / maxRadius;
+					const distortFactor =
+						1 + distortionStrength * (1 - Math.pow(normalizedDistance, 3)); // Cubic falloff
+
+					const newX = centerX + Math.cos(angle) * distance * distortFactor;
+					const newY = centerY + Math.sin(angle) * distance * distortFactor;
+
+					if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+						const srcIndex = (Math.floor(y) * width + Math.floor(x)) * 4;
+						const targetIndex =
+							(Math.floor(newY) * width + Math.floor(newX)) * 4;
+
+						pixels[targetIndex] = tempPixels[srcIndex];
+						pixels[targetIndex + 1] = tempPixels[srcIndex + 1];
+						pixels[targetIndex + 2] = tempPixels[srcIndex + 2];
+						pixels[targetIndex + 3] = tempPixels[srcIndex + 3];
+					}
+				}
+			}
+
+			ctx.putImageData(imageData, 0, 0);
+		}
+
+		// Clean zone efekti - daha yumuşak geçiş
 		if (cleanZoneSettings.value.shape === "circle") {
-			const centerX = canvasRef.value.width / 2;
-			const centerY = canvasRef.value.height / 2;
 			const radius = cleanZoneSettings.value.limits.radius;
+			const feather = cleanZoneSettings.value.limits.feather;
 
 			ctx.save();
-			ctx.beginPath();
-			ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-			ctx.clip();
-			// Clean zone içinde efektleri azalt
-			ctx.filter = "none";
-			ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+			// Tek bir yumuşak gradient kullan
+			const gradient = ctx.createRadialGradient(
+				centerX,
+				centerY,
+				radius * 0.8, // Daha geniş temiz bölge
+				centerX,
+				centerY,
+				radius + feather
+			);
+			gradient.addColorStop(0, "rgba(0,0,0,1)");
+			gradient.addColorStop(0.7, "rgba(0,0,0,0.9)");
+			gradient.addColorStop(1, "rgba(0,0,0,0)");
+
+			// Mask'ı uygula
+			ctx.globalCompositeOperation = "destination-in";
+			ctx.fillStyle = gradient;
+			ctx.fillRect(0, 0, width, height);
+
 			ctx.restore();
 		}
 	};
