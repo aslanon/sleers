@@ -177,30 +177,16 @@
 							@mouseleave="handleZoomTrackLeave"
 						>
 							<div
-								class="flex flex-row h-[50px] relative w-full"
+								class="flex flex-row h-[50px] relative"
 								:class="{ 'z-50': isZoomTrackHovered }"
 							>
 								<!-- Empty State Label -->
 								<div
 									v-if="zoomRanges.length === 0"
-									class="absolute inset-0 flex items-center justify-center gap-1.5 text-white/50 transition-colors"
+									class="absolute w-screen bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
 								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="w-5 h-5"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-										/>
-									</svg>
 									<span class="text-sm font-medium tracking-wide"
-										>Zoom eklemek için tıklayın</span
+										>Add zoom effect</span
 									>
 								</div>
 
