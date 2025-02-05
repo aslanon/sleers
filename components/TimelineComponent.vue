@@ -183,7 +183,7 @@
 								<!-- Empty State Label -->
 								<div
 									v-if="zoomRanges.length === 0"
-									class="absolute w-screen bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+									class="absolute w-[90vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
 								>
 									<span class="text-sm font-medium tracking-wide"
 										>Add zoom effect</span
@@ -1422,6 +1422,32 @@ const dragStartRange = ref(null);
 </script>
 
 <style scoped>
+.timeline-container {
+	padding: 0 0px;
+	position: relative;
+	&::before {
+		content: "";
+		position: absolute;
+		top: 122px;
+		left: 0px;
+		right: 0;
+		width: 120px;
+		height: 100%;
+		background: linear-gradient(to right, #000, transparent);
+		z-index: 2;
+	}
+	&::after {
+		content: "";
+		position: absolute;
+		top: 122px;
+		right: 0px;
+		width: 120px;
+		height: 100%;
+		background: linear-gradient(to left, #000, transparent);
+		z-index: 2;
+	}
+}
+
 /* ScrollContainer scrollbar'ını gizle */
 .overflow-x-scroll::-webkit-scrollbar {
 	display: none;
@@ -1458,6 +1484,7 @@ const dragStartRange = ref(null);
 	scrollbar-width: thin;
 	scrollbar-color: #374151 #111827;
 	scroll-behavior: smooth;
+
 	--scroll-behavior-duration: 150ms;
 }
 
