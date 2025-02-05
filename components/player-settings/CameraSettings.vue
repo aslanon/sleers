@@ -2,7 +2,7 @@
 	<div class="space-y-12">
 		<!-- <div class="space-y-2">
 			<h3 class="text-lg font-medium">Kamera Ayarları</h3>
-			<p class="text-sm text-gray-400">
+			<p class="text-sm font-normal text-gray-500">
 				Kamera görüntüsü için ayarları buradan yapabilirsiniz.
 			</p>
 		</div> -->
@@ -10,8 +10,8 @@
 		<!-- Kamera Mouse Takibi -->
 		<div class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-medium">Mouse İmleci Takibi</h4>
-				<p class="text-sm text-gray-400">
+				<h4 class="text-base font-semibold text-white">Mouse İmleci Takibi</h4>
+				<p class="text-sm font-normal text-gray-500">
 					Kamera görüntüsü mouse imlecini takip etsin
 				</p>
 			</div>
@@ -26,8 +26,8 @@
 		<!-- Kamera Yatay Çevirme -->
 		<div class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-medium">Kamerayı Yatay Çevir</h4>
-				<p class="text-sm text-gray-400">
+				<h4 class="text-base font-semibold text-white">Kamerayı Yatay Çevir</h4>
+				<p class="text-sm font-normal text-gray-500">
 					Kamera görüntüsünü yatay olarak aynala
 				</p>
 			</div>
@@ -51,12 +51,12 @@
 		/>
 		<!-- Kamera Crop Ayarı -->
 		<div class="space-y-2">
-			<h4 class="text-base font-medium">Kamera Kırpma</h4>
-			<p class="text-sm text-gray-400">
+			<h4 class="text-base font-semibold text-white">Kamera Görüntüsü</h4>
+			<p class="text-sm font-normal text-gray-500">
 				Kamera görüntüsünün görünür alanını ayarlayın.
 			</p>
 			<div
-				class="relative max-w-[150px] aspect-video border-zinc-800 bg-zinc-900 rounded-xl overflow-hidden"
+				class="relative max-w-[150px] aspect-video border-zinc-900 border rounded-xl overflow-hidden"
 			>
 				<div
 					ref="cropArea"

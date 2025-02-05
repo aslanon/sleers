@@ -84,11 +84,11 @@ onMounted(() => {
 }
 
 .setting-label {
-	@apply text-base font-semibold text-gray-300;
+	@apply text-base font-semibold text-white;
 }
 
 .setting-desc {
-	@apply text-sm font-semibold text-gray-500;
+	@apply text-sm font-normal text-gray-500;
 }
 
 .setting-control {
@@ -96,26 +96,26 @@ onMounted(() => {
 }
 
 .setting-slider {
-	@apply w-full h-1 bg-gray-700/50 rounded-full appearance-none cursor-pointer relative;
+	@apply w-full h-[1px] bg-gray-500/50 rounded-full appearance-none cursor-pointer relative;
 }
 
 .setting-slider::-webkit-slider-runnable-track {
-	@apply w-full h-1 rounded-full cursor-pointer;
+	@apply w-full h-[1px] rounded-full cursor-pointer;
 	background: linear-gradient(
 		to right,
-		rgb(59 130 246) var(--progress),
+		#0040ff var(--progress),
 		rgba(55, 65, 81, 0.5) 0
 	);
 }
 
 .setting-slider::-webkit-slider-thumb {
-	@apply appearance-none w-5 h-5 bg-white rounded-full cursor-pointer shadow-lg transition-all duration-150 border-4 border-blue-500;
+	@apply appearance-none w-5 h-5 bg-[#0040ff] rounded-full cursor-pointer shadow-lg transition-all duration-150 border-4 border-blue-500;
 	margin-top: -8px;
 }
 
 .setting-slider::-webkit-slider-thumb:hover {
 	@apply border-blue-400;
-	transform: scale(1.1);
+	transform: scale(1.2);
 }
 
 .setting-slider::-webkit-slider-thumb:active {
@@ -128,6 +128,6 @@ onMounted(() => {
 }
 
 .setting-value {
-	@apply text-sm text-gray-300 min-w-[3rem] text-right font-medium;
+	@apply text-xs text-gray-300 bg-gray-800/50 rounded-full px-2 py-1  text-right font-medium;
 }
 </style>
