@@ -44,3 +44,25 @@ contextBridge.exposeInMainWorld("electron", {
 		loadCursorData: () => ipcRenderer.invoke(IPC_EVENTS.LOAD_CURSOR_DATA),
 	},
 });
+
+// Mouse event IPC handlers
+contextBridge.exposeInMainWorld("electron", {
+	on: (channel, callback) => {
+		if (
+			channel === "MOUSE_POSITION" ||
+			channel === "MOUSE_CLICK" ||
+			channel === "MOUSE_WHEEL"
+		) {
+			ipcRenderer.on(channel, callback);
+		}
+	},
+	removeListener: (channel, callback) => {
+		if (
+			channel === "MOUSE_POSITION" ||
+			channel === "MOUSE_CLICK" ||
+			channel === "MOUSE_WHEEL"
+		) {
+			ipcRenderer.removeListener(channel, callback);
+		}
+	},
+});

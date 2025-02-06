@@ -14,6 +14,7 @@ const fs = require("fs");
 const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
 const ffmpeg = require("fluent-ffmpeg");
+const { uIOhook } = require("uiohook-napi");
 
 const { IPC_EVENTS } = require("./constants.cjs");
 const TrayManager = require("./trayManager.cjs");
@@ -40,8 +41,10 @@ let editorSettings = {
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 
-let mouseTrackingInterval = null;
-let mousePositions = [];
+// Mouse tracking için değişkenler
+let isTracking = false;
+let startTime = null;
+let lastCursorType = "default";
 
 // Delay yönetimi için state
 let recordingDelay = 1000; // Varsayılan 1sn
@@ -621,26 +624,111 @@ app.on("before-quit", () => {
 
 function startMouseTracking() {
 	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
-	console.log("Mouse tracking başladı");
-	const startTime = Date.now();
-	if (!mouseTrackingInterval) {
-		mouseTrackingInterval = setInterval(() => {
-			const mousePos = screen.getCursorScreenPoint();
-			const cursorType = "default";
+
+	if (!isTracking) {
+		isTracking = true;
+		startTime = Date.now();
+
+		// Mouse hareketi
+		uIOhook.on("mousemove", (event) => {
+			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
+
 			mediaStateManager.addMousePosition({
-				x: mousePos.x,
-				y: mousePos.y,
+				x: event.x,
+				y: event.y,
 				timestamp: currentTime,
-				cursorType,
+				cursorType: lastCursorType,
+				type: "move",
 			});
-		}, 8); // ~120fps için daha yüksek sampling rate
+		});
+
+		// Mouse tıklama
+		uIOhook.on("mousedown", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: "pointer",
+				type: "mousedown",
+				button: event.button, // 1: sol tık, 2: sağ tık, 3: orta tık
+				clickCount: 1,
+			});
+
+			lastCursorType = "pointer";
+		});
+
+		// Mouse bırakma
+		uIOhook.on("mouseup", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: "default",
+				type: "mouseup",
+				button: event.button,
+			});
+
+			lastCursorType = "default";
+		});
+
+		// Mouse tekerleği
+		uIOhook.on("wheel", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "wheel",
+				rotation: event.rotation,
+				direction: event.direction,
+			});
+		});
+
+		// Mouse sürükleme
+		uIOhook.on("mousedrag", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: "grabbing",
+				type: "drag",
+			});
+
+			lastCursorType = "grabbing";
+		});
+
+		// Event dinlemeyi başlat
+		uIOhook.start();
 	}
 }
 
 function stopMouseTracking() {
-	if (mouseTrackingInterval) {
-		clearInterval(mouseTrackingInterval);
-		mouseTrackingInterval = null;
+	if (isTracking) {
+		isTracking = false;
+		startTime = null;
+		lastCursorType = "default";
+
+		// Event dinleyicileri temizle
+		uIOhook.removeAllListeners("mousemove");
+		uIOhook.removeAllListeners("mousedown");
+		uIOhook.removeAllListeners("mouseup");
+		uIOhook.removeAllListeners("wheel");
+		uIOhook.removeAllListeners("mousedrag");
+
+		// Event dinlemeyi durdur
+		uIOhook.stop();
 	}
 }

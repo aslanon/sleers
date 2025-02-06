@@ -546,7 +546,22 @@ class MediaStateManager {
 	}
 
 	addMousePosition(position) {
-		this.mousePositions.push(position);
+		if (!this.mousePositions) {
+			this.mousePositions = [];
+		}
+
+		// Pozisyon verilerini kaydet
+		this.mousePositions.push({
+			x: position.x,
+			y: position.y,
+			timestamp: position.timestamp,
+			cursorType: position.cursorType || "default",
+			type: position.type || "move",
+			button: position.button,
+			clickCount: position.clickCount,
+			rotation: position.rotation,
+			direction: position.direction,
+		});
 	}
 
 	getMousePositions() {
