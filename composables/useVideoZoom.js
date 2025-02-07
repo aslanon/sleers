@@ -5,14 +5,22 @@ const zoomSettings = ref({
 	// Zoom Geçiş Süreleri
 	transition: {
 		minDuration: 0.3,
-		maxDuration: 1.0,
+		maxDuration: 2.0,
 		intensityFactor: 0.5,
 	},
 	// Zoom Limitleri
 	limits: {
-		minScale: 1.0,
-		maxScale: 5.0,
-		defaultScale: 2.0,
+		minScale: 0.5,
+		maxScale: 3.0,
+		defaultScale: 1.5,
+	},
+	// Clean Zone ayarları
+	cleanZone: {
+		shape: "circle",
+		limits: {
+			radius: 500,
+			feather: 50,
+		},
 	},
 	// Aktif easing fonksiyonu
 	easing: "easeInOutCubic",
@@ -20,11 +28,9 @@ const zoomSettings = ref({
 	direction: {
 		zoomIn: {
 			blur: "inside-out", // dıştan içe blur
-			distortion: "center-out", // merkezden dışa distortion
 		},
 		zoomOut: {
 			blur: "outside-in", // içten dışa blur
-			distortion: "edge-in", // kenardan içe distortion
 		},
 	},
 });
@@ -34,38 +40,55 @@ const blurSettings = ref({
 	// Blur Limitleri
 	limits: {
 		minRadius: 0,
-		maxRadius: 20,
-		defaultRadius: 5,
+		maxRadius: 4,
+		defaultRadius: 1,
 	},
 	// Blur geçiş ayarları
 	transition: {
-		duration: 0.4,
+		duration: 0.6,
 		easing: "easeOutCubic",
 	},
-	// Blur tipi
-	type: "gaussian", // 'gaussian', 'box', 'stack'
-	// Blur yoğunluğu
-	intensity: 0.05,
-});
-
-// Clean Zone ayarları
-const cleanZoneSettings = ref({
-	// Clean Zone Limitleri
-	limits: {
-		radius: 200, // Varsayılan temiz bölge yarıçapı
-		feather: 50, // Varsayılan yumuşatma değeri
-	},
-	// Aktif şekil
-	shape: "circle",
 });
 
 // Easing fonksiyonları
 const easingFunctions = {
-	linear: (t) => t,
-	easeInOutCubic: (t) =>
-		t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2,
 	easeOutCubic: (t) => 1 - Math.pow(1 - t, 3),
-	easeInCubic: (t) => t * t * t,
+};
+
+// Gaussian Blur uygula
+const applyGaussianBlur = (ctx, canvas, blurRadius, width, height) => {
+	const delta = 5;
+	const alpha_left = 1 / (2 * Math.PI * delta * delta);
+	const step = blurRadius < 3 ? 1 : 2;
+
+	// Ağırlıkları hesapla
+	let sum = 0;
+	for (let y = -blurRadius; y <= blurRadius; y += step) {
+		for (let x = -blurRadius; x <= blurRadius; x += step) {
+			const weight =
+				alpha_left * Math.exp(-(x * x + y * y) / (2 * delta * delta));
+			sum += weight;
+		}
+	}
+
+	// Blur uygula
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(-width / 2, -height / 2, width, height);
+	ctx.clip();
+
+	for (let y = -blurRadius; y <= blurRadius; y += step) {
+		for (let x = -blurRadius; x <= blurRadius; x += step) {
+			ctx.globalAlpha =
+				((alpha_left * Math.exp(-(x * x + y * y) / (2 * delta * delta))) /
+					sum) *
+				blurRadius;
+			ctx.drawImage(canvas, -width / 2 + x, -height / 2 + y, width, height);
+		}
+	}
+
+	ctx.restore();
+	ctx.globalAlpha = 1;
 };
 
 export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
@@ -130,23 +153,9 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 	};
 
 	// Zoom efektlerini hesapla
-	const calculateZoomEffects = (scale, progress, isZoomingIn) => {
-		const direction = isZoomingIn
-			? zoomSettings.value.direction.zoomIn
-			: zoomSettings.value.direction.zoomOut;
-
-		// Blur için ters eğri (başta yüksek, sonda hızlı düşüş)
-		const blurProgress = Math.pow(1 - progress, 2); // Quadratic easing out
-		const blurIntensity = blurProgress * blurSettings.value.intensity * 2; // 2x daha güçlü blur başlangıcı
-
-		// Distortion için yumuşak geçiş
-		const distortionProgress = Math.sin((progress * Math.PI) / 2); // Smooth easing
-		const distortionIntensity = distortionProgress * 0.8; // %80 şiddetinde distortion
-
-		return {
-			blur: blurIntensity * blurSettings.value.limits.maxRadius,
-			distortion: 1 + (scale - 1) * distortionIntensity,
-		};
+	const calculateBlurEffect = (scale, progress) => {
+		// Sabit blur değeri kullan, zoom seviyesinden etkilenmesin
+		return blurSettings.value.limits.defaultRadius;
 	};
 
 	// Zoom segmentlerini kontrol et
@@ -161,63 +170,36 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 			(range) => currentTime >= range.start && currentTime <= range.end
 		);
 
-		// Easing fonksiyonu (smooth geçiş için)
-		const easeInOutCubic = (t) =>
-			t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-		// Zoom süresini hesapla (zoom şiddetine göre)
-		const calculateZoomDuration = (scale) => {
-			const intensity = Math.abs(scale - 1);
-			const { minDuration, maxDuration, intensityFactor } =
-				zoomSettings.value.transition;
-			return Math.min(
-				maxDuration,
-				Math.max(minDuration, intensity * intensityFactor)
-			);
-		};
-
 		if (activeZoom) {
-			const zoomDuration = calculateZoomDuration(activeZoom.scale);
-			const segmentDuration = activeZoom.end - activeZoom.start;
 			const timeFromStart = currentTime - activeZoom.start;
 			const timeToEnd = activeZoom.end - currentTime;
+			const duration = 0.3; // Sabit geçiş süresi
 
 			let segmentProgress;
-			const isZoomingIn = activeZoom.scale > videoScale.value;
-
-			if (timeFromStart < zoomDuration) {
+			if (timeFromStart < duration) {
 				// Giriş animasyonu
-				segmentProgress = timeFromStart / zoomDuration;
-			} else if (timeToEnd < zoomDuration) {
+				segmentProgress = timeFromStart / duration;
+			} else if (timeToEnd < duration) {
 				// Çıkış animasyonu
-				segmentProgress = timeToEnd / zoomDuration;
+				segmentProgress = timeToEnd / duration;
 			} else {
 				// Tam zoom
 				segmentProgress = 1;
 			}
 
 			// Yumuşatılmış ilerleme
-			const smoothProgress = getEasingFunction()(segmentProgress);
+			const smoothProgress = easingFunctions.easeOutCubic(segmentProgress);
 
-			// Scale ve efektleri güncelle
+			// Sadece scale'i güncelle, blur sabit kalsın
 			videoScale.value = 1 + (activeZoom.scale - 1) * smoothProgress;
-			const effects = calculateZoomEffects(
-				activeZoom.scale,
-				smoothProgress,
-				isZoomingIn
-			);
 
-			// Efektleri uygula
-			applyZoomEffects(effects);
-
-			// Zoom pozisyonunu güncelle
-			if (activeZoom.position) {
-				lastZoomPosition.value = activeZoom.position;
-			}
+			// Sabit blur efektini uygula
+			applyZoomEffects(blurSettings.value.limits.defaultRadius);
 		} else {
 			// Segment dışındaysa varsayılan değerlere dön
 			videoScale.value = 1;
-			lastZoomPosition.value = null;
+			// Blur efektini kaldır
+			applyZoomEffects(0);
 		}
 
 		return activeZoom;
@@ -244,35 +226,8 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		}
 	};
 
-	// Easing fonksiyonunu al
-	const getEasingFunction = () => {
-		return (
-			easingFunctions[zoomSettings.value.easing] ||
-			easingFunctions.easeInOutCubic
-		);
-	};
-
-	// Clean zone etkisini hesapla
-	const calculateCleanZoneEffect = (x, y, centerX, centerY) => {
-		const { radius, feather } = cleanZoneSettings.value.limits;
-		const distance = Math.sqrt(
-			Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2)
-		);
-
-		if (distance <= radius) {
-			return 0; // Temiz bölgede efekt yok
-		}
-
-		if (distance >= radius + feather) {
-			return 1; // Tam efekt
-		}
-
-		// Yumuşak geçiş bölgesi
-		return (distance - radius) / feather;
-	};
-
 	// Zoom efektlerini uygula
-	const applyZoomEffects = (effects) => {
+	const applyZoomEffects = (blurAmount) => {
 		if (!canvasRef.value || !videoElement) return;
 
 		const ctx = canvasRef.value.getContext("2d");
@@ -286,87 +241,70 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		// Ana canvas'ı temizle
 		ctx.clearRect(0, 0, width, height);
 
-		// Orijinal videoyu çiz
-		ctx.drawImage(videoElement, 0, 0, width, height);
+		// Video sınırlarını belirle
+		const videoWidth = videoElement.videoWidth;
+		const videoHeight = videoElement.videoHeight;
+		const videoX = (width - videoWidth) / 2;
+		const videoY = (height - videoHeight) / 2;
 
-		// Önce blur efekti uygula (başlangıçta daha güçlü)
-		if (effects.blur > 0) {
+		// Orijinal videoyu çiz
+		ctx.save();
+		ctx.drawImage(videoElement, videoX, videoY, videoWidth, videoHeight);
+
+		// Gaussian blur efekti uygula
+		if (blurAmount > 0) {
 			const blurRadius = Math.min(
-				effects.blur,
+				Math.round(blurAmount),
 				blurSettings.value.limits.maxRadius
 			);
 
 			if (blurRadius > 0) {
-				ctx.save();
-				ctx.filter = `blur(${blurRadius}px)`;
-				ctx.globalCompositeOperation = "source-over";
-				ctx.globalAlpha = 0.9; // Daha belirgin blur
-				ctx.drawImage(canvasRef.value, 0, 0);
-				ctx.restore();
+				// Orijinal görüntüyü sakla
+				const tempCanvas = document.createElement("canvas");
+				tempCanvas.width = videoWidth;
+				tempCanvas.height = videoHeight;
+				const tempCtx = tempCanvas.getContext("2d");
+				tempCtx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
+
+				// Video alanını kırp
+				ctx.beginPath();
+				ctx.rect(videoX, videoY, videoWidth, videoHeight);
+				ctx.clip();
+
+				// Blur'u uygula
+				ctx.translate(videoX + videoWidth / 2, videoY + videoHeight / 2);
+				applyGaussianBlur(ctx, tempCanvas, blurRadius, videoWidth, videoHeight);
 			}
 		}
+		ctx.restore();
 
-		// Sonra distortion efekti
-		if (effects.distortion !== 1) {
-			const maxRadius = Math.max(width, height) / 2;
-			const distortionStrength = (effects.distortion - 1) * 0.12; // Daha hafif distortion
-
-			const imageData = ctx.getImageData(0, 0, width, height);
-			const pixels = imageData.data;
-			const tempPixels = new Uint8ClampedArray(pixels);
-
-			for (let y = 0; y < height; y++) {
-				for (let x = 0; x < width; x++) {
-					const dx = x - centerX;
-					const dy = y - centerY;
-					const distance = Math.sqrt(dx * dx + dy * dy);
-					const angle = Math.atan2(dy, dx);
-
-					// Yumuşak distortion
-					const normalizedDistance = distance / maxRadius;
-					const distortFactor =
-						1 + distortionStrength * (1 - Math.pow(normalizedDistance, 3)); // Cubic falloff
-
-					const newX = centerX + Math.cos(angle) * distance * distortFactor;
-					const newY = centerY + Math.sin(angle) * distance * distortFactor;
-
-					if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
-						const srcIndex = (Math.floor(y) * width + Math.floor(x)) * 4;
-						const targetIndex =
-							(Math.floor(newY) * width + Math.floor(newX)) * 4;
-
-						pixels[targetIndex] = tempPixels[srcIndex];
-						pixels[targetIndex + 1] = tempPixels[srcIndex + 1];
-						pixels[targetIndex + 2] = tempPixels[srcIndex + 2];
-						pixels[targetIndex + 3] = tempPixels[srcIndex + 3];
-					}
-				}
-			}
-
-			ctx.putImageData(imageData, 0, 0);
-		}
-
-		// Clean zone efekti - daha yumuşak geçiş
-		if (cleanZoneSettings.value.shape === "circle") {
-			const radius = cleanZoneSettings.value.limits.radius;
-			const feather = cleanZoneSettings.value.limits.feather;
+		// Clean zone efekti
+		if (zoomSettings.value.cleanZone.shape === "circle") {
+			const radius = zoomSettings.value.cleanZone.limits.radius;
+			const feather = zoomSettings.value.cleanZone.limits.feather;
 
 			ctx.save();
 
-			// Tek bir yumuşak gradient kullan
+			// Gradient hesaplama - radius'a göre iç ve dış yarıçapları ayarla
+			const innerRadius = radius * 1; // İç temiz bölge
+			const outerRadius = radius + feather; // Dış blur bölgesi
+
 			const gradient = ctx.createRadialGradient(
 				centerX,
 				centerY,
-				radius * 0.8, // Daha geniş temiz bölge
+				innerRadius,
 				centerX,
 				centerY,
-				radius + feather
+				outerRadius
 			);
-			gradient.addColorStop(0, "rgba(0,0,0,1)");
-			gradient.addColorStop(0.7, "rgba(0,0,0,0.9)");
-			gradient.addColorStop(1, "rgba(0,0,0,0)");
 
-			// Mask'ı uygula
+			// Daha keskin ve belirgin geçişler
+			gradient.addColorStop(0, "rgba(0,0,0,1)"); // Tamamen temiz bölge
+			gradient.addColorStop(0.3, "rgba(0,0,0,1)"); // Temiz bölge devamı
+			gradient.addColorStop(0.7, "rgba(0,0,0,0.7)"); // Blur başlangıcı
+			gradient.addColorStop(0.9, "rgba(0,0,0,0.3)"); // Blur artışı
+			gradient.addColorStop(1, "rgba(0,0,0,0)"); // Tam blur
+
 			ctx.globalCompositeOperation = "destination-in";
 			ctx.fillStyle = gradient;
 			ctx.fillRect(0, 0, width, height);
@@ -388,14 +326,10 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 		cleanup,
 		// Ayarları dışa aktar
 		zoomSettings,
-		cleanZoneSettings,
-		getEasingFunction,
-		calculateCleanZoneEffect,
 		blurSettings,
-		calculateZoomEffects,
 		applyZoomEffects,
 	};
 };
 
 // Ayarları ve yardımcı fonksiyonları dışa aktar
-export { zoomSettings, cleanZoneSettings, blurSettings, easingFunctions };
+export { zoomSettings, blurSettings };
