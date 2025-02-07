@@ -78,6 +78,29 @@
 					</div>
 				</div>
 			</div>
+
+			<!-- Crop Butonu -->
+			<button
+				@click="$emit('update:isCropMode', !isCropMode)"
+				class="px-3 py-1.5 rounded bg-black/80 border border-white/5 transition-all flex items-center space-x-2 hover:border-white/10"
+				:class="{ 'bg-purple-600': isCropMode }"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-4 w-4"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M7 4v16M17 4v16M3 8h18M3 16h18"
+					/>
+				</svg>
+				<span class="text-sm text-white/90">Crop</span>
+			</button>
 		</div>
 
 		<div class="w-full flex justify-center items-center space-x-4">
@@ -241,6 +264,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	isCropMode: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const { cropRatio, updateCropRatio } = usePlayerSettings();
@@ -373,6 +400,7 @@ const emit = defineEmits([
 	"toggle-trim-mode",
 	"toggle-mute",
 	"toggle-split-mode",
+	"update:isCropMode",
 ]);
 
 // Space tuşu için event handler

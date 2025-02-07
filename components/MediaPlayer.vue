@@ -32,6 +32,30 @@
 				@error="onAudioError"
 			></audio>
 		</div>
+
+		<!-- Video Crop Modal -->
+		<VideoCropModal
+			v-if="showCropModal"
+			:is-open="showCropModal"
+			:video-src="props.videoUrl"
+			@close="
+				() => {
+					showCropModal = false;
+					emit('update:isCropMode', false);
+					// Crop'u sıfırla
+					cropArea.value = {
+						x: 0,
+						y: 0,
+						width: videoElement.videoWidth,
+						height: videoElement.videoHeight,
+						isApplied: false,
+					};
+					// Canvas'ı güncelle
+					requestAnimationFrame(() => updateCanvas(performance.now()));
+				}
+			"
+			@crop-applied="handleCropApplied"
+		/>
 	</div>
 </template>
 
@@ -42,6 +66,7 @@ import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useCameraRenderer } from "~/composables/useCameraRenderer";
 import { useCameraDrag } from "~/composables/useCameraDrag";
 import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
+import VideoCropModal from "~/components/player-settings/VideoCropModal.vue";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -132,6 +157,10 @@ const props = defineProps({
 			height: 0,
 			scale: 1,
 		}),
+	},
+	isCropMode: {
+		type: Boolean,
+		default: false,
 	},
 });
 
@@ -228,6 +257,9 @@ const mousePosition = ref({ x: 0, y: 0 });
 // Zoom state'leri
 const isZoomTransitioning = ref(false);
 const previousScale = ref(1);
+
+// Crop modal state
+const showCropModal = ref(false);
 
 // Video oynatma kontrolü
 const togglePlay = async (e) => {
@@ -997,7 +1029,34 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			ctx.clip();
 
 			// Video çizimi
-			ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+			if (cropArea.value?.isApplied === true) {
+				// Kesinlikle true olmasını kontrol et
+				// Crop uygulanmışsa kırpılmış alanı çiz
+				ctx.drawImage(
+					videoElement,
+					cropArea.value.x,
+					cropArea.value.y,
+					cropArea.value.width,
+					cropArea.value.height,
+					x,
+					y,
+					drawWidth,
+					drawHeight
+				);
+			} else {
+				// Crop uygulanmamışsa tüm videoyu çiz
+				ctx.drawImage(
+					videoElement,
+					0,
+					0,
+					videoElement.videoWidth,
+					videoElement.videoHeight,
+					x,
+					y,
+					drawWidth,
+					drawHeight
+				);
+			}
 			ctx.restore();
 
 			// Zoom state'i geri yükle
@@ -1012,7 +1071,17 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				const tempCtx = tempCanvas.getContext("2d");
 
 				// Video frame'ini geçici canvas'a çiz
-				tempCtx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+				tempCtx.drawImage(
+					videoElement,
+					cropArea.value.x,
+					cropArea.value.y,
+					cropArea.value.width,
+					cropArea.value.height,
+					x,
+					y,
+					drawWidth,
+					drawHeight
+				);
 
 				// Motion blur efekti için birden fazla kopya oluştur
 				const blurSteps = 12;
@@ -1108,7 +1177,34 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			ctx.clip();
 
 			// Normal video çizimi
-			ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+			if (cropArea.value?.isApplied === true) {
+				// Kesinlikle true olmasını kontrol et
+				// Crop uygulanmışsa kırpılmış alanı çiz
+				ctx.drawImage(
+					videoElement,
+					cropArea.value.x,
+					cropArea.value.y,
+					cropArea.value.width,
+					cropArea.value.height,
+					x,
+					y,
+					drawWidth,
+					drawHeight
+				);
+			} else {
+				// Crop uygulanmamışsa tüm videoyu çiz
+				ctx.drawImage(
+					videoElement,
+					0,
+					0,
+					videoElement.videoWidth,
+					videoElement.videoHeight,
+					x,
+					y,
+					drawWidth,
+					drawHeight
+				);
+			}
 			ctx.restore();
 		}
 
@@ -2078,6 +2174,10 @@ defineExpose({
 			cameraElement.removeEventListener("ended", handler);
 		}
 	},
+	toggleCropModal: () => {
+		console.log("[MediaPlayer] Toggling crop modal");
+		showCropModal.value = !showCropModal.value;
+	},
 });
 
 // cropRatio değişikliğini izle
@@ -2189,6 +2289,49 @@ const handleMouseUp = () => {
 		stopCameraDrag();
 	}
 };
+
+// Crop işlemi uygulandığında
+const handleCropApplied = (cropData) => {
+	console.log("Crop applied:", cropData);
+
+	// Crop verilerini doğrula
+	if (!cropData || !videoElement) {
+		console.warn("[MediaPlayer] Invalid crop data or video element");
+		return;
+	}
+
+	// Crop verilerini video sınırları içinde tut
+	const validatedCropData = {
+		x: Math.max(0, Math.min(cropData.x, videoElement.videoWidth)),
+		y: Math.max(0, Math.min(cropData.y, videoElement.videoHeight)),
+		width: Math.min(cropData.width, videoElement.videoWidth - cropData.x),
+		height: Math.min(cropData.height, videoElement.videoHeight - cropData.y),
+	};
+
+	// Kırpma verilerini kaydet
+	cropArea.value = validatedCropData;
+
+	// Canvas'ı güncelle
+	requestAnimationFrame(() => {
+		updateCanvas(performance.now());
+	});
+
+	// Modal'ı kapat ve state'i güncelle
+	showCropModal.value = false;
+	emit("update:isCropMode", false);
+	emit("cropChange", validatedCropData);
+};
+
+// isCropMode prop'unu izleyelim
+watch(
+	() => props.isCropMode,
+	(newValue) => {
+		showCropModal.value = newValue;
+		if (!newValue) {
+			emit("update:isCropMode", false);
+		}
+	}
+);
 </script>
 
 <style scoped>

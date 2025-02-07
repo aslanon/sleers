@@ -99,11 +99,13 @@
 							:segments="segments"
 							:mouse-positions="mousePositions"
 							:mouse-size="mouseSize"
+							:is-crop-mode="isCropMode"
 							@video-loaded="onVideoLoaded"
 							@video-ended="onVideoEnded"
 							@video-paused="isPlaying = false"
 							@timeUpdate="onTimeUpdate"
 							@mute-change="isMuted = $event"
+							@update:isCropMode="isCropMode = $event"
 							class="absolute inset-0 h-full"
 						/>
 					</div>
@@ -116,11 +118,13 @@
 						:selected-ratio="selectedRatio"
 						:is-muted="isMuted"
 						:is-split-mode="isSplitMode"
+						:is-crop-mode="isCropMode"
 						@toggle-playback="togglePlayback"
 						@toggle-trim-mode="toggleTrimMode"
 						@update:selected-ratio="onAspectRatioChange"
 						@toggle-mute="toggleMute"
 						@toggle-split-mode="toggleSplitMode"
+						@update:isCropMode="isCropMode = $event"
 						class="mt-4"
 					/>
 				</div>
@@ -180,6 +184,7 @@ const selectedRatio = ref("");
 const selectedArea = ref(null);
 const isMuted = ref(false);
 const isSplitMode = ref(false);
+const isCropMode = ref(false);
 
 // Video boyutları
 const videoSize = ref({
