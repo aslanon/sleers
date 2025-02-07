@@ -89,13 +89,10 @@ export const useMouseCursor = () => {
 
 	// Tıklama animasyonu
 	const handleClickAnimation = () => {
-		clickScale.value = 0.8; // Tıklama anında küçült
+		clickScale.value = 0.8; // Tıklama anında %80'e küçült
 		setTimeout(() => {
-			clickScale.value = 1.1; // Hafif büyüt
-			setTimeout(() => {
-				clickScale.value = 1; // Normal boyuta dön
-			}, 100);
-		}, 100);
+			clickScale.value = 1; // Direkt normal boyuta dön
+		}, 100); // 100ms sonra
 	};
 
 	// Mouse event'lerine göre cursor tipini güncelle
@@ -179,19 +176,19 @@ export const useMouseCursor = () => {
 		ctx.globalCompositeOperation = "source-over";
 
 		// Cursor boyutunu ve pozisyonunu hesapla
-		const cursorSize = size * dpr * clickScale.value;
+		const cursorSize = size * dpr * clickScale.value; // clickScale ile boyutu ayarla
 		const cursorImg = cursorImages.value[currentCursorType.value];
 		const cursorWidth = cursorSize;
 		const cursorHeight = cursorSize;
 
 		// SVG viewBox içindeki cursor pozisyonlarını tanımla
 		const svgOffsets = {
-			default: { offsetX: -7, offsetY: -4 }, // Default cursor sol üstte
-			pointer: { offsetX: -8, offsetY: -5 }, // Pointer sol üstte
-			grabbing: { offsetX: -12, offsetY: -12 }, // Grabbing cursor merkezde
-			text: { offsetX: -2, offsetY: -12 }, // Text cursor sola hizalı ortada
-			grab: { offsetX: -12, offsetY: -12 }, // Grab cursor merkezde
-			resize: { offsetX: -12, offsetY: -12 }, // Resize cursor merkezde
+			default: { offsetX: -7, offsetY: -4 },
+			pointer: { offsetX: -8, offsetY: -5 },
+			grabbing: { offsetX: -12, offsetY: -12 },
+			text: { offsetX: -2, offsetY: -12 },
+			grab: { offsetX: -12, offsetY: -12 },
+			resize: { offsetX: -12, offsetY: -12 },
 		};
 
 		// Geçerli cursor için offset'i al
@@ -202,8 +199,8 @@ export const useMouseCursor = () => {
 		const scaledOffsetY = (offset.offsetY * cursorHeight) / 24;
 
 		// Cursor'ı çizmek için pozisyonu ayarla
-		const adjustedX = Math.round(x + scaledOffsetX);
-		const adjustedY = Math.round(y + scaledOffsetY);
+		const adjustedX = x + scaledOffsetX;
+		const adjustedY = y + scaledOffsetY;
 
 		// Motion blur efekti
 		if (motionEnabled && event?.speed > 0.1) {
