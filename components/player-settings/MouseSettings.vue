@@ -11,7 +11,7 @@
 			label="Mouse Size"
 			desc="Mouse'un boyutunu ayarlar."
 			:min="20"
-			:max="100"
+			:max="200"
 			:step="1"
 			unit="px"
 		/>

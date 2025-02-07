@@ -41,6 +41,7 @@ import { useMouseCursor } from "~/composables/useMouseCursor";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useCameraRenderer } from "~/composables/useCameraRenderer";
 import { useCameraDrag } from "~/composables/useCameraDrag";
+import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -679,23 +680,127 @@ const getCropData = () => {
 
 // Mouse cursor yönetimi
 const {
-	previousPositions,
-	cursorImage,
-	drawMousePosition: drawMouseCursor,
+	drawMousePosition,
+	currentCursorType,
+	isMouseDown,
+	isDragging,
+	MOUSE_EVENTS,
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
 
-// Mouse positions değişikliğini izle ve previousPositions'ı temizle
-watch(
-	() => props.mousePositions,
-	() => {
-		if (!ctx || !canvasRef.value) return;
-		previousPositions.value = []; // Trail'i temizle
-		requestAnimationFrame(() => {
-			updateCanvas(performance.now());
-		});
-	},
-	{ deep: true }
-);
+// Mouse pozisyonlarını çiz
+const drawMousePositions = () => {
+	if (!props.mousePositions || !canvasRef.value || !videoElement) return;
+
+	const ctx = canvasRef.value.getContext("2d");
+	if (!ctx) return;
+
+	// Video süresini al
+	const videoDuration = videoElement.duration;
+	if (!videoDuration) return;
+
+	// Mouse pozisyonları için toplam frame sayısı
+	const totalFrames = props.mousePositions.length;
+	const frameTime = videoDuration / totalFrames;
+	const exactFrame = videoElement.currentTime / frameTime;
+	const currentFrame = Math.floor(exactFrame);
+	const nextFrame = Math.min(currentFrame + 1, totalFrames - 1);
+	const framePart = exactFrame - currentFrame;
+
+	// İki frame arasında interpolasyon yap
+	const currentPos = props.mousePositions[currentFrame];
+	const nextPos = props.mousePositions[nextFrame];
+	if (!currentPos || !nextPos) return;
+
+	// İnterpolasyon ile ara pozisyonu hesapla
+	const interpolatedX = currentPos.x + (nextPos.x - currentPos.x) * framePart;
+	const interpolatedY = currentPos.y + (nextPos.y - currentPos.y) * framePart;
+
+	// DPR'ı hesaba kat
+	const dpr = window.devicePixelRatio || 1;
+
+	// Mouse hareketi hesapla
+	const moveDistance = Math.sqrt(
+		Math.pow(nextPos.x - currentPos.x, 2) +
+			Math.pow(nextPos.y - currentPos.y, 2)
+	);
+	const speed = moveDistance / (nextPos.timestamp - currentPos.timestamp);
+	const dirX = moveDistance ? (nextPos.x - currentPos.x) / moveDistance : 0;
+	const dirY = moveDistance ? (nextPos.y - currentPos.y) / moveDistance : 0;
+
+	// Video koordinatlarından canvas koordinatlarına çevir
+	const {
+		x: videoX,
+		y: videoY,
+		width: videoWidth,
+		height: videoHeight,
+	} = cropArea.value;
+	const scaleX = videoWidth / videoElement.videoWidth;
+	const scaleY = videoHeight / videoElement.videoHeight;
+
+	// Padding'i hesaba kat
+	const paddingValue = padding.value * dpr;
+
+	// Video'nun canvas içindeki pozisyonunu hesapla
+	const {
+		displayWidth,
+		displayHeight,
+		videoX: displayX,
+		videoY: displayY,
+	} = calculateVideoDisplaySize(
+		videoElement.videoWidth,
+		videoElement.videoHeight,
+		canvasRef.value.width,
+		canvasRef.value.height,
+		paddingValue
+	);
+
+	// Mouse pozisyonunu video koordinatlarından canvas koordinatlarına çevir
+	let canvasX =
+		(interpolatedX / videoElement.videoWidth) * displayWidth + displayX;
+	let canvasY =
+		(interpolatedY / videoElement.videoHeight) * displayHeight + displayY;
+
+	// Zoom durumunda pozisyonu ayarla
+	if (videoScale.value > 1.001) {
+		const activeZoom = checkZoomSegments(
+			videoElement.currentTime,
+			zoomRanges.value
+		);
+		const { originX: zoomOriginX, originY: zoomOriginY } = calculateZoomOrigin(
+			activeZoom?.position || lastZoomPosition.value || "center",
+			displayX,
+			displayY,
+			displayWidth,
+			displayHeight,
+			displayX + displayWidth / 2,
+			displayY + displayHeight / 2
+		);
+
+		// Zoom'u hesaba katarak pozisyonu güncelle
+		canvasX = zoomOriginX + (canvasX - zoomOriginX) * videoScale.value;
+		canvasY = zoomOriginY + (canvasY - zoomOriginY) * videoScale.value;
+	}
+
+	// Mouse cursor'ı çiz
+	drawMousePosition(ctx, {
+		x: canvasX,
+		y: canvasY,
+		event: {
+			type: currentPos.type || MOUSE_EVENTS.MOVE,
+			button: currentPos.button,
+			clickCount: currentPos.clickCount,
+			rotation: currentPos.rotation,
+			direction: currentPos.direction,
+			speed,
+			dirX,
+			dirY,
+		},
+		size: mouseSize.value,
+		dpr,
+		motionEnabled: mouseMotionEnabled.value,
+		motionBlurValue: motionBlurValue.value,
+	});
+};
 
 // Arkaplan resmi için
 const bgImageElement = ref(null);
@@ -1071,20 +1176,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			currentMouseY *= dpr;
 
 			// Mouse cursor'ı çiz
-			drawMouseCursor(
-				ctx,
-				videoElement.currentTime,
-				props.mousePositions,
-				canvasRef.value,
-				videoElement,
-				padding.value,
-				videoScale.value,
-				zoomRanges.value,
-				lastZoomPosition,
-				mouseSize.value,
-				mouseMotionEnabled.value,
-				motionBlurValue.value
-			);
+			drawMousePositions();
 
 			// Kamera pozisyonunu güncelle
 			if (cameraElement && cameraSettings.value.followMouse) {

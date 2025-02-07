@@ -1,6 +1,6 @@
 import { ref, computed } from "vue";
 
-const mouseSize = ref(65);
+const mouseSize = ref(124);
 const motionBlurValue = ref(50);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);

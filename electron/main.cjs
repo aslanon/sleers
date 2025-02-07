@@ -654,11 +654,36 @@ function startMouseTracking() {
 				timestamp: currentTime,
 				cursorType: "pointer",
 				type: "mousedown",
-				button: event.button, // 1: sol tık, 2: sağ tık, 3: orta tık
+				button: event.button,
 				clickCount: 1,
+				scale: 0.8, // Tıklama anında küçülme
 			});
 
 			lastCursorType = "pointer";
+
+			// 100ms sonra normale dön
+			setTimeout(() => {
+				mediaStateManager.addMousePosition({
+					x: event.x,
+					y: event.y,
+					timestamp: currentTime + 100,
+					cursorType: lastCursorType,
+					type: "scale",
+					scale: 1.1, // Hafif büyüme
+				});
+
+				// 200ms'de normal boyuta dön
+				setTimeout(() => {
+					mediaStateManager.addMousePosition({
+						x: event.x,
+						y: event.y,
+						timestamp: currentTime + 200,
+						cursorType: lastCursorType,
+						type: "scale",
+						scale: 1,
+					});
+				}, 100);
+			}, 100);
 		});
 
 		// Mouse bırakma

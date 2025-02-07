@@ -1,7 +1,8 @@
-import { ref } from "vue";
-import defaultCursor from "~/assets/cursors/default.svg";
-import pointerCursor from "~/assets/cursors/pointer.svg";
-import textCursor from "~/assets/cursors/text.svg";
+import { ref, onMounted } from "vue";
+import defaultCursor from "@/assets/cursors/default.svg";
+import pointerCursor from "@/assets/cursors/pointer.svg";
+import grabbingCursor from "@/assets/cursors/grabbing.svg";
+import textCursor from "@/assets/cursors/text.svg";
 import { calculateZoomOrigin } from "~/composables/utils/zoomPositions";
 import {
 	calculateMousePosition,
@@ -14,440 +15,271 @@ import {
 	applyDeformationEffects,
 } from "~/composables/utils/motionBlur";
 
-// Cursor type mapping
-const cursorImages = {
-	default: defaultCursor,
-	pointer: pointerCursor,
-	text: textCursor,
+export const MOUSE_EVENTS = {
+	MOVE: "move",
+	DOWN: "mousedown",
+	UP: "mouseup",
+	DRAG: "drag",
+	WHEEL: "wheel",
+	HOVER: "hover",
+	CLICK: "click",
 };
 
-const scaleValue = 3;
+export const CURSOR_TYPES = {
+	DEFAULT: "default",
+	POINTER: "pointer",
+	GRABBING: "grabbing",
+	TEXT: "text",
+	GRAB: "grab",
+	RESIZE: "resize",
+};
 
-export const useMouseCursor = (MOTION_BLUR_CONSTANTS) => {
-	// Mouse animasyonu için state
-	const previousPositions = ref([]);
+export const useMouseCursor = () => {
+	const cursorImages = ref({
+		default: null,
+		pointer: null,
+		grabbing: null,
+		text: null,
+	});
 
-	// Cursor image yönetimi
-	const cursorImageCache = {};
+	const currentCursorType = ref("default");
+	const isMouseDown = ref(false);
+	const isDragging = ref(false);
+	const clickScale = ref(1); // Tıklama animasyonu için scale değeri
+	const isHovering = ref(false);
+	const hoverTarget = ref(null);
 
-	const loadCursorImage = (type) => {
-		if (!cursorImageCache[type]) {
-			const image = Object.assign(new Image(), {
-				src: cursorImages[type] || cursorImages.default,
-				onload: () =>
-					console.log(
-						`[useMouseCursor] ${type} cursor image loaded successfully`
-					),
-				onerror: (error) =>
-					console.error(
-						`[useMouseCursor] ${type} cursor image loading error:`,
-						error
-					),
-			});
-			cursorImageCache[type] = image;
+	// Cursor görsellerini yükle
+	onMounted(async () => {
+		try {
+			const loadImage = (src) => {
+				return new Promise((resolve, reject) => {
+					const img = new Image();
+					img.onload = () => resolve(img);
+					img.onerror = (e) => {
+						console.error(`Failed to load cursor image: ${src}`, e);
+						reject(e);
+					};
+					img.src = src;
+				});
+			};
+
+			console.log("Loading cursor images...");
+
+			// Tüm cursor görsellerini paralel olarak yükle
+			const [defaultImg, pointerImg, grabbingImg, textImg] = await Promise.all([
+				loadImage(defaultCursor),
+				loadImage(pointerCursor),
+				loadImage(grabbingCursor),
+				loadImage(textCursor),
+			]);
+
+			console.log("Cursor images loaded successfully");
+
+			cursorImages.value = {
+				default: defaultImg,
+				pointer: pointerImg,
+				grabbing: grabbingImg,
+				text: textImg,
+			};
+		} catch (error) {
+			console.error("Error loading cursor images:", error);
 		}
-		return cursorImageCache[type];
+	});
+
+	// Tıklama animasyonu
+	const handleClickAnimation = () => {
+		clickScale.value = 0.8; // Tıklama anında küçült
+		setTimeout(() => {
+			clickScale.value = 1.1; // Hafif büyüt
+			setTimeout(() => {
+				clickScale.value = 1; // Normal boyuta dön
+			}, 100);
+		}, 100);
 	};
 
-	// Motion blur fonksiyonu
-	const applyMotionBlur = (
-		ctx,
-		x,
-		y,
-		dirX,
-		dirY,
-		speed,
-		moveDistance,
-		mouseSize,
-		dpr,
-		mouseMotionEnabled,
-		motionBlurValue,
-		videoScale,
-		cursorType = "default"
-	) => {
-		const {
-			MIN_SPEED_THRESHOLD,
-			MAX_SPEED,
-			MIN_DISTANCE_THRESHOLD,
-			TRAIL_STEPS,
-			TRAIL_OPACITY_BASE,
-			TRAIL_OFFSET_MULTIPLIER,
-			BLUR_BASE,
-			MOVEMENT_ANGLE,
-			SKEW_FACTOR,
-			STRETCH_FACTOR,
-		} = MOTION_BLUR_CONSTANTS;
+	// Mouse event'lerine göre cursor tipini güncelle
+	const updateCursorType = (event) => {
+		if (!event) return;
 
-		// Mouse boyutunu kesinlikle sabit tut
-		const size = mouseSize * dpr * scaleValue; // DPR ile ölçekle
-		// Offset'leri boyuta göre oransal olarak hesapla
-		const offsetX = size * 0.3;
-		const offsetY = size * 0.2;
+		const prevType = currentCursorType.value;
+		let newType = prevType;
 
-		// Get the appropriate cursor image
-		const cursorImage = loadCursorImage(cursorType);
-
-		// Zoom durumunda scale'i kompanse et
-		if (videoScale > 1.001) {
-			ctx.save();
-			const scale = videoScale;
-			ctx.scale(scale, scale);
-			x = x / scale;
-			y = y / scale;
+		switch (event.type) {
+			case MOUSE_EVENTS.DOWN:
+				isMouseDown.value = true;
+				newType = CURSOR_TYPES.POINTER;
+				handleClickAnimation();
+				break;
+			case MOUSE_EVENTS.UP:
+				isMouseDown.value = false;
+				isDragging.value = false;
+				newType = isHovering.value
+					? CURSOR_TYPES.POINTER
+					: CURSOR_TYPES.DEFAULT;
+				break;
+			case MOUSE_EVENTS.DRAG:
+				isDragging.value = true;
+				newType = CURSOR_TYPES.GRABBING;
+				break;
+			case MOUSE_EVENTS.HOVER:
+				isHovering.value = true;
+				hoverTarget.value = event.target;
+				newType = CURSOR_TYPES.POINTER;
+				break;
+			case MOUSE_EVENTS.MOVE:
+				if (!isMouseDown.value && !isDragging.value) {
+					newType = isHovering.value
+						? CURSOR_TYPES.POINTER
+						: CURSOR_TYPES.DEFAULT;
+				}
+				break;
 		}
 
-		// Hız ve mesafe kontrolü
-		const isSignificantMovement =
-			speed > MIN_SPEED_THRESHOLD && moveDistance > MIN_DISTANCE_THRESHOLD;
-
-		// Shadow özelliklerini ayarla
-		ctx.save();
-		ctx.shadowColor = "rgba(0, 0, 0, 0.8 )";
-		ctx.shadowBlur = 10 * dpr * scaleValue;
-		ctx.shadowOffsetX = 1 * dpr * scaleValue;
-		ctx.shadowOffsetY = 1 * dpr * scaleValue;
-
-		if (!mouseMotionEnabled || !isSignificantMovement) {
-			ctx.drawImage(cursorImage, x - offsetX, y - offsetY, size, size);
-			ctx.restore();
-			if (videoScale > 1.001) {
-				ctx.restore();
+		if (prevType !== newType) {
+			currentCursorType.value = newType;
+			// Cursor type değişikliğini kaydet
+			if (event.recordChange) {
+				event.recordChange({
+					type: "cursor_change",
+					from: prevType,
+					to: newType,
+					timestamp: Date.now(),
+				});
 			}
-			return;
-		}
-
-		// Motion blur efektlerini hesapla
-		const { easedIntensity, deformAmount, blurAmount } =
-			calculateMotionBlurEffects(
-				speed,
-				moveDistance,
-				MIN_SPEED_THRESHOLD,
-				MAX_SPEED,
-				motionBlurValue
-			);
-
-		// Trail efektlerini uygula
-		applyTrailEffects(
-			ctx,
-			cursorImage,
-			x,
-			y,
-			dirX,
-			dirY,
-			TRAIL_STEPS,
-			TRAIL_OPACITY_BASE,
-			TRAIL_OFFSET_MULTIPLIER,
-			BLUR_BASE,
-			size,
-			offsetX,
-			offsetY
-		);
-
-		// Ana cursor için normal efektleri uygula
-		ctx.globalAlpha = 1;
-		ctx.filter = `blur(${blurAmount}px)`;
-		ctx.translate(x, y);
-
-		// Deformasyon efektlerini uygula
-		applyDeformationEffects(
-			ctx,
-			moveDistance,
-			dirX,
-			dirY,
-			deformAmount,
-			easedIntensity,
-			MOVEMENT_ANGLE,
-			SKEW_FACTOR,
-			STRETCH_FACTOR
-		);
-
-		ctx.drawImage(cursorImage, -offsetX, -offsetY, size, size);
-		ctx.restore();
-
-		if (videoScale > 1.001) {
-			ctx.restore();
 		}
 	};
 
 	// Mouse pozisyonunu çiz
-	const drawMousePosition = (
-		ctx,
-		currentTime,
-		mousePositions,
-		canvasRef,
-		videoElement,
-		padding,
-		videoScale,
-		zoomRanges,
-		lastZoomPosition,
-		mouseSize,
-		dpr,
-		mouseMotionEnabled,
-		motionBlurValue
-	) => {
-		if (
-			!mousePositions ||
-			mousePositions.length < 2 ||
-			!canvasRef ||
-			!videoElement ||
-			videoElement.readyState < 3
-		)
-			return;
+	const drawMousePosition = (ctx, options) => {
+		const {
+			x,
+			y,
+			event,
+			size = 124,
+			dpr = 1,
+			motionEnabled = false,
+			motionBlurValue = 0.5,
+		} = options;
 
-		// Video süresini al
-		const videoDuration = videoElement.duration;
-		if (!videoDuration) return;
-
-		// Video henüz başlamamışsa ilk frame'i göster
-		if (!videoElement.currentTime) {
-			const currentPos = mousePositions[0];
-			const nextPos = mousePositions[1];
-			renderMouseFrame(
-				ctx,
-				currentPos,
-				nextPos,
-				0,
-				canvasRef,
-				videoElement,
-				padding,
-				videoScale,
-				zoomRanges,
-				lastZoomPosition,
-				mouseSize,
-				dpr,
-				mouseMotionEnabled,
-				motionBlurValue,
-				currentTime
+		if (!cursorImages.value[currentCursorType.value]) {
+			console.warn(
+				`Cursor image not found for type: ${currentCursorType.value}`
 			);
 			return;
 		}
 
-		// Her mouse pozisyonunun video zamanındaki karşılığını hesapla
-		const startTime = mousePositions[0].timestamp;
-		const endTime = mousePositions[mousePositions.length - 1].timestamp;
-		const recordingDuration = endTime - startTime;
+		// Event'e göre cursor tipini güncelle
+		updateCursorType(event);
 
-		// Video zamanını kayıt zamanına dönüştür (microsaniye hassasiyetinde)
-		const exactVideoTime = videoElement.currentTime * 1000000; // microsaniye
-		const exactRecordingTime =
-			(exactVideoTime / (videoDuration * 1000000)) * recordingDuration;
-		const targetTimestamp = startTime + exactRecordingTime;
-
-		// Tam eşleşen frame'i bul
-		let currentFrame = 0;
-		let nextFrame = 1;
-		let bestMatchDiff = Infinity;
-
-		// İlk olarak binary search ile yaklaşık konumu bul
-		let left = 0;
-		let right = mousePositions.length - 2;
-
-		while (left <= right) {
-			const mid = Math.floor((left + right) / 2);
-			const midDiff = Math.abs(mousePositions[mid].timestamp - targetTimestamp);
-
-			if (midDiff < bestMatchDiff) {
-				bestMatchDiff = midDiff;
-				currentFrame = mid;
-			}
-
-			if (mousePositions[mid].timestamp < targetTimestamp) {
-				left = mid + 1;
-			} else {
-				right = mid - 1;
-			}
-		}
-
-		// Bulunan konumun etrafında daha hassas arama yap
-		const searchWindow = 5; // Arama penceresi boyutu
-		const start = Math.max(0, currentFrame - searchWindow);
-		const end = Math.min(
-			mousePositions.length - 2,
-			currentFrame + searchWindow
-		);
-
-		for (let i = start; i <= end; i++) {
-			const currentDiff = Math.abs(
-				mousePositions[i].timestamp - targetTimestamp
-			);
-			if (currentDiff < bestMatchDiff) {
-				bestMatchDiff = currentDiff;
-				currentFrame = i;
-			}
-		}
-
-		// Sonraki frame'i belirle
-		nextFrame = Math.min(currentFrame + 1, mousePositions.length - 1);
-
-		// Frame sınırlarını kontrol et
-		if (currentFrame >= mousePositions.length - 1) {
-			const currentPos = mousePositions[mousePositions.length - 2];
-			const nextPos = mousePositions[mousePositions.length - 1];
-			renderMouseFrame(
-				ctx,
-				currentPos,
-				nextPos,
-				1,
-				canvasRef,
-				videoElement,
-				padding,
-				videoScale,
-				zoomRanges,
-				lastZoomPosition,
-				mouseSize,
-				dpr,
-				mouseMotionEnabled,
-				motionBlurValue,
-				currentTime
-			);
-			return;
-		}
-
-		const currentPos = mousePositions[currentFrame];
-		const nextPos = mousePositions[nextFrame];
-
-		if (!currentPos || !nextPos) return;
-
-		// Hassas interpolasyon hesapla
-		const frameInterval = nextPos.timestamp - currentPos.timestamp;
-		const preciseFramePart = Math.max(
-			0,
-			Math.min(1, (targetTimestamp - currentPos.timestamp) / frameInterval)
-		);
-
-		// Hermite interpolasyon uygula (daha yumuşak geçişler için)
-		const t = preciseFramePart;
-		const t2 = t * t;
-		const t3 = t2 * t;
-		const h1 = 2 * t3 - 3 * t2 + 1;
-		const h2 = -2 * t3 + 3 * t2;
-		const h3 = t3 - 2 * t2 + t;
-		const h4 = t3 - t2;
-
-		const finalFramePart = h1 + h2 * preciseFramePart + h3 + h4;
-
-		renderMouseFrame(
-			ctx,
-			currentPos,
-			nextPos,
-			finalFramePart,
-			canvasRef,
-			videoElement,
-			padding,
-			videoScale,
-			zoomRanges,
-			lastZoomPosition,
-			mouseSize,
-			dpr,
-			mouseMotionEnabled,
-			motionBlurValue,
-			currentTime
-		);
-	};
-
-	// Mouse frame'ini render et
-	const renderMouseFrame = (
-		ctx,
-		currentPos,
-		nextPos,
-		framePart,
-		canvasRef,
-		videoElement,
-		padding,
-		videoScale,
-		zoomRanges,
-		lastZoomPosition,
-		mouseSize,
-		dpr,
-		mouseMotionEnabled,
-		motionBlurValue,
-		currentTime
-	) => {
-		// Video boyutlarını hesapla
-		const { displayWidth, displayHeight, videoX, videoY } =
-			calculateVideoDisplaySize(
-				videoElement.videoWidth,
-				videoElement.videoHeight,
-				canvasRef.width,
-				canvasRef.height,
-				padding
-			);
-
-		// Mouse pozisyonunu hesapla
-		const { finalX, finalY } = calculateMousePosition(
-			currentPos,
-			nextPos,
-			framePart,
-			videoElement.videoWidth,
-			videoElement.videoHeight,
-			displayWidth,
-			displayHeight,
-			videoX,
-			videoY
-		);
-
-		// Zoom origin'i hesapla
-		const { originX, originY } = calculateZoomOrigin(
-			zoomRanges.find(
-				(range) => currentTime >= range.start && currentTime <= range.end
-			)?.position ||
-				lastZoomPosition.value ||
-				"center",
-			videoX,
-			videoY,
-			displayWidth,
-			displayHeight,
-			canvasRef.width / 2,
-			canvasRef.height / 2
-		);
-
-		// Mouse pozisyonunu zoom origin'e göre ayarla
-		const relativeX = finalX - originX;
-		const relativeY = finalY - originY;
-
-		// Zoom geçişlerinde smooth pozisyon hesaplama
-		const activeZoom = zoomRanges.find(
-			(range) => currentTime >= range.start && currentTime <= range.end
-		);
-		const targetScale = activeZoom ? activeZoom.scale : 1;
-		const lerpFactor = 0.1;
-		const smoothScale = videoScale + (targetScale - videoScale) * lerpFactor;
-
-		// Pozisyonu smooth scale ile hesapla
-		const adjustedX = originX + relativeX * smoothScale;
-		const adjustedY = originY + relativeY * smoothScale;
-
-		// Mouse hareketini hesapla
-		const { speed, moveDistance, dirX, dirY } = calculateMouseMovement(
-			currentPos,
-			nextPos
-		);
-
+		// Context'i kaydet
 		ctx.save();
 
-		// Motion blur efektini uygula
-		applyMotionBlur(
-			ctx,
-			adjustedX,
-			adjustedY,
-			dirX,
-			dirY,
-			speed,
-			moveDistance,
-			mouseSize,
-			dpr,
-			mouseMotionEnabled,
-			motionBlurValue,
-			videoScale,
-			currentPos.cursorType || "default"
-		);
+		// Her zaman en üstte çizilmesi için
+		ctx.globalCompositeOperation = "source-over";
 
+		// Cursor boyutunu ve pozisyonunu hesapla
+		const cursorSize = size * dpr * clickScale.value;
+		const cursorImg = cursorImages.value[currentCursorType.value];
+		const cursorWidth = cursorSize;
+		const cursorHeight = cursorSize;
+
+		// SVG viewBox içindeki cursor pozisyonlarını tanımla
+		const svgOffsets = {
+			default: { offsetX: -7, offsetY: -4 }, // Default cursor sol üstte
+			pointer: { offsetX: -8, offsetY: -5 }, // Pointer sol üstte
+			grabbing: { offsetX: -12, offsetY: -12 }, // Grabbing cursor merkezde
+			text: { offsetX: -2, offsetY: -12 }, // Text cursor sola hizalı ortada
+			grab: { offsetX: -12, offsetY: -12 }, // Grab cursor merkezde
+			resize: { offsetX: -12, offsetY: -12 }, // Resize cursor merkezde
+		};
+
+		// Geçerli cursor için offset'i al
+		const offset = svgOffsets[currentCursorType.value] || svgOffsets.default;
+
+		// SVG offset'ini cursor boyutuna göre ölçekle
+		const scaledOffsetX = (offset.offsetX * cursorWidth) / 24;
+		const scaledOffsetY = (offset.offsetY * cursorHeight) / 24;
+
+		// Cursor'ı çizmek için pozisyonu ayarla
+		const adjustedX = Math.round(x + scaledOffsetX);
+		const adjustedY = Math.round(y + scaledOffsetY);
+
+		// Motion blur efekti
+		if (motionEnabled && event?.speed > 0.1) {
+			const blurAmount = Math.min(event.speed * motionBlurValue, 10);
+			const trailSteps = 5;
+
+			for (let i = 0; i < trailSteps; i++) {
+				const alpha = (1 - i / trailSteps) * 0.3;
+				const offset = i * 5;
+
+				ctx.globalAlpha = alpha;
+				ctx.drawImage(
+					cursorImg,
+					adjustedX - (event.dirX || 0) * offset,
+					adjustedY - (event.dirY || 0) * offset,
+					cursorWidth,
+					cursorHeight
+				);
+			}
+		}
+
+		// Ana cursor'ı çiz
+		ctx.globalAlpha = 1;
+		ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+		ctx.shadowBlur = 4 * dpr;
+		ctx.shadowOffsetX = 1 * dpr;
+		ctx.shadowOffsetY = 1 * dpr;
+
+		// Tıklama efekti için scale
+		const scaleOriginX = x; // Tam tıklama noktasından scale et
+		const scaleOriginY = y;
+
+		ctx.translate(scaleOriginX, scaleOriginY);
+		ctx.scale(clickScale.value, clickScale.value);
+		ctx.translate(-scaleOriginX, -scaleOriginY);
+
+		// Cursor'ı çiz
+		ctx.drawImage(cursorImg, adjustedX, adjustedY, cursorWidth, cursorHeight);
+
+		// Debug için hotspot noktasını göster (geliştirme sırasında yardımcı olur)
+		if (process.env.NODE_ENV === "development") {
+			ctx.beginPath();
+			ctx.arc(x, y, 2, 0, Math.PI * 2);
+			ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+			ctx.fill();
+		}
+
+		// Context'i geri yükle
 		ctx.restore();
 	};
 
+	// Hover state yönetimi
+	const handleHover = (element, isHoverable = false) => {
+		if (isHoverable) {
+			element.addEventListener("mouseenter", () => {
+				isHovering.value = true;
+				hoverTarget.value = element;
+				updateCursorType({ type: MOUSE_EVENTS.HOVER, target: element });
+			});
+
+			element.addEventListener("mouseleave", () => {
+				isHovering.value = false;
+				hoverTarget.value = null;
+				updateCursorType({ type: MOUSE_EVENTS.MOVE });
+			});
+		}
+	};
+
 	return {
-		previousPositions,
+		currentCursorType,
+		isMouseDown,
+		isDragging,
+		isHovering,
+		MOUSE_EVENTS,
+		CURSOR_TYPES,
 		drawMousePosition,
-		applyMotionBlur,
+		handleHover,
 	};
 };
