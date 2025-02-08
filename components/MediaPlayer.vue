@@ -746,15 +746,19 @@ const drawMousePositions = () => {
 	const dirX = moveDistance ? (nextPos.x - currentPos.x) / moveDistance : 0;
 	const dirY = moveDistance ? (nextPos.y - currentPos.y) / moveDistance : 0;
 
-	// Video koordinatlarından canvas koordinatlarına çevir
-	const {
-		x: videoX,
-		y: videoY,
-		width: videoWidth,
-		height: videoHeight,
-	} = cropArea.value;
-	const scaleX = videoWidth / videoElement.videoWidth;
-	const scaleY = videoHeight / videoElement.videoHeight;
+	// Video veya crop boyutlarını kullan
+	let sourceWidth, sourceHeight, sourceX, sourceY;
+	if (cropArea.value?.isApplied) {
+		sourceWidth = cropArea.value.width;
+		sourceHeight = cropArea.value.height;
+		sourceX = cropArea.value.x;
+		sourceY = cropArea.value.y;
+	} else {
+		sourceWidth = videoElement.videoWidth;
+		sourceHeight = videoElement.videoHeight;
+		sourceX = 0;
+		sourceY = 0;
+	}
 
 	// Padding'i hesaba kat
 	const paddingValue = padding.value * dpr;
@@ -766,18 +770,30 @@ const drawMousePositions = () => {
 		videoX: displayX,
 		videoY: displayY,
 	} = calculateVideoDisplaySize(
-		videoElement.videoWidth,
-		videoElement.videoHeight,
+		sourceWidth,
+		sourceHeight,
 		canvasRef.value.width,
 		canvasRef.value.height,
 		paddingValue
 	);
 
 	// Mouse pozisyonunu video koordinatlarından canvas koordinatlarına çevir
-	let canvasX =
-		(interpolatedX / videoElement.videoWidth) * displayWidth + displayX;
-	let canvasY =
-		(interpolatedY / videoElement.videoHeight) * displayHeight + displayY;
+	let canvasX, canvasY;
+
+	if (cropArea.value?.isApplied) {
+		// Crop uygulanmışsa, mouse pozisyonunu crop alanına göre normalize et
+		const normalizedX = (interpolatedX - sourceX) / sourceWidth;
+		const normalizedY = (interpolatedY - sourceY) / sourceHeight;
+
+		canvasX = displayX + normalizedX * displayWidth;
+		canvasY = displayY + normalizedY * displayHeight;
+	} else {
+		// Crop uygulanmamışsa normal hesaplama yap
+		canvasX =
+			displayX + (interpolatedX / videoElement.videoWidth) * displayWidth;
+		canvasY =
+			displayY + (interpolatedY / videoElement.videoHeight) * displayHeight;
+	}
 
 	// Zoom durumunda pozisyonu ayarla
 	if (videoScale.value > 1.001) {
@@ -819,6 +835,33 @@ const drawMousePositions = () => {
 		motionEnabled: mouseMotionEnabled.value,
 		motionBlurValue: motionBlurValue.value,
 	});
+
+	// Kamera pozisyonunu güncelle
+	if (cameraElement && cameraSettings.value.followMouse) {
+		// Kamera için offset değerleri
+		const offsetX = 0; // X ekseninde offset
+		const offsetY = 50 * dpr * scaleValue; // Y ekseninde offset
+
+		// Hedef pozisyonu hesapla (mouse pozisyonuna göre)
+		const targetX = canvasX + offsetX;
+		const targetY = canvasY + offsetY;
+
+		// Smooth geçiş için lerp faktörü (0-1 arası)
+		const lerpFactor = 0.15; // Daha yumuşak hareket için düşük değer
+
+		// Lerp ile yumuşak geçiş uygula
+		if (!lastCameraX.value) lastCameraX.value = targetX;
+		if (!lastCameraY.value) lastCameraY.value = targetY;
+
+		lastCameraX.value += (targetX - lastCameraX.value) * lerpFactor;
+		lastCameraY.value += (targetY - lastCameraY.value) * lerpFactor;
+
+		// Kamera pozisyonunu güncelle
+		lastCameraPosition.value = {
+			x: lastCameraX.value,
+			y: lastCameraY.value,
+		};
+	}
 };
 
 // Arkaplan resmi için
@@ -2090,6 +2133,11 @@ defineExpose({
 watch(cropRatio, (newRatio) => {
 	if (!videoElement) return;
 
+	// Eğer crop uygulanmışsa, mevcut crop değerlerini koru
+	if (cropArea.value?.isApplied === true) {
+		return;
+	}
+
 	if (!newRatio || newRatio === "auto") {
 		// Auto seçildiğinde orijinal boyutları kullan
 		cropArea.value = {
@@ -2097,6 +2145,7 @@ watch(cropRatio, (newRatio) => {
 			y: 0,
 			width: videoElement.videoWidth,
 			height: videoElement.videoHeight,
+			isApplied: false,
 		};
 	} else {
 		// Diğer aspect ratio'lar için mevcut hesaplama
@@ -2112,6 +2161,7 @@ watch(cropRatio, (newRatio) => {
 				y: 0,
 				width: newWidth,
 				height: videoElement.videoHeight,
+				isApplied: false,
 			};
 		} else {
 			// Video daha dar, genişliği kullan
@@ -2121,6 +2171,7 @@ watch(cropRatio, (newRatio) => {
 				y: (videoElement.videoHeight - newHeight) / 2,
 				width: videoElement.videoWidth,
 				height: newHeight,
+				isApplied: false,
 			};
 		}
 	}
