@@ -1109,17 +1109,31 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				const tempCtx = tempCanvas.getContext("2d");
 
 				// Video frame'ini geçici canvas'a çiz
-				tempCtx.drawImage(
-					videoElement,
-					cropArea.value.x,
-					cropArea.value.y,
-					cropArea.value.width,
-					cropArea.value.height,
-					x,
-					y,
-					drawWidth,
-					drawHeight
-				);
+				if (cropArea.value?.isApplied === true) {
+					tempCtx.drawImage(
+						videoElement,
+						cropArea.value.x,
+						cropArea.value.y,
+						cropArea.value.width,
+						cropArea.value.height,
+						x,
+						y,
+						drawWidth,
+						drawHeight
+					);
+				} else {
+					tempCtx.drawImage(
+						videoElement,
+						0,
+						0,
+						videoElement.videoWidth,
+						videoElement.videoHeight,
+						x,
+						y,
+						drawWidth,
+						drawHeight
+					);
+				}
 
 				// Motion blur efekti için birden fazla kopya oluştur
 				const blurSteps = 12;
@@ -1177,11 +1191,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 						glowRadius
 					);
 
-					glow.addColorStop(0, `rgba(255, 255, 255, ${0 * scaleVelocity * 5})`);
-					glow.addColorStop(
-						0.5,
-						`rgba(255, 255, 255, ${0 * scaleVelocity * 5})`
-					);
+					glow.addColorStop(0, `rgba(255, 255, 255, ${0.2 * scaleVelocity})`);
+					glow.addColorStop(0.5, `rgba(255, 255, 255, ${0.1 * scaleVelocity})`);
 					glow.addColorStop(1, "rgba(255, 255, 255, 0)");
 
 					ctx.globalCompositeOperation = "screen";
