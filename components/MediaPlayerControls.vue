@@ -8,7 +8,7 @@
 				<button
 					ref="dropdownButton"
 					@click="toggleDropdown"
-					class="aspect-ratio-button px-3 py-1.5 w-[150px] rounded bg-black/80 border border-white/5 transition-all flex items-center space-x-2 hover:border-white/10"
+					class="aspect-ratio-button px-3 py-1.5 w-[150px] rounded bg-black/80 border border-white/5 transition-all flex items-center justify-between space-x-2 hover:border-white/10"
 				>
 					<span class="text-sm text-white/90">{{
 						getCurrentRatio?.label || "Auto"
