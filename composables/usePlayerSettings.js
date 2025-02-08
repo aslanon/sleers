@@ -4,6 +4,7 @@ const mouseSize = ref(124);
 const motionBlurValue = ref(50);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
+const backgroundBlur = ref(0);
 const padding = ref(128);
 const radius = ref(64);
 const shadowSize = ref(50);
@@ -62,6 +63,10 @@ export const usePlayerSettings = () => {
 
 	const updateBackgroundImage = (imagePath) => {
 		backgroundImage.value = imagePath;
+	};
+
+	const updateBackgroundBlur = (value) => {
+		backgroundBlur.value = value;
 	};
 
 	const updatePadding = (value) => {
@@ -162,6 +167,7 @@ export const usePlayerSettings = () => {
 		motionBlurValue,
 		backgroundColor,
 		backgroundImage,
+		backgroundBlur,
 		padding,
 		radius,
 		shadowSize,
@@ -177,6 +183,7 @@ export const usePlayerSettings = () => {
 		updateMotionBlur,
 		updateBackgroundColor,
 		updateBackgroundImage,
+		updateBackgroundBlur,
 		updatePadding,
 		updateRadius,
 		updateShadowSize,

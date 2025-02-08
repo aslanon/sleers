@@ -168,6 +168,7 @@ const props = defineProps({
 const {
 	backgroundColor,
 	backgroundImage,
+	backgroundBlur,
 	padding,
 	radius,
 	shadowSize,
@@ -954,7 +955,15 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				const x = (canvasRef.value.width - scaledWidth) / 2;
 				const y = (canvasRef.value.height - scaledHeight) / 2;
 
+				// Blur efekti uygula
+				if (backgroundBlur.value > 0) {
+					ctx.filter = `blur(${backgroundBlur.value}px)`;
+				}
+
 				ctx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
+
+				// Blur'u sıfırla
+				ctx.filter = "none";
 			} catch (error) {
 				console.error("Error drawing background image:", error);
 				ctx.fillStyle = backgroundColor.value;
@@ -1677,6 +1686,7 @@ const onVideoMetadataLoaded = () => {
 watch(
 	[
 		backgroundColor,
+		backgroundBlur,
 		radius,
 		shadowSize,
 		padding,

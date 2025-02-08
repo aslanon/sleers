@@ -74,6 +74,15 @@
 				</button>
 			</div>
 		</div>
+		<SliderInput
+			v-model="blurValue"
+			label="Blur"
+			desc="Video'nun arkaplanının bulanıklığını ayarlar."
+			:min="0"
+			:max="100"
+			:step="5"
+			unit="px"
+		/>
 	</div>
 </template>
 
@@ -105,11 +114,13 @@ const {
 	padding,
 	radius,
 	shadowSize,
+	backgroundBlur,
 	updateBackgroundColor,
 	updatePadding,
 	updateRadius,
 	updateShadowSize,
 	updateBackgroundImage,
+	updateBackgroundBlur,
 } = usePlayerSettings();
 
 // Renk paleti
@@ -162,6 +173,7 @@ const selectedColor = ref(backgroundColor.value);
 const paddingValue = ref(padding.value);
 const radiusValue = ref(radius.value);
 const shadowValue = ref(shadowSize.value);
+const blurValue = ref(backgroundBlur.value);
 const selectedWallpaper = ref(null);
 
 // Renk seçimi
@@ -191,6 +203,11 @@ watch(shadowValue, (newValue) => {
 	updateShadowSize(Number(newValue));
 });
 
+// Blur değişikliğini izle
+watch(blurValue, (newValue) => {
+	updateBackgroundBlur(Number(newValue));
+});
+
 // Store'dan gelen değişiklikleri izle
 watch(
 	() => backgroundColor.value,
@@ -217,6 +234,13 @@ watch(
 	() => shadowSize.value,
 	(newValue) => {
 		shadowValue.value = newValue;
+	}
+);
+
+watch(
+	() => backgroundBlur.value,
+	(newValue) => {
+		blurValue.value = newValue;
 	}
 );
 
