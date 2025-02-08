@@ -7,8 +7,10 @@
 		<div class="absolute inset-0 bg-black/80" @click="$emit('close')"></div>
 
 		<!-- Modal Content -->
-		<div class="relative bg-zinc-900 rounded-lg p-6 w-[90vw] max-w-4xl">
-			<div class="flex justify-between items-center mb-4">
+		<div
+			class="relative flex flex-col gap-4 bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 z-[60] shadow-xl p-6 w-[90vw] max-w-4xl"
+		>
+			<div class="flex justify-between items-center">
 				<h3 class="text-lg font-medium">Video Kırpma</h3>
 				<button @click="$emit('close')" class="text-gray-400 hover:text-white">
 					<svg
@@ -26,18 +28,31 @@
 					</svg>
 				</button>
 			</div>
-
+			<!-- Controls -->
+			<div class="flex space-x-4">
+				<button
+					v-for="ratio in aspectRatios"
+					:key="ratio.value"
+					@click="setAspectRatio(ratio.value)"
+					class="px-3 min-w-24 py-1.5 rounded-lg"
+					:class="currentRatio === ratio.value ? 'bg-blue-600' : 'bg-zinc-800'"
+				>
+					{{ ratio.label }}
+				</button>
+			</div>
 			<!-- Video Preview Area -->
-			<div class="relative aspect-video bg-black mb-4 overflow-hidden">
+			<div
+				class="relative max-w-[600px] mx-auto bg-black my-12 rounded-lg overflow-hidden"
+			>
 				<video
 					ref="videoRef"
 					:src="videoSrc"
-					class="w-full h-full object-contain"
+					class="w-full h-full object-contain rounded-lg"
 					@loadedmetadata="onVideoLoad"
 				></video>
 				<div
 					ref="cropArea"
-					class="absolute border-2 border-purple-500 bg-purple-500/20 cursor-move"
+					class="absolute border-2 border-purple-500 bg-blue-500/20 cursor-move"
 					:style="{
 						left: cropPosition.x + 'px',
 						top: cropPosition.y + 'px',
@@ -48,38 +63,23 @@
 				>
 					<!-- Resize Handles -->
 					<div
-						class="absolute -right-1 -bottom-1 w-3 h-3 bg-purple-500 cursor-se-resize"
+						class="absolute -right-1 -bottom-1 w-3 h-3 bg-blue-500 cursor-se-resize"
 						@mousedown.stop="startResize"
 					></div>
 				</div>
-			</div>
-
-			<!-- Controls -->
-			<div class="flex space-x-4 mb-4">
-				<button
-					v-for="ratio in aspectRatios"
-					:key="ratio.value"
-					@click="setAspectRatio(ratio.value)"
-					class="px-3 py-1.5 rounded"
-					:class="
-						currentRatio === ratio.value ? 'bg-purple-600' : 'bg-zinc-800'
-					"
-				>
-					{{ ratio.label }}
-				</button>
 			</div>
 
 			<!-- Action Buttons -->
 			<div class="flex justify-end space-x-3">
 				<button
 					@click="$emit('close')"
-					class="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700"
+					class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700"
 				>
 					İptal
 				</button>
 				<button
 					@click="applyCrop"
-					class="px-4 py-2 rounded bg-purple-600 hover:bg-purple-500"
+					class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500"
 				>
 					Uygula
 				</button>
@@ -109,11 +109,11 @@ let startPos = { x: 0, y: 0 };
 let startSize = { width: 0, height: 0 };
 
 const aspectRatios = [
+	{ label: "Serbest", value: "free" },
 	{ label: "16:9", value: "16:9" },
 	{ label: "4:3", value: "4:3" },
 	{ label: "1:1", value: "1:1" },
 	{ label: "9:16", value: "9:16" },
-	{ label: "Serbest", value: "free" },
 ];
 
 const onVideoLoad = () => {
