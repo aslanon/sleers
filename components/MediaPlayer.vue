@@ -2085,16 +2085,36 @@ defineExpose({
 		const tempCanvas = document.createElement("canvas");
 		const tempCtx = tempCanvas.getContext("2d");
 
-		// Video boyutlarını al
-		const videoWidth = videoElement.videoWidth;
-		const videoHeight = videoElement.videoHeight;
+		// Video veya crop boyutlarını kullan
+		let sourceWidth, sourceHeight, sourceX, sourceY;
+		if (cropArea.value?.isApplied) {
+			sourceWidth = cropArea.value.width;
+			sourceHeight = cropArea.value.height;
+			sourceX = cropArea.value.x;
+			sourceY = cropArea.value.y;
+		} else {
+			sourceWidth = videoElement.videoWidth;
+			sourceHeight = videoElement.videoHeight;
+			sourceX = 0;
+			sourceY = 0;
+		}
 
 		// Canvas boyutlarını ayarla
-		tempCanvas.width = videoWidth;
-		tempCanvas.height = videoHeight;
+		tempCanvas.width = sourceWidth;
+		tempCanvas.height = sourceHeight;
 
 		// Video frame'ini çiz
-		tempCtx.drawImage(videoElement, 0, 0, videoWidth, videoHeight);
+		tempCtx.drawImage(
+			videoElement,
+			sourceX,
+			sourceY,
+			sourceWidth,
+			sourceHeight,
+			0,
+			0,
+			sourceWidth,
+			sourceHeight
+		);
 
 		// Base64 formatında frame'i döndür
 		return tempCanvas.toDataURL("image/jpeg", 0.5);

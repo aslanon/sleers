@@ -24,30 +24,39 @@
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
-					class="relative w-full max-w-[160px] overflow-hidden border border-gray-700 rounded-lg"
-					:style="{
-						aspectRatio: `${
-							props.mediaPlayer?.getVideoElement()?.videoWidth || 16
-						}/${props.mediaPlayer?.getVideoElement()?.videoHeight || 9}`,
-					}"
+					class="relative w-full max-w-[160px] aspect-video overflow-hidden border border-gray-700 rounded-lg"
 					@mousedown="startDragging"
 					@mousemove="handleDrag"
 					@mouseup="stopDragging"
 					@mouseleave="stopDragging"
 					ref="dragArea"
 				>
-					<!-- Video frame background -->
-					<div
-						class="absolute inset-0 bg-cover bg-center bg-no-repeat"
-						:style="{ backgroundImage: `url(${frameDataUrl})` }"
-					></div>
-					<!-- İç kısım için ayrı bir container -->
-					<div class="absolute inset-0 m-3">
+					<!-- Video frame background container -->
+					<div class="absolute inset-0 flex items-center justify-center">
 						<div
-							class="absolute z-20 w-8 h-8 -m-4 bg-zinc-700/80 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95"
-							:style="{ left: `${position.x}%`, top: `${position.y}%` }"
-							:class="{ 'cursor-grabbing ring-zinc-400 scale-95': isDragging }"
-						></div>
+							class="relative w-full h-full"
+							:style="{
+								aspectRatio: videoAspectRatio,
+								width: previewDimensions.width + 'px',
+								height: previewDimensions.height + 'px',
+							}"
+						>
+							<!-- Video frame background -->
+							<div
+								class="absolute inset-0 bg-cover bg-center bg-no-repeat"
+								:style="{ backgroundImage: `url(${frameDataUrl})` }"
+							></div>
+							<!-- İç kısım için ayrı bir container -->
+							<div class="absolute inset-0 m-3">
+								<div
+									class="absolute z-20 w-8 h-8 -m-4 bg-zinc-700/80 ring-2 ring-zinc-500 rounded-full cursor-grab hover:ring-zinc-400 transition-all active:scale-95"
+									:style="{ left: `${position.x}%`, top: `${position.y}%` }"
+									:class="{
+										'cursor-grabbing ring-zinc-400 scale-95': isDragging,
+									}"
+								></div>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -97,8 +106,8 @@ onMounted(() => {
 	// İlk frame'i yakala
 	updateFrame();
 
-	// Her 500ms'de bir frame'i güncelle
-	frameUpdateInterval = setInterval(updateFrame, 500);
+	// Her 100ms'de bir frame'i güncelle (daha sık güncelleme için 500ms'den düşürüldü)
+	frameUpdateInterval = setInterval(updateFrame, 100);
 });
 
 onUnmounted(() => {
@@ -201,6 +210,39 @@ const getPositionClass = (position) => {
 
 // Zoom ayarları aktif mi?
 const isZoomSettingsActive = computed(() => currentZoomRange.value !== null);
+
+// Video aspect ratio hesaplama
+const videoAspectRatio = computed(() => {
+	const video = props.mediaPlayer?.getVideoElement();
+	if (!video) return "16/9";
+	return `${video.videoWidth}/${video.videoHeight}`;
+});
+
+// Preview boyutlarını hesaplama
+const previewDimensions = computed(() => {
+	const video = props.mediaPlayer?.getVideoElement();
+	if (!video) return { width: 160, height: 90 };
+
+	const containerWidth = 160; // max-w-[160px]
+	const containerHeight = containerWidth * (9 / 16); // aspect-video (16:9)
+
+	const videoRatio = video.videoWidth / video.videoHeight;
+	const containerRatio = containerWidth / containerHeight;
+
+	let width, height;
+
+	if (videoRatio > containerRatio) {
+		// Video daha geniş, yüksekliğe göre ölçekle
+		height = containerHeight;
+		width = height * videoRatio;
+	} else {
+		// Video daha dar, genişliğe göre ölçekle
+		width = containerWidth;
+		height = width / videoRatio;
+	}
+
+	return { width, height };
+});
 </script>
 
 <style scoped>
