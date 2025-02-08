@@ -103,18 +103,18 @@ onMounted(() => {
 	@apply w-full h-[1px] rounded-full cursor-pointer;
 	background: linear-gradient(
 		to right,
-		#0040ff var(--progress),
+		#2563eb var(--progress),
 		rgba(55, 65, 81, 0.5) 0
 	);
 }
 
 .setting-slider::-webkit-slider-thumb {
-	@apply appearance-none w-5 h-5 bg-[#0040ff] rounded-full cursor-pointer shadow-lg transition-all duration-150 border-4 border-blue-500;
+	@apply appearance-none w-5 h-5 bg-[#2563eb] rounded-full cursor-pointer shadow-lg transition-all duration-150 border-4 border-blue-600;
 	margin-top: -8px;
 }
 
 .setting-slider::-webkit-slider-thumb:hover {
-	@apply border-blue-400;
+	@apply border-blue-600;
 	transform: scale(1.2);
 }
 
