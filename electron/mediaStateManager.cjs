@@ -1,6 +1,8 @@
 const { IPC_EVENTS } = require("./constants.cjs");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const { exec } = require("child_process");
 
 class MediaStateManager {
 	constructor(mainWindow) {
@@ -636,6 +638,101 @@ class MediaStateManager {
 		} catch (error) {
 			console.error("[MediaStateManager] Cursor verisi okunurken hata:", error);
 			return [];
+		}
+	}
+
+	async saveVideo(event, data) {
+		try {
+			const { filePath, segments, videoPath, audioPath, systemAudioPath } =
+				data;
+
+			// Dosyaların varlığını kontrol et
+			const files = [videoPath, audioPath, systemAudioPath].filter(Boolean);
+			const fileChecks = await Promise.all(
+				files.map(async (file) => {
+					try {
+						await fs.access(file, fs.constants.R_OK);
+						return true;
+					} catch {
+						return false;
+					}
+				})
+			);
+
+			if (fileChecks.includes(false)) {
+				console.error("Some input files are not accessible");
+				// Dosyaların hazır olması için bekle
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+			}
+
+			// Maksimum 3 deneme hakkı
+			let attempts = 0;
+			const maxAttempts = 3;
+
+			while (attempts < maxAttempts) {
+				try {
+					// Geçici dosya oluştur
+					const tempOutputPath = path.join(
+						os.tmpdir(),
+						`temp_output_${Date.now()}.mp4`
+					);
+
+					// FFmpeg komutunu hazırla
+					const command = this.createFFmpegCommand(
+						segments,
+						videoPath,
+						audioPath,
+						systemAudioPath,
+						tempOutputPath
+					);
+
+					// FFmpeg'i çalıştır
+					await new Promise((resolve, reject) => {
+						exec(command, (error, stdout, stderr) => {
+							if (error) {
+								console.error(`FFmpeg error (attempt ${attempts + 1}):`, error);
+								reject(error);
+							} else {
+								resolve();
+							}
+						});
+					});
+
+					// Geçici dosyanın varlığını kontrol et
+					await fs.access(tempOutputPath, fs.constants.R_OK);
+
+					// Dosya boyutunu kontrol et
+					const stats = await fs.stat(tempOutputPath);
+					if (stats.size === 0) {
+						throw new Error("Output file is empty");
+					}
+
+					// Başarılı olursa dosyayı hedef konuma taşı
+					await fs.rename(tempOutputPath, filePath);
+
+					// Başarılı
+					event.reply("SAVE_VIDEO_STATUS", { success: true });
+					return;
+				} catch (error) {
+					attempts++;
+					console.error(`Export attempt ${attempts} failed:`, error);
+
+					if (attempts === maxAttempts) {
+						throw new Error(
+							`Failed after ${maxAttempts} attempts: ${error.message}`
+						);
+					}
+
+					// Sonraki denemeden önce bekle
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+				}
+			}
+		} catch (error) {
+			console.error("Final export error:", error);
+			event.reply("SAVE_VIDEO_STATUS", {
+				success: false,
+				error: `Video dönüştürülemedi: ${error.message}`,
+			});
 		}
 	}
 }
