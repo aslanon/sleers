@@ -89,38 +89,46 @@ export const useCameraRenderer = () => {
 		// Calculate camera position with fallbacks
 		let cameraX, cameraY;
 
-		if (dragPosition) {
-			// Kamera sürükleniyorsa dragPosition'ı ve video pozisyonunu kullan
-			cameraX = dragPosition.x + videoPosition.x;
-			cameraY = dragPosition.y + videoPosition.y;
+		if (dragPosition && !cameraSettings.value.followMouse) {
+			// Mouse takibi kapalıysa ve kamera sürükleniyorsa sadece dragPosition'ı kullan
+			cameraX = dragPosition.x;
+			cameraY = dragPosition.y;
 		} else if (cameraSettings.value.followMouse) {
 			// Mouse takibi aktifse video pozisyonunu ekle ve offset uygula
 			const minOffset = 150; // Minimum mesafe
 			const offsetX = minOffset * dpr; // Sağda sabit mesafe
 			const offsetY = minOffset * dpr; // Aşağıda sabit mesafe
 
-			// Kamerayı cursor'ın sağına ve altına yerleştir
-			cameraX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
-			cameraY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
+			if (dragPosition) {
+				// Kamera sürükleniyorsa dragPosition'ı video pozisyonuyla birlikte kullan
+				cameraX = dragPosition.x + videoPosition.x;
+				cameraY = dragPosition.y + videoPosition.y;
+			} else {
+				// Kamerayı cursor'ın sağına ve altına yerleştir
+				cameraX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
+				cameraY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
+			}
 		} else {
-			// Varsayılan pozisyon için son pozisyonu veya başlangıç pozisyonunu kullan
+			// Mouse takibi kapalıysa ve sürüklenmiyorsa sabit konumda kal
 			cameraX =
-				(lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr) +
-				videoPosition.x;
+				lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr;
 			cameraY =
-				(lastCameraPosition.value?.y ||
-					canvasHeight - cameraHeight - 20 * dpr) + videoPosition.y;
+				lastCameraPosition.value?.y || canvasHeight - cameraHeight - 20 * dpr;
 		}
 
 		// Ensure camera stays within canvas bounds
 		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
 		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
 
-		// Save last position (video pozisyonunu çıkararak)
+		// Save last position
 		if (dragPosition || !cameraSettings.value.followMouse) {
 			lastCameraPosition.value = {
-				x: cameraX - videoPosition.x,
-				y: cameraY - videoPosition.y,
+				x: cameraSettings.value.followMouse
+					? cameraX - videoPosition.x
+					: cameraX,
+				y: cameraSettings.value.followMouse
+					? cameraY - videoPosition.y
+					: cameraY,
 			};
 		}
 
