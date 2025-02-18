@@ -1221,9 +1221,14 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		if (cameraElement) {
 			let cameraPos;
 			if (isCameraDragging.value) {
+				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
 				cameraPos = cameraPosition.value;
 			} else if (cameraSettings.value.followMouse && lastCameraPosition.value) {
-				cameraPos = lastCameraPosition.value;
+				// Mouse takibi aktifse video pozisyonunu ekle
+				cameraPos = {
+					x: lastCameraPosition.value.x - position.value.x,
+					y: lastCameraPosition.value.y - position.value.y,
+				};
 			}
 
 			try {
@@ -1235,11 +1240,12 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					1,
 					mouseX,
 					mouseY,
-					cameraPos
+					cameraPos,
+					1,
+					position.value
 				);
 			} catch (error) {
 				console.warn("[MediaPlayer] Camera draw error:", error);
-				// Try to reinitialize camera if there was an error
 				if (!cameraElement || cameraElement.readyState < 2) {
 					initializeCamera();
 				}

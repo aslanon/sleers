@@ -30,7 +30,8 @@ export const useCameraRenderer = () => {
 		mouseX,
 		mouseY,
 		dragPosition = null,
-		zoomScale = 1
+		zoomScale = 1,
+		videoPosition = { x: 0, y: 0 }
 	) => {
 		// Always try to draw even if camera is not fully ready
 		if (!cameraElement) return false;
@@ -89,38 +90,27 @@ export const useCameraRenderer = () => {
 		let cameraX, cameraY;
 
 		if (dragPosition) {
+			// Kamera sürükleniyorsa sadece dragPosition'ı kullan
 			cameraX = dragPosition.x;
 			cameraY = dragPosition.y;
-		} else if (
-			cameraSettings.value?.followMouse &&
-			mouseX !== undefined &&
-			mouseY !== undefined
-		) {
-			const offsetY = 50 * dpr * scaleValue;
-			cameraX = mouseX - cameraWidth / 2;
-			cameraY = mouseY + offsetY;
-			lastCameraPosition.value = { x: cameraX, y: cameraY };
+		} else if (cameraSettings.value.followMouse) {
+			// Mouse takibi aktifse video pozisyonunu ekle
+			cameraX = mouseX - cameraWidth / 2 + videoPosition.x;
+			cameraY = mouseY - cameraHeight / 2 + videoPosition.y;
 		} else {
+			// Varsayılan pozisyon için son pozisyonu veya başlangıç pozisyonunu kullan
 			cameraX =
-				lastCameraPosition.value.x ||
-				canvasWidth - cameraWidth - 20 * dpr * scaleValue;
+				lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr;
 			cameraY =
-				lastCameraPosition.value.y ||
-				canvasHeight - cameraHeight - 20 * dpr * scaleValue;
+				lastCameraPosition.value?.y || canvasHeight - cameraHeight - 20 * dpr;
 		}
 
 		// Ensure camera stays within canvas bounds
-		cameraX = Math.max(
-			-cameraWidth * 0.5,
-			Math.min(canvasWidth - cameraWidth * 0.5, cameraX)
-		);
-		cameraY = Math.max(
-			-cameraHeight * 0.5,
-			Math.min(canvasHeight - cameraHeight * 0.5, cameraY)
-		);
+		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
+		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
 
 		// Save last position
-		if (dragPosition) {
+		if (dragPosition || !cameraSettings.value.followMouse) {
 			lastCameraPosition.value = { x: cameraX, y: cameraY };
 		}
 
