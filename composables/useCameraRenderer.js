@@ -95,7 +95,7 @@ export const useCameraRenderer = () => {
 			cameraY = dragPosition.y;
 		} else if (cameraSettings.value.followMouse) {
 			// Mouse takibi aktifse video pozisyonunu ekle ve offset uygula
-			const minOffset = 150; // Minimum mesafe
+			const minOffset = 200; // Minimum mesafe
 			const offsetX = minOffset * dpr; // Sağda sabit mesafe
 			const offsetY = minOffset * dpr; // Aşağıda sabit mesafe
 

@@ -163,20 +163,20 @@ class CameraManager {
 					const bounds = display.bounds;
 
 					let x = mousePos.x - width / 2;
-					let y = mousePos.y + 25;
+					let y = mousePos.y + 100;
 
 					const EDGE_THRESHOLD = 600;
 
 					if (mousePos.x > bounds.x + bounds.width - EDGE_THRESHOLD) {
-						x = mousePos.x - width - 25;
+						x = mousePos.x - width - 100;
 					} else if (mousePos.x < bounds.x + EDGE_THRESHOLD) {
-						x = mousePos.x + 25;
+						x = mousePos.x + 100;
 					}
 
 					if (mousePos.y > bounds.y + bounds.height - EDGE_THRESHOLD) {
-						y = mousePos.y - height - 25;
+						y = mousePos.y - height - 100;
 					} else if (mousePos.y < bounds.y + EDGE_THRESHOLD) {
-						y = mousePos.y + 25;
+						y = mousePos.y + 100;
 					}
 
 					x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.width - width));

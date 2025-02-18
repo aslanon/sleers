@@ -861,8 +861,8 @@ const drawMousePositions = () => {
 	// Kamera pozisyonunu güncelle
 	if (cameraElement && cameraSettings.value.followMouse) {
 		// Kamera için offset değerleri
-		const offsetX = 0;
-		const offsetY = 20 * dpr;
+		const offsetX = 100 * dpr; // Yatay mesafeyi artır
+		const offsetY = 100 * dpr; // Dikey mesafeyi artır
 
 		// Mouse pozisyonunu video pozisyonuna göre normalize et
 		const normalizedMouseX = canvasX - position.value.x;
