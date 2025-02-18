@@ -176,7 +176,7 @@ export const useMouseCursor = () => {
 		ctx.globalCompositeOperation = "source-over";
 
 		// Cursor boyutunu ve pozisyonunu hesapla
-		const cursorSize = size * dpr * clickScale.value; // clickScale ile boyutu ayarla
+		const cursorSize = size * dpr * clickScale.value;
 		const cursorImg = cursorImages.value[currentCursorType.value];
 		const cursorWidth = cursorSize;
 		const cursorHeight = cursorSize;
@@ -203,42 +203,81 @@ export const useMouseCursor = () => {
 		const adjustedY = y + scaledOffsetY;
 
 		// Motion blur efekti
-		if (motionEnabled && event?.speed > 0.1) {
-			const blurAmount = Math.min(event.speed * motionBlurValue, 10);
-			const trailSteps = 5;
+		if (motionEnabled && event?.speed > 0) {
+			const { easedIntensity, deformAmount, blurAmount, shouldApplyEffect } =
+				calculateMotionBlurEffects(
+					event.speed,
+					Math.sqrt(event.dirX * event.dirX + event.dirY * event.dirY) * 100,
+					undefined,
+					undefined,
+					motionBlurValue
+				);
 
-			for (let i = 0; i < trailSteps; i++) {
-				const alpha = (1 - i / trailSteps) * 0.3;
-				const offset = i * 5;
+			if (shouldApplyEffect) {
+				ctx.save();
+				ctx.globalAlpha = 1; // Her zaman tam görünür
 
-				ctx.globalAlpha = alpha;
+				// Cursor'ın merkez noktasına göre transform uygula
+				ctx.translate(
+					adjustedX + cursorWidth / 2,
+					adjustedY + cursorHeight / 2
+				);
+
+				// Hareket yönünde warp
+				const warpAmount = deformAmount * 0.8;
+				ctx.transform(
+					1 + Math.abs(event.dirX * warpAmount), // Yatay genişleme
+					event.dirY * warpAmount * 0.5, // Yatay eğim (daha az)
+					event.dirX * warpAmount * 0.5, // Dikey eğim (daha az)
+					1 + Math.abs(event.dirY * warpAmount), // Dikey genişleme
+					0,
+					0
+				);
+
+				// Gaussian blur
+				const blurRadius = blurAmount * 2;
+				ctx.filter = `blur(${blurRadius}px)`;
+
+				// Cursor'ı merkez noktasından çiz
 				ctx.drawImage(
 					cursorImg,
-					adjustedX - (event.dirX || 0) * offset,
-					adjustedY - (event.dirY || 0) * offset,
+					-cursorWidth / 2,
+					-cursorHeight / 2,
 					cursorWidth,
 					cursorHeight
 				);
+
+				ctx.restore();
+			} else {
+				// Normal cursor çizimi (düşük hızda)
+				ctx.save();
+				ctx.globalAlpha = 1;
+				ctx.filter = "none";
+				ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+				ctx.shadowBlur = 4 * dpr;
+				ctx.shadowOffsetX = 1 * dpr;
+				ctx.shadowOffsetY = 1 * dpr;
+				ctx.drawImage(
+					cursorImg,
+					adjustedX,
+					adjustedY,
+					cursorWidth,
+					cursorHeight
+				);
+				ctx.restore();
 			}
+		} else {
+			// Normal cursor çizimi (hareket yok)
+			ctx.save();
+			ctx.globalAlpha = 1;
+			ctx.filter = "none";
+			ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+			ctx.shadowBlur = 4 * dpr;
+			ctx.shadowOffsetX = 1 * dpr;
+			ctx.shadowOffsetY = 1 * dpr;
+			ctx.drawImage(cursorImg, adjustedX, adjustedY, cursorWidth, cursorHeight);
+			ctx.restore();
 		}
-
-		// Ana cursor'ı çiz
-		ctx.globalAlpha = 1;
-		ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-		ctx.shadowBlur = 4 * dpr;
-		ctx.shadowOffsetX = 1 * dpr;
-		ctx.shadowOffsetY = 1 * dpr;
-
-		// Tıklama efekti için scale
-		const scaleOriginX = x; // Tam tıklama noktasından scale et
-		const scaleOriginY = y;
-
-		ctx.translate(scaleOriginX, scaleOriginY);
-		ctx.scale(clickScale.value, clickScale.value);
-		ctx.translate(-scaleOriginX, -scaleOriginY);
-
-		// Cursor'ı çiz
-		ctx.drawImage(cursorImg, adjustedX, adjustedY, cursorWidth, cursorHeight);
 
 		// Debug için hotspot noktasını göster (geliştirme sırasında yardımcı olur)
 		if (process.env.NODE_ENV === "development") {
@@ -248,7 +287,6 @@ export const useMouseCursor = () => {
 			ctx.fill();
 		}
 
-		// Context'i geri yükle
 		ctx.restore();
 	};
 
