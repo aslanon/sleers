@@ -1280,16 +1280,27 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				cameraPos = lastCameraPosition.value;
 			}
 
-			drawCamera(
-				ctx,
-				cameraElement,
-				canvasRef.value.width,
-				canvasRef.value.height,
-				1,
-				mouseX,
-				mouseY,
-				cameraPos
-			);
+			try {
+				drawCamera(
+					ctx,
+					cameraElement,
+					canvasRef.value.width,
+					canvasRef.value.height,
+					1,
+					mouseX,
+					mouseY,
+					cameraPos
+				);
+			} catch (error) {
+				console.warn("[MediaPlayer] Camera draw error:", error);
+				// Try to reinitialize camera if there was an error
+				if (!cameraElement || cameraElement.readyState < 2) {
+					initializeCamera();
+				}
+			}
+		} else {
+			// If camera element doesn't exist, try to initialize it
+			initializeCamera();
 		}
 
 		// Animasyon frame'ini sadece gerektiğinde talep et

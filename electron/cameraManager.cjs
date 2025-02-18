@@ -16,6 +16,9 @@ class CameraManager {
 		this.lastCameraPosition = null;
 		this.isRecording = false;
 		this.shouldFollowMouse = true;
+		this.initializationAttempts = 0;
+		this.maxInitializationAttempts = 3;
+		this.initializationTimeout = null;
 
 		// Constants
 		this.SMALL_SIZE = 260;
@@ -23,6 +26,37 @@ class CameraManager {
 		this.SHAKE_THRESHOLD = 800;
 		this.SHAKE_TIME_WINDOW = 500;
 		this.REQUIRED_MOVEMENTS = 5;
+		this.INITIALIZATION_RETRY_DELAY = 2000; // 2 seconds
+	}
+
+	// Initialize camera with retry mechanism
+	async initializeCamera() {
+		if (this.initializationAttempts >= this.maxInitializationAttempts) {
+			console.error("Maximum camera initialization attempts reached");
+			this.mainWindow.webContents.send(
+				"camera-error",
+				"Failed to initialize camera after multiple attempts"
+			);
+			return;
+		}
+
+		try {
+			await this.createCameraWindow();
+			this.initializationAttempts = 0; // Reset attempts on success
+		} catch (error) {
+			console.error("Camera initialization failed:", error);
+			this.initializationAttempts++;
+
+			// Schedule retry
+			if (this.initializationAttempts < this.maxInitializationAttempts) {
+				if (this.initializationTimeout) {
+					clearTimeout(this.initializationTimeout);
+				}
+				this.initializationTimeout = setTimeout(() => {
+					this.initializeCamera();
+				}, this.INITIALIZATION_RETRY_DELAY);
+			}
+		}
 	}
 
 	// Lerp function for smooth animation
@@ -183,82 +217,141 @@ class CameraManager {
 		}
 	}
 
-	// Create camera window
-	createCameraWindow() {
-		console.log("Kamera penceresi oluşturuluyor...");
+	// Create camera window with enhanced error handling
+	async createCameraWindow() {
+		console.log("Creating camera window...");
+
+		if (this.cameraWindow) {
+			try {
+				if (!this.cameraWindow.isDestroyed()) {
+					this.cameraWindow.close();
+				}
+			} catch (error) {
+				console.warn("Error closing existing camera window:", error);
+			}
+		}
+
 		const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 		const size = this.LARGE_SIZE;
 
-		this.cameraWindow = new BrowserWindow({
-			width: size,
-			height: size,
-			x: width - size - 50,
-			y: height - size - 50,
-			transparent: true,
-			frame: false,
-			alwaysOnTop: true,
-			webPreferences: {
-				nodeIntegration: true,
-				contextIsolation: true,
-				backgroundThrottling: false,
-				preload: path.join(__dirname, "preload.cjs"),
-			},
-			backgroundColor: "#00000000",
-			hasShadow: false,
-			roundedCorners: true,
-			titleBarOverlay: false,
-			fullscreenable: false,
-			type: "panel",
-			show: false,
-			frame: true,
-			focusable: false,
-			vibrancy: "ultra-dark",
-			maximizable: false,
-			minimizable: false,
-			skipTaskbar: true,
-			excludedFromCapture: true,
-			paintWhenInitiallyHidden: true,
-			hiddenInMissionControl: true,
-			visualEffectState: "active",
-			movable: true,
-			title: "Sleer Camera",
-		});
+		try {
+			this.cameraWindow = new BrowserWindow({
+				width: size,
+				height: size,
+				x: width - size - 50,
+				y: height - size - 50,
+				transparent: true,
+				frame: false,
+				alwaysOnTop: true,
+				webPreferences: {
+					nodeIntegration: true,
+					contextIsolation: true,
+					backgroundThrottling: false,
+					preload: path.join(__dirname, "preload.cjs"),
+				},
+				backgroundColor: "#00000000",
+				hasShadow: false,
+				roundedCorners: true,
+				titleBarOverlay: false,
+				fullscreenable: false,
+				type: "panel",
+				show: false,
+				focusable: false,
+				vibrancy: "ultra-dark",
+				maximizable: false,
+				minimizable: false,
+				skipTaskbar: true,
+				excludedFromCapture: true,
+				paintWhenInitiallyHidden: true,
+				hiddenInMissionControl: true,
+				visualEffectState: "active",
+				movable: true,
+				title: "Sleer Camera",
+			});
 
-		this.cameraWindow.setContentProtection(true);
+			this.cameraWindow.setContentProtection(true);
 
-		const cameraHtmlPath = path.join(
-			__dirname,
-			"../.output/public/camera/index.html"
-		);
-		console.log("Kamera HTML yolu:", cameraHtmlPath);
+			// Set up window event handlers
+			this.setupWindowEventHandlers();
 
-		if (isDev) {
-			console.log("Development modunda kamera penceresi yükleniyor...");
-			this.cameraWindow.loadURL("http://127.0.0.1:3000/camera");
-			this.cameraWindow.webContents.openDevTools({ mode: "detach" });
-		} else {
-			console.log("Production modunda kamera penceresi yükleniyor...");
-			this.cameraWindow.loadFile(cameraHtmlPath);
+			// Load camera content
+			await this.loadCameraContent();
+
+			// Start mouse tracking after successful initialization
+			this.startMouseTracking();
+
+			return true;
+		} catch (error) {
+			console.error("Error creating camera window:", error);
+			throw error;
 		}
+	}
+
+	// Set up window event handlers
+	setupWindowEventHandlers() {
+		if (!this.cameraWindow) return;
 
 		this.cameraWindow.on("closed", () => {
-			console.log("Kamera penceresi kapatıldı");
+			console.log("Camera window closed");
 			this.cameraWindow = null;
 			this.stopMouseTracking();
+		});
+
+		this.cameraWindow.on("unresponsive", () => {
+			console.log("Camera window became unresponsive");
+			this.handleUnresponsiveWindow();
 		});
 
 		this.cameraWindow.webContents.on(
 			"did-fail-load",
 			(event, errorCode, errorDescription) => {
-				console.error(
-					"Kamera penceresi yüklenemedi:",
-					errorCode,
-					errorDescription
-				);
+				console.error("Camera content failed to load:", errorDescription);
+				this.handleLoadError(errorCode, errorDescription);
 			}
 		);
+	}
 
-		this.startMouseTracking();
+	// Handle unresponsive window
+	async handleUnresponsiveWindow() {
+		try {
+			if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+				await this.cameraWindow.close();
+			}
+		} catch (error) {
+			console.error("Error handling unresponsive window:", error);
+		} finally {
+			this.initializeCamera();
+		}
+	}
+
+	// Handle load error
+	handleLoadError(errorCode, errorDescription) {
+		console.error(`Camera load error (${errorCode}):`, errorDescription);
+		this.initializeCamera();
+	}
+
+	// Load camera content
+	async loadCameraContent() {
+		if (!this.cameraWindow) return;
+
+		const cameraHtmlPath = path.join(
+			__dirname,
+			"../.output/public/camera/index.html"
+		);
+
+		try {
+			if (isDev) {
+				console.log("Loading camera window in development mode...");
+				await this.cameraWindow.loadURL("http://127.0.0.1:3000/camera");
+				this.cameraWindow.webContents.openDevTools({ mode: "detach" });
+			} else {
+				console.log("Loading camera window in production mode...");
+				await this.cameraWindow.loadFile(cameraHtmlPath);
+			}
+		} catch (error) {
+			console.error("Error loading camera content:", error);
+			throw error;
+		}
 	}
 
 	// Close camera window
@@ -275,14 +368,14 @@ class CameraManager {
 			this.startCamera();
 			this.cameraWindow.show();
 		} else {
-			this.createCameraWindow();
+			this.initializeCamera();
 		}
 	}
 
 	// Yeni kayıt için sıfırla
 	resetForNewRecording() {
 		if (!this.cameraWindow || this.cameraWindow.isDestroyed()) {
-			this.createCameraWindow();
+			this.initializeCamera();
 		} else {
 			this.cameraWindow.show();
 			// Kamera penceresini varsayılan konuma getir

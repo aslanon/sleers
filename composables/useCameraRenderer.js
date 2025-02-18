@@ -14,11 +14,11 @@ export const useCameraRenderer = () => {
 	// Hover scale değerini güncelle
 	const updateHoverScale = () => {
 		const targetScale = isMouseOverCamera.value ? HOVER_SCALE : 1;
-
 		hoverScale.value += (targetScale - hoverScale.value) * TRANSITION_SPEED;
-
 		const canvas = document.getElementById("canvasID");
-		canvas.style.cursor = isMouseOverCamera.value ? "grab" : "default";
+		if (canvas) {
+			canvas.style.cursor = isMouseOverCamera.value ? "grab" : "default";
+		}
 	};
 
 	const drawCamera = (
@@ -32,83 +32,73 @@ export const useCameraRenderer = () => {
 		dragPosition = null,
 		zoomScale = 1
 	) => {
-		if (!cameraElement || cameraElement.readyState < 2) return false;
+		// Always try to draw even if camera is not fully ready
+		if (!cameraElement) return false;
 
-		// Hover scale'i güncelle
+		// Update hover effect
 		updateHoverScale();
 
-		// Kamera boyutlarını hesapla (kare olarak)
+		// Calculate camera dimensions
 		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
-		const cameraHeight = cameraWidth; // Kare yapmak için width = height
+		const cameraHeight = cameraWidth;
 
-		// Video aspect ratio'sunu hesapla
-		const videoRatio = cameraElement.videoWidth / cameraElement.videoHeight;
-		const targetRatio = 1; // Kare görüntü için 1:1
+		// Calculate source dimensions with fallbacks
+		const videoRatio = cameraElement.videoWidth
+			? cameraElement.videoWidth / cameraElement.videoHeight
+			: 1;
+		const targetRatio = 1;
 
-		// Video'yu kare alana sığdırmak için boyutları hesapla
 		let sourceWidth, sourceHeight, sourceX, sourceY;
 
-		// Crop ayarlarını al
-		const cropX = cameraSettings.value.crop.x;
-		const cropWidth = cameraSettings.value.crop.width;
+		// Get crop settings with fallbacks
+		const cropX = cameraSettings.value?.crop?.x || 0;
+		const cropWidth = cameraSettings.value?.crop?.width || 56.25;
 
+		// Calculate source dimensions based on video ratio
 		if (videoRatio > targetRatio) {
-			// Video daha geniş
-			sourceHeight = cameraElement.videoHeight;
+			sourceHeight = cameraElement.videoHeight || cameraHeight;
 			sourceWidth = sourceHeight;
-
-			// Crop X pozisyonunu hesapla
-			const maxOffset = cameraElement.videoWidth - sourceWidth;
+			const maxOffset = (cameraElement.videoWidth || cameraWidth) - sourceWidth;
 			sourceX = (maxOffset * cropX) / 43.75;
 			sourceY = 0;
-
-			// Crop width'e göre source width'i ayarla
 			sourceWidth = sourceWidth * (cropWidth / 56.25);
 		} else {
-			// Video daha dar
-			sourceWidth = cameraElement.videoWidth;
+			sourceWidth = cameraElement.videoWidth || cameraWidth;
 			sourceHeight = sourceWidth;
-
-			// Crop Y pozisyonunu hesapla
-			const maxOffset = cameraElement.videoHeight - sourceHeight;
+			const maxOffset =
+				(cameraElement.videoHeight || cameraHeight) - sourceHeight;
 			sourceY = (maxOffset * cropX) / 43.75;
 			sourceX = 0;
-
-			// Crop height'e göre source height'i ayarla
 			sourceHeight = sourceHeight * (cropWidth / 56.25);
 		}
 
-		// Maksimum radius hesapla - boyutun yarısını geçemez
+		// Calculate safe radius and shadow
 		const maxRadius = Math.min(cameraWidth, cameraHeight) / 2;
-		// Kullanıcının istediği radius değerini sınırla
 		const safeRadius = Math.min(
-			cameraSettings.value.radius * dpr * scaleValue,
+			(cameraSettings.value?.radius || 0) * dpr * scaleValue,
 			maxRadius
 		);
 
-		// Maksimum gölge boyutunu hesapla - kamera boyutunun %20'sini geçmesin
 		const maxShadowBlur = Math.min(cameraWidth, cameraHeight) * 0.2;
-		// Kullanıcının istediği gölge değerini sınırla
 		const safeShadowBlur = Math.min(
-			cameraSettings.value.shadow * dpr * scaleValue,
+			(cameraSettings.value?.shadow || 0) * dpr * scaleValue,
 			maxShadowBlur
 		);
 
-		// Kamera pozisyonunu hesapla
+		// Calculate camera position with fallbacks
 		let cameraX, cameraY;
 
 		if (dragPosition) {
 			cameraX = dragPosition.x;
 			cameraY = dragPosition.y;
 		} else if (
-			cameraSettings.value.followMouse &&
+			cameraSettings.value?.followMouse &&
 			mouseX !== undefined &&
 			mouseY !== undefined
 		) {
 			const offsetY = 50 * dpr * scaleValue;
 			cameraX = mouseX - cameraWidth / 2;
 			cameraY = mouseY + offsetY;
-
 			lastCameraPosition.value = { x: cameraX, y: cameraY };
 		} else {
 			cameraX =
@@ -119,7 +109,7 @@ export const useCameraRenderer = () => {
 				canvasHeight - cameraHeight - 20 * dpr * scaleValue;
 		}
 
-		// Sınırları kontrol et
+		// Ensure camera stays within canvas bounds
 		cameraX = Math.max(
 			-cameraWidth * 0.5,
 			Math.min(canvasWidth - cameraWidth * 0.5, cameraX)
@@ -129,31 +119,54 @@ export const useCameraRenderer = () => {
 			Math.min(canvasHeight - cameraHeight * 0.5, cameraY)
 		);
 
-		// Son pozisyonu kaydet
+		// Save last position
 		if (dragPosition) {
 			lastCameraPosition.value = { x: cameraX, y: cameraY };
 		}
 
-		// Context state'i kaydet
+		// Draw camera with proper state management
 		ctx.save();
 
-		// Hover efekti için scale transform uygula
-		const scaledWidth = cameraWidth * hoverScale.value;
-		const scaledHeight = cameraHeight * hoverScale.value;
-		const scaleOffsetX = (scaledWidth - cameraWidth) / 2;
-		const scaleOffsetY = (scaledHeight - cameraHeight) / 2;
+		try {
+			// Apply hover effect scaling
+			const scaledWidth = cameraWidth * hoverScale.value;
+			const scaledHeight = cameraHeight * hoverScale.value;
+			const scaleOffsetX = (scaledWidth - cameraWidth) / 2;
+			const scaleOffsetY = (scaledHeight - cameraHeight) / 2;
 
-		// Scale origin'i kamera merkezine ayarla
-		ctx.translate(cameraX + cameraWidth / 2, cameraY + cameraHeight / 2);
-		ctx.scale(hoverScale.value, hoverScale.value);
-		ctx.translate(-(cameraX + cameraWidth / 2), -(cameraY + cameraHeight / 2));
+			ctx.translate(cameraX + cameraWidth / 2, cameraY + cameraHeight / 2);
+			ctx.scale(hoverScale.value, hoverScale.value);
+			ctx.translate(
+				-(cameraX + cameraWidth / 2),
+				-(cameraY + cameraHeight / 2)
+			);
 
-		// Anti-aliasing ayarları
-		ctx.imageSmoothingEnabled = true;
-		ctx.imageSmoothingQuality = "high";
+			// Apply anti-aliasing
+			ctx.imageSmoothingEnabled = true;
+			ctx.imageSmoothingQuality = "high";
 
-		// Gölge efekti
-		if (cameraSettings.value.shadow > 0) {
+			// Draw shadow if enabled
+			if (cameraSettings.value?.shadow > 0) {
+				ctx.save();
+				ctx.beginPath();
+				useRoundRect(
+					ctx,
+					cameraX,
+					cameraY,
+					cameraWidth,
+					cameraHeight,
+					safeRadius
+				);
+				ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+				ctx.shadowBlur = safeShadowBlur;
+				ctx.shadowOffsetX = 0;
+				ctx.shadowOffsetY = 0;
+				ctx.fillStyle = "#000000";
+				ctx.fill();
+				ctx.restore();
+			}
+
+			// Clip camera area
 			ctx.save();
 			ctx.beginPath();
 			useRoundRect(
@@ -164,62 +177,59 @@ export const useCameraRenderer = () => {
 				cameraHeight,
 				safeRadius
 			);
-			ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-			ctx.shadowBlur = safeShadowBlur;
-			ctx.shadowOffsetX = 0;
-			ctx.shadowOffsetY = 0;
-			ctx.fillStyle = "#000000";
+			ctx.clip();
+
+			// Additional clip for smooth edges
+			ctx.beginPath();
+			useRoundRect(
+				ctx,
+				cameraX - 2,
+				cameraY - 2,
+				cameraWidth + 4,
+				cameraHeight + 4,
+				safeRadius + 2
+			);
+			ctx.clip();
+
+			// Draw background
+			ctx.fillStyle = "rgba(0, 0, 0, 0)";
 			ctx.fill();
+
+			// Apply mirror effect if enabled
+			if (cameraSettings.value?.mirror) {
+				ctx.translate(cameraX + cameraWidth, cameraY);
+				ctx.scale(-1, 1);
+				ctx.translate(-cameraX, -cameraY);
+			}
+
+			// Draw camera with error handling
+			try {
+				ctx.drawImage(
+					cameraElement,
+					sourceX,
+					sourceY,
+					sourceWidth,
+					sourceHeight,
+					cameraX - 1,
+					cameraY - 1,
+					cameraWidth + 2,
+					cameraHeight + 2
+				);
+			} catch (error) {
+				console.warn("[CameraRenderer] Failed to draw camera:", error);
+				// Draw fallback if camera draw fails
+				ctx.fillStyle = "#000000";
+				ctx.fillRect(cameraX, cameraY, cameraWidth, cameraHeight);
+			}
+
+			ctx.restore();
+		} catch (error) {
+			console.error("[CameraRenderer] Error in camera rendering:", error);
+		} finally {
 			ctx.restore();
 		}
 
-		// Kamera alanını kırp ve radius uygula - kenar pürüzlerini önle
-		ctx.save();
-
-		// Ana clip path
-		ctx.beginPath();
-		useRoundRect(ctx, cameraX, cameraY, cameraWidth, cameraHeight, safeRadius);
-		ctx.clip();
-
-		// Ek clip path ile pürüzleri önle - biraz daha geniş alan
-		ctx.beginPath();
-		useRoundRect(
-			ctx,
-			cameraX - 2,
-			cameraY - 2,
-			cameraWidth + 4,
-			cameraHeight + 4,
-			safeRadius + 2
-		);
-		ctx.clip();
-
-		// Smooth edges için arka plan
-		ctx.fillStyle = "rgba(0, 0, 0, 0)";
-		ctx.fill();
-
-		// Mirror efekti için transform uygula
-		if (cameraSettings.value.mirror) {
-			ctx.translate(cameraX + cameraWidth, cameraY);
-			ctx.scale(-1, 1);
-			ctx.translate(-cameraX, -cameraY);
-		}
-
-		// Kamerayı çiz - biraz daha geniş alan için
-		ctx.drawImage(
-			cameraElement,
-			sourceX,
-			sourceY,
-			sourceWidth,
-			sourceHeight,
-			cameraX - 1,
-			cameraY - 1,
-			cameraWidth + 2,
-			cameraHeight + 2
-		);
-
-		ctx.restore();
-
-		// Mouse'un kamera üzerinde olup olmadığını kontrol et
+		// Update mouse interaction state
 		if (mouseX !== undefined && mouseY !== undefined) {
 			ctx.beginPath();
 			useRoundRect(
@@ -232,9 +242,6 @@ export const useCameraRenderer = () => {
 			);
 			isMouseOverCamera.value = ctx.isPointInPath(mouseX, mouseY);
 		}
-
-		// Context state'i geri yükle
-		ctx.restore();
 
 		return isMouseOverCamera.value;
 	};
