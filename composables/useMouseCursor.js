@@ -1,8 +1,8 @@
 import { ref, onMounted } from "vue";
-import defaultCursor from "@/assets/cursors/default.svg";
-import pointerCursor from "@/assets/cursors/pointer.svg";
-import grabbingCursor from "@/assets/cursors/grabbing.svg";
-import textCursor from "@/assets/cursors/text.svg";
+import defaultCursor from "@/assets/cursors/high/default.svg";
+import pointerCursor from "@/assets/cursors/high/pointer.svg";
+import grabbingCursor from "@/assets/cursors/high/grabbing.svg";
+import textCursor from "@/assets/cursors/high/text.svg";
 import { calculateZoomOrigin } from "~/composables/utils/zoomPositions";
 import {
 	calculateMousePosition,
