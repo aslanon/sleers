@@ -437,7 +437,7 @@ const maxZoom = 10;
 const zoomStep = 0.2;
 
 // Timeline sabitleri
-const maxDuration = computed(() => Math.max(props.duration, 600)); // Minimum 10 dakika
+const maxDuration = computed(() => props.duration);
 
 // Timeline genişliği
 const timelineWidth = computed(() => {
