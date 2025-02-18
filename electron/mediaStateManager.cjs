@@ -3,10 +3,12 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { exec } = require("child_process");
+const screenRecorder = require("./screenRecorder.cjs");
 
 class MediaStateManager {
 	constructor(mainWindow) {
 		this.mainWindow = mainWindow;
+		this.screenRecorder = screenRecorder;
 		this.state = {
 			videoPath: null,
 			audioPath: null,
@@ -734,6 +736,47 @@ class MediaStateManager {
 				error: `Video dönüştürülemedi: ${error.message}`,
 			});
 		}
+	}
+
+	async startScreenRecording(options = {}) {
+		try {
+			const recordingPath = await this.screenRecorder.startRecording(options);
+			this.updateState({
+				videoPath: recordingPath,
+				isRecording: true,
+				recordingStartTime: Date.now(),
+			});
+			return recordingPath;
+		} catch (error) {
+			console.error("Failed to start screen recording:", error);
+			throw error;
+		}
+	}
+
+	async stopScreenRecording() {
+		try {
+			const outputPath = await this.screenRecorder.stopRecording();
+			this.updateState({
+				isRecording: false,
+				videoPath: outputPath,
+			});
+			return outputPath;
+		} catch (error) {
+			console.error("Failed to stop screen recording:", error);
+			throw error;
+		}
+	}
+
+	async getScreens() {
+		return await this.screenRecorder.getScreens();
+	}
+
+	async getAudioDevices() {
+		return await this.screenRecorder.getAudioDevices();
+	}
+
+	async getVideoCodecs() {
+		return await this.screenRecorder.getVideoCodecs();
 	}
 }
 

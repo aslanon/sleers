@@ -176,29 +176,9 @@ export const useMediaDevices = () => {
 			const micDeviceId =
 				options?.microphoneDeviceId ?? selectedAudioDevice.value;
 
-			const audioConfig = {
-				mandatory: {
-					chromeMediaSource: useSystemAudio ? "desktop" : "none",
-				},
-			};
-
-			if (useMicrophone && micDeviceId) {
-				audioConfig.optional = [
-					{
-						deviceId: { exact: micDeviceId },
-					},
-				];
-			}
-
-			console.log("2. Stream başlatılıyor...", {
-				useSystemAudio,
-				useMicrophone,
-				micDeviceId,
-				audioConfig,
-			});
-
-			const { screenStream, cameraStream } = await startMediaStream({
-				audio: audioConfig,
+			// Kamera ve ses kaydı için stream başlat
+			const { cameraStream } = await startMediaStream({
+				audio: false, // Ses kaydını Aperture ile yapacağız
 				video: {
 					mandatory: {
 						chromeMediaSource: "desktop",
@@ -209,123 +189,78 @@ export const useMediaDevices = () => {
 
 			console.log("3. Stream başlatıldı");
 
-			if (screenStream) {
-				console.log("4. MediaRecorder'lar oluşturuluyor");
-
-				const screenRecorder = new MediaRecorder(screenStream, {
+			// Kamera kaydı için MediaRecorder oluştur
+			let cameraRecorder = null;
+			if (cameraStream) {
+				console.log("Kamera stream'i bulundu, recorder oluşturuluyor");
+				cameraRecorder = new MediaRecorder(cameraStream, {
 					mimeType: "video/webm;codecs=vp9",
-					videoBitsPerSecond: 50000000,
+					videoBitsPerSecond: 8000000,
 				});
+			}
 
-				let cameraRecorder = null;
-				if (cameraStream) {
-					console.log("Kamera stream'i bulundu, recorder oluşturuluyor");
-					cameraRecorder = new MediaRecorder(cameraStream, {
-						mimeType: "video/webm;codecs=vp9",
-						videoBitsPerSecond: 8000000,
-					});
-				}
-
-				let audioRecorder = null;
-				if (screenStream.getAudioTracks().length > 0) {
-					const audioStream = new MediaStream(screenStream.getAudioTracks());
-					audioRecorder = new MediaRecorder(audioStream, {
-						mimeType: "audio/webm;codecs=opus",
-						audioBitsPerSecond: 320000,
-					});
-
-					console.log("Ses kaydı yapılandırması:", {
-						systemAudio: useSystemAudio,
-						microphone: useMicrophone,
-						audioTracks: audioStream.getAudioTracks().length,
-					});
-				}
-
-				const screenChunks = [];
-				screenRecorder.ondataavailable = (event) => {
+			const cameraChunks = [];
+			if (cameraRecorder) {
+				console.log("Kamera recorder event listener'ları ekleniyor");
+				cameraRecorder.ondataavailable = (event) => {
 					if (event.data.size > 0) {
-						screenChunks.push(event.data);
+						console.log("Kamera chunk alındı:", event.data.size);
+						cameraChunks.push(event.data);
 					}
 				};
+				console.log("Kamera kaydı başlatılıyor");
+				cameraRecorder.start(1000);
+			}
 
-				const cameraChunks = [];
-				if (cameraRecorder) {
-					console.log("Kamera recorder event listener'ları ekleniyor");
-					cameraRecorder.ondataavailable = (event) => {
-						if (event.data.size > 0) {
-							console.log("Kamera chunk alındı:", event.data.size);
-							cameraChunks.push(event.data);
-						}
-					};
-					console.log("Kamera kaydı başlatılıyor");
-					cameraRecorder.start(1000);
-				}
+			// Aperture ile ekran kaydını başlat
+			const screenRecordingOptions = {
+				fps: 60,
+				showCursor: true,
+				highlightClicks: true,
+				audioDeviceId: useMicrophone ? micDeviceId : undefined,
+				videoCodec: "h264",
+			};
 
-				const audioChunks = [];
-				if (audioRecorder) {
-					audioRecorder.ondataavailable = (event) => {
-						if (event.data.size > 0) {
-							audioChunks.push(event.data);
-						}
-					};
-				}
+			// Ekran kaydını başlat
+			const screenPath = await window.electron?.ipcRenderer.invoke(
+				"START_SCREEN_RECORDING",
+				screenRecordingOptions
+			);
 
-				console.log("5. Kayıt başlatılıyor");
-				if (screenRecorder.state === "recording") {
-					console.log("Ekran kaydı zaten çalışıyor, durduruluyor");
-					screenRecorder.stop();
-				}
-				screenRecorder.start(1000);
+			console.log("Ekran kaydı başlatıldı:", screenPath);
 
-				if (cameraRecorder) {
-					console.log("Kamera kaydı başlatılıyor");
-					if (cameraRecorder.state === "recording") {
-						console.log("Kamera kaydı zaten çalışıyor, durduruluyor");
+			mediaRecorder = {
+				camera: cameraRecorder,
+				stop: async () => {
+					document.body.classList.remove("recording");
+
+					console.log("MediaRecorder stop başlıyor:", {
+						hasCamera: !!cameraRecorder,
+						cameraChunksLength: cameraChunks.length,
+					});
+
+					// Aperture ekran kaydını durdur
+					const screenPath = await window.electron?.ipcRenderer.invoke(
+						"STOP_SCREEN_RECORDING"
+					);
+
+					if (cameraRecorder) {
+						console.log("Kamera kaydı durduruluyor");
 						cameraRecorder.stop();
 					}
-					cameraRecorder.start(1000);
-				}
 
-				if (audioRecorder) {
-					if (audioRecorder.state === "recording") {
-						console.log("Ses kaydı zaten çalışıyor, durduruluyor");
-						audioRecorder.stop();
-					}
-					audioRecorder.start(1000);
-				}
+					// Kamera kaydını kaydet
+					const result = await saveRecording({
+						camera: cameraChunks,
+						screen: [], // Ekran kaydı Aperture tarafından yapıldı
+					});
 
-				mediaRecorder = {
-					screen: screenRecorder,
-					camera: cameraRecorder,
-					audio: audioRecorder,
-					stop: async () => {
-						document.body.classList.remove("recording");
+					return result;
+				},
+			};
 
-						console.log("MediaRecorder stop başlıyor:", {
-							hasScreen: !!screenRecorder,
-							hasCamera: !!cameraRecorder,
-							hasAudio: !!audioRecorder,
-							cameraChunksLength: cameraChunks.length,
-						});
-
-						screenRecorder.stop();
-						if (cameraRecorder) {
-							console.log("Kamera kaydı durduruluyor");
-							cameraRecorder.stop();
-						}
-						if (audioRecorder) audioRecorder.stop();
-
-						await saveRecording({
-							screen: screenChunks,
-							camera: cameraChunks,
-							audio: audioChunks,
-						});
-					},
-				};
-
-				console.log("8. Tüm MediaRecorder'lar başlatıldı");
-				isRecording.value = true;
-			}
+			console.log("8. Tüm MediaRecorder'lar başlatıldı");
+			isRecording.value = true;
 		} catch (error) {
 			console.error("Kayıt başlatılırken hata:", error);
 			document.body.classList.remove("recording");

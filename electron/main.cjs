@@ -494,6 +494,31 @@ function setupIpcHandlers() {
 			throw error;
 		}
 	});
+
+	// Aperture screen recording handlers
+	ipcMain.handle("START_SCREEN_RECORDING", async (event, options) => {
+		try {
+			const recordingPath = await mediaStateManager.startScreenRecording(
+				options
+			);
+			console.log("Screen recording started:", recordingPath);
+			return recordingPath;
+		} catch (error) {
+			console.error("Failed to start screen recording:", error);
+			throw error;
+		}
+	});
+
+	ipcMain.handle("STOP_SCREEN_RECORDING", async () => {
+		try {
+			const outputPath = await mediaStateManager.stopScreenRecording();
+			console.log("Screen recording stopped:", outputPath);
+			return outputPath;
+		} catch (error) {
+			console.error("Failed to stop screen recording:", error);
+			throw error;
+		}
+	});
 }
 
 async function createWindow() {
