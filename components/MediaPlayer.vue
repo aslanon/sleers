@@ -863,14 +863,30 @@ const drawMousePositions = () => {
 		// Kamera için offset değerleri
 		const offsetX = 100 * dpr; // Yatay mesafeyi artır
 		const offsetY = 100 * dpr; // Dikey mesafeyi artır
+		const PADDING = 20 * dpr; // Kenarlardan minimum mesafe
 
 		// Mouse pozisyonunu video pozisyonuna göre normalize et
 		const normalizedMouseX = canvasX - position.value.x;
 		const normalizedMouseY = canvasY - position.value.y;
 
 		// Hedef pozisyonu hesapla (normalize edilmiş mouse pozisyonuna göre)
-		const targetX = normalizedMouseX + offsetX;
-		const targetY = normalizedMouseY + offsetY;
+		let targetX = normalizedMouseX + offsetX;
+		let targetY = normalizedMouseY + offsetY;
+
+		// Kamera boyutlarını al
+		const cameraWidth =
+			(canvasRef.value.width * cameraSettings.value.size) / 100;
+		const cameraHeight = cameraWidth;
+
+		// Canvas sınırları içinde kal
+		targetX = Math.max(
+			PADDING,
+			Math.min(targetX, canvasRef.value.width - cameraWidth - PADDING)
+		);
+		targetY = Math.max(
+			PADDING,
+			Math.min(targetY, canvasRef.value.height - cameraHeight - PADDING)
+		);
 
 		// Smooth geçiş için lerp faktörü
 		const lerpFactor = 0.2;

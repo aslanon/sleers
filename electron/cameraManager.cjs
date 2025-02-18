@@ -162,6 +162,7 @@ class CameraManager {
 					const display = screen.getDisplayNearestPoint(mousePos);
 					const bounds = display.bounds;
 
+					const PADDING = 20;
 					let x = mousePos.x - width / 2;
 					let y = mousePos.y + 100;
 
@@ -179,10 +180,14 @@ class CameraManager {
 						y = mousePos.y + 100;
 					}
 
-					x = Math.max(bounds.x, Math.min(x, bounds.x + bounds.width - width));
+					// Ensure camera stays within bounds with padding
+					x = Math.max(
+						bounds.x + PADDING,
+						Math.min(x, bounds.x + bounds.width - width - PADDING)
+					);
 					y = Math.max(
-						bounds.y,
-						Math.min(y, bounds.y + bounds.height - height)
+						bounds.y + PADDING,
+						Math.min(y, bounds.y + bounds.height - height - PADDING)
 					);
 
 					this.targetPosition = { x, y };
