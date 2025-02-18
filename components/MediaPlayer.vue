@@ -861,27 +861,32 @@ const drawMousePositions = () => {
 	// Kamera pozisyonunu güncelle
 	if (cameraElement && cameraSettings.value.followMouse) {
 		// Kamera için offset değerleri
-		const offsetX = 0; // X ekseninde offset
-		const offsetY = 50 * dpr * scaleValue; // Y ekseninde offset
+		const offsetX = 0;
+		const offsetY = 20 * dpr;
 
-		// Hedef pozisyonu hesapla (mouse pozisyonuna göre)
-		const targetX = canvasX + offsetX;
-		const targetY = canvasY + offsetY;
+		// Mouse pozisyonunu video pozisyonuna göre normalize et
+		const normalizedMouseX = canvasX - position.value.x;
+		const normalizedMouseY = canvasY - position.value.y;
 
-		// Smooth geçiş için lerp faktörü (0-1 arası)
-		const lerpFactor = 0.15; // Daha yumuşak hareket için düşük değer
+		// Hedef pozisyonu hesapla (normalize edilmiş mouse pozisyonuna göre)
+		const targetX = normalizedMouseX + offsetX;
+		const targetY = normalizedMouseY + offsetY;
 
-		// Lerp ile yumuşak geçiş uygula
+		// Smooth geçiş için lerp faktörü
+		const lerpFactor = 0.2;
+
+		// İlk pozisyonu ayarla
 		if (!lastCameraX.value) lastCameraX.value = targetX;
 		if (!lastCameraY.value) lastCameraY.value = targetY;
 
+		// Lerp ile yumuşak geçiş uygula
 		lastCameraX.value += (targetX - lastCameraX.value) * lerpFactor;
 		lastCameraY.value += (targetY - lastCameraY.value) * lerpFactor;
 
-		// Kamera pozisyonunu güncelle
+		// Kamera pozisyonunu güncelle (video pozisyonunu ekleyerek)
 		lastCameraPosition.value = {
-			x: lastCameraX.value,
-			y: lastCameraY.value,
+			x: lastCameraX.value + position.value.x,
+			y: lastCameraY.value + position.value.y,
 		};
 	}
 };

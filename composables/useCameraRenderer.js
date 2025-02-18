@@ -90,28 +90,38 @@ export const useCameraRenderer = () => {
 		let cameraX, cameraY;
 
 		if (dragPosition) {
-			// Kamera sürükleniyorsa sadece dragPosition'ı kullan
-			cameraX = dragPosition.x;
-			cameraY = dragPosition.y;
+			// Kamera sürükleniyorsa dragPosition'ı ve video pozisyonunu kullan
+			cameraX = dragPosition.x + videoPosition.x;
+			cameraY = dragPosition.y + videoPosition.y;
 		} else if (cameraSettings.value.followMouse) {
-			// Mouse takibi aktifse video pozisyonunu ekle
-			cameraX = mouseX - cameraWidth / 2 + videoPosition.x;
-			cameraY = mouseY - cameraHeight / 2 + videoPosition.y;
+			// Mouse takibi aktifse video pozisyonunu ekle ve offset uygula
+			const minOffset = 150; // Minimum mesafe
+			const offsetX = minOffset * dpr; // Sağda sabit mesafe
+			const offsetY = minOffset * dpr; // Aşağıda sabit mesafe
+
+			// Kamerayı cursor'ın sağına ve altına yerleştir
+			cameraX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
+			cameraY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
 		} else {
 			// Varsayılan pozisyon için son pozisyonu veya başlangıç pozisyonunu kullan
 			cameraX =
-				lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr;
+				(lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr) +
+				videoPosition.x;
 			cameraY =
-				lastCameraPosition.value?.y || canvasHeight - cameraHeight - 20 * dpr;
+				(lastCameraPosition.value?.y ||
+					canvasHeight - cameraHeight - 20 * dpr) + videoPosition.y;
 		}
 
 		// Ensure camera stays within canvas bounds
 		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
 		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
 
-		// Save last position
+		// Save last position (video pozisyonunu çıkararak)
 		if (dragPosition || !cameraSettings.value.followMouse) {
-			lastCameraPosition.value = { x: cameraX, y: cameraY };
+			lastCameraPosition.value = {
+				x: cameraX - videoPosition.x,
+				y: cameraY - videoPosition.y,
+			};
 		}
 
 		// Draw camera with proper state management
