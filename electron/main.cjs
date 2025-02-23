@@ -226,8 +226,26 @@ function setupIpcHandlers() {
 	});
 
 	// File operations
+	ipcMain.handle(IPC_EVENTS.START_MEDIA_STREAM, async (event, type) => {
+		return await tempFileManager.startMediaStream(type);
+	});
+
+	ipcMain.handle(IPC_EVENTS.WRITE_MEDIA_CHUNK, async (event, type, chunk) => {
+		return tempFileManager.writeChunkToStream(type, chunk);
+	});
+
+	ipcMain.handle(IPC_EVENTS.END_MEDIA_STREAM, async (event, type) => {
+		return await tempFileManager.endMediaStream(type);
+	});
+
 	ipcMain.handle(IPC_EVENTS.SAVE_TEMP_VIDEO, async (event, data, type) => {
-		return await tempFileManager.saveTempVideo(data, type);
+		if (data.startsWith("data:")) {
+			// Eski yöntem - base64'ten dosyaya
+			return await tempFileManager.saveTempVideo(data, type);
+		} else {
+			// Yeni yöntem - doğrudan chunk'ı stream'e yaz
+			return tempFileManager.writeChunkToStream(type, data);
+		}
 	});
 
 	ipcMain.handle(IPC_EVENTS.READ_VIDEO_FILE, async (event, filePath) => {

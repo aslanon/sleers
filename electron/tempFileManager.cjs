@@ -11,6 +11,7 @@ class TempFileManager {
 			cursor: null,
 			camera: null,
 		};
+		this.activeStreams = new Map(); // Aktif write stream'leri tutacak
 		this.appDir = path.join(app.getPath("downloads"), ".sleer");
 		this.ensureAppDir();
 	}
@@ -133,13 +134,8 @@ class TempFileManager {
 	}
 
 	getFilePath(type) {
-		const path = this.tempFiles[type];
-		if (this._lastLoggedPaths?.[type] !== path) {
-			console.log(`[TempFileManager] ${type} için dosya yolu istendi:`, path);
-			if (!this._lastLoggedPaths) this._lastLoggedPaths = {};
-			this._lastLoggedPaths[type] = path;
-		}
-		return path;
+		const streamInfo = this.activeStreams.get(type);
+		return streamInfo ? streamInfo.path : this.tempFiles[type];
 	}
 
 	getAllFiles() {
@@ -178,6 +174,57 @@ class TempFileManager {
 			console.error(`[TempFileManager] ${type} kaydedilirken hata:`, error);
 			return null;
 		}
+	}
+
+	// Yeni stream başlatma fonksiyonu
+	startMediaStream(type) {
+		const filePath = path.join(this.appDir, `temp_${type}_${Date.now()}.webm`);
+		const writeStream = fs.createWriteStream(filePath);
+
+		this.activeStreams.set(type, {
+			stream: writeStream,
+			path: filePath,
+		});
+
+		console.log(`[TempFileManager] ${type} için stream başlatıldı:`, filePath);
+		return filePath;
+	}
+
+	// Stream'e chunk yazma fonksiyonu
+	writeChunkToStream(type, chunk) {
+		const streamInfo = this.activeStreams.get(type);
+		if (streamInfo && streamInfo.stream) {
+			streamInfo.stream.write(Buffer.from(chunk));
+		}
+	}
+
+	// Stream'i sonlandırma fonksiyonu
+	endMediaStream(type) {
+		const streamInfo = this.activeStreams.get(type);
+		if (streamInfo) {
+			return new Promise((resolve, reject) => {
+				streamInfo.stream.end(() => {
+					this.activeStreams.delete(type);
+					this.tempFiles[type] = streamInfo.path;
+					console.log(
+						`[TempFileManager] ${type} stream sonlandırıldı:`,
+						streamInfo.path
+					);
+					resolve(streamInfo.path);
+				});
+			});
+		}
+		return Promise.resolve(null);
+	}
+
+	// Tüm stream'leri temizle
+	cleanupStreams() {
+		for (const [type, streamInfo] of this.activeStreams) {
+			if (streamInfo.stream) {
+				streamInfo.stream.end();
+			}
+		}
+		this.activeStreams.clear();
 	}
 }
 

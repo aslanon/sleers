@@ -24,21 +24,23 @@ contextBridge.exposeInMainWorld("electron", {
 	},
 	desktopCapturer: {
 		getSources: (opts) =>
-			ipcRenderer.invoke("DESKTOP_CAPTURER_GET_SOURCES", opts),
+			ipcRenderer.invoke(IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES, opts),
 	},
 	fileSystem: {
 		saveTempVideo: (data, type) =>
-			ipcRenderer.invoke("SAVE_TEMP_VIDEO", data, type),
-		getTempVideoPath: () => ipcRenderer.invoke("GET_TEMP_VIDEO_PATH"),
+			ipcRenderer.invoke(IPC_EVENTS.SAVE_TEMP_VIDEO, data, type),
+		getTempVideoPath: () => ipcRenderer.invoke(IPC_EVENTS.GET_TEMP_VIDEO_PATH),
 	},
 	windowControls: {
-		close: () => ipcRenderer.send("WINDOW_CLOSE"),
-		startDrag: (position) => ipcRenderer.send("START_WINDOW_DRAG", position),
-		dragging: (position) => ipcRenderer.send("WINDOW_DRAGGING", position),
-		endDrag: () => ipcRenderer.send("END_WINDOW_DRAG"),
+		close: () => ipcRenderer.send(IPC_EVENTS.WINDOW_CLOSE),
+		startDrag: (position) =>
+			ipcRenderer.send(IPC_EVENTS.START_WINDOW_DRAG, position),
+		dragging: (position) =>
+			ipcRenderer.send(IPC_EVENTS.WINDOW_DRAGGING, position),
+		endDrag: () => ipcRenderer.send(IPC_EVENTS.END_WINDOW_DRAG),
 	},
 	recording: {
-		getCropInfo: () => ipcRenderer.invoke("GET_CROP_INFO"),
+		getCropInfo: () => ipcRenderer.invoke(IPC_EVENTS.GET_CROP_INFO),
 	},
 	mediaStateManager: {
 		loadCursorData: () => ipcRenderer.invoke(IPC_EVENTS.LOAD_CURSOR_DATA),
