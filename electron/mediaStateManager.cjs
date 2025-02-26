@@ -35,6 +35,72 @@ class MediaStateManager {
 		this.mousePositions = [];
 	}
 
+	updateRecordingStatus(statusData) {
+		try {
+			console.log(
+				"[MediaStateManager] Kayıt durumu güncelleniyor:",
+				statusData
+			);
+
+			// Kayıt tipine göre işlem yap
+			if (statusData.type === "screen") {
+				// Ekran kaydı durumu
+				if (typeof statusData.isActive === "boolean") {
+					this.state.isRecording = statusData.isActive;
+
+					if (statusData.isActive) {
+						// Kayıt başladı
+						this.state.recordingStartTime = Date.now();
+					} else {
+						// Kayıt durdu
+						this.state.lastRecordingTime =
+							Date.now() - (this.state.recordingStartTime || Date.now());
+					}
+				}
+
+				// Dosya boyutu bilgisi varsa güncelle
+				if (statusData.fileSize) {
+					console.log(
+						`[MediaStateManager] Ekran kaydı dosya boyutu: ${(
+							statusData.fileSize /
+							(1024 * 1024)
+						).toFixed(2)}MB`
+					);
+				}
+			} else if (statusData.type === "camera") {
+				// Kamera kaydı durumu
+				if (typeof statusData.isActive === "boolean" && !statusData.isActive) {
+					// Kamera kaydı durduğunda, dosya yolunu kontrol et
+					if (statusData.filePath) {
+						this.state.cameraPath = statusData.filePath;
+					}
+				}
+			} else if (statusData.type === "audio") {
+				// Ses kaydı durumu
+				if (typeof statusData.isActive === "boolean" && !statusData.isActive) {
+					// Ses kaydı durduğunda, dosya yolunu kontrol et
+					if (statusData.filePath) {
+						this.state.audioPath = statusData.filePath;
+					}
+				}
+			}
+
+			// Ana pencereye bildir
+			if (this.mainWindow && this.mainWindow.webContents) {
+				this.mainWindow.webContents.send(IPC_EVENTS.RECORDING_STATUS_UPDATE, {
+					...statusData,
+					isRecording: this.state.isRecording,
+					recordingTime: this.state.lastRecordingTime,
+				});
+			}
+		} catch (error) {
+			console.error(
+				"[MediaStateManager] Kayıt durumu güncellenirken hata:",
+				error
+			);
+		}
+	}
+
 	async validateMediaFile(filePath, type = "unknown", silent = false) {
 		if (!silent) {
 			console.log(

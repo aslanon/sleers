@@ -72,6 +72,306 @@ ipcMain.handle(IPC_EVENTS.GET_RECORDING_DELAY, () => {
 
 // IPC event handlers
 function setupIpcHandlers() {
+	// Aperture modülü için handler'lar
+	ipcMain.handle("LOAD_APERTURE_MODULE", async (event) => {
+		try {
+			console.log("[Main] Aperture modülü yükleniyor (ESM)...");
+
+			// Timeout kontrolü ve işletim sistemi kontrolü
+			if (process.platform !== "darwin") {
+				console.error("[Main] Aperture sadece macOS'ta desteklenir");
+				return false;
+			}
+
+			// Timeout ile yüklemeyi kontrol et
+			const apertureModule = await Promise.race([
+				import("aperture"),
+				new Promise((_, reject) =>
+					setTimeout(
+						() => reject(new Error("Aperture modülü yükleme zaman aşımı")),
+						10000
+					)
+				),
+			]);
+
+			if (!apertureModule) {
+				console.error("[Main] Aperture modülü yüklenemedi");
+				return false;
+			}
+
+			console.log(
+				"[Main] Aperture modülü başarıyla yüklendi:",
+				Object.keys(apertureModule)
+			);
+
+			// API yapısını kontrol et
+			let apiFound = false;
+
+			if (apertureModule.default) {
+				console.log(
+					"[Main] Default export bulundu:",
+					Object.keys(apertureModule.default)
+				);
+
+				if (apertureModule.default.recorder) {
+					console.log("[Main] Modern API (default.recorder) bulundu");
+					apiFound = true;
+				}
+
+				if (typeof apertureModule.default.startRecording === "function") {
+					console.log("[Main] Modern API (default.startRecording) bulundu");
+					apiFound = true;
+				}
+			}
+
+			if (apertureModule.recorder) {
+				console.log("[Main] Modern API (recorder) bulundu");
+				apiFound = true;
+			}
+
+			if (typeof apertureModule.startRecording === "function") {
+				console.log("[Main] Modern API (startRecording) bulundu");
+				apiFound = true;
+			}
+
+			if (!apiFound) {
+				console.error("[Main] Desteklenen API bulunamadı");
+				return false;
+			}
+
+			// Önemli fonksiyonları test et
+			try {
+				console.log("[Main] Ekranlar kontrol ediliyor...");
+
+				if (typeof apertureModule.screens === "function") {
+					const screens = await apertureModule.screens();
+					console.log(
+						"[Main] Ekranlar:",
+						screens && screens.length ? "Bulundu" : "Bulunamadı"
+					);
+				} else if (
+					apertureModule.default &&
+					typeof apertureModule.default.screens === "function"
+				) {
+					const screens = await apertureModule.default.screens();
+					console.log(
+						"[Main] Ekranlar:",
+						screens && screens.length ? "Bulundu" : "Bulunamadı"
+					);
+				}
+
+				console.log("[Main] Ses cihazları kontrol ediliyor...");
+
+				if (typeof apertureModule.audioDevices === "function") {
+					const audioDevices = await apertureModule.audioDevices();
+					console.log(
+						"[Main] Ses cihazları:",
+						audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
+					);
+				} else if (
+					apertureModule.default &&
+					typeof apertureModule.default.audioDevices === "function"
+				) {
+					const audioDevices = await apertureModule.default.audioDevices();
+					console.log(
+						"[Main] Ses cihazları:",
+						audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
+					);
+				}
+
+				console.log("[Main] Aperture modülü başarıyla hazır");
+				return true;
+			} catch (testError) {
+				console.warn("[Main] API testi sırasında hata:", testError);
+				// Test hataları kritik değil, API bulunduğu sürece devam et
+				return apiFound;
+			}
+		} catch (error) {
+			console.error("[Main] Aperture import hatası:", error);
+			return false;
+		}
+	});
+
+	ipcMain.handle(
+		"START_APERTURE_RECORDING",
+		async (event, outputPath, options) => {
+			try {
+				console.log("[Main] Aperture kaydı başlatılıyor...", {
+					outputPath,
+					options: options
+						? { ...options, audioDeviceId: options.audioDeviceId }
+						: "undefined",
+				});
+
+				if (!outputPath) {
+					console.error("[Main] Çıktı dosya yolu belirtilmedi");
+					return false;
+				}
+
+				// Aperture'ın sadece macOS'ta çalıştığını kontrol et
+				if (process.platform !== "darwin") {
+					console.error("[Main] Aperture sadece macOS'ta çalışır");
+					return false;
+				}
+
+				// Aperture modülünü yükle
+				const aperturePath = path.join(__dirname, "aperture.cjs");
+				console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
+
+				// Yüklenen modülün fonksiyonlarını kullan
+				let apertureModule;
+				try {
+					apertureModule = await import(`file://${aperturePath}`);
+				} catch (importError) {
+					console.error("[Main] Aperture modülü import hatası:", importError);
+					return false;
+				}
+
+				// Aperture fonksiyonlarını kontrol et
+				const {
+					start,
+					stop,
+					killApertureProcesses,
+					getScreens,
+					getAudioDevices,
+				} = apertureModule;
+
+				if (typeof start !== "function" || typeof stop !== "function") {
+					console.error("[Main] Aperture API'si bulunamadı");
+					return false;
+				}
+
+				// Önce çalışan süreçleri temizle
+				await killApertureProcesses();
+
+				// Ekranları ve ses cihazlarını kontrol et
+				try {
+					console.log("[Main] Kullanılabilir ekranlar kontrol ediliyor");
+					const screens = await getScreens();
+					console.log(
+						"[Main] Kullanılabilir ekranlar:",
+						screens ? screens.length : 0
+					);
+
+					console.log("[Main] Ses cihazları kontrol ediliyor");
+					const audioDevices = await getAudioDevices();
+					console.log(
+						"[Main] Ses cihazları:",
+						audioDevices ? audioDevices.length : 0
+					);
+				} catch (deviceError) {
+					console.warn(
+						"[Main] Cihaz bilgileri alınamadı (kritik değil):",
+						deviceError.message
+					);
+				}
+
+				// Seçenekleri kopyala ve modifiye et
+				const recordingOptions = { ...options };
+
+				// audioDeviceId'yi düzelt - "system" yerine null kullan
+				if (recordingOptions.audioDeviceId === "system") {
+					console.log("[Main] audioDeviceId 'system'den null'a çevriliyor");
+					recordingOptions.audioDeviceId = null;
+				}
+
+				// FPS ayarla
+				recordingOptions.fps = recordingOptions.fps || 30;
+
+				console.log("[Main] Kayıt başlatılıyor...", recordingOptions);
+
+				// Başlatma işlemi
+				try {
+					const success = await start(outputPath, recordingOptions);
+					if (success) {
+						console.log("[Main] Aperture kaydı başarıyla başlatıldı");
+						return true;
+					} else {
+						console.error("[Main] Aperture kaydı başlatılamadı");
+						return false;
+					}
+				} catch (error) {
+					console.error("[Main] Aperture kaydı başlatılırken hata:", error);
+
+					// Hataya özel mesaj
+					if (
+						error.message.includes("timeout") ||
+						error.code === "RECORDER_TIMEOUT"
+					) {
+						console.error(
+							"[Main] Kayıt zaman aşımı hatası. Sistem yükü yüksek olabilir veya başka bir kayıt uygulaması çalışıyor olabilir."
+						);
+					}
+
+					return false;
+				}
+			} catch (error) {
+				console.error("[Main] Aperture kaydı başlatılırken genel hata:", error);
+				return false;
+			}
+		}
+	);
+
+	ipcMain.handle("STOP_APERTURE_RECORDING", async (event, outputPath) => {
+		try {
+			console.log("[Main] Aperture kaydı durduruluyor...");
+
+			// Aperture modülünü yükle
+			const aperturePath = path.join(__dirname, "aperture.cjs");
+			console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
+
+			// CommonJS modülünü dynamic import ile yükle
+			const apertureModule = await import(`file://${aperturePath}`);
+			const { stop } = apertureModule;
+
+			// Durdurma işlemi
+			try {
+				const success = await stop(outputPath);
+				if (success) {
+					console.log("[Main] Aperture kaydı başarıyla durduruldu");
+
+					// Dosya boyutunu kontrol et
+					if (outputPath && fs.existsSync(outputPath)) {
+						const stats = fs.statSync(outputPath);
+						const fileSizeMB = stats.size / (1024 * 1024);
+						console.log(
+							`[Main] Kayıt dosyası boyutu: ${fileSizeMB.toFixed(2)} MB`
+						);
+
+						if (stats.size === 0) {
+							console.error("[Main] Kayıt dosyası boş (0 byte)");
+							return false;
+						}
+					}
+
+					return true;
+				} else {
+					console.error("[Main] Aperture kaydı durdurulamadı");
+					return false;
+				}
+			} catch (error) {
+				console.error("[Main] Aperture kaydı durdurulurken hata:", error);
+				return false;
+			}
+		} catch (error) {
+			console.error("[Main] Aperture kaydı durdurulurken genel hata:", error);
+			return false;
+		}
+	});
+
+	ipcMain.handle("GET_FILE_SIZE", async (event, filePath) => {
+		try {
+			if (!filePath || !fs.existsSync(filePath)) {
+				return 0;
+			}
+			const stats = fs.statSync(filePath);
+			return stats.size;
+		} catch (error) {
+			console.error("[Main] Dosya boyutu alınırken hata:", error);
+			return 0;
+		}
+	});
+
 	// Recording status
 	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_CHANGED, async (event, status) => {
 		console.log("********Kayıt durumu değişti:", status);
@@ -119,6 +419,29 @@ function setupIpcHandlers() {
 		} catch (error) {
 			console.error("[main.cjs] Kayıt durumu değiştirilirken hata:", error);
 			event.reply(IPC_EVENTS.RECORDING_ERROR, error.message);
+		}
+	});
+
+	// Recording status updates
+	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_UPDATE, (event, statusData) => {
+		console.log("[Main] Kayıt durumu güncellendi:", statusData);
+
+		// Tray manager'a bildir
+		if (trayManager && typeof statusData.isActive === "boolean") {
+			trayManager.setRecordingStatus(statusData.isActive);
+		}
+
+		// MediaStateManager'a bildir
+		if (mediaStateManager) {
+			mediaStateManager.updateRecordingStatus(statusData);
+		}
+
+		// Ana pencereye bildir
+		if (mainWindow && mainWindow.webContents) {
+			mainWindow.webContents.send(
+				IPC_EVENTS.RECORDING_STATUS_UPDATE,
+				statusData
+			);
 		}
 	});
 
