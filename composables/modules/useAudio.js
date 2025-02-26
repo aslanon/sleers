@@ -8,6 +8,7 @@ export const useAudio = () => {
 	const microphoneLevel = ref(0);
 	const currentAudioStream = ref(null);
 	const isAudioAnalyserActive = ref(false);
+	const isAudioActive = ref(false);
 	const audioPath = ref(null);
 	const audioRecorder = ref(null);
 
@@ -19,6 +20,7 @@ export const useAudio = () => {
 		audioBitsPerSecond: 320000,
 		mimeType: "audio/webm;codecs=opus",
 		fftSize: 256,
+		chunkInterval: 100, // Daha sık chunk gönderimi için
 	};
 
 	// Konfigürasyon state'i
@@ -81,21 +83,24 @@ export const useAudio = () => {
 				throw new Error("IPC events are not available");
 			}
 
-			console.log("Ses kaydı başlatılıyor...");
+			console.log("Ses stream'i başlatılıyor...");
 
-			const audioStream = await getAudioStream();
-
-			if (!audioStream) {
-				console.warn(
-					"Ses stream'i alınamadı, sadece mikrofon kaydı yapılmayacak"
-				);
-				return null;
-			}
+			// Ses kaydı için stream al
+			const audioStream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					deviceId: selectedAudioDevice.value
+						? { exact: selectedAudioDevice.value }
+						: undefined,
+					echoCancellation: config.value.echoCancellation,
+					noiseSuppression: config.value.noiseSuppression,
+					autoGainControl: config.value.autoGainControl,
+				},
+			});
 
 			console.log("Ses stream'i başlatıldı");
 			console.log("Ses MediaRecorder oluşturuluyor");
 
-			// Stream'i başlat
+			// Dosya yolunu al
 			audioPath.value = await window.electron?.ipcRenderer.invoke(
 				IPC_EVENTS.START_MEDIA_STREAM,
 				"audio"
@@ -108,7 +113,7 @@ export const useAudio = () => {
 
 			console.log("Ses recorder event listener'ları ekleniyor");
 			audioRecorder.value.ondataavailable = async (event) => {
-				if (event.data.size > 0) {
+				if (event.data.size > 0 && isAudioActive.value) {
 					try {
 						console.log("Ses chunk alındı:", event.data.size);
 						const chunk = await event.data.arrayBuffer();
@@ -125,6 +130,7 @@ export const useAudio = () => {
 
 			audioRecorder.value.onstop = () => {
 				console.log("Ses kaydı durduruldu");
+				isAudioActive.value = false;
 
 				// Recorder durdurulduğunda stream'i temizle
 				try {
@@ -136,6 +142,7 @@ export const useAudio = () => {
 
 			audioRecorder.value.onerror = (event) => {
 				console.error("Audio recorder error:", event);
+				isAudioActive.value = false;
 
 				// Hata durumunda stream'i temizle
 				try {
@@ -146,13 +153,15 @@ export const useAudio = () => {
 			};
 
 			console.log("Ses kaydı başlatılıyor");
-			audioRecorder.value.start(1000);
+			audioRecorder.value.start(config.value.chunkInterval);
+			isAudioActive.value = true;
 
 			console.log("Ses MediaRecorder başlatıldı");
 
 			return { audioPath: audioPath.value };
 		} catch (error) {
 			console.error("Ses kaydı başlatılırken hata:", error);
+			isAudioActive.value = false;
 			return null;
 		}
 	};
@@ -161,33 +170,82 @@ export const useAudio = () => {
 		try {
 			console.log("Ses kaydı durdurma başlatıldı");
 
-			if (audioRecorder.value && audioRecorder.value.state === "recording") {
-				console.log("Ses recorder durduruluyor...");
-				audioRecorder.value.stop();
-				console.log("Ses recorder durduruldu");
-			} else {
-				console.warn(
-					"Ses recorder zaten durdurulmuş veya geçersiz:",
-					audioRecorder.value?.state
-				);
+			// Önce state'i false yap ki yeni chunk'lar oluşmasın
+			isAudioActive.value = false;
+
+			// Ses kaydı aktif değilse işlemi atla
+			if (!audioRecorder.value) {
+				console.warn("Ses recorder bulunamadı, durdurma işlemi atlanıyor");
+				return audioPath.value;
 			}
+
+			// Recorder'ı ve stream'i temizle
+			let audioStreamTracks = [];
+
+			// Recorder'ı durdur ve event listener'ları temizle
+			try {
+				// Event listener'ları kaldır
+				audioRecorder.value.ondataavailable = null;
+				audioRecorder.value.onerror = null;
+				audioRecorder.value.onstop = null;
+
+				// Stream track'lerini kaydet
+				if (audioRecorder.value.stream) {
+					audioStreamTracks = [...audioRecorder.value.stream.getTracks()];
+				}
+
+				// Recorder'ı durdur
+				if (audioRecorder.value.state === "recording") {
+					console.log("Ses recorder durduruluyor...");
+					audioRecorder.value.stop();
+					console.log("Ses recorder durduruldu");
+				} else {
+					console.warn(
+						"Ses recorder zaten durdurulmuş veya geçersiz:",
+						audioRecorder.value.state
+					);
+				}
+			} catch (recorderError) {
+				console.error("Ses recorder durdurulurken hata:", recorderError);
+			} finally {
+				// Recorder'ı null yap
+				audioRecorder.value = null;
+			}
+
+			// Tüm track'leri durdur
+			console.log(
+				"Ses stream track'leri durduruluyor...",
+				audioStreamTracks.length
+			);
+			audioStreamTracks.forEach((track) => {
+				try {
+					track.stop();
+					console.log(`Track durduruldu: ${track.id} (${track.kind})`);
+				} catch (err) {
+					console.error(`Track durdurulurken hata: ${track.id}`, err);
+				}
+			});
 
 			// Stream'i sonlandır
 			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 			if (IPC_EVENTS && audioPath.value) {
 				try {
+					console.log("Ses medya stream'i sonlandırılıyor...");
 					await window.electron?.ipcRenderer.invoke(
 						IPC_EVENTS.END_MEDIA_STREAM,
 						"audio"
 					);
+					console.log("Ses medya stream'i sonlandırıldı");
 				} catch (streamError) {
 					console.error("Audio stream sonlandırılırken hata:", streamError);
 				}
 			}
 
 			console.log("Ses kaydı durdurma tamamlandı");
+			return audioPath.value;
 		} catch (error) {
 			console.error("Ses kaydı durdurulurken hata:", error);
+			return audioPath.value;
 		}
 	};
 
@@ -294,6 +352,7 @@ export const useAudio = () => {
 		microphoneLevel,
 		currentAudioStream,
 		isAudioAnalyserActive,
+		isAudioActive,
 		audioPath,
 		config,
 		updateConfig,

@@ -22,6 +22,7 @@ export const useScreen = () => {
 		systemAudio: true,
 		microphone: true,
 		microphoneDeviceId: null,
+		chunkInterval: 100, // Daha sık chunk gönderimi için
 	};
 
 	// Konfigürasyon state'i
@@ -155,7 +156,7 @@ export const useScreen = () => {
 			console.log("Ekran stream'i başlatıldı");
 			console.log("Ekran MediaRecorder oluşturuluyor");
 
-			// Stream'i başlat
+			// Dosya yollarını al
 			screenPath.value = await window.electron?.ipcRenderer.invoke(
 				IPC_EVENTS.START_MEDIA_STREAM,
 				"screen"
@@ -163,11 +164,13 @@ export const useScreen = () => {
 
 			audioPath.value = null;
 
+			// Ekran kaydı için MediaRecorder oluştur
 			screenRecorder.value = new MediaRecorder(screenStream, {
 				mimeType: config.value.videoMimeType,
 				videoBitsPerSecond: config.value.videoBitsPerSecond,
 			});
 
+			// Ses kaydı için ayrı bir MediaRecorder oluştur (varsa)
 			if (screenStream.getAudioTracks().length > 0) {
 				audioPath.value = await window.electron?.ipcRenderer.invoke(
 					IPC_EVENTS.START_MEDIA_STREAM,
@@ -179,6 +182,7 @@ export const useScreen = () => {
 					audioBitsPerSecond: config.value.audioBitsPerSecond,
 				});
 
+				// Ses chunk'larını doğrudan dosyaya yaz
 				audioRecorder.value.ondataavailable = async (event) => {
 					if (event.data.size > 0) {
 						try {
@@ -205,6 +209,7 @@ export const useScreen = () => {
 				};
 			}
 
+			// Ekran chunk'larını doğrudan dosyaya yaz
 			screenRecorder.value.ondataavailable = async (event) => {
 				if (event.data.size > 0) {
 					try {
@@ -245,8 +250,10 @@ export const useScreen = () => {
 			};
 
 			console.log("Ekran kaydı başlatılıyor");
-			screenRecorder.value.start(1000);
-			if (audioRecorder.value) audioRecorder.value.start(1000);
+			// Daha sık chunk gönderimi için interval değerini düşür
+			screenRecorder.value.start(config.value.chunkInterval);
+			if (audioRecorder.value)
+				audioRecorder.value.start(config.value.chunkInterval);
 
 			console.log("Ekran MediaRecorder başlatıldı");
 			isScreenActive.value = true;
@@ -263,53 +270,124 @@ export const useScreen = () => {
 		try {
 			console.log("Ekran kaydı durdurma başlatıldı");
 
-			if (screenRecorder.value && screenRecorder.value.state === "recording") {
-				console.log("Ekran recorder durduruluyor...");
-				screenRecorder.value.stop();
-				console.log("Ekran recorder durduruldu");
-			} else {
-				console.warn(
-					"Ekran recorder zaten durdurulmuş veya geçersiz:",
-					screenRecorder.value?.state
-				);
+			// Önce state'i false yap ki yeni chunk'lar oluşmasın
+			isScreenActive.value = false;
+
+			// Recorder'ları ve stream'leri temizle
+			let screenStreamTracks = [];
+			let audioStreamTracks = [];
+
+			// Recorder'ları durdur ve event listener'ları temizle
+			if (screenRecorder.value) {
+				try {
+					// Event listener'ları kaldır
+					screenRecorder.value.ondataavailable = null;
+					screenRecorder.value.onerror = null;
+					screenRecorder.value.onstop = null;
+
+					// Stream track'lerini kaydet
+					if (screenRecorder.value.stream) {
+						screenStreamTracks = [...screenRecorder.value.stream.getTracks()];
+					}
+
+					// Recorder'ı durdur
+					if (screenRecorder.value.state === "recording") {
+						console.log("Ekran recorder durduruluyor...");
+						screenRecorder.value.stop();
+						console.log("Ekran recorder durduruldu");
+					}
+				} catch (recorderError) {
+					console.error("Ekran recorder durdurulurken hata:", recorderError);
+				} finally {
+					// Recorder'ı null yap
+					screenRecorder.value = null;
+				}
 			}
 
-			if (audioRecorder.value && audioRecorder.value.state === "recording") {
-				console.log("Ses recorder durduruluyor...");
-				audioRecorder.value.stop();
-				console.log("Ses recorder durduruldu");
-			} else {
-				console.warn(
-					"Ses recorder zaten durdurulmuş veya geçersiz:",
-					audioRecorder.value?.state
-				);
+			// Ses recorder'ını durdur
+			if (audioRecorder.value) {
+				try {
+					// Event listener'ları kaldır
+					audioRecorder.value.ondataavailable = null;
+					audioRecorder.value.onerror = null;
+					audioRecorder.value.onstop = null;
+
+					// Stream track'lerini kaydet
+					if (audioRecorder.value.stream) {
+						audioStreamTracks = [...audioRecorder.value.stream.getTracks()];
+					}
+
+					// Recorder'ı durdur
+					if (audioRecorder.value.state === "recording") {
+						console.log("Ses recorder durduruluyor...");
+						audioRecorder.value.stop();
+						console.log("Ses recorder durduruldu");
+					}
+				} catch (recorderError) {
+					console.error("Ses recorder durdurulurken hata:", recorderError);
+				} finally {
+					// Recorder'ı null yap
+					audioRecorder.value = null;
+				}
 			}
+
+			// Tüm track'leri durdur
+			console.log(
+				"Ekran stream track'leri durduruluyor...",
+				screenStreamTracks.length
+			);
+			screenStreamTracks.forEach((track) => {
+				try {
+					track.stop();
+					console.log(`Track durduruldu: ${track.id} (${track.kind})`);
+				} catch (err) {
+					console.error(`Track durdurulurken hata: ${track.id}`, err);
+				}
+			});
+
+			console.log(
+				"Ses stream track'leri durduruluyor...",
+				audioStreamTracks.length
+			);
+			audioStreamTracks.forEach((track) => {
+				try {
+					track.stop();
+					console.log(`Track durduruldu: ${track.id} (${track.kind})`);
+				} catch (err) {
+					console.error(`Track durdurulurken hata: ${track.id}`, err);
+				}
+			});
 
 			// Stream'leri sonlandır
 			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 			if (IPC_EVENTS) {
 				try {
+					console.log("Ekran medya stream'i sonlandırılıyor...");
 					await window.electron?.ipcRenderer.invoke(
 						IPC_EVENTS.END_MEDIA_STREAM,
 						"screen"
 					);
+					console.log("Ekran medya stream'i sonlandırıldı");
 
 					if (audioPath.value) {
+						console.log("Ses medya stream'i sonlandırılıyor...");
 						await window.electron?.ipcRenderer.invoke(
 							IPC_EVENTS.END_MEDIA_STREAM,
 							"audio"
 						);
+						console.log("Ses medya stream'i sonlandırıldı");
 					}
 				} catch (streamError) {
 					console.error("Stream sonlandırılırken hata:", streamError);
 				}
 			}
 
-			isScreenActive.value = false;
 			console.log("Ekran kaydı durdurma tamamlandı");
+			return { videoPath: screenPath.value, audioPath: audioPath.value };
 		} catch (error) {
 			console.error("Ekran kaydı durdurulurken hata:", error);
 			isScreenActive.value = false;
+			return { videoPath: screenPath.value, audioPath: audioPath.value };
 		}
 	};
 

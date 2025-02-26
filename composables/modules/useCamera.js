@@ -14,6 +14,7 @@ export const useCamera = () => {
 		frameRate: { ideal: 30 },
 		videoBitsPerSecond: 8000000,
 		mimeType: "video/webm;codecs=vp9",
+		chunkInterval: 100, // Daha sık chunk gönderimi için
 	};
 
 	// Konfigürasyon state'i
@@ -132,18 +133,21 @@ export const useCamera = () => {
 			console.log("Kamera stream'i başlatıldı");
 			console.log("Kamera MediaRecorder oluşturuluyor");
 
-			// Stream'i başlat
+			// Dosya yolunu al
 			cameraPath.value = await window.electron?.ipcRenderer.invoke(
 				IPC_EVENTS.START_MEDIA_STREAM,
 				"camera"
 			);
 
+			// Kamera kaydı için MediaRecorder oluştur
 			cameraRecorder.value = new MediaRecorder(cameraStream, {
 				mimeType: config.value.mimeType,
 				videoBitsPerSecond: config.value.videoBitsPerSecond,
 			});
 
 			console.log("Kamera recorder event listener'ları ekleniyor");
+
+			// Kamera chunk'larını doğrudan dosyaya yaz
 			cameraRecorder.value.ondataavailable = async (event) => {
 				if (event.data.size > 0) {
 					try {
@@ -185,7 +189,8 @@ export const useCamera = () => {
 			};
 
 			console.log("Kamera kaydı başlatılıyor");
-			cameraRecorder.value.start(1000);
+			// Daha sık chunk gönderimi için interval değerini düşür
+			cameraRecorder.value.start(config.value.chunkInterval);
 
 			console.log("Kamera MediaRecorder başlatıldı");
 			isCameraActive.value = true;
@@ -202,35 +207,74 @@ export const useCamera = () => {
 		try {
 			console.log("Kamera kaydı durdurma başlatıldı");
 
-			if (cameraRecorder.value && cameraRecorder.value.state === "recording") {
-				console.log("Kamera recorder durduruluyor...");
-				cameraRecorder.value.stop();
-				console.log("Kamera recorder durduruldu");
-			} else {
-				console.warn(
-					"Kamera recorder zaten durdurulmuş veya geçersiz:",
-					cameraRecorder.value?.state
-				);
+			// Önce state'i false yap ki yeni chunk'lar oluşmasın
+			isCameraActive.value = false;
+
+			// Recorder'ı ve stream'i temizle
+			let cameraStreamTracks = [];
+
+			// Recorder'ı durdur ve event listener'ları temizle
+			if (cameraRecorder.value) {
+				try {
+					// Event listener'ları kaldır
+					cameraRecorder.value.ondataavailable = null;
+					cameraRecorder.value.onerror = null;
+					cameraRecorder.value.onstop = null;
+
+					// Stream track'lerini kaydet
+					if (cameraRecorder.value.stream) {
+						cameraStreamTracks = [...cameraRecorder.value.stream.getTracks()];
+					}
+
+					// Recorder'ı durdur
+					if (cameraRecorder.value.state === "recording") {
+						console.log("Kamera recorder durduruluyor...");
+						cameraRecorder.value.stop();
+						console.log("Kamera recorder durduruldu");
+					}
+				} catch (recorderError) {
+					console.error("Kamera recorder durdurulurken hata:", recorderError);
+				} finally {
+					// Recorder'ı null yap
+					cameraRecorder.value = null;
+				}
 			}
+
+			// Tüm track'leri durdur
+			console.log(
+				"Kamera stream track'leri durduruluyor...",
+				cameraStreamTracks.length
+			);
+			cameraStreamTracks.forEach((track) => {
+				try {
+					track.stop();
+					console.log(`Track durduruldu: ${track.id} (${track.kind})`);
+				} catch (err) {
+					console.error(`Track durdurulurken hata: ${track.id}`, err);
+				}
+			});
 
 			// Stream'i sonlandır
 			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 			if (IPC_EVENTS) {
 				try {
+					console.log("Kamera medya stream'i sonlandırılıyor...");
 					await window.electron?.ipcRenderer.invoke(
 						IPC_EVENTS.END_MEDIA_STREAM,
 						"camera"
 					);
+					console.log("Kamera medya stream'i sonlandırıldı");
 				} catch (streamError) {
 					console.error("Camera stream sonlandırılırken hata:", streamError);
 				}
 			}
 
-			isCameraActive.value = false;
 			console.log("Kamera kaydı durdurma tamamlandı");
+			return cameraPath.value;
 		} catch (error) {
 			console.error("Kamera kaydı durdurulurken hata:", error);
 			isCameraActive.value = false;
+			return cameraPath.value;
 		}
 	};
 

@@ -235,7 +235,20 @@ function setupIpcHandlers() {
 	});
 
 	ipcMain.handle(IPC_EVENTS.END_MEDIA_STREAM, async (event, type) => {
-		return await tempFileManager.endMediaStream(type);
+		try {
+			console.log(`[Main] ${type} medya stream'i sonlandırılıyor...`);
+			const result = await tempFileManager.endMediaStream(type);
+			console.log(`[Main] ${type} medya stream'i sonlandırıldı:`, result);
+			return result;
+		} catch (error) {
+			console.error(
+				`[Main] ${type} medya stream'i sonlandırılırken hata:`,
+				error
+			);
+			// Hata olsa bile stream'i Map'ten kaldır
+			tempFileManager.activeStreams.delete(type);
+			return null;
+		}
 	});
 
 	ipcMain.handle(IPC_EVENTS.SAVE_TEMP_VIDEO, async (event, data, type) => {
@@ -512,6 +525,39 @@ function setupIpcHandlers() {
 			throw error;
 		}
 	});
+
+	// Editör penceresini aç
+	ipcMain.handle(IPC_EVENTS.OPEN_EDITOR, async (event, data) => {
+		try {
+			console.log("[Main] Editör açılıyor, tüm stream'ler temizleniyor...");
+
+			// Fare takibini durdur
+			if (isTracking) {
+				console.log("[Main] Fare takibi durduruluyor...");
+				uIOhook.stop();
+				isTracking = false;
+				mainWindow.webContents.send(IPC_EVENTS.MOUSE_TRACKING_STOPPED);
+			}
+
+			// Önce tüm aktif stream'leri temizle
+			await tempFileManager.cleanupStreams();
+
+			// Medya yollarını kaydet
+			mediaStateManager.state.videoPath = data.videoPath;
+			mediaStateManager.state.cameraPath = data.cameraPath;
+			mediaStateManager.state.audioPath = data.audioPath;
+
+			console.log("[Main] Stream'ler temizlendi, editör açılıyor...");
+			console.log("[Main] Editör verileri:", data);
+
+			// Editör penceresini aç
+			createEditorWindow(data);
+			return { success: true };
+		} catch (error) {
+			console.error("[Main] Editör açılırken hata:", error);
+			return { success: false, error: error.message };
+		}
+	});
 }
 
 async function createWindow() {
@@ -631,13 +677,42 @@ app.on("activate", () => {
 	}
 });
 
-app.on("before-quit", () => {
-	app.isQuitting = true;
-	stopMouseTracking();
-	if (mediaStateManager) mediaStateManager.cleanup();
-	if (tempFileManager) tempFileManager.cleanupAllFiles();
-	if (cameraManager) cameraManager.cleanup();
-	if (selectionManager) selectionManager.cleanup();
+app.on("before-quit", async (event) => {
+	try {
+		console.log("[Main] Uygulama kapanıyor, tüm kaynaklar temizleniyor...");
+
+		// Fare takibini durdur
+		if (isTracking) {
+			console.log("[Main] Fare takibi durduruluyor...");
+			uIOhook.stop();
+			isTracking = false;
+		}
+
+		// Tüm stream'leri temizle
+		if (tempFileManager) {
+			console.log("[Main] Tüm stream'ler temizleniyor...");
+			event.preventDefault(); // Uygulamanın kapanmasını geçici olarak engelle
+
+			// Stream'leri temizle ve sonra uygulamayı kapat
+			await tempFileManager.cleanupStreams();
+			console.log("[Main] Tüm stream'ler temizlendi");
+
+			// Tüm geçici dosyaları temizle
+			await tempFileManager.cleanupAllFiles();
+			console.log("[Main] Tüm geçici dosyalar temizlendi");
+
+			// Diğer manager'ları temizle
+			if (cameraManager) cameraManager.cleanup();
+			if (trayManager) trayManager.cleanup();
+
+			// Şimdi uygulamayı kapat
+			app.quit();
+		}
+	} catch (error) {
+		console.error("[Main] Uygulama kapanırken hata:", error);
+		// Hata olsa bile uygulamayı kapat
+		app.exit(1);
+	}
 });
 
 function startMouseTracking() {

@@ -19,7 +19,10 @@ export const useMediaDevices = () => {
 
 	// Computed properties for combined state
 	const isRecording = computed(
-		() => screenModule.isScreenActive.value || cameraModule.isCameraActive.value
+		() =>
+			screenModule.isScreenActive.value ||
+			cameraModule.isCameraActive.value ||
+			audioModule.isAudioActive.value
 	);
 
 	const getDevices = async () => {
@@ -103,48 +106,57 @@ export const useMediaDevices = () => {
 		try {
 			console.log("Kayıt durdurma başlatıldı");
 
-			// Fare takibini durdur
-			mouseModule.stopMouseTracking();
+			// Tüm kayıtları durdur ve sonuçları bekle
+			const promises = [];
 
-			// Modül durumlarını false yap
-			screenModule.isScreenActive.value = false;
-			cameraModule.isCameraActive.value = false;
-
-			// Her modülün kendi durdurma fonksiyonunu çağır
+			// Ekran kaydını durdur
 			if (screenModule.isScreenActive.value) {
-				await screenModule.stopScreenRecording();
+				console.log("Ekran kaydı durduruluyor...");
+				promises.push(screenModule.stopScreenRecording());
 			}
 
+			// Kamera kaydını durdur
 			if (cameraModule.isCameraActive.value) {
-				await cameraModule.stopCameraRecording();
+				console.log("Kamera kaydı durduruluyor...");
+				promises.push(cameraModule.stopCameraRecording());
 			}
 
-			// Ayrı ses kaydı varsa durdur
-			await audioModule.stopAudioRecording();
+			// Ses kaydını durdur
+			if (audioModule.isAudioActive.value) {
+				console.log("Ses kaydı durduruluyor...");
+				promises.push(audioModule.stopAudioRecording());
+			}
 
-			// MediaStream'i durdur
-			recordingUtils.stopMediaStream();
+			// Tüm kayıtların durmasını bekle
+			const results = await Promise.all(promises);
+			console.log("Tüm kayıtlar durduruldu:", results);
 
-			// Kayıt sınıfını kaldır
-			document.body.classList.remove("recording");
+			// Kayıt durumunu güncelle
+			isRecording.value = false;
+
+			// Editör açılmadan önce kısa bir gecikme ekle (stream'lerin tamamen kapanması için)
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			// Editör penceresini aç
+			console.log("Editör açılıyor...");
+			const screenResult = results.find((r) => r && r.videoPath);
+			const cameraResult =
+				results.find((r) => r && r.cameraPath) ||
+				results.find((r) => typeof r === "string");
+			const audioResult = results.find((r) => r && r.audioPath);
+
+			await window.electron?.ipcRenderer.invoke(IPC_EVENTS.OPEN_EDITOR, {
+				videoPath: screenResult?.videoPath || null,
+				cameraPath:
+					cameraResult?.cameraPath ||
+					(typeof cameraResult === "string" ? cameraResult : null),
+				audioPath: audioResult?.audioPath || null,
+			});
 
 			console.log("Kayıt durdurma tamamlandı");
-
-			// Kayıt tamamlandığında editor'ı aç
-			try {
-				window.electron?.ipcRenderer.send(IPC_EVENTS.OPEN_EDITOR, {
-					videoPath: screenModule.screenPath.value,
-					cameraPath: cameraModule.cameraPath.value,
-					audioPath:
-						screenModule.audioPath.value || audioModule.audioPath.value,
-				});
-			} catch (editorError) {
-				console.error("Editor açılırken hata:", editorError);
-			}
 		} catch (error) {
 			console.error("Kayıt durdurulurken hata:", error);
-			// Hata olsa bile durumları temizle
-			document.body.classList.remove("recording");
+			isRecording.value = false;
 		}
 	};
 
@@ -169,6 +181,7 @@ export const useMediaDevices = () => {
 		microphoneLevel: audioModule.microphoneLevel,
 		currentAudioStream: audioModule.currentAudioStream,
 		isAudioAnalyserActive: audioModule.isAudioAnalyserActive,
+		isAudioActive: audioModule.isAudioActive,
 		initAudioAnalyser: audioModule.initAudioAnalyser,
 		cleanupAudioAnalyser: audioModule.cleanupAudioAnalyser,
 		toggleMicrophone: audioModule.toggleMicrophone,
