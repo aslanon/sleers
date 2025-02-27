@@ -1425,7 +1425,7 @@ const dragStartRange = ref(null);
 .timeline-container {
 	padding: 0 0px;
 	position: relative;
-	&::before {
+	/* &::before {
 		content: "";
 		position: absolute;
 		top: 122px;
@@ -1445,7 +1445,7 @@ const dragStartRange = ref(null);
 		height: 100%;
 		background: linear-gradient(to left, #000, transparent);
 		z-index: 2;
-	}
+	} */
 }
 
 /* ScrollContainer scrollbar'ını gizle */
