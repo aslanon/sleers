@@ -11,7 +11,7 @@
 			label="Mouse Size"
 			desc="Mouse'un boyutunu ayarlar."
 			:min="20"
-			:max="200"
+			:max="400"
 			:step="1"
 			unit="px"
 		/>
@@ -21,7 +21,7 @@
 			label="Motion Effect"
 			desc="Mouse'un hareket ettiğinde görüntünün belirgin olmasını sağlar."
 			:min="0"
-			:max="10"
+			:max="1"
 			:step="0.1"
 		/>
 	</div>

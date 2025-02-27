@@ -1,7 +1,7 @@
 import { ref, computed } from "vue";
 
-const mouseSize = ref(124);
-const motionBlurValue = ref(50);
+const mouseSize = ref(180);
+const motionBlurValue = ref(0.5);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
@@ -26,17 +26,18 @@ const cameraSettings = ref({
 	},
 });
 // Motion blur için sabitler
+const DEFAULT_MOTION_BLUR_VALUE = 0.6;
 const MOTION_BLUR_CONSTANTS = {
-	MIN_SPEED_THRESHOLD: 1.1,
-	MAX_SPEED: 3.0,
-	MIN_DISTANCE_THRESHOLD: 10,
+	MIN_SPEED_THRESHOLD: 2.0,
+	MAX_SPEED: 3.5,
+	MIN_DISTANCE_THRESHOLD: 15,
 	TRAIL_STEPS: 3,
 	TRAIL_OPACITY_BASE: 0.35,
-	TRAIL_OFFSET_MULTIPLIER: 1,
-	BLUR_BASE: 0.5,
-	MOVEMENT_ANGLE: -10,
-	SKEW_FACTOR: 0.05,
-	STRETCH_FACTOR: 0.099,
+	TRAIL_OFFSET_MULTIPLIER: 0.9,
+	BLUR_BASE: 0.7,
+	MOVEMENT_ANGLE: 10,
+	SKEW_FACTOR: 0.12,
+	STRETCH_FACTOR: 0.2,
 };
 
 // Motion efekti için computed değer
