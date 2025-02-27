@@ -287,16 +287,21 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 });
 
 // Kamera değişikliği izleyicisi
-watch(selectedVideoDevice, async (deviceLabel) => {
-	if (deviceLabel) {
+watch(selectedVideoDevice, async (deviceId) => {
+	if (deviceId) {
 		try {
-			console.log("[index.vue] Seçilen kamera label:", deviceLabel);
+			console.log("[index.vue] Seçilen kamera deviceId:", deviceId);
+
 			// Kamera değişikliğini main process'e bildir
-			electron?.ipcRenderer.send("CAMERA_DEVICE_CHANGED", deviceLabel);
-			console.log(
-				"[index.vue] Kamera değişikliği main process'e gönderildi:",
-				deviceLabel
-			);
+			if (electron?.ipcRenderer) {
+				electron.ipcRenderer.send(IPC_EVENTS.CAMERA_DEVICE_CHANGED, deviceId);
+				console.log(
+					"[index.vue] Kamera değişikliği main process'e gönderildi:",
+					deviceId
+				);
+			} else {
+				console.error("[index.vue] Electron API bulunamadı");
+			}
 		} catch (error) {
 			console.error("[index.vue] Kamera değişikliği sırasında hata:", error);
 		}

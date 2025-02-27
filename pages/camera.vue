@@ -141,7 +141,57 @@ onMounted(() => {
 	electron?.ipcRenderer.on("START_CAMERA", () => {
 		startCamera();
 	});
+
+	// Kamera cihazı değişikliğini dinle
+	electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", (deviceId) => {
+		console.log("[camera.vue] Kamera cihazı değişikliği alındı:", deviceId);
+		if (deviceId && deviceId !== "undefined") {
+			changeCamera(deviceId);
+		}
+	});
 });
+
+// Belirli bir kamera cihazına geçiş yapmak için yeni fonksiyon
+const changeCamera = async (deviceId) => {
+	try {
+		console.log("[camera.vue] Kamera değiştiriliyor, deviceId:", deviceId);
+		if (stream) {
+			stopCamera();
+		}
+		isLoading.value = true;
+
+		// Belirli bir cihaz ID'si ile kamerayı başlat
+		stream = await navigator.mediaDevices.getUserMedia({
+			video: {
+				deviceId: { exact: deviceId },
+				width: { ideal: 1920 },
+				height: { ideal: 1080 },
+			},
+		});
+
+		if (videoRef.value) {
+			videoRef.value.srcObject = stream;
+			setTimeout(() => {
+				isLoading.value = false;
+				console.log("[camera.vue] Kamera başarıyla değiştirildi");
+				// Kamera başlatıldı, ana pencereye bildir
+				electron?.ipcRenderer.send("CAMERA_STATUS_CHANGED", {
+					status: "active",
+					deviceId: deviceId,
+				});
+			}, 500);
+		}
+	} catch (error) {
+		console.error("[camera.vue] Kamera değiştirilirken hata:", error);
+		isLoading.value = false;
+		// Hata durumunu ana pencereye bildir
+		electron?.ipcRenderer.send("CAMERA_STATUS_CHANGED", {
+			status: "error",
+			deviceId: deviceId,
+			error: error.message,
+		});
+	}
+};
 
 // Component unmount olduğunda
 onUnmounted(() => {
@@ -149,6 +199,7 @@ onUnmounted(() => {
 	if (window.electron) {
 		window.electron.ipcRenderer.removeAllListeners("STOP_CAMERA");
 		window.electron.ipcRenderer.removeAllListeners("START_CAMERA");
+		window.electron.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
 	}
 	// Sürükleme event listener'larını temizle
 	window.removeEventListener("mousemove", handleGlobalMouseMove);

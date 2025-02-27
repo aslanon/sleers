@@ -881,6 +881,14 @@ function setupIpcHandlers() {
 			return { success: false, error: error.message };
 		}
 	});
+
+	// Kamera cihazı değişikliğini dinle
+	ipcMain.on(IPC_EVENTS.CAMERA_DEVICE_CHANGED, (event, deviceId) => {
+		console.log("[main.cjs] Kamera cihazı değişikliği alındı:", deviceId);
+		if (cameraManager) {
+			cameraManager.updateCameraDevice(deviceId);
+		}
+	});
 }
 
 async function createWindow() {
