@@ -75,11 +75,27 @@ async function start(outputPath, options = {}) {
 			fps: 30,
 			showCursor: false,
 			highlightClicks: false,
-			audioDeviceId: null,
+			audioDeviceId: null, // Sistem sesi için null olmalı
+			includeSystemAudio: true, // Sistem sesini dahil et
+			includeDeviceAudio: true, // Mikrofon sesini dahil et
 		};
 
 		// Seçenekleri birleştir
 		const recordingOptions = { ...defaultOptions, ...options };
+
+		// Kullanıcının ses tercihleri varsa, bunları da ekle
+		if (options.audio) {
+			recordingOptions.includeSystemAudio =
+				options.audio.captureSystemAudio !== false;
+			recordingOptions.includeDeviceAudio =
+				options.audio.captureDeviceAudio !== false;
+		}
+
+		// Kullanıcının mikrofon cihazı ayarı varsa, bunu ekle
+		if (options.audioSourceId) {
+			recordingOptions.audioSourceId = options.audioSourceId;
+		}
+
 		console.log("[Aperture] Kayıt seçenekleri:", recordingOptions);
 
 		// Modern API kullanımı - GitHub örneğindeki gibi

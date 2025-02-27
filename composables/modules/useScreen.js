@@ -90,6 +90,30 @@ export const useScreen = () => {
 
 			console.log("Ekran kaydı başlatılıyor...");
 
+			// Ses ayarlarını MediaState'ten al
+			try {
+				const mediaState = await window.electron.ipcRenderer.invoke(
+					IPC_EVENTS.GET_MEDIA_STATE
+				);
+
+				if (mediaState?.audioSettings) {
+					console.log("Ses ayarları alındı:", mediaState.audioSettings);
+					// Media State'ten alınan ses ayarlarını konfigürasyona aktar
+					config.systemAudio = mediaState.audioSettings.systemAudioEnabled;
+					config.microphone = mediaState.audioSettings.microphoneEnabled;
+					config.microphoneDeviceId =
+						mediaState.audioSettings.selectedAudioDevice;
+
+					console.log("Ekran kaydı için ses ayarları güncellendi:", {
+						systemAudio: config.systemAudio,
+						microphone: config.microphone,
+						microphoneDeviceId: config.microphoneDeviceId,
+					});
+				}
+			} catch (mediaStateError) {
+				console.warn("Ses ayarları alınamadı:", mediaStateError);
+			}
+
 			// 1. Aperture modülünü yükle
 			console.log("Aperture modülü yükleniyor...");
 			const apertureLoaded = await window.electron.ipcRenderer.invoke(
@@ -123,7 +147,17 @@ export const useScreen = () => {
 				fps: config.fps || 30,
 				showCursor: false, //  config.showCursor !== false,
 				highlightClicks: false, // config.highlightClicks !== false,
-				audioDeviceId: config.audioDeviceId || null, // null olarak değiştirdik
+				audioDeviceId: null, // Sistem sesini kaydetmek için null olmalı
+				// Kullanıcı mikrofon ayarlarını kontrol et ve ayarla
+				audioSourceId:
+					config.microphone && config.microphoneDeviceId
+						? config.microphoneDeviceId
+						: null,
+				// Ses kaydını aktifleştir
+				audio: {
+					captureSystemAudio: config.systemAudio, // Sistem sesini kaydet
+					captureDeviceAudio: config.microphone, // Mikrofon sesini kaydet
+				},
 			};
 
 			// Kırpma alanı varsa ekle

@@ -52,6 +52,23 @@
 					/>
 				</svg>
 			</button>
+
+			<!-- Ayarlar Menüsü -->
+			<div
+				v-if="isSettingsOpen"
+				class="absolute right-0 mt-2 w-72 p-4 bg-[#1a1b26] border border-gray-700 rounded-lg shadow-lg z-50"
+			>
+				<!-- İzinler Bölümü -->
+				<div class="mb-4">
+					<PermissionChecker />
+				</div>
+
+				<!-- Diğer Ayarlar... -->
+				<div class="border-t border-gray-700 mt-4 pt-4">
+					<h3 class="text-sm font-medium mb-2">Diğer Ayarlar</h3>
+					<!-- Mevcut ayarlar buraya gelecek -->
+				</div>
+			</div>
 		</div>
 
 		<!-- Kayıt Kontrolleri -->
@@ -179,6 +196,7 @@
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 import RecordSettings from "~/components/record-settings/index.vue";
+import PermissionChecker from "~/components/ui/PermissionChecker.vue";
 
 // IPC event isimlerini al
 const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};

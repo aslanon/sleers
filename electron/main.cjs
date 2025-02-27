@@ -70,6 +70,42 @@ ipcMain.handle(IPC_EVENTS.GET_RECORDING_DELAY, () => {
 	return recordingDelay;
 });
 
+// İzin durumlarını kontrol eden handler ekle
+ipcMain.handle(IPC_EVENTS.CHECK_PERMISSIONS, async () => {
+	return await checkPermissionStatus();
+});
+
+// İzin isteme handler'ı ekle
+ipcMain.handle("REQUEST_PERMISSION", async (event, permissionType) => {
+	if (process.platform !== "darwin") {
+		return true; // macOS dışındaki platformlarda izin zaten var kabul ediyoruz
+	}
+
+	try {
+		const { systemPreferences } = require("electron");
+		if (permissionType === "camera" || permissionType === "microphone") {
+			const granted = await systemPreferences.askForMediaAccess(permissionType);
+			console.log(`[Main] ${permissionType} izni istendi, sonuç:`, granted);
+			return granted;
+		}
+		return false; // Ekran kaydı izni programatik olarak istenemez
+	} catch (error) {
+		console.error(`[Main] ${permissionType} izni istenirken hata:`, error);
+		return false;
+	}
+});
+
+// Sistem ayarlarını açma handler'ı
+ipcMain.on("OPEN_SYSTEM_PREFERENCES", () => {
+	if (process.platform === "darwin") {
+		// macOS için Gizlilik ve Güvenlik ayarlarını aç
+		const { shell } = require("electron");
+		shell.openExternal(
+			"x-apple.systempreferences:com.apple.preference.security?Privacy"
+		);
+	}
+});
+
 // IPC event handlers
 function setupIpcHandlers() {
 	// Aperture modülü için handler'lar
@@ -212,6 +248,56 @@ function setupIpcHandlers() {
 				if (process.platform !== "darwin") {
 					console.error("[Main] Aperture sadece macOS'ta çalışır");
 					return false;
+				}
+
+				// macOS'ta ses izinlerini kontrol et
+				if (process.platform === "darwin") {
+					console.log(
+						"[Main] macOS için ses kaydı izinleri kontrol ediliyor..."
+					);
+					try {
+						// SystemPreferences modülünü yükle
+						const { systemPreferences } = require("electron");
+
+						// Mikrofon izni kontrolü
+						const microphoneStatus =
+							systemPreferences.getMediaAccessStatus("microphone");
+						console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
+
+						// Mikrofon izni yoksa, kullanıcıya bilgi mesajı göster
+						if (
+							microphoneStatus !== "granted" &&
+							options.audio?.captureDeviceAudio
+						) {
+							console.warn(
+								"[Main] Mikrofon erişim izni verilmemiş. Ses kaydı yapılamayabilir."
+							);
+							// İzin istemeyi dene
+							systemPreferences
+								.askForMediaAccess("microphone")
+								.then((granted) => {
+									console.log(
+										"[Main] Mikrofon erişimi istendi, sonuç:",
+										granted
+									);
+								})
+								.catch((err) => {
+									console.error("[Main] Mikrofon erişimi isterken hata:", err);
+								});
+						}
+
+						// Sistem sesi için ekran yakalama izinlerini kontrol et
+						if (options.audio?.captureSystemAudio) {
+							console.log(
+								"[Main] Sistem sesi için ekran yakalama izinleri gerekli olabilir"
+							);
+						}
+					} catch (permissionError) {
+						console.warn(
+							"[Main] Ses izinleri kontrol edilirken hata:",
+							permissionError
+						);
+					}
 				}
 
 				// Aperture modülünü yükle
@@ -998,6 +1084,8 @@ function loadApplication() {
 
 // App lifecycle events
 app.whenReady().then(() => {
+	// İzinleri başlangıçta kontrol et ve iste
+	checkAndRequestPermissions();
 	createWindow();
 	setupIpcHandlers();
 });
@@ -1187,5 +1275,150 @@ function stopMouseTracking() {
 
 		// Event dinlemeyi durdur
 		uIOhook.stop();
+	}
+}
+
+/**
+ * Uygulama başlangıcında gerekli tüm izinleri kontrol eder ve ister
+ */
+async function checkAndRequestPermissions() {
+	// macOS'ta izin kontrolü yapılır
+	if (process.platform === "darwin") {
+		try {
+			const { systemPreferences, dialog } = require("electron");
+
+			// Önce kullanıcıya izinler hakkında bilgi ver
+			const permissionInfo = await dialog.showMessageBox({
+				type: "info",
+				title: "İzin Bilgisi",
+				message: "Sleer uygulamasının çalışması için izinler gerekiyor",
+				detail:
+					"Bu uygulama, ekran kaydı, kamera ve mikrofon erişimi gerektirmektedir. Lütfen istendiğinde bu izinleri verin.\n\nBu izinleri daha sonra Sistem Tercihleri > Gizlilik ve Güvenlik bölümünden değiştirebilirsiniz.",
+				buttons: ["Devam Et"],
+				defaultId: 0,
+			});
+
+			// Kamera izni kontrolü
+			console.log("[Main] Kamera izinleri kontrol ediliyor...");
+			const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
+			console.log("[Main] Kamera erişim durumu:", cameraStatus);
+
+			if (cameraStatus !== "granted") {
+				console.log("[Main] Kamera izni isteniyor...");
+				const cameraGranted = await systemPreferences.askForMediaAccess(
+					"camera"
+				);
+				console.log(
+					"[Main] Kamera izni sonucu:",
+					cameraGranted ? "İzin verildi" : "İzin reddedildi"
+				);
+
+				// İzin reddedildiyse hatırlatma göster
+				if (!cameraGranted) {
+					dialog.showMessageBox({
+						type: "warning",
+						title: "Kamera İzni Reddedildi",
+						message: "Kamera izni reddedildi",
+						detail:
+							"Kamera erişimi olmadan, video kayıtlarınızda kamera görüntüsü olmayacaktır. Bu izni Sistem Tercihleri > Gizlilik ve Güvenlik > Kamera bölümünden verebilirsiniz.",
+						buttons: ["Tamam"],
+						defaultId: 0,
+					});
+				}
+			}
+
+			// Mikrofon izni kontrolü
+			console.log("[Main] Mikrofon izinleri kontrol ediliyor...");
+			const microphoneStatus =
+				systemPreferences.getMediaAccessStatus("microphone");
+			console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
+
+			if (microphoneStatus !== "granted") {
+				console.log("[Main] Mikrofon izni isteniyor...");
+				const microphoneGranted = await systemPreferences.askForMediaAccess(
+					"microphone"
+				);
+				console.log(
+					"[Main] Mikrofon izni sonucu:",
+					microphoneGranted ? "İzin verildi" : "İzin reddedildi"
+				);
+
+				// İzin reddedildiyse hatırlatma göster
+				if (!microphoneGranted) {
+					dialog.showMessageBox({
+						type: "warning",
+						title: "Mikrofon İzni Reddedildi",
+						message: "Mikrofon izni reddedildi",
+						detail:
+							"Mikrofon erişimi olmadan, kayıtlarınızda ses olmayacaktır. Bu izni Sistem Tercihleri > Gizlilik ve Güvenlik > Mikrofon bölümünden verebilirsiniz.",
+						buttons: ["Tamam"],
+						defaultId: 0,
+					});
+				}
+			}
+
+			// Ekran kaydı izni kontrolü
+			// Not: macOS'ta ekran kaydı izni programatik olarak istenemez
+			// Kullanıcı ilk kayıt denemesinde sistem tarafından sorulacaktır
+			console.log(
+				"[Main] Ekran kaydı için sistem izinleri otomatik olarak istenemez. İlk kayıtta sistem tarafından sorulacaktır."
+			);
+
+			// Ekran kaydı izni için bilgilendirme
+			dialog.showMessageBox({
+				type: "info",
+				title: "Ekran Kaydı İzni",
+				message: "Ekran kaydı için izin gerekecek",
+				detail:
+					"İlk ekran kaydını başlattığınızda, macOS sizden izin isteyecektir. Lütfen bu izni verin.\n\nEkran kaydı izinlerini Sistem Tercihleri > Gizlilik ve Güvenlik > Ekran Kaydı bölümünden yönetebilirsiniz.",
+				buttons: ["Anladım"],
+				defaultId: 0,
+			});
+		} catch (error) {
+			console.error("[Main] İzinler kontrol edilirken hata:", error);
+		}
+	} else {
+		console.log("[Main] İzin kontrolü sadece macOS için gereklidir.");
+	}
+}
+
+/**
+ * Mevcut izin durumlarını kontrol eder ve döndürür
+ */
+async function checkPermissionStatus() {
+	// Windows veya Linux'ta izin kontrolü gerekmez
+	if (process.platform !== "darwin") {
+		return {
+			camera: "granted",
+			microphone: "granted",
+			screen: "granted",
+		};
+	}
+
+	try {
+		const { systemPreferences } = require("electron");
+
+		// Kamera ve mikrofon durumlarını doğrudan kontrol et
+		const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
+		const microphoneStatus =
+			systemPreferences.getMediaAccessStatus("microphone");
+
+		// Ekran kaydı için izin durumu kontrol edilemez, sadece ilk kullanımda sistem tarafından sorulur
+		// "unknown" olarak döndür ve UI'da uygun bilgilendirme yap
+		const screenStatus = "unknown";
+
+		return {
+			camera: cameraStatus,
+			microphone: microphoneStatus,
+			screen: screenStatus,
+		};
+	} catch (error) {
+		console.error("[Main] İzin durumları kontrol edilirken hata:", error);
+		return {
+			camera: "unknown",
+			microphone: "unknown",
+			screen: "unknown",
+			error: error.message,
+		};
 	}
 }

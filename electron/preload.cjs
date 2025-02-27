@@ -26,6 +26,11 @@ contextBridge.exposeInMainWorld("electron", {
 		getSources: (opts) =>
 			ipcRenderer.invoke(IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES, opts),
 	},
+	permissions: {
+		check: () => ipcRenderer.invoke(IPC_EVENTS.CHECK_PERMISSIONS),
+		request: (type) => ipcRenderer.invoke("REQUEST_PERMISSION", type),
+		openSettings: () => ipcRenderer.send("OPEN_SYSTEM_PREFERENCES"),
+	},
 	fileSystem: {
 		saveTempVideo: (data, type) =>
 			ipcRenderer.invoke(IPC_EVENTS.SAVE_TEMP_VIDEO, data, type),
