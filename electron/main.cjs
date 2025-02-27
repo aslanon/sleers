@@ -889,6 +889,14 @@ function setupIpcHandlers() {
 			cameraManager.updateCameraDevice(deviceId);
 		}
 	});
+
+	// Mikrofon cihazı değişikliğini dinle
+	ipcMain.on(IPC_EVENTS.AUDIO_DEVICE_CHANGED, (event, deviceId) => {
+		console.log("[main.cjs] Mikrofon cihazı değişikliği alındı:", deviceId);
+		if (mediaStateManager) {
+			mediaStateManager.updateAudioDevice(deviceId);
+		}
+	});
 }
 
 async function createWindow() {

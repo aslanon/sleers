@@ -273,7 +273,18 @@ const throttledUpdateAudioSettings = throttle((settings) => {
 watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 	if (newDeviceId && newDeviceId !== oldDeviceId) {
 		try {
-			// MediaState'e yeni mikrofon cihazını bildir
+			console.log("[index.vue] Seçilen mikrofon deviceId:", newDeviceId);
+
+			// Mikrofon değişikliğini main process'e bildir
+			if (electron?.ipcRenderer) {
+				electron.ipcRenderer.send(IPC_EVENTS.AUDIO_DEVICE_CHANGED, newDeviceId);
+				console.log(
+					"[index.vue] Mikrofon değişikliği main process'e gönderildi:",
+					newDeviceId
+				);
+			}
+
+			// Eski yöntem - MediaState'e yeni mikrofon cihazını bildir
 			throttledUpdateAudioSettings({
 				selectedAudioDevice: newDeviceId,
 			});

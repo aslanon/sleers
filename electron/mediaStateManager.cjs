@@ -575,6 +575,24 @@ class MediaStateManager {
 		});
 	}
 
+	updateAudioDevice(deviceId) {
+		console.log("[MediaStateManager] Mikrofon cihazı güncelleniyor:", deviceId);
+		this.updateState({
+			audioSettings: {
+				...this.state.audioSettings,
+				selectedAudioDevice: deviceId,
+			},
+		});
+
+		// Ana pencereye bildirim gönder
+		if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+			this.mainWindow.webContents.send(IPC_EVENTS.AUDIO_STATUS_CHANGED, {
+				deviceId: deviceId,
+				status: "changed",
+			});
+		}
+	}
+
 	updateMicrophoneLevel(level) {
 		if (this.state.audioSettings.microphoneEnabled) {
 			this.updateState({
