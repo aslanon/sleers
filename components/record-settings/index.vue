@@ -92,6 +92,10 @@
 					</label>
 				</div>
 			</div>
+
+			<div class="border-t border-gray-700 my-2"></div>
+
+			<slot></slot>
 		</div>
 	</div>
 </template>

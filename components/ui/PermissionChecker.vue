@@ -1,5 +1,5 @@
 <template>
-	<div class="permission-checker">
+	<div class="permission-checker text-white">
 		<h3 class="text-xl font-semibold mb-4">Uygulama İzinleri</h3>
 
 		<div v-if="isLoading" class="flex justify-center items-center py-4">
@@ -36,7 +36,9 @@
 					<div class="text-sm">{{ getStatusText(permissions.camera) }}</div>
 				</div>
 				<button
-					v-if="permissions.camera !== 'granted'"
+					v-if="
+						permissions.camera !== 'granted' && permissions.camera !== 'prompt'
+					"
 					@click="requestPermission('camera')"
 					class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
 				>
@@ -70,7 +72,10 @@
 					<div class="text-sm">{{ getStatusText(permissions.microphone) }}</div>
 				</div>
 				<button
-					v-if="permissions.microphone !== 'granted'"
+					v-if="
+						permissions.microphone !== 'granted' &&
+						permissions.microphone !== 'prompt'
+					"
 					@click="requestPermission('microphone')"
 					class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
 				>
@@ -104,9 +109,7 @@
 					<div class="text-sm">{{ getStatusText(permissions.screen) }}</div>
 				</div>
 				<button
-					v-if="
-						permissions.screen === 'unknown' || permissions.screen === 'denied'
-					"
+					v-if="permissions.screen === 'denied'"
 					@click="openSettingsForScreen"
 					class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
 				>
@@ -151,9 +154,12 @@ const permissions = ref({
 	screen: "unknown",
 });
 
-// Component yüklendiğinde izinleri kontrol et
-onMounted(() => {
-	checkPermissions();
+// Component yüklendiğinde izinleri kontrol et ve gerekirse otomatik iste
+onMounted(async () => {
+	await checkPermissions();
+
+	// İzin durumuna göre otomatik isteme
+	await autoRequestPermissions();
 });
 
 // İzinleri kontrol et
@@ -173,6 +179,25 @@ async function checkPermissions() {
 		console.error("İzinler kontrol edilirken hata:", error);
 	} finally {
 		isLoading.value = false;
+	}
+}
+
+// İzinleri otomatik olarak iste
+async function autoRequestPermissions() {
+	try {
+		// Kamera izni durumuna göre
+		if (permissions.value.camera === "prompt") {
+			console.log("Kamera izni otomatik olarak isteniyor...");
+			await requestPermission("camera");
+		}
+
+		// Mikrofon izni durumuna göre
+		if (permissions.value.microphone === "prompt") {
+			console.log("Mikrofon izni otomatik olarak isteniyor...");
+			await requestPermission("microphone");
+		}
+	} catch (error) {
+		console.error("İzinler otomatik istenirken hata:", error);
 	}
 }
 
@@ -212,6 +237,13 @@ function getStatusText(status) {
 async function requestPermission(type) {
 	try {
 		if (window.electron?.permissions) {
+			// İzin zaten verilmiş mi kontrol et
+			if (permissions.value[type] === "granted") {
+				console.log(`${type} izni zaten verilmiş, tekrar istemeye gerek yok.`);
+				return true;
+			}
+
+			console.log(`${type} izni isteniyor...`);
 			// İzin isteme ekranını göster
 			const result = await window.electron.permissions.request(type);
 
@@ -240,7 +272,7 @@ function openSettingsForScreen() {
 
 <style scoped>
 .permission-checker {
-	@apply bg-white p-5 rounded-lg shadow-sm;
+	@apply p-5 rounded-lg shadow-sm;
 }
 
 .permission-item {

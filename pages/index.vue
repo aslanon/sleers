@@ -52,23 +52,6 @@
 					/>
 				</svg>
 			</button>
-
-			<!-- Ayarlar Menüsü -->
-			<div
-				v-if="isSettingsOpen"
-				class="absolute right-0 mt-2 w-72 p-4 bg-[#1a1b26] border border-gray-700 rounded-lg shadow-lg z-50"
-			>
-				<!-- İzinler Bölümü -->
-				<div class="mb-4">
-					<PermissionChecker />
-				</div>
-
-				<!-- Diğer Ayarlar... -->
-				<div class="border-t border-gray-700 mt-4 pt-4">
-					<h3 class="text-sm font-medium mb-2">Diğer Ayarlar</h3>
-					<!-- Mevcut ayarlar buraya gelecek -->
-				</div>
-			</div>
 		</div>
 
 		<!-- Kayıt Kontrolleri -->
@@ -189,7 +172,15 @@
 		v-model:selected-source="selectedSource"
 		v-model:follow-mouse="followMouse"
 		@update:selected-source="selectSource"
-	/>
+	>
+		<!-- Ayarlar Menüsü -->
+		<div v-if="isSettingsOpen" class="w-full p-4 border border-gray-700">
+			<!-- İzinler Bölümü -->
+			<div class="mb-4">
+				<PermissionChecker />
+			</div>
+		</div>
+	</RecordSettings>
 </template>
 
 <script setup>
