@@ -12,12 +12,12 @@ const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
 const cameraSettings = ref({
-	mirror: true,
 	size: 15,
 	radius: 50,
-	shadow: 0,
-	blur: 0,
-	followMouse: false,
+	shadow: 10,
+	followMouse: true,
+	mirror: true,
+	aspectRatio: "1:1",
 	crop: {
 		x: 21.875,
 		y: 0,
@@ -26,6 +26,8 @@ const cameraSettings = ref({
 	},
 	customRatioWidth: 16,
 	customRatioHeight: 9,
+	borderWidth: 0,
+	borderColor: "#000000",
 });
 // Motion blur için sabitler
 const DEFAULT_MOTION_BLUR_VALUE = 0.6;

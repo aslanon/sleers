@@ -174,6 +174,43 @@
 			unit="%"
 		/>
 
+		<!-- Kamera Border Ayarları -->
+		<div class="space-y-4">
+			<!-- Border Kalınlığı -->
+			<SliderInput
+				label="Kenarlık Kalınlığı"
+				desc="Kamera kenarlığının kalınlığını ayarlar."
+				v-model="cameraBorderWidth"
+				:min="0"
+				:max="20"
+				:step="1"
+				unit="px"
+			/>
+
+			<!-- Border Rengi -->
+			<div class="flex items-center justify-between">
+				<div>
+					<h4 class="text-base font-semibold text-white">Kenarlık Rengi</h4>
+					<p class="text-xs font-normal text-gray-500">
+						Kamera kenarlığının rengini seçin.
+					</p>
+				</div>
+				<div class="flex items-center space-x-2">
+					<input
+						type="color"
+						v-model="cameraBorderColor"
+						class="w-8 h-8 rounded cursor-pointer"
+					/>
+					<input
+						type="text"
+						v-model="cameraBorderColor"
+						class="w-20 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						placeholder="#RRGGBB"
+					/>
+				</div>
+			</div>
+		</div>
+
 		<div class="mt-2" v-if="selectedAspectRatio === 'free'">
 			<button
 				@click="applyCurrentCropAsRatio"
@@ -210,6 +247,9 @@ const selectedAspectRatio = ref(cameraSettings.value?.aspectRatio || "1:1");
 // Özel oran için değişkenler
 const customRatioWidth = ref(cameraSettings.value?.customRatioWidth || 16);
 const customRatioHeight = ref(cameraSettings.value?.customRatioHeight || 9);
+// Border ayarları için değişkenler
+const cameraBorderWidth = ref(cameraSettings.value?.borderWidth || 0);
+const cameraBorderColor = ref(cameraSettings.value?.borderColor || "#000000");
 
 // Drag ve resize işlemleri için state
 const isDragging = ref(false);
@@ -528,6 +568,8 @@ watch(
 		selectedAspectRatio,
 		customRatioWidth,
 		customRatioHeight,
+		cameraBorderWidth,
+		cameraBorderColor,
 	],
 	([
 		size,
@@ -539,6 +581,8 @@ watch(
 		aspectRatio,
 		customWidth,
 		customHeight,
+		borderWidth,
+		borderColor,
 	]) => {
 		updateCameraSettings({
 			size,
@@ -550,6 +594,8 @@ watch(
 			aspectRatio,
 			customRatioWidth: customWidth,
 			customRatioHeight: customHeight,
+			borderWidth,
+			borderColor,
 		});
 	},
 	{ immediate: true, deep: true }

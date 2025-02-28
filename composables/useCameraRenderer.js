@@ -366,6 +366,24 @@ export const useCameraRenderer = () => {
 			}
 
 			ctx.restore();
+
+			// Border çizimi
+			if (cameraSettings.value?.borderWidth > 0) {
+				ctx.save();
+				ctx.beginPath();
+				useRoundRect(
+					ctx,
+					cameraX,
+					cameraY,
+					cameraWidth,
+					cameraHeight,
+					safeRadius
+				);
+				ctx.strokeStyle = cameraSettings.value.borderColor || "#000000";
+				ctx.lineWidth = cameraSettings.value.borderWidth * dpr;
+				ctx.stroke();
+				ctx.restore();
+			}
 		} catch (error) {
 			console.error("[CameraRenderer] Error in camera rendering:", error);
 		} finally {
