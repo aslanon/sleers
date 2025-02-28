@@ -36,6 +36,43 @@
 			unit="px"
 		/>
 
+		<!-- Video Border Ayarları -->
+		<div class="space-y-4">
+			<!-- Border Kalınlığı -->
+			<SliderInput
+				v-model="borderWidthValue"
+				label="Kenarlık Kalınlığı"
+				desc="Video kenarlığının kalınlığını ayarlar."
+				:min="0"
+				:max="20"
+				:step="1"
+				unit="px"
+			/>
+
+			<!-- Border Rengi -->
+			<div class="flex items-center justify-between">
+				<div>
+					<h4 class="text-base font-semibold text-white">Kenarlık Rengi</h4>
+					<p class="text-xs font-normal text-gray-500">
+						Video kenarlığının rengini seçin.
+					</p>
+				</div>
+				<div class="flex items-center space-x-2">
+					<input
+						type="color"
+						v-model="borderColorValue"
+						class="w-8 h-8 rounded cursor-pointer"
+					/>
+					<input
+						type="text"
+						v-model="borderColorValue"
+						class="w-20 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						placeholder="#RRGGBB"
+					/>
+				</div>
+			</div>
+		</div>
+
 		<div class="setting-group">
 			<label class="setting-label">Arkaplan Rengi</label>
 			<div class="color-grid">
@@ -115,12 +152,14 @@ const {
 	radius,
 	shadowSize,
 	backgroundBlur,
+	videoBorderSettings,
 	updateBackgroundColor,
 	updatePadding,
 	updateRadius,
 	updateShadowSize,
 	updateBackgroundImage,
 	updateBackgroundBlur,
+	updateVideoBorderSettings,
 } = usePlayerSettings();
 
 // Renk paleti
@@ -175,6 +214,9 @@ const radiusValue = ref(radius.value);
 const shadowValue = ref(shadowSize.value);
 const blurValue = ref(backgroundBlur.value);
 const selectedWallpaper = ref(null);
+// Border ayarları için state
+const borderWidthValue = ref(videoBorderSettings.value?.width || 0);
+const borderColorValue = ref(videoBorderSettings.value?.color || "#000000");
 
 // Renk seçimi
 const selectColor = (color) => {
@@ -206,6 +248,14 @@ watch(shadowValue, (newValue) => {
 // Blur değişikliğini izle
 watch(blurValue, (newValue) => {
 	updateBackgroundBlur(Number(newValue));
+});
+
+// Border ayarları değişikliklerini izle
+watch([borderWidthValue, borderColorValue], ([width, color]) => {
+	updateVideoBorderSettings({
+		width: Number(width),
+		color: color,
+	});
 });
 
 // Store'dan gelen değişiklikleri izle
@@ -242,6 +292,18 @@ watch(
 	(newValue) => {
 		blurValue.value = newValue;
 	}
+);
+
+// Border ayarları değişikliklerini izle
+watch(
+	() => videoBorderSettings.value,
+	(newValue) => {
+		if (newValue) {
+			borderWidthValue.value = newValue.width;
+			borderColorValue.value = newValue.color;
+		}
+	},
+	{ deep: true }
 );
 
 // Süre formatı

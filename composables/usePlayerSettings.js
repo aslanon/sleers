@@ -29,6 +29,14 @@ const cameraSettings = ref({
 	borderWidth: 0,
 	borderColor: "#000000",
 });
+
+// Ekran kaydı videosu için border ayarları
+const videoBorderSettings = ref({
+	width: 0,
+	color: "#000000",
+	radius: 0,
+});
+
 // Motion blur için sabitler
 const DEFAULT_MOTION_BLUR_VALUE = 0.6;
 const MOTION_BLUR_CONSTANTS = {
@@ -167,6 +175,14 @@ export const usePlayerSettings = () => {
 		};
 	};
 
+	// Ekran kaydı videosu için border ayarlarını güncelleme fonksiyonu
+	const updateVideoBorderSettings = (settings) => {
+		videoBorderSettings.value = {
+			...videoBorderSettings.value,
+			...settings,
+		};
+	};
+
 	return {
 		mouseSize,
 		motionBlurValue,
@@ -180,6 +196,7 @@ export const usePlayerSettings = () => {
 		zoomRanges,
 		currentZoomRange,
 		cameraSettings,
+		videoBorderSettings,
 		mouseMotionEnabled,
 		activeZoomScale,
 		activeZoomPosition,
@@ -198,5 +215,6 @@ export const usePlayerSettings = () => {
 		updateZoomRange,
 		setCurrentZoomRange,
 		updateCameraSettings,
+		updateVideoBorderSettings,
 	};
 };

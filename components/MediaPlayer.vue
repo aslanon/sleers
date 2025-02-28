@@ -192,6 +192,7 @@ const {
 	MOTION_BLUR_CONSTANTS,
 	setCurrentZoomRange,
 	cameraSettings,
+	videoBorderSettings,
 } = usePlayerSettings();
 
 // Kamera renderer'ı al
@@ -1159,6 +1160,24 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 			ctx.restore();
 
+			// Video border çizimi
+			if (videoBorderSettings.value?.width > 0) {
+				ctx.save();
+				ctx.beginPath();
+				useRoundRect(
+					ctx,
+					x + position.value.x,
+					y + position.value.y,
+					drawWidth,
+					drawHeight,
+					radius.value * dpr
+				);
+				ctx.strokeStyle = videoBorderSettings.value.color || "#000000";
+				ctx.lineWidth = videoBorderSettings.value.width * dpr;
+				ctx.stroke();
+				ctx.restore();
+			}
+
 			// Zoom state'i geri yükle
 			ctx.restore();
 
@@ -1230,6 +1249,24 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				);
 			}
 			ctx.restore();
+
+			// Video border çizimi
+			if (videoBorderSettings.value?.width > 0) {
+				ctx.save();
+				ctx.beginPath();
+				useRoundRect(
+					ctx,
+					x + position.value.x,
+					y + position.value.y,
+					drawWidth,
+					drawHeight,
+					radius.value * dpr
+				);
+				ctx.strokeStyle = videoBorderSettings.value.color || "#000000";
+				ctx.lineWidth = videoBorderSettings.value.width * dpr;
+				ctx.stroke();
+				ctx.restore();
+			}
 		}
 
 		// Ana context state'i geri yükle
@@ -1672,6 +1709,7 @@ watch(
 		shadowSize,
 		padding,
 		cameraSettings,
+		videoBorderSettings, // Yeni eklenen
 		mouseSize,
 		mouseMotionEnabled,
 		motionBlurValue,
