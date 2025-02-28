@@ -26,6 +26,11 @@ contextBridge.exposeInMainWorld("electron", {
 		getSources: (opts) =>
 			ipcRenderer.invoke(IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES, opts),
 	},
+	aperture: {
+		getScreens: () => ipcRenderer.invoke("GET_APERTURE_SCREENS"),
+		validateScreenId: (screenId) =>
+			ipcRenderer.invoke("VALIDATE_APERTURE_SCREEN_ID", screenId),
+	},
 	permissions: {
 		check: () => ipcRenderer.invoke(IPC_EVENTS.CHECK_PERMISSIONS),
 		request: (type) => ipcRenderer.invoke("REQUEST_PERMISSION", type),
@@ -49,6 +54,9 @@ contextBridge.exposeInMainWorld("electron", {
 	},
 	mediaStateManager: {
 		loadCursorData: () => ipcRenderer.invoke(IPC_EVENTS.LOAD_CURSOR_DATA),
+	},
+	selection: {
+		closeWindow: () => ipcRenderer.send("CLOSE_SELECTION_WINDOW"),
 	},
 });
 

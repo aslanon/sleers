@@ -257,11 +257,97 @@ watch(isSettingsOpen, (newValue) => {
 	updateWindowSize(newValue);
 });
 
+// Kayıt düğmesi işlevi
+const onRecordButtonClick = async () => {
+	try {
+		if (isRecording.value) {
+			await stopRecording();
+		} else {
+			// Kaynak seçimi kontrolü
+			let recordingOptions = {};
+
+			// Eğer seçili bir kaynak varsa, kayıt ayarlarını yap
+			if (selectedSource.value) {
+				console.log(
+					"Seçili kaynak ile kayıt başlatılıyor:",
+					selectedSource.value
+				);
+
+				// Alan seçimi ise özel bir işlem yap
+				if (selectedSource.value.type === "area") {
+					recordingOptions = {
+						startScreen: true,
+						startCamera: true,
+						startAudio: true,
+					};
+				}
+				// Ekran veya pencere kaydı
+				else {
+					recordingOptions = {
+						startScreen: true,
+						startCamera: true,
+						startAudio: true,
+					};
+				}
+			} else {
+				console.warn("Seçili kaynak yok, varsayılan ayarlar kullanılıyor");
+				// Varsayılan kayıt ayarlarını kullan
+				recordingOptions = {
+					startScreen: true,
+					startCamera: true,
+					startAudio: true,
+				};
+			}
+
+			// Önce IPC'ye kaydın başlayacağını bildir
+			if (electron?.ipcRenderer) {
+				electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, true);
+			}
+
+			// Kısa bir gecikme ekle
+			await new Promise((resolve) => setTimeout(resolve, 300));
+
+			// Kayıt başlatma işlemi
+			console.log("Kayıt başlatılıyor, seçenekler:", recordingOptions);
+			const result = await startRecording(recordingOptions);
+
+			if (!result) {
+				console.error("Kayıt başlatılamadı, result:", result);
+				// Hatayı bildir
+				if (electron?.ipcRenderer) {
+					electron.ipcRenderer.send(
+						IPC_EVENTS.RECORDING_ERROR,
+						"Kayıt başlatılamadı"
+					);
+				}
+			}
+		}
+	} catch (error) {
+		console.error("Kayıt işlemi sırasında hata:", error);
+
+		// Hatayı bildir
+		if (electron?.ipcRenderer) {
+			electron.ipcRenderer.send(IPC_EVENTS.RECORDING_ERROR, error.message);
+		}
+
+		// Kayıt durumunu sıfırla
+		if (electron?.ipcRenderer) {
+			electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, false);
+		}
+	}
+};
+
 // Kaynak seçimi
 const selectSource = (source) => {
 	selectedSource.value = source;
-	if (source === "area") {
-		electron?.ipcRenderer.send("START_AREA_SELECTION");
+
+	// Alan seçimi ise özel bir işlem yap
+	if (source.type === "area") {
+		if (electron?.ipcRenderer) {
+			electron.ipcRenderer.send(
+				electron.ipcRenderer.IPC_EVENTS.START_AREA_SELECTION
+			);
+		}
 	}
 };
 
@@ -327,30 +413,6 @@ watch(selectedVideoDevice, async (deviceId) => {
 		}
 	}
 });
-
-// Kayıt başlatma fonksiyonu
-const handleStartRecording = async () => {
-	try {
-		await startRecording({
-			systemAudio: systemAudioEnabled.value,
-			microphone: microphoneEnabled.value,
-			microphoneDeviceId: selectedAudioDevice.value,
-			sourceType: selectedSource.value?.type || "display",
-			sourceId: selectedSource.value?.id,
-		});
-	} catch (error) {
-		console.error("Kayıt başlatılırken hata:", error);
-	}
-};
-
-// Kayıt butonuna tıklandığında
-const onRecordButtonClick = () => {
-	if (isRecording.value) {
-		stopRecording();
-	} else {
-		handleStartRecording();
-	}
-};
 
 // Sürükleme durumu için ref
 const isDragging = ref(false);

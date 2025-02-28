@@ -24,6 +24,8 @@ const cameraSettings = ref({
 		width: 56.25,
 		height: 100,
 	},
+	customRatioWidth: 16,
+	customRatioHeight: 9,
 });
 // Motion blur için sabitler
 const DEFAULT_MOTION_BLUR_VALUE = 0.6;

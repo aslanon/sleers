@@ -183,11 +183,35 @@ const filteredSources = computed(() => {
 // Kaynakları yükle
 const loadSources = async () => {
 	try {
+		// Desktop Capturer kaynakları
 		const sources = await window.electron?.desktopCapturer.getSources({
 			types: ["window", "screen"],
 			thumbnailSize: { width: 150, height: 150 },
 		});
 		availableSources.value = sources || [];
+
+		// Aperture ekran listesini de al
+		const apertureScreens = await window.electron?.aperture.getScreens();
+		console.log("Aperture ekranları:", apertureScreens);
+
+		// Ekranlara Aperture ID'lerini ekle
+		if (apertureScreens && apertureScreens.length) {
+			availableSources.value.forEach((source) => {
+				if (source.apertureId) {
+					console.log(
+						`Ekran: ${source.name} - Aperture ID: ${source.apertureId}`
+					);
+				}
+			});
+		}
+
+		// Eğer önceden seçili bir kaynak yoksa ve kaynaklar yüklendiyse ilk kaynağı seç
+		if (availableSources.value.length > 0 && !selectedSourceId.value) {
+			const defaultSource = filteredSources.value[0];
+			if (defaultSource) {
+				selectSource(defaultSource);
+			}
+		}
 	} catch (error) {
 		console.error("Kaynaklar yüklenirken hata:", error);
 	}
@@ -195,12 +219,46 @@ const loadSources = async () => {
 
 // Kaynak seçimi
 const selectSource = (source) => {
+	console.log("Kaynak seçildi:", source);
 	selectedSourceId.value = source.id;
-	const sourceData = {
+
+	// Aperture ID varsa kullan
+	let sourceData = {
 		type: selectedSourceType.value,
 		id: source.id,
 		name: source.name,
 	};
+
+	// Aperture ID varsa ekle
+	if (source.apertureId) {
+		sourceData.apertureId = source.apertureId;
+	}
+
+	// Seçilen kaynağı screen config'e de güncelle
+	if (window.electron?.ipcRenderer) {
+		// Kaynak türü ve ID'sini içeren yapılandırma
+		const screenConfig = {
+			sourceType: selectedSourceType.value,
+			sourceId: source.id,
+			sourceName: source.name,
+			apertureId: source.apertureId,
+		};
+
+		// Alan seçimi ise alanı seçme penceresini aç
+		if (selectedSourceType.value === "area") {
+			console.log("Alan seçimi başlatılıyor");
+			window.electron.ipcRenderer.send(
+				window.electron.ipcRenderer.IPC_EVENTS.START_AREA_SELECTION
+			);
+		} else {
+			// Alan seçimi değilse direk olarak kaynak bilgisini güncelle
+			console.log("Kayıt kaynağı güncelleniyor:", screenConfig);
+			window.electron.ipcRenderer.send("UPDATE_RECORDING_SOURCE", screenConfig);
+		}
+	} else {
+		console.error("Electron API bulunamadı - kaynak seçimi güncellenemedi");
+	}
+
 	emit("update:selectedSource", sourceData);
 };
 

@@ -49,12 +49,64 @@
 			:step="1"
 			unit="%"
 		/>
+
 		<!-- Kamera Crop Ayarı -->
-		<div class="space-y-2">
-			<h4 class="text-base font-semibold text-white">Kamera Görüntüsü</h4>
-			<p class="text-sm font-normal text-gray-500">
-				Kamera görüntüsünün görünür alanını ayarlayın.
-			</p>
+		<div class="space-y-4">
+			<div>
+				<h4 class="text-base font-semibold text-white">Kamera Görüntüsü</h4>
+				<p class="text-sm font-normal text-gray-500">
+					Kamera görüntüsünün görünür alanını ayarlayın.
+				</p>
+			</div>
+
+			<!-- Aspect Ratio Seçimi -->
+			<div class="flex items-center justify-between">
+				<span class="text-sm text-gray-400">Görüntü Oranı:</span>
+				<div class="flex items-center space-x-2">
+					<select
+						v-model="selectedAspectRatio"
+						class="bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						@change="applyAspectRatio"
+					>
+						<option value="free">Serbest</option>
+						<!-- <option value="custom">Özel</option> -->
+						<option value="1:1">1:1 Kare</option>
+						<option value="16:9">16:9 Yatay</option>
+						<option value="9:16">9:16 Dikey</option>
+						<option value="4:3">4:3 Yatay</option>
+						<option value="3:4">3:4 Dikey</option>
+					</select>
+
+					<!-- Özel oran seçildiğinde göster -->
+					<div
+						v-if="selectedAspectRatio === 'custom'"
+						class="flex items-center space-x-1"
+					>
+						<input
+							type="number"
+							v-model.number="customRatioWidth"
+							min="1"
+							max="16"
+							class="w-12 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						/>
+						<span class="text-gray-400">:</span>
+						<input
+							type="number"
+							v-model.number="customRatioHeight"
+							min="1"
+							max="16"
+							class="w-12 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+						/>
+						<button
+							@click="applyCustomRatio"
+							class="bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-md px-2 py-1"
+						>
+							Uygula
+						</button>
+					</div>
+				</div>
+			</div>
+
 			<div
 				class="relative max-w-[150px] aspect-video border-zinc-900 border rounded-xl overflow-hidden"
 			>
@@ -65,14 +117,41 @@
 						borderRadius: cameraRadius + 'px',
 						left: `${cameraCrop.x}%`,
 						top: `${cameraCrop.y}%`,
-						width: '56.25%',
-						height: '100%',
-						aspectRatio: '1/1',
+						width: `${cameraCrop.width}%`,
+						height: `${cameraCrop.height}%`,
+						aspectRatio:
+							selectedAspectRatio === 'free'
+								? 'auto'
+								: getAspectRatioValue(selectedAspectRatio),
 					}"
 					@mousedown="startDrag"
-				></div>
+				>
+					<!-- Resize Handles -->
+					<div
+						v-if="selectedAspectRatio === 'free'"
+						class="absolute inset-0 pointer-events-none"
+					>
+						<div
+							class="resize-handle resize-handle-nw pointer-events-auto"
+							@mousedown.stop="(e) => startResize('nw', e)"
+						></div>
+						<div
+							class="resize-handle resize-handle-ne pointer-events-auto"
+							@mousedown.stop="(e) => startResize('ne', e)"
+						></div>
+						<div
+							class="resize-handle resize-handle-sw pointer-events-auto"
+							@mousedown.stop="(e) => startResize('sw', e)"
+						></div>
+						<div
+							class="resize-handle resize-handle-se pointer-events-auto"
+							@mousedown.stop="(e) => startResize('se', e)"
+						></div>
+					</div>
+				</div>
 			</div>
 		</div>
+
 		<!-- Kamera Köşe Yuvarlaklığı -->
 		<SliderInput
 			label="Köşe Yuvarlaklığı"
@@ -94,6 +173,15 @@
 			:step="1"
 			unit="%"
 		/>
+
+		<div class="mt-2" v-if="selectedAspectRatio === 'free'">
+			<button
+				@click="applyCurrentCropAsRatio"
+				class="bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-md px-2 py-1 w-full"
+			>
+				Mevcut Kırpmayı Oran Olarak Kaydet
+			</button>
+		</div>
 	</div>
 </template>
 
@@ -118,16 +206,196 @@ const cameraCrop = ref(
 );
 const followMouse = ref(cameraSettings.value?.followMouse || false);
 const mirrorCamera = ref(cameraSettings.value?.mirror || false);
+const selectedAspectRatio = ref(cameraSettings.value?.aspectRatio || "free");
+// Özel oran için değişkenler
+const customRatioWidth = ref(cameraSettings.value?.customRatioWidth || 16);
+const customRatioHeight = ref(cameraSettings.value?.customRatioHeight || 9);
 
-// Drag işlemleri için state
+// Drag ve resize işlemleri için state
 const isDragging = ref(false);
+const isResizing = ref(false);
+const resizeHandle = ref("");
 const startX = ref(0);
 const startY = ref(0);
+const startWidth = ref(0);
+const startHeight = ref(0);
 const cropArea = ref(null);
+
+// Aspect ratio değerini hesapla
+const getAspectRatioValue = (ratio) => {
+	switch (ratio) {
+		case "1:1":
+			return "1/1";
+		case "16:9":
+			return "16/9";
+		case "9:16":
+			return "9/16";
+		case "4:3":
+			return "4/3";
+		case "3:4":
+			return "3/4";
+		case "custom":
+			return `${customRatioWidth.value}/${customRatioHeight.value}`;
+		default:
+			return "auto";
+	}
+};
+
+// Aspect ratio uygula
+const applyAspectRatio = () => {
+	if (selectedAspectRatio.value === "free") return;
+	if (selectedAspectRatio.value === "custom") return;
+
+	let ratioValue;
+	switch (selectedAspectRatio.value) {
+		case "1:1":
+			ratioValue = 1;
+			break;
+		case "16:9":
+			ratioValue = 16 / 9;
+			break;
+		case "9:16":
+			ratioValue = 9 / 16;
+			break;
+		case "4:3":
+			ratioValue = 4 / 3;
+			break;
+		case "3:4":
+			ratioValue = 3 / 4;
+			break;
+		default:
+			return;
+	}
+
+	// Mevcut genişliği koru, yüksekliği ayarla
+	const containerWidth = 100; // Yüzde olarak
+	const containerHeight = 100; // Yüzde olarak
+
+	// Kare (1:1) için özel durum
+	if (ratioValue === 1) {
+		cameraCrop.value.width = 56.25;
+		cameraCrop.value.height = 56.25;
+		cameraCrop.value.x = 21.875;
+		cameraCrop.value.y = 21.875;
+		return;
+	}
+
+	// Diğer oranlar için hesaplama
+	if (ratioValue > 1) {
+		// Yatay (16:9, 4:3)
+		cameraCrop.value.width = 75;
+		cameraCrop.value.height = 75 / ratioValue;
+		cameraCrop.value.x = 12.5;
+		cameraCrop.value.y = (containerHeight - cameraCrop.value.height) / 2;
+	} else {
+		// Dikey (9:16, 3:4)
+		cameraCrop.value.height = 75;
+		cameraCrop.value.width = 75 * ratioValue;
+		cameraCrop.value.y = 12.5;
+		cameraCrop.value.x = (containerWidth - cameraCrop.value.width) / 2;
+	}
+};
+
+// Özel oranı uygula
+const applyCustomRatio = () => {
+	if (customRatioWidth.value <= 0 || customRatioHeight.value <= 0) return;
+
+	const ratioValue = customRatioWidth.value / customRatioHeight.value;
+	const containerWidth = 100; // Yüzde olarak
+	const containerHeight = 100; // Yüzde olarak
+
+	// Özel oranı uygula
+	if (ratioValue > 1) {
+		// Yatay oran
+		cameraCrop.value.width = 75;
+		cameraCrop.value.height = 75 / ratioValue;
+		cameraCrop.value.x = 12.5;
+		cameraCrop.value.y = (containerHeight - cameraCrop.value.height) / 2;
+	} else if (ratioValue < 1) {
+		// Dikey oran
+		cameraCrop.value.height = 75;
+		cameraCrop.value.width = 75 * ratioValue;
+		cameraCrop.value.y = 12.5;
+		cameraCrop.value.x = (containerWidth - cameraCrop.value.width) / 2;
+	} else {
+		// Kare oran (1:1)
+		cameraCrop.value.width = 56.25;
+		cameraCrop.value.height = 56.25;
+		cameraCrop.value.x = 21.875;
+		cameraCrop.value.y = 21.875;
+	}
+};
+
+// Mevcut kırpmayı oran olarak kaydet
+const applyCurrentCropAsRatio = () => {
+	// Mevcut kırpma alanının oranını hesapla
+	const currentRatio = cameraCrop.value.width / cameraCrop.value.height;
+
+	// En yakın tam sayı oranını bul
+	let foundStandardRatio = false;
+	const standardRatios = [
+		{ name: "1:1", value: 1 },
+		{ name: "16:9", value: 16 / 9 },
+		{ name: "9:16", value: 9 / 16 },
+		{ name: "4:3", value: 4 / 3 },
+		{ name: "3:4", value: 3 / 4 },
+	];
+
+	// Standart oranlarla karşılaştır (0.1 tolerans ile)
+	for (const ratio of standardRatios) {
+		if (Math.abs(currentRatio - ratio.value) < 0.1) {
+			selectedAspectRatio.value = ratio.name;
+			foundStandardRatio = true;
+			break;
+		}
+	}
+
+	// Standart oran bulunamadıysa özel oran olarak ayarla
+	if (!foundStandardRatio) {
+		// Oranı basitleştir (örn. 1.77 -> 16:9)
+		const simplifiedRatio = simplifyRatio(currentRatio);
+		customRatioWidth.value = simplifiedRatio.width;
+		customRatioHeight.value = simplifiedRatio.height;
+		selectedAspectRatio.value = "custom";
+	}
+};
+
+// Oranı basitleştir (ondalık sayıyı tam sayı oranına çevir)
+const simplifyRatio = (ratio) => {
+	// Yaygın oranları kontrol et
+	const commonRatios = [
+		{ width: 16, height: 9, value: 16 / 9 },
+		{ width: 4, height: 3, value: 4 / 3 },
+		{ width: 3, height: 2, value: 3 / 2 },
+		{ width: 5, height: 4, value: 5 / 4 },
+		{ width: 21, height: 9, value: 21 / 9 },
+	];
+
+	for (const r of commonRatios) {
+		if (Math.abs(ratio - r.value) < 0.1) {
+			return { width: r.width, height: r.height };
+		}
+	}
+
+	// Yaygın oranlar bulunamadıysa, en yakın tam sayı oranını hesapla
+	if (ratio >= 1) {
+		// Yatay oran
+		return { width: Math.round(ratio * 10), height: 10 };
+	} else {
+		// Dikey oran
+		return { width: 10, height: Math.round(10 / ratio) };
+	}
+};
 
 // Başlangıç boyutlarını ayarla
 onMounted(() => {
-	// Sadece cropArea ref'ini kullanmak için boş onMounted tutuyoruz
+	// Aspect ratio varsa uygula
+	if (
+		selectedAspectRatio.value !== "free" &&
+		selectedAspectRatio.value !== "custom"
+	) {
+		applyAspectRatio();
+	}
 });
 
 // Drag işlemleri
@@ -165,7 +433,7 @@ const onDrag = (e) => {
 
 const stopDrag = () => {
 	isDragging.value = false;
-	if (cropArea.value.classList.contains("cursor-grabbing")) {
+	if (cropArea.value && cropArea.value.classList.contains("cursor-grabbing")) {
 		cropArea.value.classList.remove("cursor-grabbing");
 		cropArea.value.classList.add("cursor-grab");
 	}
@@ -173,10 +441,79 @@ const stopDrag = () => {
 	document.removeEventListener("mouseup", stopDrag);
 };
 
+// Resize işlemleri
+const startResize = (handle, e) => {
+	isResizing.value = true;
+	resizeHandle.value = handle;
+
+	const rect = cropArea.value.parentElement.getBoundingClientRect();
+	startX.value = e.clientX;
+	startY.value = e.clientY;
+	startWidth.value = cameraCrop.value.width;
+	startHeight.value = cameraCrop.value.height;
+
+	document.addEventListener("mousemove", onResize);
+	document.addEventListener("mouseup", stopResize);
+};
+
+const onResize = (e) => {
+	if (!isResizing.value) return;
+
+	const rect = cropArea.value.parentElement.getBoundingClientRect();
+	const deltaX = e.clientX - startX.value;
+	const deltaY = e.clientY - startY.value;
+
+	// Yüzde olarak değişimi hesapla
+	const percentDeltaX = (deltaX / rect.width) * 100;
+	const percentDeltaY = (deltaY / rect.height) * 100;
+
+	// Hangi köşeden resize yapıldığına göre işlem yap
+	switch (resizeHandle.value) {
+		case "nw": // Sol üst
+			cameraCrop.value.x = Math.max(0, cameraCrop.value.x + percentDeltaX);
+			cameraCrop.value.y = Math.max(0, cameraCrop.value.y + percentDeltaY);
+			cameraCrop.value.width = Math.max(10, startWidth.value - percentDeltaX);
+			cameraCrop.value.height = Math.max(10, startHeight.value - percentDeltaY);
+			break;
+		case "ne": // Sağ üst
+			cameraCrop.value.y = Math.max(0, cameraCrop.value.y + percentDeltaY);
+			cameraCrop.value.width = Math.max(10, startWidth.value + percentDeltaX);
+			cameraCrop.value.height = Math.max(10, startHeight.value - percentDeltaY);
+			break;
+		case "sw": // Sol alt
+			cameraCrop.value.x = Math.max(0, cameraCrop.value.x + percentDeltaX);
+			cameraCrop.value.width = Math.max(10, startWidth.value - percentDeltaX);
+			cameraCrop.value.height = Math.max(10, startHeight.value + percentDeltaY);
+			break;
+		case "se": // Sağ alt
+			cameraCrop.value.width = Math.max(10, startWidth.value + percentDeltaX);
+			cameraCrop.value.height = Math.max(10, startHeight.value + percentDeltaY);
+			break;
+	}
+
+	// Sınırları kontrol et
+	cameraCrop.value.width = Math.min(
+		100 - cameraCrop.value.x,
+		cameraCrop.value.width
+	);
+	cameraCrop.value.height = Math.min(
+		100 - cameraCrop.value.y,
+		cameraCrop.value.height
+	);
+};
+
+const stopResize = () => {
+	isResizing.value = false;
+	document.removeEventListener("mousemove", onResize);
+	document.removeEventListener("mouseup", stopResize);
+};
+
 // Event listener'ları temizle
 onUnmounted(() => {
 	document.removeEventListener("mousemove", onDrag);
 	document.removeEventListener("mouseup", stopDrag);
+	document.removeEventListener("mousemove", onResize);
+	document.removeEventListener("mouseup", stopResize);
 });
 
 // Değişiklikleri izle ve store'u güncelle
@@ -188,8 +525,21 @@ watch(
 		cameraCrop,
 		followMouse,
 		mirrorCamera,
+		selectedAspectRatio,
+		customRatioWidth,
+		customRatioHeight,
 	],
-	([size, radius, shadow, crop, follow, mirror]) => {
+	([
+		size,
+		radius,
+		shadow,
+		crop,
+		follow,
+		mirror,
+		aspectRatio,
+		customWidth,
+		customHeight,
+	]) => {
 		updateCameraSettings({
 			size,
 			radius,
@@ -197,6 +547,9 @@ watch(
 			crop,
 			followMouse: follow,
 			mirror,
+			aspectRatio,
+			customRatioWidth: customWidth,
+			customRatioHeight: customHeight,
 		});
 	},
 	{ immediate: true, deep: true }
@@ -206,5 +559,38 @@ watch(
 <style scoped>
 .aspect-video {
 	aspect-ratio: 16/9;
+}
+
+.resize-handle {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	background: #2563eb;
+	border: 1px solid white;
+	z-index: 10;
+}
+
+.resize-handle-nw {
+	top: -5px;
+	left: -5px;
+	cursor: nw-resize;
+}
+
+.resize-handle-ne {
+	top: -5px;
+	right: -5px;
+	cursor: ne-resize;
+}
+
+.resize-handle-sw {
+	bottom: -5px;
+	left: -5px;
+	cursor: sw-resize;
+}
+
+.resize-handle-se {
+	bottom: -5px;
+	right: -5px;
+	cursor: se-resize;
 }
 </style>

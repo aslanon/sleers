@@ -40,37 +40,149 @@ export const useCameraRenderer = () => {
 		updateHoverScale();
 
 		// Calculate camera dimensions
-		const cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
-		const cameraHeight = cameraWidth;
+		let cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
+		let cameraHeight;
+
+		// Apply aspect ratio to camera dimensions if specified
+		if (
+			cameraSettings.value?.aspectRatio &&
+			cameraSettings.value.aspectRatio !== "free"
+		) {
+			switch (cameraSettings.value.aspectRatio) {
+				case "1:1":
+					cameraHeight = cameraWidth;
+					break;
+				case "16:9":
+					cameraHeight = cameraWidth * (9 / 16);
+					break;
+				case "9:16":
+					cameraHeight = cameraWidth * (16 / 9);
+					break;
+				case "4:3":
+					cameraHeight = cameraWidth * (3 / 4);
+					break;
+				case "3:4":
+					cameraHeight = cameraWidth * (4 / 3);
+					break;
+				default:
+					cameraHeight = cameraWidth;
+			}
+		} else {
+			// Default to square if no aspect ratio specified
+			cameraHeight = cameraWidth;
+		}
 
 		// Calculate source dimensions with fallbacks
 		const videoRatio = cameraElement.videoWidth
 			? cameraElement.videoWidth / cameraElement.videoHeight
 			: 1;
-		const targetRatio = 1;
+
+		// Get target ratio based on camera settings
+		let targetRatio = 1; // Default square ratio
+		if (cameraSettings.value?.aspectRatio) {
+			switch (cameraSettings.value.aspectRatio) {
+				case "1:1":
+					targetRatio = 1;
+					break;
+				case "16:9":
+					targetRatio = 16 / 9;
+					break;
+				case "9:16":
+					targetRatio = 9 / 16;
+					break;
+				case "4:3":
+					targetRatio = 4 / 3;
+					break;
+				case "3:4":
+					targetRatio = 3 / 4;
+					break;
+				case "custom":
+					// Özel oran için hesaplama
+					const customWidth = cameraSettings.value?.customRatioWidth || 16;
+					const customHeight = cameraSettings.value?.customRatioHeight || 9;
+					targetRatio = customWidth / customHeight;
+					break;
+				default:
+					targetRatio = 1;
+			}
+		}
 
 		let sourceWidth, sourceHeight, sourceX, sourceY;
 
 		// Get crop settings with fallbacks
 		const cropX = cameraSettings.value?.crop?.x || 0;
+		const cropY = cameraSettings.value?.crop?.y || 0;
 		const cropWidth = cameraSettings.value?.crop?.width || 56.25;
+		const cropHeight = cameraSettings.value?.crop?.height || 100;
 
-		// Calculate source dimensions based on video ratio
-		if (videoRatio > targetRatio) {
-			sourceHeight = cameraElement.videoHeight || cameraHeight;
-			sourceWidth = sourceHeight;
-			const maxOffset = (cameraElement.videoWidth || cameraWidth) - sourceWidth;
-			sourceX = (maxOffset * cropX) / 43.75;
-			sourceY = 0;
-			sourceWidth = sourceWidth * (cropWidth / 56.25);
+		// Calculate source dimensions based on crop settings
+		if (cameraElement.videoWidth && cameraElement.videoHeight) {
+			// Orijinal video boyutlarını al
+			const originalWidth = cameraElement.videoWidth;
+			const originalHeight = cameraElement.videoHeight;
+			const originalRatio = originalWidth / originalHeight;
+
+			// Serbest mod için kırpma alanını doğrudan kullan
+			if (cameraSettings.value?.aspectRatio === "free") {
+				// Kırpma alanının boyutlarını hesapla (yüzde olarak)
+				const cropAreaWidth = (originalWidth * cropWidth) / 100;
+				const cropAreaHeight = (originalHeight * cropHeight) / 100;
+
+				// Kırpma alanının başlangıç noktalarını hesapla
+				sourceX = (originalWidth * cropX) / 100;
+				sourceY = (originalHeight * cropY) / 100;
+
+				// Kırpma alanının boyutlarını kullan
+				sourceWidth = cropAreaWidth;
+				sourceHeight = cropAreaHeight;
+			} else {
+				// Belirli bir aspect ratio için, görüntüyü o orana göre kırp
+				// Önce kırpma alanının merkezini bul
+				const centerX =
+					(originalWidth * cropX) / 100 + (originalWidth * cropWidth) / 200;
+				const centerY =
+					(originalHeight * cropY) / 100 + (originalHeight * cropHeight) / 200;
+
+				// Hedef orana göre kırpma boyutlarını hesapla
+				let newSourceWidth, newSourceHeight;
+
+				if (targetRatio >= 1) {
+					// Yatay veya kare oran (1:1, 16:9, 4:3, özel yatay)
+					newSourceWidth = Math.min(
+						originalWidth,
+						originalHeight * targetRatio
+					);
+					newSourceHeight = newSourceWidth / targetRatio;
+				} else {
+					// Dikey oran (9:16, 3:4, özel dikey)
+					newSourceHeight = Math.min(
+						originalHeight,
+						originalWidth / targetRatio
+					);
+					newSourceWidth = newSourceHeight * targetRatio;
+				}
+
+				// Kırpma alanını merkeze göre ayarla
+				sourceX = Math.max(0, centerX - newSourceWidth / 2);
+				sourceY = Math.max(0, centerY - newSourceHeight / 2);
+
+				// Sınırları kontrol et
+				if (sourceX + newSourceWidth > originalWidth) {
+					sourceX = originalWidth - newSourceWidth;
+				}
+				if (sourceY + newSourceHeight > originalHeight) {
+					sourceY = originalHeight - newSourceHeight;
+				}
+
+				sourceWidth = newSourceWidth;
+				sourceHeight = newSourceHeight;
+			}
 		} else {
-			sourceWidth = cameraElement.videoWidth || cameraWidth;
-			sourceHeight = sourceWidth;
-			const maxOffset =
-				(cameraElement.videoHeight || cameraHeight) - sourceHeight;
-			sourceY = (maxOffset * cropX) / 43.75;
-			sourceX = 0;
-			sourceHeight = sourceHeight * (cropWidth / 56.25);
+			// Fallback to estimated dimensions
+			sourceWidth = (cameraWidth * cropWidth) / 100;
+			sourceHeight = (cameraHeight * cropHeight) / 100;
+			sourceX = (cameraWidth * cropX) / 100;
+			sourceY = (cameraHeight * cropY) / 100;
 		}
 
 		// Calculate safe radius and shadow
@@ -212,16 +324,39 @@ export const useCameraRenderer = () => {
 
 			// Draw camera with error handling
 			try {
+				// Orijinal görüntü oranını korumak için hesaplamalar
+				const sourceRatio = sourceWidth / sourceHeight;
+				const targetRatio = cameraWidth / cameraHeight;
+
+				let drawWidth = cameraWidth + 2;
+				let drawHeight = cameraHeight + 2;
+				let drawX = cameraX - 1;
+				let drawY = cameraY - 1;
+
+				// Görüntünün oranını korumak için hedef boyutları ayarla
+				if (sourceRatio > targetRatio) {
+					// Kaynak görüntü daha geniş, yüksekliği ayarla
+					const scaledHeight = drawWidth / sourceRatio;
+					drawY += (drawHeight - scaledHeight) / 2;
+					drawHeight = scaledHeight;
+				} else if (sourceRatio < targetRatio) {
+					// Kaynak görüntü daha uzun, genişliği ayarla
+					const scaledWidth = drawHeight * sourceRatio;
+					drawX += (drawWidth - scaledWidth) / 2;
+					drawWidth = scaledWidth;
+				}
+
+				// Görüntüyü çiz
 				ctx.drawImage(
 					cameraElement,
 					sourceX,
 					sourceY,
 					sourceWidth,
 					sourceHeight,
-					cameraX - 1,
-					cameraY - 1,
-					cameraWidth + 2,
-					cameraHeight + 2
+					drawX,
+					drawY,
+					drawWidth,
+					drawHeight
 				);
 			} catch (error) {
 				console.warn("[CameraRenderer] Failed to draw camera:", error);

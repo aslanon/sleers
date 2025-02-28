@@ -1,5 +1,5 @@
 <template>
-	<div class="selection-container">
+	<div class="selection-container" @keydown="handleKeyDown" tabindex="0">
 		<!-- Aspect Ratio Seçici -->
 		<div class="aspect-ratio-selector">
 			<select v-model="selectedRatio" class="ratio-select">
@@ -17,15 +17,18 @@
 			@mousedown.prevent="startSelection"
 			@mousemove="updateSelection"
 		>
+			<!-- Seçim kutusu - ya aktif seçim yapılıyorsa ya da seçim tamamlanmışsa görünür -->
 			<div
-				v-if="isSelecting"
+				v-if="isSelecting || selectionCompleted"
 				class="selection-box"
 				:style="{
 					left: `${Math.min(startPoint.x, endPoint.x)}px`,
 					top: `${Math.min(startPoint.y, endPoint.y)}px`,
 					width: `${Math.abs(endPoint.x - startPoint.x)}px`,
 					height: `${Math.abs(endPoint.y - startPoint.y)}px`,
+					cursor: isSelecting ? 'crosshair' : 'move',
 				}"
+				@mousedown.stop="selectionCompleted ? startDrag($event) : null"
 			>
 				<div class="selection-box-overlay"></div>
 				<div class="selection-box-handles">
@@ -66,56 +69,450 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch } from "vue";
 
 const electron = window.electron;
-const isSelecting = ref(false);
+const isSelecting = ref(false); // Aktif seçim yapılıyor mu?
+const selectionCompleted = ref(false); // Seçim tamamlandı mı?
 const startPoint = ref({ x: 0, y: 0 });
 const endPoint = ref({ x: 0, y: 0 });
 const selectedArea = ref({ x: 0, y: 0, width: 0, height: 0 });
 const isResizing = ref(false);
 const resizeHandle = ref("");
+const selectedRatio = ref("free");
+const currentDisplay = ref(null);
+const isDragging = ref(false);
+const dragOffset = ref({ x: 0, y: 0 });
+
+// Minimum boyut kontrolü
+const MIN_SIZE = 100;
+const isValidSize = computed(() => {
+	const width = Math.abs(endPoint.value.x - startPoint.value.x);
+	const height = Math.abs(endPoint.value.y - startPoint.value.y);
+	return width >= MIN_SIZE && height >= MIN_SIZE;
+});
+
+// Aspect ratio uygulaması için watch
+watch(selectedRatio, (newRatio) => {
+	// Seçim tamamlandıysa veya seçim yapılıyorsa ve yeni bir oran seçildiyse
+	if ((isSelecting.value || selectionCompleted.value) && newRatio !== "free") {
+		applyAspectRatio();
+	}
+});
+
+// Aspect ratio uygulama fonksiyonu
+const applyAspectRatio = () => {
+	if (selectedRatio.value === "free") return;
+
+	let ratio;
+	switch (selectedRatio.value) {
+		case "1:1":
+			ratio = 1;
+			break;
+		case "4:3":
+			ratio = 4 / 3;
+			break;
+		case "16:9":
+			ratio = 16 / 9;
+			break;
+		case "9:16":
+			ratio = 9 / 16;
+			break;
+		case "3:4":
+			ratio = 3 / 4;
+			break;
+		default:
+			return;
+	}
+
+	// Mevcut genişliği koru, yüksekliği ayarla
+	const width = Math.abs(endPoint.value.x - startPoint.value.x);
+	const newHeight = width / ratio;
+
+	// Başlangıç noktasına göre bitiş noktasını güncelle
+	if (endPoint.value.x > startPoint.value.x) {
+		endPoint.value.y = startPoint.value.y + newHeight;
+	} else {
+		endPoint.value.y = startPoint.value.y - newHeight;
+	}
+};
+
+// ESC tuşuna basılınca pencereyi kapat
+const handleKeyDown = (e) => {
+	if (e.key === "Escape") {
+		console.log("ESC tuşuna basıldı, pencere kapatılıyor");
+
+		// Doğrudan pencereyi kapat
+		try {
+			electron.selection.closeWindow();
+		} catch (error) {
+			console.error("ESC ile pencere kapatma hatası:", error);
+			// Alternatif yöntem
+			electron.ipcRenderer.send("CLOSE_SELECTION_WINDOW");
+		}
+
+		// Event'in yayılımını engelle
+		e.stopPropagation();
+		e.preventDefault();
+	}
+};
+
+// Seçim penceresini kapat
+const closeSelectionWindow = () => {
+	// IPC üzerinden ana sürece gönder
+	electron.selection.closeWindow();
+};
+
+const startSelection = (e) => {
+	// Eğer zaten bir seçim tamamlanmışsa ve seçim alanının dışına tıklandıysa
+	// yeni bir seçim başlat
+	const clickedOnSelectionBox = isClickInsideSelectionBox(e);
+
+	if (selectionCompleted.value && !clickedOnSelectionBox) {
+		// Seçim alanının dışına tıklandı, yeni seçime başla
+		selectionCompleted.value = false;
+		isSelecting.value = true;
+		startPoint.value = { x: e.clientX, y: e.clientY };
+		endPoint.value = { x: e.clientX, y: e.clientY };
+	} else if (!selectionCompleted.value && !isSelecting.value) {
+		// Henüz seçim yapılmadı, yeni bir seçim başlat
+		isSelecting.value = true;
+		startPoint.value = { x: e.clientX, y: e.clientY };
+		endPoint.value = { x: e.clientX, y: e.clientY };
+	}
+
+	// Ekran bilgilerini al
+	if (window.screen) {
+		currentDisplay.value = {
+			width: window.screen.width,
+			height: window.screen.height,
+			availWidth: window.screen.availWidth,
+			availHeight: window.screen.availHeight,
+			devicePixelRatio: window.devicePixelRatio || 1,
+		};
+	}
+};
+
+// Tıklanan konumun seçim kutusu içinde olup olmadığını kontrol et
+const isClickInsideSelectionBox = (e) => {
+	if (!selectionCompleted.value) return false;
+
+	const minX = Math.min(startPoint.value.x, endPoint.value.x);
+	const maxX = Math.max(startPoint.value.x, endPoint.value.x);
+	const minY = Math.min(startPoint.value.y, endPoint.value.y);
+	const maxY = Math.max(startPoint.value.y, endPoint.value.y);
+
+	return (
+		e.clientX >= minX &&
+		e.clientX <= maxX &&
+		e.clientY >= minY &&
+		e.clientY <= maxY
+	);
+};
+
+const updateSelection = (e) => {
+	if (!isSelecting.value) return;
+
+	endPoint.value = { x: e.clientX, y: e.clientY };
+
+	// Aspect ratio uygulanıyorsa oranı koru
+	if (selectedRatio.value !== "free") {
+		applyAspectRatio();
+	}
+};
+
+// Seçim alanını sürükleme başlat
+const startDrag = (e) => {
+	console.log("Sürükleme başlatılıyor", e);
+
+	if (!selectionCompleted.value) {
+		console.log("Seçim tamamlanmadı, sürükleme başlatılamaz");
+		return;
+	}
+
+	isDragging.value = true;
+	dragOffset.value = {
+		x: e.clientX - Math.min(startPoint.value.x, endPoint.value.x),
+		y: e.clientY - Math.min(startPoint.value.y, endPoint.value.y),
+	};
+
+	console.log("Sürükleme offset:", dragOffset.value);
+
+	document.addEventListener("mousemove", handleDrag);
+	document.addEventListener("mouseup", stopDrag);
+
+	e.preventDefault();
+	e.stopPropagation();
+};
+
+// Sürükleme işlemini yönet
+const handleDrag = (e) => {
+	if (!isDragging.value) return;
+
+	console.log("Sürükleme işlemi:", e.clientX, e.clientY);
+
+	const width = Math.abs(endPoint.value.x - startPoint.value.x);
+	const height = Math.abs(endPoint.value.y - startPoint.value.y);
+
+	// Yeni başlangıç noktası
+	const newX = e.clientX - dragOffset.value.x;
+	const newY = e.clientY - dragOffset.value.y;
+
+	// Ekran sınırlarını aşmasını engelle
+	const maxX = window.innerWidth - width;
+	const maxY = window.innerHeight - height;
+
+	const boundedX = Math.max(0, Math.min(newX, maxX));
+	const boundedY = Math.max(0, Math.min(newY, maxY));
+
+	// Başlangıç ve bitiş noktalarını güncelle
+	if (startPoint.value.x <= endPoint.value.x) {
+		startPoint.value.x = boundedX;
+		endPoint.value.x = boundedX + width;
+	} else {
+		endPoint.value.x = boundedX;
+		startPoint.value.x = boundedX + width;
+	}
+
+	if (startPoint.value.y <= endPoint.value.y) {
+		startPoint.value.y = boundedY;
+		endPoint.value.y = boundedY + height;
+	} else {
+		endPoint.value.y = boundedY;
+		startPoint.value.y = boundedY + height;
+	}
+};
+
+// Sürükleme işlemini sonlandır
+const stopDrag = () => {
+	console.log("Sürükleme işlemi sonlandırılıyor");
+	isDragging.value = false;
+	document.removeEventListener("mousemove", handleDrag);
+	document.removeEventListener("mouseup", stopDrag);
+};
+
+const startResize = (handle) => {
+	isResizing.value = true;
+	resizeHandle.value = handle;
+	document.addEventListener("mousemove", handleResize);
+	document.addEventListener("mouseup", stopResize);
+};
+
+const handleResize = (e) => {
+	if (!isResizing.value) return;
+
+	// Resize handle'a göre güncelleme yap
+	switch (resizeHandle.value) {
+		case "nw":
+			startPoint.value = { x: e.clientX, y: e.clientY };
+			break;
+		case "ne":
+			startPoint.value.y = e.clientY;
+			endPoint.value.x = e.clientX;
+			break;
+		case "sw":
+			startPoint.value.x = e.clientX;
+			endPoint.value.y = e.clientY;
+			break;
+		case "se":
+			endPoint.value = { x: e.clientX, y: e.clientY };
+			break;
+	}
+
+	// Aspect ratio uygulanıyorsa oranı koru
+	if (selectedRatio.value !== "free") {
+		applyAspectRatio();
+	}
+};
+
+const stopResize = () => {
+	isResizing.value = false;
+	document.removeEventListener("mousemove", handleResize);
+	document.removeEventListener("mouseup", stopResize);
+};
+
+const confirmSelection = () => {
+	// Son koordinatları hesapla
+	const width = Math.abs(endPoint.value.x - startPoint.value.x);
+	const height = Math.abs(endPoint.value.y - startPoint.value.y);
+	const x = Math.min(startPoint.value.x, endPoint.value.x);
+	const y = Math.min(startPoint.value.y, endPoint.value.y);
+
+	// Seçim bilgisini detaylı olarak oluştur
+	const selectionData = {
+		x,
+		y,
+		width,
+		height,
+		aspectRatio: selectedRatio.value,
+		display: currentDisplay.value,
+		devicePixelRatio: window.devicePixelRatio || 1,
+	};
+
+	// Eğer aspect ratio belirtilmişse ekle
+	if (selectedRatio.value !== "free") {
+		switch (selectedRatio.value) {
+			case "1:1":
+				selectionData.aspectRatioValue = 1;
+				break;
+			case "4:3":
+				selectionData.aspectRatioValue = 4 / 3;
+				break;
+			case "16:9":
+				selectionData.aspectRatioValue = 16 / 9;
+				break;
+			case "9:16":
+				selectionData.aspectRatioValue = 9 / 16;
+				break;
+			case "3:4":
+				selectionData.aspectRatioValue = 3 / 4;
+				break;
+		}
+	}
+
+	console.log("Seçim onaylandı, veriler gönderiliyor:", selectionData);
+
+	// Önce verileri gönder, sonra pencereyi kapat
+	try {
+		// Ana sürece seçim verilerini gönder
+		electron.ipcRenderer.send("AREA_SELECTED", selectionData);
+		console.log("AREA_SELECTED olayı gönderildi");
+
+		// Kısa bir gecikme ile pencereyi kapat (ana sürecin işlem yapması için)
+		setTimeout(() => {
+			console.log("Pencere kapatma işlemi başlatılıyor...");
+			electron.selection.closeWindow();
+		}, 200);
+	} catch (error) {
+		console.error("Seçim onaylama hatası:", error);
+
+		// Hata durumunda da pencereyi kapatmaya çalış
+		try {
+			electron.selection.closeWindow();
+		} catch (e) {
+			console.error("Pencere kapatma hatası:", e);
+			// Son çare olarak doğrudan IPC gönder
+			electron.ipcRenderer.send("CLOSE_SELECTION_WINDOW");
+		}
+	}
+};
+
+// Ana window event listenerları
+onMounted(() => {
+	// Sayfa yüklendiğinde focus ver ki, klavye eventlerini alabilsin
+	const container = document.querySelector(".selection-container");
+	if (container) {
+		container.focus();
+	}
+
+	// ESC tuşu için global event listener
+	document.addEventListener("keydown", (e) => {
+		if (e.key === "Escape") {
+			console.log("Global ESC tuşu yakalandı, pencere kapatılıyor");
+
+			// Doğrudan pencereyi kapat
+			try {
+				electron.selection.closeWindow();
+			} catch (error) {
+				console.error("Global ESC ile pencere kapatma hatası:", error);
+				// Alternatif yöntem
+				electron.ipcRenderer.send("CLOSE_SELECTION_WINDOW");
+			}
+
+			// Event'in yayılımını engelle
+			e.stopPropagation();
+			e.preventDefault();
+		}
+	});
+
+	// Çok sayıda event dinleme işlemi yerine tek bir dinleyici kullan
+	document.addEventListener("mousedown", onMouseDown);
+	document.addEventListener("mousemove", onMouseMove);
+	document.addEventListener("mouseup", onMouseUp);
+});
+
+onUnmounted(() => {
+	// Tüm event listenerları temizle
+	document.removeEventListener("mousedown", onMouseDown);
+	document.removeEventListener("mousemove", onMouseMove);
+	document.removeEventListener("mouseup", onMouseUp);
+	document.removeEventListener("keydown", handleKeyDown);
+
+	// Resize ve drag event listenerlarını temizle
+	document.removeEventListener("mousemove", handleResize);
+	document.removeEventListener("mouseup", stopResize);
+	document.removeEventListener("mousemove", handleDrag);
+	document.removeEventListener("mouseup", stopDrag);
+});
 
 const onMouseDown = (e) => {
 	if (e.button === 0) {
+		// Zaten seçim tamamlanmışsa ve seçim alanına tıklanmışsa, sürükleme başlat
+		if (selectionCompleted.value && isClickInsideSelectionBox(e)) {
+			console.log("Seçim alanına tıklandı, sürükleme başlatılıyor");
+			startDrag(e);
+			return;
+		}
+
+		// Aksi takdirde yeni bir seçim başlat
 		isSelecting.value = true;
+		selectionCompleted.value = false;
 		startPoint.value = { x: e.clientX, y: e.clientY };
 		endPoint.value = { x: e.clientX, y: e.clientY };
 	}
 };
 
 const onMouseMove = (e) => {
+	// Sürükleme işlemi devam ediyorsa
+	if (isDragging.value) {
+		handleDrag(e);
+		return;
+	}
+
+	// Aktif seçim yapılıyorsa
 	if (isSelecting.value) {
 		endPoint.value = { x: e.clientX, y: e.clientY };
+
+		// Aspect ratio uygulanıyorsa oranı koru
+		if (selectedRatio.value !== "free") {
+			applyAspectRatio();
+		}
 	}
 };
 
-const onMouseUp = () => {
+const onMouseUp = (e) => {
+	// Sürükleme işlemi bitiyorsa
+	if (isDragging.value) {
+		stopDrag();
+		return;
+	}
+
+	// Aktif seçim bitiyorsa
 	if (isSelecting.value) {
 		isSelecting.value = false;
+
+		// Seçim minimum boyuttan büyükse tamamlandı olarak işaretle
 		const width = Math.abs(endPoint.value.x - startPoint.value.x);
 		const height = Math.abs(endPoint.value.y - startPoint.value.y);
 
-		selectedArea.value = {
-			x: Math.min(startPoint.value.x, endPoint.value.x),
-			y: Math.min(startPoint.value.y, endPoint.value.y),
-			width,
-			height,
-		};
+		if (width >= MIN_SIZE && height >= MIN_SIZE) {
+			selectionCompleted.value = true;
+
+			selectedArea.value = {
+				x: Math.min(startPoint.value.x, endPoint.value.x),
+				y: Math.min(startPoint.value.y, endPoint.value.y),
+				width,
+				height,
+			};
+
+			console.log("Seçim tamamlandı:", selectedArea.value);
+		} else {
+			// Minimum boyut sağlanmıyorsa seçimi iptal et
+			console.log("Seçim çok küçük, iptal edildi");
+			selectionCompleted.value = false;
+		}
 	}
 };
-
-onMounted(() => {
-	window.addEventListener("mousedown", onMouseDown);
-	window.addEventListener("mousemove", onMouseMove);
-	window.addEventListener("mouseup", onMouseUp);
-});
-
-onUnmounted(() => {
-	window.removeEventListener("mousedown", onMouseDown);
-	window.removeEventListener("mousemove", onMouseMove);
-	window.removeEventListener("mouseup", onMouseUp);
-});
 </script>
 
 <style scoped>
@@ -124,6 +521,7 @@ onUnmounted(() => {
 	inset: 0;
 	background: rgba(0, 0, 0, 0.5);
 	cursor: crosshair;
+	outline: none; /* focus görünümünü gizler */
 }
 
 .aspect-ratio-selector {

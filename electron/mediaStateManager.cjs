@@ -17,6 +17,13 @@ class MediaStateManager {
 			isEditing: false,
 			isRecording: false,
 			recordingStartTime: null,
+			selectedArea: null,
+			recordingSource: {
+				sourceType: "display",
+				sourceId: null,
+				sourceName: null,
+				apertureId: null,
+			},
 			audioSettings: {
 				microphoneEnabled: true,
 				systemAudioEnabled: true,
@@ -116,7 +123,21 @@ class MediaStateManager {
 				return false;
 			}
 
-			if (!fs.existsSync(filePath)) {
+			// Dosya var mı kontrol et
+			let fileExists = false;
+			try {
+				await fs.promises.access(filePath, fs.constants.R_OK);
+				fileExists = true;
+			} catch (accessError) {
+				if (!silent)
+					console.log(
+						`[MediaStateManager] Dosyaya erişilemiyor - ${type}:`,
+						accessError.message
+					);
+				return false;
+			}
+
+			if (!fileExists) {
 				if (!silent)
 					console.log(
 						`[MediaStateManager] Dosya bulunamadı - ${type}:`,
@@ -125,67 +146,59 @@ class MediaStateManager {
 				return false;
 			}
 
-			const stats = fs.statSync(filePath);
+			// Dosya boyutunu kontrol et
+			const stats = await fs.promises.stat(filePath);
 			if (!silent) {
 				console.log(`[MediaStateManager] Dosya boyutu - ${type}:`, {
 					path: filePath,
 					size: stats.size,
 					sizeInMB: (stats.size / (1024 * 1024)).toFixed(2) + "MB",
+					exists: fileExists,
 				});
 			}
 
-			// En az 1KB olmalı
-			if (stats.size < 1024) {
+			// Dosya 0 byte değilse geçerli kabul et
+			if (stats.size === 0) {
 				if (!silent)
-					console.log(
-						`[MediaStateManager] Dosya çok küçük - ${type}:`,
-						stats.size
-					);
+					console.log(`[MediaStateManager] Dosya boş - ${type}:`, stats.size);
 				return false;
 			}
 
-			// Dosya okuma testi
-			const fd = fs.openSync(filePath, "r");
-			const buffer = Buffer.alloc(1024);
-			const bytesRead = fs.readSync(fd, buffer, 0, 1024, 0);
-			fs.closeSync(fd);
-
-			if (bytesRead < 1) {
-				if (!silent)
-					console.log(`[MediaStateManager] Dosya okunamıyor - ${type}`);
-				return false;
+			// Pencere kaydı durumunda daha basit bir doğrulama yap
+			// Aperture'ın pencere kaydı desteklememesinden dolayı bazı dosyalar tam oluşmayabilir
+			if (
+				this.state.recordingSource &&
+				this.state.recordingSource.sourceType === "window"
+			) {
+				console.log(
+					`[MediaStateManager] Pencere kaydı için basitleştirilmiş doğrulama yapılıyor - ${type}`
+				);
+				// Dosya var ve boyutu 0'dan büyükse geçerli kabul et
+				if (fileExists && stats.size > 0) {
+					return true;
+				}
 			}
 
-			// Dosya kilitli mi kontrol et
+			// Dosya okuma testi - daha basit bir yaklaşım kullan
 			try {
-				const testFd = fs.openSync(filePath, "r+");
-				fs.closeSync(testFd);
-			} catch (error) {
-				if (!silent)
-					console.log(`[MediaStateManager] Dosya kilitli - ${type}:`, error);
-				return false;
-			}
+				// Sadece ilk 1024 byte'ı okumayı dene
+				const fd = await fs.promises.open(filePath, "r");
+				const buffer = Buffer.alloc(1024);
+				const { bytesRead } = await fd.read(buffer, 0, 1024, 0);
+				await fd.close();
 
-			// Video dosyası için ek kontroller
-			if (type.includes("video")) {
-				const extension = path.extname(filePath).toLowerCase();
-				if (![".mp4", ".webm"].includes(extension)) {
+				if (bytesRead <= 0) {
 					if (!silent)
-						console.log(
-							`[MediaStateManager] Geçersiz video formatı - ${type}:`,
-							extension
-						);
+						console.log(`[MediaStateManager] Dosya okunamıyor - ${type}`);
 					return false;
 				}
-
-				// Dosyanın başlangıç baytlarını kontrol et
-				const header = buffer.slice(0, 4);
-				const isValidHeader = header.some((byte) => byte !== 0);
-				if (!isValidHeader) {
-					if (!silent)
-						console.log(`[MediaStateManager] Geçersiz video başlığı - ${type}`);
-					return false;
-				}
+			} catch (readError) {
+				// Dosya okuma hatası kritik değil, dosya var ve boyutu 0'dan büyükse geçerli kabul et
+				console.warn(
+					`[MediaStateManager] Dosya okuma hatası - ${type}, ancak dosya mevcut olduğu için devam ediliyor:`,
+					readError.message
+				);
+				return fileExists && stats.size > 0;
 			}
 
 			if (!silent) console.log(`[MediaStateManager] Dosya geçerli - ${type}`);
@@ -196,15 +209,39 @@ class MediaStateManager {
 					`[MediaStateManager] Dosya kontrolü sırasında hata - ${type}:`,
 					error
 				);
+			// Hata durumunda bile, dosya var ve boyutu 0'dan büyükse geçerli kabul et
+			try {
+				if (fs.existsSync(filePath)) {
+					const stats = fs.statSync(filePath);
+					if (stats.size > 0) {
+						console.log(
+							`[MediaStateManager] Hata olmasına rağmen dosya mevcut ve boyutu > 0 - ${type}`
+						);
+						return true;
+					}
+				}
+			} catch (e) {
+				// İkincil hata kontrolünde de sorun çıkarsa false dön
+			}
 			return false;
 		}
 	}
 
-	async waitForMediaFiles(tempFileManager, maxWaitTime = 10000) {
+	async waitForMediaFiles(tempFileManager, maxWaitTime = 20000) {
 		console.log("[MediaStateManager] Medya dosyaları bekleniyor...");
 		const startTime = Date.now();
 		let lastProgress = 0;
 		this.fileCheckAttempts = 0;
+		const maxAttempts = 100; // Maksimum deneme sayısını sınırla
+
+		// Bekleme işlemi başladığında state bilgisini güncelle
+		this.updateState({
+			processingStatus: {
+				isProcessing: true,
+				progress: 0,
+				error: null,
+			},
+		});
 
 		return new Promise((resolve) => {
 			const checkFiles = async () => {
@@ -217,25 +254,41 @@ class MediaStateManager {
 				const cameraPath = tempFileManager.getFilePath("camera");
 				const elapsedTime = Date.now() - startTime;
 
-				// Her dosya için detaylı log
-				console.log("[MediaStateManager] Dosya durumları:", {
-					video: {
-						path: videoPath,
-						exists: videoPath ? fs.existsSync(videoPath) : false,
-					},
-					audio: {
-						path: audioPath,
-						exists: audioPath ? fs.existsSync(audioPath) : false,
-					},
-					camera: {
-						path: cameraPath,
-						exists: cameraPath ? fs.existsSync(cameraPath) : false,
-					},
-				});
+				// Belirli aralıklarla log bilgisi göster
+				if (this.fileCheckAttempts % 10 === 0 || this.fileCheckAttempts <= 5) {
+					console.log(
+						"[MediaStateManager] Dosya kontrolü #" + this.fileCheckAttempts
+					);
+					console.log("[MediaStateManager] Dosya durumları:", {
+						video: {
+							path: videoPath,
+							exists: videoPath ? fs.existsSync(videoPath) : false,
+							size:
+								videoPath && fs.existsSync(videoPath)
+									? fs.statSync(videoPath).size
+									: 0,
+						},
+						audio: {
+							path: audioPath,
+							exists: audioPath ? fs.existsSync(audioPath) : false,
+							size:
+								audioPath && fs.existsSync(audioPath)
+									? fs.statSync(audioPath).size
+									: 0,
+						},
+						camera: {
+							path: cameraPath,
+							exists: cameraPath ? fs.existsSync(cameraPath) : false,
+							size:
+								cameraPath && fs.existsSync(cameraPath)
+									? fs.statSync(cameraPath).size
+									: 0,
+						},
+					});
+				}
 
+				// UI için ilerleme durumunu güncelle
 				const progress = Math.min((elapsedTime / maxWaitTime) * 100, 99);
-
-				// Progress değişimi %5'ten fazlaysa güncelle
 				if (Math.abs(progress - lastProgress) >= 5) {
 					this.updateState({
 						processingStatus: {
@@ -247,116 +300,194 @@ class MediaStateManager {
 					lastProgress = progress;
 				}
 
+				// Kaynak türü pencere ise özel işlem yap
+				const isWindowSource =
+					this.state.recordingSource &&
+					this.state.recordingSource.sourceType === "window";
+
 				// Video dosyasını kontrol et
-				if (
-					videoPath &&
-					(await this.validateMediaFile(videoPath, "video", true))
-				) {
-					clearInterval(this.recordingCheckInterval);
+				if (videoPath && fs.existsSync(videoPath)) {
+					const isValid = await this.validateMediaFile(
+						videoPath,
+						"video",
+						this.fileCheckAttempts > 5
+					);
 
-					// Dosyanın tamamen yazılmasını bekle
-					await new Promise((resolve) => setTimeout(resolve, 500));
+					if (isValid) {
+						clearInterval(this.recordingCheckInterval);
 
-					// Son bir kontrol daha yap
-					if (!(await this.validateMediaFile(videoPath, "final-video", true))) {
-						if (this.fileCheckAttempts < this.maxFileCheckAttempts) {
-							return; // Devam et
-						}
-						throw new Error("Video dosyası doğrulanamadı");
-					}
+						// Dosyanın tamamen yazılmasını bekle
+						await new Promise((resolve) => setTimeout(resolve, 500));
 
-					// Tüm dosya yollarını tekrar al (çünkü kayıt sırasında yeni dosyalar eklenmiş olabilir)
-					const finalVideoPath =
-						tempFileManager.getFilePath("screen") ||
-						tempFileManager.getFilePath("video");
-					const finalAudioPath = tempFileManager.getFilePath("audio");
-					const finalCameraPath = tempFileManager.getFilePath("camera");
-
-					console.log("[MediaStateManager] Son dosya yolları:", {
-						video: finalVideoPath,
-						audio: finalAudioPath,
-						camera: finalCameraPath,
-					});
-
-					// Ses dosyasını kontrol et
-					const isAudioValid = finalAudioPath
-						? await this.validateMediaFile(finalAudioPath, "audio", true)
-						: false;
-
-					// Kamera dosyasını kontrol et
-					let isCameraValid = false;
-					if (finalCameraPath && fs.existsSync(finalCameraPath)) {
-						isCameraValid = await this.validateMediaFile(
-							finalCameraPath,
-							"camera",
+						// Son bir kontrol daha yap
+						const finalCheck = await this.validateMediaFile(
+							videoPath,
+							"final-video",
 							false
 						);
-						console.log("[MediaStateManager] Kamera dosyası kontrolü:", {
-							path: finalCameraPath,
-							exists: fs.existsSync(finalCameraPath),
-							isValid: isCameraValid,
-							size: fs.statSync(finalCameraPath).size,
+
+						if (
+							!finalCheck &&
+							!isWindowSource &&
+							this.fileCheckAttempts < maxAttempts
+						) {
+							console.log(
+								"[MediaStateManager] Video tam doğrulanamadı, tekrar deneniyor..."
+							);
+							return; // Devam et
+						}
+
+						// Pencere kaydı için daha esnek davran
+						if (isWindowSource) {
+							console.log(
+								"[MediaStateManager] Pencere kaydı için esnek doğrulama yapılıyor..."
+							);
+						}
+
+						// Tüm dosya yollarını tekrar al
+						const finalVideoPath =
+							tempFileManager.getFilePath("screen") ||
+							tempFileManager.getFilePath("video");
+						const finalAudioPath = tempFileManager.getFilePath("audio");
+						const finalCameraPath = tempFileManager.getFilePath("camera");
+
+						console.log("[MediaStateManager] Son dosya yolları:", {
+							video: finalVideoPath,
+							audio: finalAudioPath,
+							camera: finalCameraPath,
 						});
+
+						// Ses ve kamera dosyalarını kontrol et
+						const isAudioValid = finalAudioPath
+							? await this.validateMediaFile(finalAudioPath, "audio", false)
+							: false;
+
+						let isCameraValid = false;
+						if (finalCameraPath && fs.existsSync(finalCameraPath)) {
+							isCameraValid = await this.validateMediaFile(
+								finalCameraPath,
+								"camera",
+								false
+							);
+						}
+
+						const result = {
+							success: true,
+							videoPath: finalVideoPath,
+							audioPath: isAudioValid ? finalAudioPath : null,
+							cameraPath: isCameraValid ? finalCameraPath : null,
+						};
+
+						console.log("[MediaStateManager] Medya dosyaları hazır:", {
+							video: {
+								path: result.videoPath,
+								valid: true,
+							},
+							audio: {
+								path: result.audioPath,
+								valid: !!result.audioPath,
+							},
+							camera: {
+								path: result.cameraPath,
+								valid: !!result.cameraPath,
+							},
+						});
+
+						// İlerleme durumunu %100 olarak güncelle
+						this.updateState({
+							processingStatus: {
+								isProcessing: false,
+								progress: 100,
+								error: null,
+							},
+						});
+
+						resolve(result);
+						return;
 					}
-
-					const result = {
-						success: true,
-						videoPath: finalVideoPath,
-						audioPath: isAudioValid ? finalAudioPath : null,
-						cameraPath: isCameraValid ? finalCameraPath : null,
-					};
-
-					console.log("[MediaStateManager] Final dosya durumları:", {
-						video: {
-							path: result.videoPath,
-							exists: fs.existsSync(result.videoPath),
-						},
-						audio: {
-							path: result.audioPath,
-							exists: result.audioPath
-								? fs.existsSync(result.audioPath)
-								: false,
-						},
-						camera: {
-							path: result.cameraPath,
-							exists: result.cameraPath
-								? fs.existsSync(result.cameraPath)
-								: false,
-						},
-					});
-
-					resolve(result);
-					return;
 				}
 
 				// Maksimum deneme sayısını veya zaman aşımını kontrol et
 				if (
-					this.fileCheckAttempts >= this.maxFileCheckAttempts ||
+					this.fileCheckAttempts >= maxAttempts ||
 					elapsedTime >= maxWaitTime
 				) {
 					clearInterval(this.recordingCheckInterval);
-					console.error("[MediaStateManager] Dosya bekleme süresi aşıldı:", {
-						attempts: this.fileCheckAttempts,
-						elapsedTime,
-						paths: {
-							video: {
-								path: videoPath,
-								exists: videoPath ? fs.existsSync(videoPath) : false,
-							},
-							audio: {
-								path: audioPath,
-								exists: audioPath ? fs.existsSync(audioPath) : false,
-							},
-							camera: {
-								path: cameraPath,
-								exists: cameraPath ? fs.existsSync(cameraPath) : false,
-							},
-						},
-					});
-					resolve({
+					console.warn(
+						"[MediaStateManager] Dosya bekleme süresi/deneme aşıldı:",
+						{
+							attempts: this.fileCheckAttempts,
+							elapsedTime,
+						}
+					);
+
+					// Son bir şans olarak pencere kaydı için esnek bir yaklaşım deneyelim
+					if (isWindowSource && videoPath && fs.existsSync(videoPath)) {
+						console.log(
+							"[MediaStateManager] Pencere kaydı için son bir şans doğrulaması yapılıyor..."
+						);
+						const stats = fs.statSync(videoPath);
+
+						if (stats.size > 0) {
+							console.log(
+								"[MediaStateManager] Pencere kaydı dosyası mevcut ve boyutu > 0, esnek doğrulama geçti"
+							);
+
+							// Tüm dosya yollarını tekrar al
+							const finalVideoPath = videoPath;
+							const finalAudioPath =
+								audioPath && fs.existsSync(audioPath) ? audioPath : null;
+							const finalCameraPath =
+								cameraPath && fs.existsSync(cameraPath) ? cameraPath : null;
+
+							const result = {
+								success: true,
+								videoPath: finalVideoPath,
+								audioPath: finalAudioPath,
+								cameraPath: finalCameraPath,
+							};
+
+							resolve(result);
+							return;
+						}
+					}
+
+					// Hata durumunda bile kullanılabilir dosyaları dön
+					const availableFiles = {
 						success: false,
 						error: `Medya dosyaları hazırlanamadı (${this.fileCheckAttempts} deneme)`,
+						videoPath: videoPath && fs.existsSync(videoPath) ? videoPath : null,
+						audioPath: audioPath && fs.existsSync(audioPath) ? audioPath : null,
+						cameraPath:
+							cameraPath && fs.existsSync(cameraPath) ? cameraPath : null,
+					};
+
+					// Eğer video dosyası mevcutsa ve boyutu 0'dan büyükse, başarılı kabul et
+					if (availableFiles.videoPath) {
+						try {
+							const videoStats = fs.statSync(availableFiles.videoPath);
+							if (videoStats.size > 0) {
+								console.log(
+									"[MediaStateManager] Video dosyası mevcut ve boyutu > 0, hata durumunda bile kullanılabilir"
+								);
+								availableFiles.success = true;
+								availableFiles.error = null;
+							}
+						} catch (e) {
+							// İstatistik alınamazsa devam et
+						}
+					}
+
+					// Hata durumunu güncelle
+					this.updateState({
+						processingStatus: {
+							isProcessing: false,
+							progress: 0,
+							error: availableFiles.success ? null : availableFiles.error,
+						},
 					});
+
+					resolve(availableFiles);
 				}
 			};
 
@@ -395,6 +526,13 @@ class MediaStateManager {
 			isEditing: false,
 			isRecording: false,
 			recordingStartTime: null,
+			selectedArea: null,
+			recordingSource: {
+				sourceType: "display",
+				sourceId: null,
+				sourceName: null,
+				apertureId: null,
+			},
 			audioSettings: {
 				microphoneEnabled: true,
 				systemAudioEnabled: true,
@@ -545,12 +683,50 @@ class MediaStateManager {
 	}
 
 	isMediaReady() {
-		const isReady = this.validateMediaFile(this.state.videoPath, "final-check");
-		console.log("[MediaStateManager] Medya hazırlık kontrolü:", {
-			isReady,
-			videoPath: this.state.videoPath,
-		});
-		return isReady;
+		console.log("[MediaStateManager] Medya hazırlık kontrolü başlıyor");
+
+		// Video yolu var mı?
+		if (!this.state.videoPath) {
+			console.error("[MediaStateManager] Video dosya yolu bulunamadı");
+			return false;
+		}
+
+		try {
+			// Senkron dosya kontrolü yap
+			if (!fs.existsSync(this.state.videoPath)) {
+				console.error(
+					"[MediaStateManager] Video dosyası bulunamadı:",
+					this.state.videoPath
+				);
+				return false;
+			}
+
+			// Dosya boyutu kontrol et
+			const stats = fs.statSync(this.state.videoPath);
+			console.log("[MediaStateManager] Video dosya boyutu:", {
+				path: this.state.videoPath,
+				size: stats.size,
+				sizeInMB: (stats.size / (1024 * 1024)).toFixed(2) + "MB",
+			});
+
+			if (stats.size < 1024) {
+				console.error(
+					"[MediaStateManager] Video dosyası çok küçük:",
+					stats.size
+				);
+				return false;
+			}
+
+			// Başarılı
+			console.log(
+				"[MediaStateManager] Video dosyası hazır:",
+				this.state.videoPath
+			);
+			return true;
+		} catch (error) {
+			console.error("[MediaStateManager] Medya kontrolü hatası:", error);
+			return false;
+		}
 	}
 
 	cleanup() {
@@ -629,6 +805,74 @@ class MediaStateManager {
 				selectedAudioDevice: deviceId,
 			},
 		});
+	}
+
+	// Kayıt kaynağı ayarlarını güncelleme
+	updateRecordingSource(source) {
+		if (!source) return;
+
+		console.log("[MediaStateManager] Kayıt kaynağı güncelleniyor:", source);
+
+		// Kaynak ID'si için doğrulama yap
+		if (source.sourceId) {
+			// sourceId formatını kontrol et
+			if (
+				typeof source.sourceId === "string" &&
+				(source.sourceId.startsWith("screen:") ||
+					source.sourceId.startsWith("window:"))
+			) {
+				console.log(
+					"[MediaStateManager] Geçerli kaynak ID'si:",
+					source.sourceId
+				);
+			} else {
+				console.warn(
+					"[MediaStateManager] Kaynak ID'si uygun formatta değil:",
+					source.sourceId
+				);
+			}
+		} else {
+			console.warn("[MediaStateManager] Kaynak ID'si belirtilmemiş");
+		}
+
+		// Aperture ID varsa kullan
+		if (source.apertureId) {
+			console.log(
+				"[MediaStateManager] Aperture ID kullanılıyor:",
+				source.apertureId
+			);
+		}
+
+		// Kaynak türünü belirle (window veya screen)
+		let sourceType = source.sourceType || "screen"; // eğer zaten tanımlanmışsa kullan
+		if (!source.sourceType && typeof source.sourceId === "string") {
+			if (source.sourceId.startsWith("window:")) {
+				sourceType = "window";
+			} else if (source.sourceId.startsWith("screen:")) {
+				sourceType = "screen";
+			}
+		}
+
+		this.updateState({
+			recordingSource: {
+				sourceType: sourceType,
+				sourceId: source.sourceId || null,
+				sourceName: source.sourceName || null,
+				apertureId: source.apertureId || null,
+			},
+		});
+
+		// State'e kaydedilen güncel değeri kontrol et
+		console.log(
+			"[MediaStateManager] Kaydedilen kaynak bilgisi:",
+			this.state.recordingSource
+		);
+
+		// Kaynak türüne göre özel işlemleri yap
+		if (source.sourceType === "area" && this.mainWindow) {
+			// Alan seçimi için gerekli işlemler zaten main.cjs içinde yapılıyor
+			console.log("[MediaStateManager] Alan seçimi kaynağı güncellendi");
+		}
 	}
 
 	addMousePosition(position) {

@@ -90,9 +90,10 @@ export const useScreen = () => {
 
 			console.log("Ekran kaydı başlatılıyor...");
 
-			// Ses ayarlarını MediaState'ten al
+			// MediaState'ten ses ve kaynak ayarlarını al
+			let mediaState = null;
 			try {
-				const mediaState = await window.electron.ipcRenderer.invoke(
+				mediaState = await window.electron.ipcRenderer.invoke(
 					IPC_EVENTS.GET_MEDIA_STATE
 				);
 
@@ -110,8 +111,36 @@ export const useScreen = () => {
 						microphoneDeviceId: config.microphoneDeviceId,
 					});
 				}
+
+				// Kayıt kaynağı ayarlarını al
+				if (mediaState?.recordingSource) {
+					console.log(
+						"Kayıt kaynağı ayarları alındı:",
+						mediaState.recordingSource
+					);
+
+					// Kaynak türünü ve ID'sini yapılandırmaya aktar
+					const { sourceType, sourceId } = mediaState.recordingSource;
+
+					// Alan seçimi yapılmışsa ve kaynak türü "area" ise
+					if (sourceType === "area" && mediaState.selectedArea) {
+						console.log("Alan seçimi bilgisi alındı:", mediaState.selectedArea);
+
+						// Kırpma bilgilerini aktararak konfigürasyonu güncelle
+						config.x = mediaState.selectedArea.x;
+						config.y = mediaState.selectedArea.y;
+						config.width = mediaState.selectedArea.width;
+						config.height = mediaState.selectedArea.height;
+					}
+					// Diğer kaynak türleri için (display veya window)
+					else if (sourceId) {
+						// Kaynak ID'sini yapılandırma nesnesine aktar
+						config.sourceId = sourceId;
+						config.sourceType = sourceType;
+					}
+				}
 			} catch (mediaStateError) {
-				console.warn("Ses ayarları alınamadı:", mediaStateError);
+				console.warn("MediaState bilgileri alınamadı:", mediaStateError);
 			}
 
 			// 1. Aperture modülünü yükle
@@ -158,6 +187,8 @@ export const useScreen = () => {
 					captureSystemAudio: config.systemAudio, // Sistem sesini kaydet
 					captureDeviceAudio: config.microphone, // Mikrofon sesini kaydet
 				},
+				// Kaynak ID'si varsa ekle
+				sourceId: config.sourceId || null,
 			};
 
 			// Kırpma alanı varsa ekle
@@ -171,27 +202,42 @@ export const useScreen = () => {
 			}
 
 			console.log(
-				"Aperture kayıt ayarları:",
-				JSON.stringify(recordingOptions, null, 2)
+				"Ekran kaydı için seçenekler:",
+				JSON.stringify(
+					{
+						...recordingOptions,
+						sourceId: recordingOptions.sourceId,
+						sourceType: config.sourceType,
+						cropArea: recordingOptions.cropArea,
+					},
+					null,
+					2
+				)
 			);
 
 			// 4. Kayıt başlatma
 			console.log("Aperture kaydı başlatılıyor...");
 
 			// Kayıt başlatma işlemi
-			const recordingStarted = await window.electron.ipcRenderer.invoke(
-				"START_APERTURE_RECORDING",
-				screenPath.value,
-				recordingOptions
-			);
+			try {
+				const recordingStarted = await window.electron.ipcRenderer.invoke(
+					"START_APERTURE_RECORDING",
+					screenPath.value,
+					recordingOptions
+				);
 
-			if (!recordingStarted) {
-				throw new Error("Aperture kaydı başlatılamadı");
+				if (!recordingStarted) {
+					console.error("Aperture kaydı başlatılamadı - false döndü");
+					throw new Error("Aperture kaydı başlatılamadı");
+				}
+
+				console.log("Aperture kaydı başarıyla başlatıldı");
+				isScreenActive.value = true;
+				apertureStarted = true;
+			} catch (error) {
+				console.error("Aperture kaydı başlatılırken hata:", error);
+				throw new Error(`Aperture kaydı başlatılamadı: ${error.message}`);
 			}
-
-			console.log("Aperture kaydı başarıyla başlatıldı");
-			isScreenActive.value = true;
-			apertureStarted = true;
 
 			// 5. Dosya boyutu kontrolü için interval başlat
 			fileSizeCheckInterval.value = setInterval(async () => {
@@ -294,8 +340,9 @@ export const useScreen = () => {
 			}
 
 			// Dosya boyutunu kontrol et
+			let fileSize = 0;
 			try {
-				const fileSize = await window.electron?.ipcRenderer.invoke(
+				fileSize = await window.electron?.ipcRenderer.invoke(
 					"GET_FILE_SIZE",
 					screenPath.value
 				);
@@ -349,6 +396,41 @@ export const useScreen = () => {
 				isActive: false,
 			});
 
+			// RECORDING_STATUS_CHANGED ile ana süreç bilgilendir
+			window.electron?.ipcRenderer.send(
+				IPC_EVENTS.RECORDING_STATUS_CHANGED,
+				false
+			);
+
+			// Dosya boyutunu son bir kez daha kontrol et ve bilgilendir
+			if (fileSize > 0) {
+				window.electron?.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_UPDATE, {
+					type: "screen",
+					fileSize: fileSize,
+					isActive: false,
+					filePath: screenPath.value,
+				});
+
+				// Medya dosyalarını bildir
+				console.log("Medya dosyalarının hazır olduğu bildiriliyor...", {
+					videoPath: screenPath.value,
+					audioPath: audioPath.value,
+				});
+
+				window.electron?.ipcRenderer.send(IPC_EVENTS.MEDIA_PATHS, {
+					videoPath: screenPath.value,
+					audioPath: audioPath.value,
+				});
+
+				// İşleme tamamlandı bildirimi
+				window.electron?.ipcRenderer.send(IPC_EVENTS.PROCESSING_COMPLETE, {
+					videoPath: screenPath.value,
+					audioPath: audioPath.value,
+					cameraPath: null,
+				});
+			}
+
+			// Başarılı sonuç döndür
 			return {
 				success: true,
 				videoPath: screenPath.value,
