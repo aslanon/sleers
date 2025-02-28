@@ -1120,8 +1120,10 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				lastZoomPosition.value = activeZoom.position;
 			}
 
-			// Orijinal görüntüyü çiz
+			// Orijinal görüntüyü çiz - Transform the entire context for all elements
 			ctx.save();
+
+			// Apply the zoom transformation
 			ctx.translate(
 				transformOriginX + position.value.x,
 				transformOriginY + position.value.y
@@ -1132,11 +1134,18 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				-(transformOriginY + position.value.y)
 			);
 
-			// Shadow için yeni bir state kaydet
+			// Draw shadow if enabled
 			if (shadowSize.value > 0) {
 				ctx.save();
 				ctx.beginPath();
-				useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
+				useRoundRect(
+					ctx,
+					x + position.value.x,
+					y + position.value.y,
+					drawWidth,
+					drawHeight,
+					radius.value * dpr
+				);
 				ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
 				ctx.shadowBlur = shadowSize.value * dpr;
 				ctx.shadowOffsetX = 0;
@@ -1149,7 +1158,14 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			// Video alanını kırp ve radius uygula
 			ctx.save();
 			ctx.beginPath();
-			useRoundRect(ctx, x, y, drawWidth, drawHeight, radius.value * dpr);
+			useRoundRect(
+				ctx,
+				x + position.value.x,
+				y + position.value.y,
+				drawWidth,
+				drawHeight,
+				radius.value * dpr
+			);
 			ctx.clip();
 
 			// Video çizimi
@@ -1161,8 +1177,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					cropArea.value.y,
 					cropArea.value.width,
 					cropArea.value.height,
-					x,
-					y,
+					x + position.value.x,
+					y + position.value.y,
 					drawWidth,
 					drawHeight
 				);
@@ -1174,15 +1190,15 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					0,
 					videoElement.videoWidth,
 					videoElement.videoHeight,
-					x,
-					y,
+					x + position.value.x,
+					y + position.value.y,
 					drawWidth,
 					drawHeight
 				);
 			}
 			ctx.restore();
 
-			// Video border çizimi
+			// Video border çizimi - draw after the video
 			if (videoBorderSettings.value?.width > 0) {
 				ctx.save();
 				ctx.beginPath();
@@ -1200,10 +1216,10 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.restore();
 			}
 
-			// Zoom state'i geri yükle
+			// Restore the entire context
 			ctx.restore();
 
-			// Sadece zoom geçişi sırasında motion blur efektini uygula
+			// Motion blur for zoom transitions
 			if (isZoomTransitioning.value) {
 				// ... existing zoom transition code ...
 			}
@@ -1306,12 +1322,25 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			} else if (cameraSettings.value.followMouse && lastCameraPosition.value) {
 				// Mouse takibi aktifse video pozisyonunu ekle
 				cameraPos = {
-					x: lastCameraPosition.value.x - position.value.x,
-					y: lastCameraPosition.value.y - position.value.y,
+					x: lastCameraPosition.value.x,
+					y: lastCameraPosition.value.y,
 				};
 			}
 
 			try {
+				// Zoom aktifse kamera pozisyonunu ona göre ayarla
+				let scaledVideoPosition = { ...position.value };
+				if (videoScale.value > 1.001) {
+					// Zoom aktifse kamera pozisyonu ve zoom ölçeğini hesaba kat
+					if (cameraPos) {
+						// Kameranın zoom'lu görüntüde doğru pozisyonda görünmesi için hesaplama
+						cameraPos = {
+							x: cameraPos.x,
+							y: cameraPos.y,
+						};
+					}
+				}
+
 				drawCamera(
 					ctx,
 					cameraElement,
@@ -1321,8 +1350,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					mouseX,
 					mouseY,
 					cameraPos,
-					1,
-					position.value
+					videoScale.value, // Zoom ölçeğini kameraya aktar
+					scaledVideoPosition
 				);
 			} catch (error) {
 				console.warn("[MediaPlayer] Camera draw error:", error);

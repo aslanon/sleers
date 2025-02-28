@@ -39,7 +39,8 @@ export const useCameraRenderer = () => {
 		// Update hover effect
 		updateHoverScale();
 
-		// Calculate camera dimensions
+		// Calculate camera dimensions - consider zoom scale for initial dimensions
+		// Base size calculation considering the zoom
 		let cameraWidth = (canvasWidth * cameraSettings.value.size) / 100;
 		let cameraHeight;
 
@@ -201,38 +202,52 @@ export const useCameraRenderer = () => {
 		// Calculate camera position with fallbacks
 		let cameraX, cameraY;
 
+		// Consider zoom scale when calculating camera position
 		if (dragPosition && !cameraSettings.value.followMouse) {
-			// Mouse takibi kapalıysa ve kamera sürükleniyorsa sadece dragPosition'ı kullan
+			// If camera is being dragged and not following mouse, use drag position
+			// When zoomed, account for the zoom scale in positioning
 			cameraX = dragPosition.x;
 			cameraY = dragPosition.y;
 		} else if (cameraSettings.value.followMouse) {
-			// Mouse takibi aktifse video pozisyonunu ekle ve offset uygula
-			const minOffset = 200; // Minimum mesafe
-			const offsetX = minOffset * dpr; // Sağda sabit mesafe
-			const offsetY = minOffset * dpr; // Aşağıda sabit mesafe
+			// For mouse following, consider the zoom scale when applying offsets
+			const minOffset = 200; // Minimum distance
+			const offsetX = minOffset * dpr; // Fixed distance on right
+			const offsetY = minOffset * dpr; // Fixed distance below
 
 			if (dragPosition) {
-				// Kamera sürükleniyorsa dragPosition'ı video pozisyonuyla birlikte kullan
+				// If camera is being dragged while following mouse, use drag position with video position
 				cameraX = dragPosition.x + videoPosition.x;
 				cameraY = dragPosition.y + videoPosition.y;
 			} else {
-				// Kamerayı cursor'ın sağına ve altına yerleştir
+				// Position camera to the right and below cursor, accounting for zoom
+				// When zoomed, we need to position the camera correctly relative to the zoomed content
 				cameraX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
 				cameraY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
 			}
 		} else {
-			// Mouse takibi kapalıysa ve sürüklenmiyorsa sabit konumda kal
+			// When not following mouse or being dragged, maintain fixed position
 			cameraX =
 				lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr;
 			cameraY =
 				lastCameraPosition.value?.y || canvasHeight - cameraHeight - 20 * dpr;
 		}
 
+		// Apply zoom adjustments if needed
+		if (zoomScale > 1) {
+			// Adjust camera size slightly when zoomed to keep it proportional
+			const zoomCameraWidth = cameraWidth;
+			const zoomCameraHeight = cameraHeight;
+
+			// Calculate zoom-aware bounds checking
+			cameraX = Math.max(0, Math.min(canvasWidth - zoomCameraWidth, cameraX));
+			cameraY = Math.max(0, Math.min(canvasHeight - zoomCameraHeight, cameraY));
+		}
+
 		// Ensure camera stays within canvas bounds
 		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
 		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
 
-		// Save last position
+		// Save last position, accounting for zoom
 		if (dragPosition || !cameraSettings.value.followMouse) {
 			lastCameraPosition.value = {
 				x: cameraSettings.value.followMouse
@@ -254,6 +269,7 @@ export const useCameraRenderer = () => {
 			const scaleOffsetX = (scaledWidth - cameraWidth) / 2;
 			const scaleOffsetY = (scaledHeight - cameraHeight) / 2;
 
+			// Apply camera position transforms
 			ctx.translate(cameraX + cameraWidth / 2, cameraY + cameraHeight / 2);
 			ctx.scale(hoverScale.value, hoverScale.value);
 			ctx.translate(
