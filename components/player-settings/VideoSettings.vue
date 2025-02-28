@@ -482,7 +482,7 @@ function updateBorderOpacity() {
 .wallpaper-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-	gap: 8px;
+	gap: 4px;
 	margin-top: 8px;
 }
 
