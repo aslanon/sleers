@@ -1172,7 +1172,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawHeight,
 					radius.value * dpr
 				);
-				ctx.strokeStyle = videoBorderSettings.value.color || "#000000";
+				ctx.strokeStyle = videoBorderSettings.value.color || "rgba(0, 0, 0, 1)";
 				ctx.lineWidth = videoBorderSettings.value.width * dpr;
 				ctx.stroke();
 				ctx.restore();
@@ -1262,7 +1262,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawHeight,
 					radius.value * dpr
 				);
-				ctx.strokeStyle = videoBorderSettings.value.color || "#000000";
+				ctx.strokeStyle = videoBorderSettings.value.color || "rgba(0, 0, 0, 1)";
 				ctx.lineWidth = videoBorderSettings.value.width * dpr;
 				ctx.stroke();
 				ctx.restore();

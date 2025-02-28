@@ -188,24 +188,36 @@
 			/>
 
 			<!-- Border Rengi -->
-			<div class="flex items-center justify-between">
-				<div>
+			<div class="flex w-full flex-col gap-2 items-center justify-between">
+				<div class="w-full">
 					<h4 class="text-base font-semibold text-white">Kenarlık Rengi</h4>
-					<p class="text-xs font-normal text-gray-500">
-						Kamera kenarlığının rengini seçin.
-					</p>
 				</div>
-				<div class="flex items-center space-x-2">
+				<div class="flex w-full items-center space-x-2">
 					<input
 						type="color"
-						v-model="cameraBorderColor"
+						v-model="borderColorHex"
 						class="w-8 h-8 rounded cursor-pointer"
+						@input="updateBorderColor"
 					/>
-					<input
-						type="text"
-						v-model="cameraBorderColor"
-						class="w-20 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
-						placeholder="#RRGGBB"
+					<div class="flex flex-col space-y-1">
+						<input
+							type="text"
+							v-model="borderColorHex"
+							class="w-20 bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500"
+							placeholder="#RRGGBB"
+							@input="updateBorderColor"
+						/>
+					</div>
+				</div>
+				<div class="flex w-full items-center space-x-2">
+					<SliderInput
+						class="w-full"
+						v-model="borderOpacityValue"
+						desc="Kenarlik opakligi"
+						:min="0"
+						:max="1"
+						:step="0.01"
+						unit=""
 					/>
 				</div>
 			</div>
@@ -249,7 +261,13 @@ const customRatioWidth = ref(cameraSettings.value?.customRatioWidth || 16);
 const customRatioHeight = ref(cameraSettings.value?.customRatioHeight || 9);
 // Border ayarları için değişkenler
 const cameraBorderWidth = ref(cameraSettings.value?.borderWidth || 0);
-const cameraBorderColor = ref(cameraSettings.value?.borderColor || "#000000");
+const borderColorHex = ref(
+	rgbaToHex(cameraSettings.value?.borderColor || "rgba(0, 0, 0, 1)")
+);
+const borderOpacityValue = ref(cameraSettings.value?.borderOpacity || 1);
+const cameraBorderColor = ref(
+	hexToRgba(borderColorHex.value, borderOpacityValue.value)
+);
 
 // Drag ve resize işlemleri için state
 const isDragging = ref(false);
@@ -556,6 +574,52 @@ onUnmounted(() => {
 	document.removeEventListener("mouseup", stopResize);
 });
 
+// RGBA'dan HEX'e dönüştürme fonksiyonu
+function rgbaToHex(rgba) {
+	// RGBA formatını parçalara ayır (rgba(r,g,b,a))
+	const match = rgba.match(
+		/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d*\.?\d+))?\)/
+	);
+	if (!match) return "#000000"; // Varsayılan değer
+
+	const r = parseInt(match[1]);
+	const g = parseInt(match[2]);
+	const b = parseInt(match[3]);
+
+	// RGB değerlerini HEX'e dönüştür
+	return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// HEX'ten RGBA'ya dönüştürme fonksiyonu
+function hexToRgba(hex, opacity = 1) {
+	// HEX formatını parçalara ayır
+	const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+	if (!result) return "rgba(0, 0, 0, " + opacity + ")"; // Varsayılan değer
+
+	const r = parseInt(result[1], 16);
+	const g = parseInt(result[2], 16);
+	const b = parseInt(result[3], 16);
+
+	// RGBA formatına dönüştür
+	return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+// Renk değişikliğini güncelle
+function updateBorderColor() {
+	cameraBorderColor.value = hexToRgba(
+		borderColorHex.value,
+		borderOpacityValue.value
+	);
+}
+
+// Opacity değişikliğini güncelle
+function updateBorderOpacity() {
+	cameraBorderColor.value = hexToRgba(
+		borderColorHex.value,
+		borderOpacityValue.value
+	);
+}
+
 // Değişiklikleri izle ve store'u güncelle
 watch(
 	[
@@ -569,7 +633,8 @@ watch(
 		customRatioWidth,
 		customRatioHeight,
 		cameraBorderWidth,
-		cameraBorderColor,
+		borderColorHex,
+		borderOpacityValue,
 	],
 	([
 		size,
@@ -582,8 +647,10 @@ watch(
 		customWidth,
 		customHeight,
 		borderWidth,
-		borderColor,
+		borderColorHex,
+		borderOpacity,
 	]) => {
+		const borderColor = hexToRgba(borderColorHex, borderOpacity);
 		updateCameraSettings({
 			size,
 			radius,
@@ -596,6 +663,7 @@ watch(
 			customRatioHeight: customHeight,
 			borderWidth,
 			borderColor,
+			borderOpacity,
 		});
 	},
 	{ immediate: true, deep: true }

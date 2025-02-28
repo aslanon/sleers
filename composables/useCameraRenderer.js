@@ -379,7 +379,8 @@ export const useCameraRenderer = () => {
 					cameraHeight,
 					safeRadius
 				);
-				ctx.strokeStyle = cameraSettings.value.borderColor || "#000000";
+				ctx.strokeStyle =
+					cameraSettings.value.borderColor || "rgba(0, 0, 0, 1)";
 				ctx.lineWidth = cameraSettings.value.borderWidth * dpr;
 				ctx.stroke();
 				ctx.restore();

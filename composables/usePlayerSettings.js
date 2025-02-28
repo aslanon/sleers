@@ -27,14 +27,16 @@ const cameraSettings = ref({
 	customRatioWidth: 16,
 	customRatioHeight: 9,
 	borderWidth: 0,
-	borderColor: "#000000",
+	borderColor: "rgba(0, 0, 0, 1)",
+	borderOpacity: 1,
 });
 
 // Ekran kaydı videosu için border ayarları
 const videoBorderSettings = ref({
 	width: 0,
-	color: "#000000",
+	color: "rgba(0, 0, 0, 1)",
 	radius: 0,
+	opacity: 1,
 });
 
 // Motion blur için sabitler
