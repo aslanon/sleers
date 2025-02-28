@@ -184,6 +184,13 @@ async function checkPermissions() {
 
 // İzinleri otomatik olarak iste
 async function autoRequestPermissions() {
+	// Otomatik izin isteme devre dışı bırakıldı
+	console.log(
+		"Otomatik izin isteme devre dışı bırakıldı. Kullanıcı manuel olarak izin isteyebilir."
+	);
+	return;
+
+	// Aşağıdaki kod artık çalışmayacak
 	try {
 		// Kamera izni durumuna göre
 		if (permissions.value.camera === "prompt") {

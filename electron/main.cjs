@@ -1652,101 +1652,27 @@ function stopMouseTracking() {
 }
 
 /**
- * Uygulama başlangıcında gerekli tüm izinleri kontrol eder ve ister
+ * Uygulama başlangıcında gerekli tüm izinleri kontrol eder
  */
 async function checkAndRequestPermissions() {
 	// macOS'ta izin kontrolü yapılır
 	if (process.platform === "darwin") {
 		try {
-			const { systemPreferences, dialog } = require("electron");
+			const { systemPreferences } = require("electron");
 
-			// Önce kullanıcıya izinler hakkında bilgi ver
-			const permissionInfo = await dialog.showMessageBox({
-				type: "info",
-				title: "İzin Bilgisi",
-				message: "Sleer uygulamasının çalışması için izinler gerekiyor",
-				detail:
-					"Bu uygulama, ekran kaydı, kamera ve mikrofon erişimi gerektirmektedir. Lütfen istendiğinde bu izinleri verin.\n\nBu izinleri daha sonra Sistem Tercihleri > Gizlilik ve Güvenlik bölümünden değiştirebilirsiniz.",
-				buttons: ["Devam Et"],
-				defaultId: 0,
-			});
-
-			// Kamera izni kontrolü
+			// Sadece izinleri kontrol et, otomatik olarak isteme
 			console.log("[Main] Kamera izinleri kontrol ediliyor...");
 			const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
 			console.log("[Main] Kamera erişim durumu:", cameraStatus);
 
-			if (cameraStatus !== "granted") {
-				console.log("[Main] Kamera izni isteniyor...");
-				const cameraGranted = await systemPreferences.askForMediaAccess(
-					"camera"
-				);
-				console.log(
-					"[Main] Kamera izni sonucu:",
-					cameraGranted ? "İzin verildi" : "İzin reddedildi"
-				);
-
-				// İzin reddedildiyse hatırlatma göster
-				if (!cameraGranted) {
-					dialog.showMessageBox({
-						type: "warning",
-						title: "Kamera İzni Reddedildi",
-						message: "Kamera izni reddedildi",
-						detail:
-							"Kamera erişimi olmadan, video kayıtlarınızda kamera görüntüsü olmayacaktır. Bu izni Sistem Tercihleri > Gizlilik ve Güvenlik > Kamera bölümünden verebilirsiniz.",
-						buttons: ["Tamam"],
-						defaultId: 0,
-					});
-				}
-			}
-
-			// Mikrofon izni kontrolü
 			console.log("[Main] Mikrofon izinleri kontrol ediliyor...");
 			const microphoneStatus =
 				systemPreferences.getMediaAccessStatus("microphone");
 			console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
 
-			if (microphoneStatus !== "granted") {
-				console.log("[Main] Mikrofon izni isteniyor...");
-				const microphoneGranted = await systemPreferences.askForMediaAccess(
-					"microphone"
-				);
-				console.log(
-					"[Main] Mikrofon izni sonucu:",
-					microphoneGranted ? "İzin verildi" : "İzin reddedildi"
-				);
-
-				// İzin reddedildiyse hatırlatma göster
-				if (!microphoneGranted) {
-					dialog.showMessageBox({
-						type: "warning",
-						title: "Mikrofon İzni Reddedildi",
-						message: "Mikrofon izni reddedildi",
-						detail:
-							"Mikrofon erişimi olmadan, kayıtlarınızda ses olmayacaktır. Bu izni Sistem Tercihleri > Gizlilik ve Güvenlik > Mikrofon bölümünden verebilirsiniz.",
-						buttons: ["Tamam"],
-						defaultId: 0,
-					});
-				}
-			}
-
-			// Ekran kaydı izni kontrolü
-			// Not: macOS'ta ekran kaydı izni programatik olarak istenemez
-			// Kullanıcı ilk kayıt denemesinde sistem tarafından sorulacaktır
 			console.log(
 				"[Main] Ekran kaydı için sistem izinleri otomatik olarak istenemez. İlk kayıtta sistem tarafından sorulacaktır."
 			);
-
-			// Ekran kaydı izni için bilgilendirme
-			dialog.showMessageBox({
-				type: "info",
-				title: "Ekran Kaydı İzni",
-				message: "Ekran kaydı için izin gerekecek",
-				detail:
-					"İlk ekran kaydını başlattığınızda, macOS sizden izin isteyecektir. Lütfen bu izni verin.\n\nEkran kaydı izinlerini Sistem Tercihleri > Gizlilik ve Güvenlik > Ekran Kaydı bölümünden yönetebilirsiniz.",
-				buttons: ["Anladım"],
-				defaultId: 0,
-			});
 		} catch (error) {
 			console.error("[Main] İzinler kontrol edilirken hata:", error);
 		}

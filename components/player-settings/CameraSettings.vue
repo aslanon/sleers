@@ -68,7 +68,7 @@
 						class="bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
 						@change="applyAspectRatio"
 					>
-						<option value="free">Serbest</option>
+						<!-- <option value="free">Serbest</option> -->
 						<!-- <option value="custom">Özel</option> -->
 						<option value="1:1">1:1 Kare</option>
 						<option value="16:9">16:9 Yatay</option>
@@ -206,7 +206,7 @@ const cameraCrop = ref(
 );
 const followMouse = ref(cameraSettings.value?.followMouse || false);
 const mirrorCamera = ref(cameraSettings.value?.mirror || false);
-const selectedAspectRatio = ref(cameraSettings.value?.aspectRatio || "free");
+const selectedAspectRatio = ref(cameraSettings.value?.aspectRatio || "1:1");
 // Özel oran için değişkenler
 const customRatioWidth = ref(cameraSettings.value?.customRatioWidth || 16);
 const customRatioHeight = ref(cameraSettings.value?.customRatioHeight || 9);
