@@ -40,6 +40,8 @@ contextBridge.exposeInMainWorld("electron", {
 		saveTempVideo: (data, type) =>
 			ipcRenderer.invoke(IPC_EVENTS.SAVE_TEMP_VIDEO, data, type),
 		getTempVideoPath: () => ipcRenderer.invoke(IPC_EVENTS.GET_TEMP_VIDEO_PATH),
+		saveScreenshot: (imageData, filePath) =>
+			ipcRenderer.invoke(IPC_EVENTS.SAVE_SCREENSHOT, imageData, filePath),
 	},
 	windowControls: {
 		close: () => ipcRenderer.send(IPC_EVENTS.WINDOW_CLOSE),

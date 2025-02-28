@@ -990,6 +990,30 @@ function setupIpcHandlers() {
 		return result.filePath;
 	});
 
+	// Handle screenshot saving
+	ipcMain.handle(
+		IPC_EVENTS.SAVE_SCREENSHOT,
+		async (event, imageData, filePath) => {
+			try {
+				if (!imageData || !filePath) {
+					return { success: false, error: "Invalid image data or file path" };
+				}
+
+				// Remove data:image/png;base64, prefix if it exists
+				const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+
+				// Write the file
+				const fs = require("fs");
+				fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+
+				return { success: true };
+			} catch (error) {
+				console.error("Error saving screenshot:", error);
+				return { success: false, error: error.message };
+			}
+		}
+	);
+
 	// Desktop capturer
 	ipcMain.handle(
 		IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES,

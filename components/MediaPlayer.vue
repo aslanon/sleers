@@ -2098,45 +2098,16 @@ defineExpose({
 
 	// Video frame capture
 	captureFrame: () => {
-		if (!videoElement || !canvasRef.value) return null;
+		if (!canvasRef.value) return null;
 
-		// Geçici bir canvas oluştur
-		const tempCanvas = document.createElement("canvas");
-		const tempCtx = tempCanvas.getContext("2d");
-
-		// Video veya crop boyutlarını kullan
-		let sourceWidth, sourceHeight, sourceX, sourceY;
-		if (cropArea.value?.isApplied) {
-			sourceWidth = cropArea.value.width;
-			sourceHeight = cropArea.value.height;
-			sourceX = cropArea.value.x;
-			sourceY = cropArea.value.y;
-		} else {
-			sourceWidth = videoElement.videoWidth;
-			sourceHeight = videoElement.videoHeight;
-			sourceX = 0;
-			sourceY = 0;
+		// Canvas'ı direkt olarak kopyala - tüm içeriği almak için
+		try {
+			// Yüksek kaliteli bir görüntü almak için
+			return canvasRef.value.toDataURL("image/png", 1.0);
+		} catch (error) {
+			console.error("[MediaPlayer] Screenshot capture error:", error);
+			return null;
 		}
-
-		// Canvas boyutlarını ayarla
-		tempCanvas.width = sourceWidth;
-		tempCanvas.height = sourceHeight;
-
-		// Video frame'ini çiz
-		tempCtx.drawImage(
-			videoElement,
-			sourceX,
-			sourceY,
-			sourceWidth,
-			sourceHeight,
-			0,
-			0,
-			sourceWidth,
-			sourceHeight
-		);
-
-		// Base64 formatında frame'i döndür
-		return tempCanvas.toDataURL("image/jpeg", 0.5);
 	},
 
 	// Audio controls

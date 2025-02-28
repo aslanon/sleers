@@ -125,6 +125,7 @@
 						@toggle-mute="toggleMute"
 						@toggle-split-mode="toggleSplitMode"
 						@update:isCropMode="isCropMode = $event"
+						@captureScreenshot="handleCaptureScreenshot"
 						class="mt-4"
 					/>
 				</div>
@@ -880,4 +881,42 @@ onUnmounted(() => {
 	window.removeEventListener("mousemove", handleGlobalMouseMove);
 	window.removeEventListener("mouseup", handleGlobalMouseUp);
 });
+
+// Screenshot alma fonksiyonu
+const handleCaptureScreenshot = async () => {
+	if (!mediaPlayerRef.value) return;
+
+	try {
+		// Canvas'tan görüntüyü al
+		const imageData = mediaPlayerRef.value.captureFrame();
+		if (!imageData) {
+			console.error("Ekran görüntüsü alınamadı");
+			return;
+		}
+
+		// Electron IPC ile görüntüyü kaydet
+		const result = await electron?.ipcRenderer.invoke("SHOW_SAVE_DIALOG", {
+			title: "Ekran Görüntüsünü Kaydet",
+			defaultPath: `screenshot_${Date.now()}.png`,
+			filters: [{ name: "Görüntü", extensions: ["png", "jpg"] }],
+		});
+
+		if (result) {
+			// Base64 formatındaki görüntüyü kaydet
+			const saveResult = await electron?.ipcRenderer.invoke(
+				IPC_EVENTS.SAVE_SCREENSHOT,
+				imageData,
+				result
+			);
+
+			if (saveResult?.success) {
+				console.log("Ekran görüntüsü başarıyla kaydedildi:", result);
+			} else {
+				console.error("Ekran görüntüsü kaydedilemedi:", saveResult?.error);
+			}
+		}
+	} catch (error) {
+		console.error("Ekran görüntüsü alınırken hata oluştu:", error);
+	}
+};
 </script>
