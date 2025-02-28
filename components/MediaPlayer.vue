@@ -1111,7 +1111,12 @@ watch(backgroundImage, (newImage) => {
 });
 
 // Canvas güncelleme fonksiyonu
-const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
+const updateCanvas = (
+	timestamp,
+	mouseX = 0,
+	mouseY = 0,
+	customRenderCallback = null
+) => {
 	if (!videoElement || !ctx || !canvasRef.value) {
 		console.warn("[MediaPlayer] Missing required elements for canvas update");
 		return;
@@ -1498,6 +1503,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					initializeCamera();
 				}
 			}
+		}
+
+		// Özel render callback varsa çalıştır (GIF eklemek için)
+		if (typeof customRenderCallback === "function") {
+			customRenderCallback();
 		}
 
 		// Animasyon frame'ini sadece gerektiğinde talep et
@@ -2325,6 +2335,137 @@ defineExpose({
 		if (cameraElement) cameraElement.playbackRate = rate;
 	},
 	updateAspectRatio,
+
+	// GIF support
+	addGif: (gifData) => {
+		if (!canvasRef.value) {
+			console.warn("[MediaPlayer] Canvas reference is not available");
+			return;
+		}
+
+		// Gelen veri string mi yoksa obje mi kontrol et
+		const primaryPath =
+			typeof gifData === "object" ? gifData.primaryPath : gifData;
+		const fallbackPath =
+			typeof gifData === "object" ? gifData.fallbackPath : null;
+
+		console.log("[MediaPlayer] GIF ekleme başlatılıyor:", {
+			primaryPath,
+			fallbackPath,
+		});
+
+		const ctx = canvasRef.value.getContext("2d");
+		const gifImage = new Image();
+
+		// Hata yakalama
+		gifImage.onerror = (error) => {
+			console.error("[MediaPlayer] Birincil GIF yükleme hatası:", error);
+
+			// Yedek yolu dene
+			if (fallbackPath) {
+				console.log("[MediaPlayer] Yedek yolu deneniyor:", fallbackPath);
+
+				const backupImage = new Image();
+				backupImage.onload = () => {
+					// Canvas ortasına GIF ekle
+					const gifX = (canvasRef.value.width - backupImage.width) / 2;
+					const gifY = (canvasRef.value.height - backupImage.height) / 2;
+
+					// Canvas güncelle
+					updateCanvas(performance.now(), 0, 0, () => {
+						ctx.drawImage(backupImage, gifX, gifY);
+					});
+
+					console.log("[MediaPlayer] GIF yedek yol ile başarıyla yüklendi");
+				};
+
+				backupImage.onerror = (fallbackError) => {
+					console.error(
+						"[MediaPlayer] Yedek GIF yükleme hatası:",
+						fallbackError
+					);
+
+					// Son çare olarak başka bir yol dene
+					const fileName = (primaryPath || fallbackPath).split("/").pop();
+					const lastResortPath = `./public/gifs/${fileName}`;
+
+					if (
+						lastResortPath !== fallbackPath &&
+						lastResortPath !== primaryPath
+					) {
+						console.log(
+							"[MediaPlayer] Son çare yolunu deneniyor:",
+							lastResortPath
+						);
+
+						const lastImage = new Image();
+						lastImage.onload = () => {
+							const gifX = (canvasRef.value.width - lastImage.width) / 2;
+							const gifY = (canvasRef.value.height - lastImage.height) / 2;
+
+							updateCanvas(performance.now(), 0, 0, () => {
+								ctx.drawImage(lastImage, gifX, gifY);
+							});
+
+							console.log("[MediaPlayer] GIF son çare yoluyla yüklendi");
+						};
+
+						lastImage.onerror = () => {
+							// Bir son denemede eski yolu kontrol et
+							const oldPathFallback = `./assets/gifs/${fileName}`;
+							console.log(
+								"[MediaPlayer] Son bir deneme daha:",
+								oldPathFallback
+							);
+
+							const finalImage = new Image();
+							finalImage.onload = () => {
+								const gifX = (canvasRef.value.width - finalImage.width) / 2;
+								const gifY = (canvasRef.value.height - finalImage.height) / 2;
+
+								updateCanvas(performance.now(), 0, 0, () => {
+									ctx.drawImage(finalImage, gifX, gifY);
+								});
+
+								console.log("[MediaPlayer] GIF en son çare yoluyla yüklendi");
+							};
+
+							finalImage.onerror = () => {
+								console.error(
+									"[MediaPlayer] Tüm GIF yükleme denemeleri başarısız oldu"
+								);
+							};
+
+							finalImage.src = oldPathFallback;
+						};
+
+						lastImage.src = lastResortPath;
+					}
+				};
+
+				backupImage.src = fallbackPath;
+			} else {
+				console.error("[MediaPlayer] Yedek yol yok, GIF yüklenemedi");
+			}
+		};
+
+		// GIF yüklendiğinde canvas'a ekle
+		gifImage.onload = () => {
+			// Canvas ortasına GIF'i ekle
+			const gifX = (canvasRef.value.width - gifImage.width) / 2;
+			const gifY = (canvasRef.value.height - gifImage.height) / 2;
+
+			// Canvas'ı güncelle
+			updateCanvas(performance.now(), 0, 0, () => {
+				ctx.drawImage(gifImage, gifX, gifY);
+			});
+
+			console.log("[MediaPlayer] GIF başarıyla eklendi:", primaryPath);
+		};
+
+		// Kaynak belirledikten sonra yükleme işlemini başlat
+		gifImage.src = primaryPath;
+	},
 
 	// State and data
 	getState: () => ({ ...videoState.value }),

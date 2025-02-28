@@ -31,6 +31,12 @@ contextBridge.exposeInMainWorld("electron", {
 		validateScreenId: (screenId) =>
 			ipcRenderer.invoke("VALIDATE_APERTURE_SCREEN_ID", screenId),
 	},
+	app: {
+		getPath: () => ipcRenderer.invoke("GET_APP_PATH"),
+		locateGifFiles: () => ipcRenderer.invoke("LOCATE_GIF_FILES"),
+		getFileAsDataUrl: (filePath) =>
+			ipcRenderer.invoke("GET_FILE_AS_DATA_URL", filePath),
+	},
 	permissions: {
 		check: () => ipcRenderer.invoke(IPC_EVENTS.CHECK_PERMISSIONS),
 		request: (type) => ipcRenderer.invoke("REQUEST_PERMISSION", type),

@@ -112,6 +112,20 @@
 							fill="white"
 						/>
 					</svg>
+
+					<svg
+						v-if="tab.id === 'gifs'"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M18 4H6C4.9 4 4 4.9 4 6V18C4 19.1 4.9 20 6 20H18C19.1 20 20 19.1 20 18V6C20 4.9 19.1 4 18 4ZM11 10.5V13.5C11 14.3 10.3 15 9.5 15H8.5C7.7 15 7 14.3 7 13.5V10.5C7 9.7 7.7 9 8.5 9C9.3 9 10 9.7 10 10.5V11H9V10.5C9 10.2 8.8 10 8.5 10C8.2 10 8 10.2 8 10.5V13.5C8 13.8 8.2 14 8.5 14C8.8 14 9 13.8 9 13.5V12H8V11H11V10.5ZM12 15H11V9H12V15ZM16.5 11H15.5V15H14.5V11H13.5V10H16.5V11Z"
+							fill="white"
+						/>
+					</svg>
 				</button>
 			</div>
 
@@ -138,6 +152,13 @@
 
 				<!-- Kamera Ayarları Tab -->
 				<CameraSettings v-if="currentTab === 'camera'" />
+
+				<!-- Gif Ayarları Tab -->
+				<GifSettings
+					v-if="currentTab === 'gifs'"
+					:media-player="mediaPlayer"
+					@gif-selected="handleGifSelected"
+				/>
 			</div>
 		</div>
 	</div>
@@ -149,6 +170,7 @@ import VideoSettings from "./player-settings/VideoSettings.vue";
 import MouseSettings from "./player-settings/MouseSettings.vue";
 import ZoomSettings from "./player-settings/ZoomSettings.vue";
 import CameraSettings from "./player-settings/CameraSettings.vue";
+import GifSettings from "./player-settings/GifSettings.vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -177,7 +199,7 @@ const props = defineProps({
 	},
 });
 
-const emit = defineEmits(["update:modelValue"]);
+const emit = defineEmits(["update:modelValue", "gif-selected"]);
 
 // Store'dan currentZoomRange'i al
 const { currentZoomRange } = usePlayerSettings();
@@ -200,6 +222,11 @@ const tabs = [
 		isShowInTab: true,
 	},
 	{
+		id: "gifs",
+		name: "Gif Ekle",
+		isShowInTab: true,
+	},
+	{
 		id: "zoom",
 		name: "Zoom Ayarları",
 		isShowInTab: false,
@@ -207,6 +234,11 @@ const tabs = [
 ];
 
 const currentTab = ref("video");
+
+// Gif seçildiğinde
+const handleGifSelected = (gif) => {
+	emit("gif-selected", gif);
+};
 
 // currentZoomRange değiştiğinde zoom sekmesine geç
 watch(currentZoomRange, (newRange) => {

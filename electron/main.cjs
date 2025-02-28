@@ -82,6 +82,18 @@ ipcMain.handle(IPC_EVENTS.CHECK_PERMISSIONS, async () => {
 	return await checkPermissionStatus();
 });
 
+// IPC handler to get the application path
+ipcMain.handle("GET_APP_PATH", () => {
+	try {
+		const appPath = app.getAppPath();
+		console.log("Requested app path:", appPath);
+		return appPath;
+	} catch (error) {
+		console.error("Failed to get app path:", error);
+		return "";
+	}
+});
+
 // İzin isteme handler'ı ekle
 ipcMain.handle("REQUEST_PERMISSION", async (event, permissionType) => {
 	if (process.platform !== "darwin") {
@@ -1387,6 +1399,179 @@ function setupIpcHandlers() {
 			} catch (error) {
 				console.error("[Main] Pencere kapatma hatası (ESC):", error);
 			}
+		}
+	});
+
+	// IPC handler to locate GIF files
+	ipcMain.handle("LOCATE_GIF_FILES", () => {
+		try {
+			const appPath = app.getAppPath();
+			const possiblePaths = [
+				path.join(appPath, "public", "gifs"),
+				path.join(appPath, "..", "public", "gifs"),
+				path.join(appPath, "assets", "gifs"),
+				path.join(appPath, "..", "assets", "gifs"),
+				path.join(appPath, "electron", "assets", "gifs"),
+				path.join(appPath, "..", "electron", "assets", "gifs"),
+				path.join(appPath, ".output", "public", "gifs"),
+				path.join(appPath, "..", ".output", "public", "gifs"),
+				// Ek yollar
+				path.join(process.resourcesPath, "public", "gifs"),
+				path.join(process.resourcesPath, "app", "public", "gifs"),
+				path.join(process.resourcesPath, "app.asar", "public", "gifs"),
+				path.join(appPath, "dist", "public", "gifs"),
+				path.join(appPath, "..", "dist", "public", "gifs"),
+			];
+
+			console.log("GIF arama başlatılıyor...");
+			console.log("Uygulama yolu:", appPath);
+			console.log("Process resources path:", process.resourcesPath);
+
+			const foundPaths = possiblePaths.filter((p) => {
+				try {
+					const exists = fs.existsSync(p);
+					console.log(
+						`Kontrol edilen yol: ${p} - ${exists ? "BULUNDU" : "BULUNAMADI"}`
+					);
+					return exists;
+				} catch (e) {
+					console.error(`Yol kontrol hatası (${p}):`, e);
+					return false;
+				}
+			});
+
+			console.log("GIF paths search results:", {
+				appPath,
+				possiblePaths,
+				foundPaths,
+			});
+
+			const gifFiles = {};
+
+			// Bulunan dizinlerde GIF dosyalarını ara
+			foundPaths.forEach((dirPath) => {
+				try {
+					const files = fs.readdirSync(dirPath);
+					console.log(`${dirPath} içinde ${files.length} dosya bulundu`);
+
+					files.forEach((file) => {
+						if (file.endsWith(".gif")) {
+							gifFiles[file] = path.join(dirPath, file);
+							console.log(`GIF bulundu: ${file} - ${path.join(dirPath, file)}`);
+						}
+					});
+				} catch (e) {
+					console.error("Error reading directory:", dirPath, e);
+				}
+			});
+
+			// Hiç GIF bulunamadıysa, public/gifs klasörünü oluşturmayı dene
+			if (Object.keys(gifFiles).length === 0) {
+				console.log("Hiç GIF bulunamadı, public/gifs klasörünü kontrol et");
+
+				// public/gifs klasörünün varlığını kontrol et
+				const publicGifsPath = path.join(appPath, "public", "gifs");
+
+				try {
+					if (!fs.existsSync(path.join(appPath, "public"))) {
+						fs.mkdirSync(path.join(appPath, "public"), { recursive: true });
+						console.log("public klasörü oluşturuldu");
+					}
+
+					if (!fs.existsSync(publicGifsPath)) {
+						fs.mkdirSync(publicGifsPath, { recursive: true });
+						console.log("public/gifs klasörü oluşturuldu");
+					}
+				} catch (e) {
+					console.error("Klasör oluşturma hatası:", e);
+				}
+			}
+
+			return {
+				foundPaths,
+				gifFiles,
+			};
+		} catch (error) {
+			console.error("Failed to locate GIF files:", error);
+			return { foundPaths: [], gifFiles: {} };
+		}
+	});
+
+	// IPC handler to get file as data URL
+	ipcMain.handle("GET_FILE_AS_DATA_URL", async (event, filePath) => {
+		try {
+			console.log("Requested file as data URL:", filePath);
+
+			if (!filePath) {
+				console.error("Invalid file path: null or undefined");
+				return null;
+			}
+
+			// Dosya yolunu normalize et
+			const normalizedPath = path.normalize(filePath);
+			console.log("Normalized file path:", normalizedPath);
+
+			// Dosyanın varlığını kontrol et
+			if (!fs.existsSync(normalizedPath)) {
+				console.error("File does not exist:", normalizedPath);
+
+				// Alternatif yolları dene
+				const fileName = path.basename(normalizedPath);
+				const alternativePaths = [
+					path.join(app.getAppPath(), "public", "gifs", fileName),
+					path.join(app.getAppPath(), "..", "public", "gifs", fileName),
+					path.join(process.resourcesPath, "public", "gifs", fileName),
+					path.join(process.resourcesPath, "app", "public", "gifs", fileName),
+				];
+
+				console.log("Trying alternative paths for:", fileName);
+
+				let foundAlternative = null;
+				for (const altPath of alternativePaths) {
+					console.log("Checking alternative path:", altPath);
+					if (fs.existsSync(altPath)) {
+						console.log("Found alternative path:", altPath);
+						foundAlternative = altPath;
+						break;
+					}
+				}
+
+				if (!foundAlternative) {
+					console.error("No alternative paths found for:", fileName);
+					return null;
+				}
+
+				// Alternatif yol bulundu, bu yolu kullan
+				filePath = foundAlternative;
+			} else {
+				filePath = normalizedPath;
+			}
+
+			// Read file as buffer
+			const buffer = fs.readFileSync(filePath);
+			console.log(`Read file: ${filePath}, size: ${buffer.length} bytes`);
+
+			// Determine MIME type based on file extension
+			let mimeType = "application/octet-stream";
+			if (filePath.endsWith(".gif")) {
+				mimeType = "image/gif";
+			} else if (filePath.endsWith(".png")) {
+				mimeType = "image/png";
+			} else if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) {
+				mimeType = "image/jpeg";
+			}
+
+			// Convert to base64
+			const base64Data = buffer.toString("base64");
+			const dataUrl = `data:${mimeType};base64,${base64Data}`;
+
+			console.log(
+				`Converted ${filePath} to data URL, length: ${dataUrl.length}`
+			);
+			return dataUrl;
+		} catch (error) {
+			console.error("Error converting file to data URL:", error);
+			return null;
 		}
 	});
 }

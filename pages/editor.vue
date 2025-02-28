@@ -70,6 +70,7 @@
 							:height="videoHeight"
 							v-model="mouseSize"
 							:media-player="mediaPlayerRef"
+							@gif-selected="handleGifSelected"
 							class="relative"
 						/>
 					</div>
@@ -163,6 +164,21 @@ const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
 // Yardımcı fonksiyonlar
 const generateId = () => {
 	return "id-" + Math.random().toString(36).substr(2, 9);
+};
+
+// GIF seçildiğinde
+const handleGifSelected = (gif) => {
+	if (
+		mediaPlayerRef.value &&
+		typeof mediaPlayerRef.value.addGif === "function"
+	) {
+		console.log("[Editor] GIF seçildi:", gif);
+		mediaPlayerRef.value.addGif(gif.path);
+	} else {
+		console.warn(
+			"[Editor] MediaPlayer henüz hazır değil veya addGif metodu yok"
+		);
+	}
 };
 
 const electron = window.electron;
