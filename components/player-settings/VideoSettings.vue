@@ -36,6 +36,89 @@
 			unit="px"
 		/>
 
+		<!-- Arkaplan Ayarları Tab Yapısı -->
+		<div class="space-y-4">
+			<div class="w-full">
+				<h4 class="text-base font-semibold text-white mb-2">
+					Arkaplan Ayarları
+				</h4>
+				<div class="flex border-b border-zinc-700 mb-4">
+					<button
+						@click="activeBackgroundTab = 'image'"
+						:class="[
+							'py-2 px-4 text-sm font-medium focus:outline-none',
+							activeBackgroundTab === 'image'
+								? 'text-blue-500 border-b-2 border-blue-500'
+								: 'text-gray-400 hover:text-gray-300',
+						]"
+					>
+						Görsel
+					</button>
+					<button
+						@click="activeBackgroundTab = 'color'"
+						:class="[
+							'py-2 px-4 text-sm font-medium focus:outline-none',
+							activeBackgroundTab === 'color'
+								? 'text-blue-500 border-b-2 border-blue-500'
+								: 'text-gray-400 hover:text-gray-300',
+						]"
+					>
+						Renk
+					</button>
+				</div>
+
+				<!-- Renk Tab İçeriği -->
+				<div v-if="activeBackgroundTab === 'color'" class="space-y-4">
+					<div class="color-grid">
+						<button
+							v-for="color in colors"
+							:key="color"
+							@click="selectColor(color)"
+							class="color-button"
+							:class="
+								color === selectedColor
+									? 'color-button-selected'
+									: 'color-button-unselected'
+							"
+							:style="{ backgroundColor: color }"
+						></button>
+					</div>
+				</div>
+
+				<!-- Görsel Tab İçeriği -->
+				<div v-if="activeBackgroundTab === 'image'" class="space-y-4">
+					<div class="wallpaper-grid">
+						<button
+							v-for="index in 28"
+							:key="`image${index}`"
+							@click="selectBackgroundImage(`image${index}`)"
+							class="wallpaper-button"
+							:class="{
+								'wallpaper-button-selected':
+									selectedWallpaper === `image${index}`,
+							}"
+						>
+							<img
+								:src="`/backgrounds/image${index}.jpg`"
+								:alt="`Wallpaper ${index}`"
+								class="w-full h-full object-cover"
+							/>
+						</button>
+					</div>
+
+					<SliderInput
+						v-model="blurValue"
+						label="Blur"
+						desc="Video'nun arkaplanının bulanıklığını ayarlar."
+						:min="0"
+						:max="100"
+						:step="5"
+						unit="px"
+					/>
+				</div>
+			</div>
+		</div>
+
 		<!-- Video Border Ayarları -->
 		<div class="space-y-4">
 			<!-- Border Kalınlığı -->
@@ -84,54 +167,6 @@
 				</div>
 			</div>
 		</div>
-
-		<div class="setting-group">
-			<label class="setting-label">Arkaplan Rengi</label>
-			<div class="color-grid">
-				<button
-					v-for="color in colors"
-					:key="color"
-					@click="selectColor(color)"
-					class="color-button"
-					:class="
-						color === selectedColor
-							? 'color-button-selected'
-							: 'color-button-unselected'
-					"
-					:style="{ backgroundColor: color }"
-				></button>
-			</div>
-		</div>
-
-		<div class="setting-group">
-			<label class="setting-label">Arkaplan Görseli</label>
-			<div class="wallpaper-grid">
-				<button
-					v-for="index in 28"
-					:key="`image${index}`"
-					@click="selectBackgroundImage(`image${index}`)"
-					class="wallpaper-button"
-					:class="{
-						'wallpaper-button-selected': selectedWallpaper === `image${index}`,
-					}"
-				>
-					<img
-						:src="`/backgrounds/image${index}.jpg`"
-						:alt="`Wallpaper ${index}`"
-						class="w-full h-full object-cover"
-					/>
-				</button>
-			</div>
-		</div>
-		<SliderInput
-			v-model="blurValue"
-			label="Blur"
-			desc="Video'nun arkaplanının bulanıklığını ayarlar."
-			:min="0"
-			:max="100"
-			:step="5"
-			unit="px"
-		/>
 	</div>
 </template>
 
@@ -235,6 +270,8 @@ const borderOpacityValue = ref(videoBorderSettings.value?.opacity || 1);
 const borderColorValue = ref(
 	hexToRgba(borderColorHex.value, borderOpacityValue.value)
 );
+// Tab yapısı için state
+const activeBackgroundTab = ref("image"); // Varsayılan olarak renk tab'ı aktif
 
 // Renk seçimi
 const selectColor = (color) => {
@@ -444,7 +481,7 @@ function updateBorderOpacity() {
 
 .wallpaper-grid {
 	display: grid;
-	grid-template-columns: repeat(5, 1fr);
+	grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
 	gap: 8px;
 	margin-top: 8px;
 }
@@ -456,7 +493,7 @@ function updateBorderOpacity() {
 	border: 2px solid transparent;
 	transition: all 0.2s;
 	cursor: pointer;
-	width: 64px;
+	width: 48px;
 }
 
 .wallpaper-button:hover {
