@@ -295,6 +295,16 @@ const togglePlay = async (e) => {
 const play = async () => {
 	if (!videoElement) return;
 	try {
+		console.log("[MediaPlayer] Play called, initial state:", {
+			isPlaying: videoState.value.isPlaying,
+			isPaused: videoState.value.isPaused,
+			videoTime: videoElement ? videoElement.currentTime : "no video",
+			audioTime: audioRef.value ? audioRef.value.currentTime : "no audio",
+			audioExists: !!audioRef.value,
+			audioSrc: audioRef.value ? audioRef.value.src : "no audio",
+			audioMuted: audioRef.value ? audioRef.value.muted : "no audio",
+		});
+
 		// Video bitmiş ise başa sar
 		if (videoElement.currentTime >= videoElement.duration) {
 			videoElement.currentTime = 0;
@@ -317,8 +327,20 @@ const play = async () => {
 			if (cameraElement) {
 				await cameraElement.play();
 			}
-			if (audioRef.value && !audioRef.value.paused) {
-				await audioRef.value.play();
+			if (audioRef.value) {
+				try {
+					console.log("[MediaPlayer] Attempting to play audio:", {
+						src: audioRef.value.src,
+						paused: audioRef.value.paused,
+						muted: audioRef.value.muted,
+					});
+					await audioRef.value.play();
+					console.log("[MediaPlayer] Audio play() succeeded");
+				} catch (audioError) {
+					console.error("[MediaPlayer] Audio play error:", audioError);
+				}
+			} else {
+				console.warn("[MediaPlayer] No audio element to play");
 			}
 
 			// Canvas animasyonunu başlat
@@ -2337,6 +2359,48 @@ watch(
 		}
 	}
 );
+
+// Add watch for audioUrl after other watches
+// ... existing code ...
+// Ses durumu güncelleme
+watch(
+	() => props.isMuted,
+	(newMuted) => {
+		if (videoElement) videoElement.muted = newMuted;
+		if (cameraElement) cameraElement.muted = newMuted;
+		if (audioRef.value) {
+			audioRef.value.muted = newMuted;
+			console.log(
+				`[MediaPlayer] Audio muted set to: ${newMuted}, Audio element:`,
+				{
+					src: audioRef.value.src,
+					paused: audioRef.value.paused,
+					muted: audioRef.value.muted,
+				}
+			);
+		}
+	},
+	{ immediate: true }
+);
+
+// Audio URL değiştiğinde debug için log
+watch(
+	() => props.audioUrl,
+	(newUrl, oldUrl) => {
+		console.log(`[MediaPlayer] Audio URL changed:`, {
+			old: oldUrl,
+			new: newUrl,
+			audioRef: audioRef.value
+				? {
+						exists: true,
+						src: audioRef.value.src,
+				  }
+				: "No audio element yet",
+		});
+	},
+	{ immediate: true }
+);
+// ... existing code ...
 </script>
 
 <style scoped>

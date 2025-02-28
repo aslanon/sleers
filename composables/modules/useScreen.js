@@ -182,7 +182,7 @@ export const useScreen = () => {
 					config.microphone && config.microphoneDeviceId
 						? config.microphoneDeviceId
 						: null,
-				// Ses kaydını aktifleştir
+				// Ses kaydını aktifleştir - aperture kütüphanesi için gerekli özel formatta
 				audio: {
 					captureSystemAudio: config.systemAudio, // Sistem sesini kaydet
 					captureDeviceAudio: config.microphone, // Mikrofon sesini kaydet
@@ -190,6 +190,31 @@ export const useScreen = () => {
 				// Kaynak ID'si varsa ekle
 				sourceId: config.sourceId || null,
 			};
+
+			// Açıkça audio=true parametresini de ekle - aperture kütüphanesi için gerekli
+			if (config.systemAudio || config.microphone) {
+				recordingOptions.audio = true;
+				console.log("[useScreen] Audio explicitly enabled:", {
+					systemAudio: config.systemAudio,
+					microphone: config.microphone,
+					microphoneDeviceId: config.microphoneDeviceId,
+				});
+			} else {
+				console.warn(
+					"[useScreen] Neither system audio nor microphone is enabled"
+				);
+			}
+
+			// Ayrıntılı ses ayarlarını logla
+			console.log("[useScreen] Detailed audio configuration:", {
+				systemAudio: config.systemAudio,
+				microphone: config.microphone,
+				microphoneDeviceId: config.microphoneDeviceId,
+				audioSourceId: recordingOptions.audioSourceId,
+				audioDeviceId: recordingOptions.audioDeviceId,
+				audioObj: recordingOptions.audio,
+				explicitAudio: recordingOptions.audio === true,
+			});
 
 			// Kırpma alanı varsa ekle
 			if (config.width && config.height) {
@@ -234,6 +259,20 @@ export const useScreen = () => {
 				console.log("Aperture kaydı başarıyla başlatıldı");
 				isScreenActive.value = true;
 				apertureStarted = true;
+
+				// Ses dosyası yolunu da ayarla - Aperture'ın gömülü ses kaydını kullanıyoruz
+				if (config.systemAudio || config.microphone) {
+					// Same file path for audio since Aperture combines them
+					audioPath.value = screenPath.value;
+				}
+
+				// RECORDING_STATUS_UPDATE ile ana süreç bilgilendir
+				window.electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_UPDATE, {
+					type: "screen",
+					isActive: true,
+					filePath: screenPath.value,
+					audioPath: audioPath.value, // Ses yolunu da ekle
+				});
 			} catch (error) {
 				console.error("Aperture kaydı başlatılırken hata:", error);
 				throw new Error(`Aperture kaydı başlatılamadı: ${error.message}`);
@@ -303,59 +342,56 @@ export const useScreen = () => {
 
 	const stopScreenRecording = async () => {
 		try {
-			console.log("Ekran kaydı durdurma başlatıldı");
+			console.log("Ekran kaydı durduruluyor...");
 
-			// Yerel bir değişkende IPC_EVENTS'i tut
-			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
-			if (!IPC_EVENTS) {
-				throw new Error("IPC events kullanılamıyor");
-			}
-
-			// Eğer kayıt aktif değilse, işlemi atla
+			// Kaydın aktif olup olmadığını kontrol et
 			if (!isScreenActive.value) {
-				console.warn("Ekran kaydı zaten durdurulmuş, işlem atlanıyor");
-				return { success: false, message: "Kayıt zaten durdurulmuş" };
+				console.log("Ekran kaydı zaten durdurulmuş");
+				return {
+					success: true,
+					videoPath: screenPath.value,
+					audioPath: audioPath.value,
+				};
 			}
 
-			// Önce state'i false yap ki yeni kontroller yapılmasın
-			isScreenActive.value = false;
-
-			// Dosya boyutu kontrol aralığını temizle
-			if (fileSizeCheckInterval.value) {
-				clearInterval(fileSizeCheckInterval.value);
-				fileSizeCheckInterval.value = null;
-			}
-
-			// Aperture kaydını durdur
-			console.log("Aperture kaydı durduruluyor...");
+			// Kaydı durdur ve sonuç bekle
 			const recordingStopped = await window.electron?.ipcRenderer.invoke(
 				"STOP_APERTURE_RECORDING",
 				screenPath.value
 			);
 
 			if (!recordingStopped) {
-				console.error("Aperture kaydı durdurulurken hata oluştu");
-			} else {
-				console.log("Aperture kaydı başarıyla durduruldu");
+				throw new Error("Aperture kaydı durdurulamadı");
 			}
 
-			// Dosya boyutunu kontrol et
+			// Kayıt durumunu pasif olarak işaretle
+			isScreenActive.value = false;
+
+			// Dosya boyutunu alıp kontrol et
 			let fileSize = 0;
 			try {
-				fileSize = await window.electron?.ipcRenderer.invoke(
-					"GET_FILE_SIZE",
+				console.log("Oluşan dosyanın boyutu kontrol ediliyor...");
+				const stats = await window.electron?.ipcRenderer.invoke(
+					IPC_EVENTS.GET_FILE_SIZE,
 					screenPath.value
 				);
+				if (stats) {
+					fileSize = stats.size;
+					console.log(
+						`Dosya boyutu: ${fileSize} byte (${(
+							fileSize /
+							(1024 * 1024)
+						).toFixed(2)}MB)`
+					);
 
-				console.log(
-					`Ekran kaydı dosya boyutu: ${(fileSize / (1024 * 1024)).toFixed(2)}MB`
-				);
-
-				if (fileSize === 0) {
-					console.error("Ekran kaydı dosyası boş (0 byte)");
+					// Boyut çok küçükse uyarı
+					if (fileSize < 10240) {
+						// 10KB
+						console.warn("Dosya boyutu çok küçük, kayıt sorunlu olabilir!");
+					}
 				}
-			} catch (fileSizeError) {
-				console.error("Dosya boyutu kontrol edilirken hata:", fileSizeError);
+			} catch (error) {
+				console.error("Dosya boyutu kontrol edilirken hata:", error);
 			}
 
 			// Stream'leri sonlandır
@@ -373,20 +409,31 @@ export const useScreen = () => {
 				);
 			}
 
-			// Ses stream'ini sonlandır (eğer varsa)
+			// Aperture, video ve sesi aynı dosyaya kaydeder, ayrı bir ses dosyası yok
+			// Bu nedenle audioPath.value'yu kontrol etmemize gerek yok
+			console.log("Ekran kaydı ses durumu:", {
+				systemAudio: config.systemAudio,
+				microphone: config.microphone,
+				audioPath: audioPath.value,
+				audioPathMatches: audioPath.value === screenPath.value,
+				fileSize: fileSize,
+			});
+
+			// Ses dosyasının varlığını ve boyutunu kontrol et
 			if (audioPath.value) {
 				try {
-					console.log("Ses medya stream'i sonlandırılıyor...");
-					await window.electron?.ipcRenderer.invoke(
-						IPC_EVENTS.END_MEDIA_STREAM,
-						"audio"
+					const audioFileSize = await window.electron?.ipcRenderer.invoke(
+						IPC_EVENTS.GET_FILE_SIZE,
+						audioPath.value
 					);
-					console.log("Ses medya stream'i sonlandırıldı");
-				} catch (audioStreamError) {
-					console.error(
-						"Ses medya stream'i sonlandırılırken hata:",
-						audioStreamError
+					console.log(
+						`[useScreen] Audio file size: ${audioFileSize} bytes (${(
+							audioFileSize /
+							(1024 * 1024)
+						).toFixed(2)}MB)`
 					);
+				} catch (audioError) {
+					console.error("[useScreen] Error checking audio file:", audioError);
 				}
 			}
 
@@ -414,18 +461,18 @@ export const useScreen = () => {
 				// Medya dosyalarını bildir
 				console.log("Medya dosyalarının hazır olduğu bildiriliyor...", {
 					videoPath: screenPath.value,
-					audioPath: audioPath.value,
+					audioPath: audioPath.value, // Video ve ses aynı dosyada
 				});
 
 				window.electron?.ipcRenderer.send(IPC_EVENTS.MEDIA_PATHS, {
 					videoPath: screenPath.value,
-					audioPath: audioPath.value,
+					audioPath: audioPath.value, // Video ve ses aynı dosyada
 				});
 
 				// İşleme tamamlandı bildirimi
 				window.electron?.ipcRenderer.send(IPC_EVENTS.PROCESSING_COMPLETE, {
 					videoPath: screenPath.value,
-					audioPath: audioPath.value,
+					audioPath: audioPath.value, // Video ve ses aynı dosyada
 					cameraPath: null,
 				});
 			}
@@ -434,7 +481,7 @@ export const useScreen = () => {
 			return {
 				success: true,
 				videoPath: screenPath.value,
-				audioPath: audioPath.value,
+				audioPath: audioPath.value, // Video ve ses aynı dosyada
 			};
 		} catch (error) {
 			console.error("Ekran kaydı durdurulurken hata:", error);

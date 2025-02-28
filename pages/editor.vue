@@ -249,6 +249,8 @@ const loadMedia = async (filePath, type = "video") => {
 				? "audio/webm"
 				: "audio/mp4";
 
+		console.log(`[editor.vue] ${type} MIME type:`, mimeType);
+
 		const byteCharacters = atob(base64Data);
 		const byteNumbers = new Array(byteCharacters.length);
 		for (let i = 0; i < byteCharacters.length; i++) {
@@ -256,6 +258,8 @@ const loadMedia = async (filePath, type = "video") => {
 		}
 		const byteArray = new Uint8Array(byteNumbers);
 		const blob = new Blob([byteArray], { type: mimeType });
+
+		console.log(`[editor.vue] ${type} blob created, size:`, blob.size);
 
 		if (type === "video") {
 			if (videoBlob.value) URL.revokeObjectURL(videoBlob.value);
@@ -719,12 +723,31 @@ onMounted(async () => {
 		IPC_EVENTS.GET_EDITOR_SETTINGS
 	);
 
-	console.log("aslanon", editorSettings);
+	console.log("Editor settings:", editorSettings);
 	let isCameraFollowMouse = editorSettings.camera.followMouse;
 
 	updateCameraSettings({
 		followMouse: isCameraFollowMouse,
 	});
+
+	// Mevcut kaydedicileri temizle
+	if (mediaRecorder.value) {
+		mediaRecorder.value = null;
+	}
+
+	// Ekran boyutlarını alıp saklayalım
+	if (window?.electron?.screen) {
+		const displaySize = await window.electron.screen.getPrimaryDisplay();
+		if (displaySize) {
+			screenWidth.value = displaySize.bounds.width;
+			screenHeight.value = displaySize.bounds.height;
+		}
+	}
+
+	// Medya dosyalarını yenileştirilmiş loadMediaFromState() fonksiyonu ile yükle
+	await loadMediaFromState();
+
+	// ... rest of the existing code ...
 });
 
 onUnmounted(() => {
@@ -919,4 +942,56 @@ const handleCaptureScreenshot = async () => {
 		console.error("Ekran görüntüsü alınırken hata oluştu:", error);
 	}
 };
+
+// Medya dosyalarını yükleme fonksiyonu
+async function loadMediaFromState() {
+	try {
+		if (electron?.ipcRenderer) {
+			// Medya yollarını al
+			const mediaState = await electron.ipcRenderer.invoke("GET_MEDIA_STATE");
+
+			console.log("Medya durumu alındı:", mediaState);
+
+			// Video dosyası kontrolü
+			if (mediaState.videoPath) {
+				console.log("Video dosyası alındı:", mediaState.videoPath);
+				await loadMedia(mediaState.videoPath, "video");
+			} else {
+				console.warn("[editor.vue] Video path not found in media state");
+			}
+
+			// Audio dosyası kontrolü
+			if (mediaState.audioPath) {
+				console.log("Ses dosyası alındı:", mediaState.audioPath);
+				// Eğer ses dosyası video ile aynı dosya ise, ayrıca yükleme yapma
+				if (mediaState.audioPath === mediaState.videoPath) {
+					console.log("Ses ve video aynı dosyada, ayrıca yüklenmeyecek");
+					// Video'nun ses kanalını kullan
+					audioType.value = videoType.value;
+					console.log(
+						"[editor.vue] Audio type set to video type:",
+						audioType.value
+					);
+
+					// Since audio is in the video file, make sure we're not muting it
+					isMuted.value = false;
+					console.log(
+						"[editor.vue] Unmuting audio since it's in the video file"
+					);
+				} else {
+					// Farklı bir ses dosyası ise ayrıca yükle
+					console.log("[editor.vue] Loading separate audio file");
+					await loadMedia(mediaState.audioPath, "audio");
+				}
+			} else {
+				console.warn("[editor.vue] Audio path not found in media state");
+			}
+		} else {
+			console.error("[editor.vue] Electron IPC not available");
+		}
+	} catch (error) {
+		console.error("Medya durumu yükleme hatası:", error);
+		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
+	}
+}
 </script>

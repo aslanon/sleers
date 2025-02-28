@@ -475,7 +475,16 @@ function setupIpcHandlers() {
 					recordingOptions.includeSystemAudio =
 						audioSettings.systemAudioEnabled;
 
+					// Açık bir şekilde "audio" parametresini true yap - aperture kütüphanesi bunu gerektirir
+					if (
+						audioSettings.systemAudioEnabled ||
+						audioSettings.microphoneEnabled
+					) {
+						recordingOptions.audio = true;
+					}
+
 					console.log("[Main] Aperture ses ayarları güncellendi:", {
+						audio: recordingOptions.audio, // Açık audio parametresi
 						includeDeviceAudio: recordingOptions.includeDeviceAudio,
 						includeSystemAudio: recordingOptions.includeSystemAudio,
 						captureDeviceAudio: recordingOptions.audio.captureDeviceAudio,

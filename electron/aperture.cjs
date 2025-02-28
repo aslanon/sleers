@@ -92,6 +92,24 @@ async function start(outputPath, options = {}) {
 				options.audio.captureSystemAudio !== false;
 			recordingOptions.includeDeviceAudio =
 				options.audio.captureDeviceAudio !== false;
+
+			// Audio capture özelliğini açıkça belirt
+			if (options.audio.captureSystemAudio !== false) {
+				console.log("[Aperture] Sistem sesi kaydı aktif edildi");
+				recordingOptions.audio = true; // Bu değer aperture kütüphanesinde sesi aktif etmek için gerekli
+			}
+		}
+
+		// Açıkça audio=true olarak ayarla (options.audio true ise veya ses kaynakları aktifse)
+		if (
+			options.audio === true ||
+			recordingOptions.includeSystemAudio ||
+			recordingOptions.includeDeviceAudio
+		) {
+			recordingOptions.audio = true;
+			console.log(
+				"[Aperture] Audio explicitly set to true based on configuration"
+			);
 		}
 
 		// Kullanıcının mikrofon cihazı ayarı varsa, bunu ekle
@@ -111,6 +129,7 @@ async function start(outputPath, options = {}) {
 
 		// Ses kaydı özelliklerini detaylı log'a yaz
 		console.log("[Aperture] Ses kayıt ayarları:", {
+			audio: recordingOptions.audio, // Yeni audio parametresi
 			includeSystemAudio: recordingOptions.includeSystemAudio,
 			includeDeviceAudio: recordingOptions.includeDeviceAudio,
 			audioDeviceId: recordingOptions.audioDeviceId,
@@ -284,6 +303,40 @@ async function start(outputPath, options = {}) {
 			JSON.stringify(recordingOptions, null, 2)
 		);
 
+		// Ses kaydı için özel log
+		if (recordingOptions.audio === true) {
+			console.log(
+				"[Aperture] Audio recording is ENABLED with the following settings:"
+			);
+			console.log(
+				`  - System Audio: ${
+					recordingOptions.includeSystemAudio ? "YES" : "NO"
+				}`
+			);
+			console.log(
+				`  - Microphone: ${recordingOptions.includeDeviceAudio ? "YES" : "NO"}`
+			);
+			console.log(
+				`  - Microphone Device ID: ${
+					recordingOptions.audioDeviceId || "Default device"
+				}`
+			);
+		} else {
+			console.warn(
+				"[Aperture] WARNING: Audio recording appears to be DISABLED!"
+			);
+			// Force enable audio if system audio or device audio is enabled
+			if (
+				recordingOptions.includeSystemAudio ||
+				recordingOptions.includeDeviceAudio
+			) {
+				recordingOptions.audio = true;
+				console.log(
+					"[Aperture] Forcing audio=true because audio sources are enabled"
+				);
+			}
+		}
+
 		// Modern API kullanımı - GitHub örneğindeki gibi
 		try {
 			console.log("[Aperture] recorder.startRecording çağrılıyor");
@@ -314,6 +367,18 @@ async function start(outputPath, options = {}) {
 			} else {
 				console.log("[Aperture] Sistem sesi kaydı devre dışı");
 			}
+
+			// Explicit audio status check
+			console.log("[Aperture] Final audio recording status:", {
+				audio: recordingOptions.audio === true ? "ENABLED" : "DISABLED",
+				systemAudio: recordingOptions.includeSystemAudio
+					? "ENABLED"
+					: "DISABLED",
+				deviceAudio: recordingOptions.includeDeviceAudio
+					? "ENABLED"
+					: "DISABLED",
+				audioDeviceId: recordingOptions.audioDeviceId || "Default device",
+			});
 
 			// Dosya hazır olduğunda
 			console.log("[Aperture] Dosya hazır olana kadar bekleniyor...");
