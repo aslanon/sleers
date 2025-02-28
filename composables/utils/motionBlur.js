@@ -6,19 +6,19 @@ const easeInOutCubic = (t) =>
 
 // Hız eşikleri - daha basit ve anlaşılır değerler
 const SPEED_THRESHOLDS = {
-	MIN: 1.8, // Minimum hız eşiği - efektlerin başlayacağı hız
+	MIN: 1.5, // Minimum hız eşiği - efektlerin başlayacağı hız (düşürüldü)
 	MAX: 5.0, // Maksimum hız eşiği - efektlerin maksimuma ulaşacağı hız
 	DEFORM: 6.0, // Deformasyon eşiği - warp efektlerinin artacağı hız
 };
 
 // Pozisyon geçmişi için değişkenler
 let positionHistory = [];
-const MAX_HISTORY = 12; // Daha fazla geçmiş = daha stabil
-const STABILIZATION_WEIGHT = 0.85; // Daha yüksek stabilizasyon = daha stabil
+const MAX_HISTORY = 15; // Daha fazla geçmiş = daha stabil (artırıldı)
+const STABILIZATION_WEIGHT = 0.9; // Daha yüksek stabilizasyon = daha stabil (artırıldı)
 
 // Açı stabilizasyonu için değişkenler
 let angleHistory = [];
-const ANGLE_MAX_HISTORY = 10; // Daha fazla geçmiş = daha stabil
+const ANGLE_MAX_HISTORY = 12; // Daha fazla geçmiş = daha stabil (artırıldı)
 const ANGLE_STABILIZATION_WEIGHT = 0.85; // Daha yüksek stabilizasyon = daha stabil
 
 // Son pozisyon ve hareket bilgileri
@@ -30,12 +30,12 @@ let lastAcceleration = 0; // Son ivmelenme değerini takip etmek için
 let speedHistory = []; // Hız geçmişi - ivmelenme hesaplamak için
 
 // Küçük hareketleri filtrelemek için eşik değerleri
-const MOVEMENT_THRESHOLD = 1.5; // 1.5 pikselden küçük hareketleri filtrele
-const SPEED_DEAD_ZONE = 0.8; // Bu hızın altındaki hareketleri yok say
+const MOVEMENT_THRESHOLD = 1.2; // Eşik düşürüldü - daha hassas hareket algılaması
+const SPEED_DEAD_ZONE = 0.6; // Bu hızın altındaki hareketleri yok say (düşürüldü)
 
 // İvmelenme için eşik değerleri
-const ACCELERATION_THRESHOLD = 20; // Bu değerin üzerindeki ivmelenmelerde ekstra blur
-const MAX_ACCELERATION_BOOST = 2.5; // İvmelenme kaynaklı maksimum blur artışı
+const ACCELERATION_THRESHOLD = 18; // Bu değerin üzerindeki ivmelenmelerde ekstra blur (düşürüldü)
+const MAX_ACCELERATION_BOOST = 2.0; // İvmelenme kaynaklı maksimum blur artışı (azaltıldı)
 
 /**
  * Pozisyon stabilizasyonu için geliştirilmiş fonksiyon
@@ -213,187 +213,125 @@ function calculateAcceleration(currentSpeed) {
  * Açı stabilizasyonu için geliştirilmiş fonksiyon
  * Daha smooth rotasyon sağlar
  */
-export function calculateStabilizedAngle(currentAngle, currentSpeed) {
-	const now = Date.now();
+export function calculateStabilizedAngle(rawAngle, speed) {
+	// Düşük hızlarda açı stabilizasyonu daha güçlü
+	const speedFactor = Math.min(speed / SPEED_THRESHOLDS.MAX, 1.0);
+	const adaptiveWeight = ANGLE_STABILIZATION_WEIGHT * (1 - speedFactor * 0.3);
 
-	// Çok düşük hızlarda açı değişimini uygulama
-	if (currentSpeed < SPEED_DEAD_ZONE * 1.2) {
-		// Açı geçmişi varsa son stabilize edilmiş açıyı kullan
-		if (angleHistory.length > 0) {
-			return angleHistory[angleHistory.length - 1].angle;
-		}
-		return currentAngle;
-	}
+	// Son açı değerini kaydet
+	angleHistory.push(rawAngle);
 
-	// Açı geçmişini güncelle
-	angleHistory.push({
-		angle: currentAngle,
-		timestamp: now,
-		speed: currentSpeed,
-	});
-
-	// Geçmişi sınırla
+	// Geçmiş sınırını aşmayacak şekilde koru
 	if (angleHistory.length > ANGLE_MAX_HISTORY) {
 		angleHistory.shift();
 	}
 
-	// Yeterli geçmiş yoksa şimdiki açıyı kullan
-	if (angleHistory.length < 3) {
-		return currentAngle;
+	// Geçmiş boşsa orijinal açıyı döndür
+	if (angleHistory.length < 2) {
+		return rawAngle;
 	}
 
-	// Hız bazlı stabilizasyon - hızlı hareketlerde daha az stabilizasyon
-	const speedFactor = Math.min(Math.max(currentSpeed / 10, 0.2), 0.8);
-	const dynamicWeight = ANGLE_STABILIZATION_WEIGHT * (1 - speedFactor * 0.2);
+	// Açıyı stabilize et - Yüksek hızlarda daha az, düşük hızlarda daha fazla smoothing
+	let stabilizedAngle = 0;
+	let weightSum = 0;
+	const historyLength = angleHistory.length;
 
-	// Sin ve Cos toplamları için değişkenler
-	let totalWeight = 0;
-	let weightedSumSin = 0;
-	let weightedSumCos = 0;
+	// Son değerlere daha çok ağırlık ver
+	for (let i = 0; i < historyLength; i++) {
+		// Normalize edilmiş pozisyon (0-1)
+		const position = i / (historyLength - 1);
 
-	// Son timestamp'i referans al
-	const lastTimestamp = angleHistory[angleHistory.length - 1].timestamp;
+		// Pozisyona göre ağırlık hesapla - son değerlere daha fazla ağırlık
+		const weight = Math.pow(position, 2) + 0.1;
 
-	// Her açı için ağırlık hesapla
-	angleHistory.forEach((entry, index) => {
-		// Zaman bazlı ağırlık
-		const timeDiff = lastTimestamp - entry.timestamp;
-		const timeWeight = Math.max(0, 1 - timeDiff / 300);
+		// Farklı açı değerlerini doğru şekilde interpole et
+		stabilizedAngle += angleHistory[i] * weight;
+		weightSum += weight;
+	}
 
-		// İndeks bazlı ağırlık
-		const indexWeight = (index + 1) / angleHistory.length;
+	// Ağırlıklı ortalama
+	stabilizedAngle = stabilizedAngle / weightSum;
 
-		// Toplam ağırlık
-		const weight = timeWeight * indexWeight;
-
-		// Sin ve Cos toplamları (açı ortalaması için doğru yöntem)
-		weightedSumSin += Math.sin(entry.angle) * weight;
-		weightedSumCos += Math.cos(entry.angle) * weight;
-		totalWeight += weight;
-	});
-
-	// Stabilize edilmiş açı
-	const stabilizedAngle = Math.atan2(
-		weightedSumSin / totalWeight,
-		weightedSumCos / totalWeight
-	);
-
-	// Mevcut açı ile stabilize edilmiş açı arasında yumuşak geçiş
-	// Sin ve Cos kullanarak açı interpolasyonu
-	const currentSin = Math.sin(currentAngle);
-	const currentCos = Math.cos(currentAngle);
-	const stabilizedSin = Math.sin(stabilizedAngle);
-	const stabilizedCos = Math.cos(stabilizedAngle);
-
-	const resultSin =
-		currentSin * (1 - dynamicWeight) + stabilizedSin * dynamicWeight;
-	const resultCos =
-		currentCos * (1 - dynamicWeight) + stabilizedCos * dynamicWeight;
-
-	return Math.atan2(resultSin, resultCos);
+	// Son açı ile orijinal açı arasında lerp - hıza göre adaptif
+	return stabilizedAngle * adaptiveWeight + rawAngle * (1 - adaptiveWeight);
 }
 
 /**
- * Motion blur efekti için değerleri hesaplar
- * Daha basit ve etkili bir algoritma
+ * Motion blur efektlerini hesapla - İyileştirilmiş
  */
-export function calculateMotionBlurEffects(
-	speed,
-	distance,
-	intensityMultiplier = 75
-) {
+export function calculateMotionBlurEffects(speed, distance, intensity) {
+	// En son güncellenmiş fonksiyon
 	const now = Date.now();
-
-	// Efekt değerini normalize et (0-1 arası)
-	const normalizedIntensity = intensityMultiplier / 100;
-
-	// Minimum ve maksimum eşikler
-	const minThreshold = SPEED_THRESHOLDS.MIN;
-	const maxThreshold = SPEED_THRESHOLDS.MAX;
-
-	// Ani değişimleri önlemek için zaman kontrolü
-	const minTimeBetweenEffects = 16; // 60 FPS ≈ 16ms
-	const timeSinceLastEffect = now - lastEffectTime;
-
-	if (timeSinceLastEffect < minTimeBetweenEffects) {
-		return {
-			easedIntensity: 0,
-			deformAmount: 0,
-			blurAmount: 0,
-			shouldApplyEffect: false,
-			speedFactor: 0,
-			accelerationFactor: 0,
-			accelerationBoost: 0,
-		};
-	}
-
-	// Efekt uygulandığını not et
+	const hasRecentEffect = now - lastEffectTime < 300; // Son efektin üzerinden geçen süre
 	lastEffectTime = now;
 
-	// Çok düşük hızlarda efekt uygulanmaz
-	if (speed < minThreshold || speed < SPEED_DEAD_ZONE * 1.5) {
-		return {
-			easedIntensity: 0,
-			deformAmount: 0,
-			blurAmount: 0,
-			shouldApplyEffect: false,
-			speedFactor: 0,
-			accelerationFactor: 0,
-			accelerationBoost: 0,
-		};
-	}
+	// Hız temelli parametreleri hesapla - daha yumuşak geçişler
+	const speedFactor = calculateSpeedFactor(speed);
+	const easeInFactor = easeOutCubic(speedFactor);
 
-	// Efekt uygulanacak mı?
-	const shouldApplyEffect = speed >= minThreshold;
+	// Daha yumuşak easing kullan
+	const easedIntensity = easeOutCubic(intensity / 100);
 
-	// Hız faktörünü hesapla (0-1 arası)
-	const normalizedSpeed = Math.min(speed, maxThreshold * 1.2);
-	const speedFactor = Math.max(
-		0,
-		(normalizedSpeed - minThreshold) / (maxThreshold - minThreshold)
-	);
-
-	// İvmelenmeyi hesapla
+	// İvmelenmeyi hesapla ama daha yumuşak bir yaklaşım kullan
 	const acceleration = calculateAcceleration(speed);
+	const smoothedAcceleration = Math.max(0, acceleration) * 0.8; // Pozitif ivme daha etkili
 
-	// İvmelenme faktörünü hesapla (0-1 arası)
-	const accelerationFactor = Math.min(acceleration / ACCELERATION_THRESHOLD, 1);
+	// İvmelenme faktörü - geçmişe bakarak hesapla
+	const accelerationFactor = calculateAccelerationFactor(smoothedAcceleration);
 
-	// İvmelenme bazlı blur artışı
-	const accelerationBoost = accelerationFactor * MAX_ACCELERATION_BOOST;
+	// Normal hareket ve ani ivmelenmeleri ayrı değerlendir
+	const accelerationBoost =
+		smoothedAcceleration > ACCELERATION_THRESHOLD
+			? Math.min(smoothedAcceleration / ACCELERATION_THRESHOLD, 1.0) *
+			  MAX_ACCELERATION_BOOST *
+			  easedIntensity
+			: 0;
 
-	// Yumuşak geçiş için ease fonksiyonu
-	const easedIntensity = easeInOutCubic(Math.min(speedFactor, 1));
+	// Deformasyon ve blur miktarlarını hesapla - daha az deformasyon, daha doğal sonuçlar
+	const deformAmount = easeInFactor * (intensity / 100) * 0.8; // Azaltıldı
+	const blurAmount = easeInFactor * intensity * 0.04; // Blur miktarını azalt
 
-	// Mesafe faktörü
-	const distanceFactor = Math.min(distance / 100, 1);
-
-	// Deformasyon miktarı - daha düşük değer daha stabil
-	const deformAmount =
-		speedFactor * normalizedIntensity * Math.min(1, distanceFactor) * 0.85;
-
-	// Blur miktarı - Hem hız hem de ivmelenme bazlı
-	// Hız bazlı blur için temel değerler
-	const minBlur = 0.3;
-	const maxBlur = 1.8;
-	const speedBlur =
-		minBlur + (maxBlur - minBlur) * speedFactor * normalizedIntensity;
-
-	// İvmelenme varsa ek blur ekle
-	const accelerationBlur =
-		accelerationFactor > 0.15 ? accelerationBoost * normalizedIntensity : 0;
-
-	// Toplam blur miktarı (hız + ivmelenme bazlı)
-	const blurAmount = speedBlur + accelerationBlur;
+	// Etki uygulama kararı - hız ve geçen zamana göre
+	const shouldApplyEffect =
+		(speed > SPEED_THRESHOLDS.MIN || hasRecentEffect) && intensity > 10;
 
 	return {
+		speedFactor,
 		easedIntensity,
 		deformAmount,
 		blurAmount,
 		shouldApplyEffect,
-		speedFactor,
-		normalizedIntensity,
 		accelerationFactor,
 		accelerationBoost,
 	};
+}
+
+/**
+ * Hız faktörünü hesaplar - daha yumuşak geçişler
+ */
+function calculateSpeedFactor(speed) {
+	// Hız normalleştirme - daha yumuşak bir eğri
+	let normalizedSpeed =
+		(speed - SPEED_THRESHOLDS.MIN) /
+		(SPEED_THRESHOLDS.MAX - SPEED_THRESHOLDS.MIN);
+
+	// 0-1 arası sınırla
+	normalizedSpeed = Math.max(0, Math.min(normalizedSpeed, 1));
+
+	// Daha yumuşak bir eğri için easing fonksiyonu uygula
+	return easeOutCubic(normalizedSpeed);
+}
+
+/**
+ * İvmelenme faktörünü hesaplar - daha kararlı
+ */
+function calculateAccelerationFactor(acceleration) {
+	// İvmelenme değerini normalize et (0-1 arası)
+	const normalizedAcceleration = Math.min(
+		Math.max(acceleration / ACCELERATION_THRESHOLD, 0),
+		1
+	);
+
+	// Geçiş fonksiyonu uygula - daha yumuşak geçiş
+	return easeOutCubic(normalizedAcceleration);
 }

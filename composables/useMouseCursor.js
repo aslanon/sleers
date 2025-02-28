@@ -298,7 +298,7 @@ export const useMouseCursor = () => {
 			}
 		}
 
-		// Motion blur efekti
+		// Güncellenmiş motion blur efekti
 		if (motionEnabled && speed > 0 && !isSmallMovement) {
 			// Efekt değerini normalize et (0-1 arası)
 			const normalizedIntensity = motionBlurValue;
@@ -318,9 +318,12 @@ export const useMouseCursor = () => {
 				normalizedIntensity * 100
 			);
 
-			if (shouldApplyEffect) {
-				// Stabilize edilmiş pozisyon ve açı
-				const stabilized = calculateStabilizedPosition(x, y, speed);
+			// Daha keskin eşik değeri - düşük hızlarda hiç efekt olmasın
+			const MIN_SPEED_THRESHOLD = 2.5;
+			const effectThreshold = speed > MIN_SPEED_THRESHOLD;
+
+			if (shouldApplyEffect && effectThreshold) {
+				// Stabilize edilmiş açı
 				const rawAngle = Math.atan2(dirY, dirX);
 				const angle = calculateStabilizedAngle(rawAngle, speed);
 
@@ -330,52 +333,28 @@ export const useMouseCursor = () => {
 				ctx.globalAlpha = 1.0;
 				ctx.globalCompositeOperation = "source-over";
 
-				// İvmelenme varsa ekstra efektler uygula
-				const hasAcceleration = accelerationFactor > 0.2;
-
-				// Yüksek ivmelenme durumunda ikinci bir gölge cursor çiz
-				if (hasAcceleration) {
-					// İvmelenme yönünde hafif offset ile ikinci bir cursor çiz
-					ctx.save();
-					ctx.globalAlpha = Math.min(0.4, accelerationFactor * 0.5);
-					ctx.filter = `blur(${Math.min(
-						4,
-						blurAmount * 1.5 + accelerationBoost
-					)}px)`;
-					ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-					ctx.shadowBlur = 3 * dpr;
-
-					// İvmelenme yönünde offset
-					const offsetMultiplier = Math.min(accelerationFactor * 8, 6);
-					const accelOffsetX = adjustedX + dirX * offsetMultiplier;
-					const accelOffsetY = adjustedY + dirY * offsetMultiplier;
-
-					// Gölge cursor'u çiz
-					ctx.drawImage(
-						cursorImg,
-						accelOffsetX,
-						accelOffsetY,
-						cursorWidth,
-						cursorHeight
-					);
-					ctx.restore();
-				}
-
 				// Cursor'u sol üst köşesinden konumlandır (origin olarak sol üst köşe)
 				ctx.translate(adjustedX, adjustedY);
 
-				// Hareket yönüne göre rotasyon uygula (maksimum 10 derece)
-				const maxRotationDegree = 10; // İstenen maksimum rotasyon açısı
-				const rotationFactor = 0.08; // Rotasyon faktörü
+				// Hareket yönüne göre rotasyon uygula - sadece hareket başında/sonunda
+				const maxRotationDegree = 10; // Maksimum rotasyon açısını azalt
+				const rotationFactor = 0.1; // Rotasyon faktörünü azalt
 
-				// Daha yumuşak rotasyon için speedFactor'ü sınırla
-				const limitedSpeedFactor = Math.min(speedFactor * 0.9, 0.8);
+				// İvmelenme hesaplama - sadece ani ivme değişimlerinde yüksek değerler
+				const hasAcceleration = accelerationFactor > 0.3; // Daha yüksek eşik
 
-				// İvmelenme varsa rotasyonu artır
+				// Rotasyon etkisini hesaplarken ani hız değişimlerine daha duyarlı ol
 				const rotationBoost = hasAcceleration
 					? Math.min(accelerationFactor * 0.3, 0.3)
 					: 0;
 
+				// Hız faktörünü daha dengeli hale getir - aşırı hızlarda bile daha yavaş artış
+				const limitedSpeedFactor = Math.min(
+					Math.pow(speedFactor, 1.5) * 0.8,
+					0.8
+				);
+
+				// Rotasyon açısını hesapla - daha kararlı
 				const directionRotation =
 					Math.min(
 						Math.max(
@@ -392,12 +371,14 @@ export const useMouseCursor = () => {
 				// Rotasyonu uygula
 				ctx.rotate(rotationRad);
 
-				// Blur efekti - Hem hız hem de ivmelenme durumunda uygula
-				const blurRadius = Math.min(
-					blurAmount * (hasAcceleration ? 1.3 : 1.0),
-					3.0
-				);
-				ctx.filter = `blur(${blurRadius}px)`;
+				// Blur efekti - daha dengeli ve tutarlı
+				const baseBlur = Math.min(blurAmount * 1.2, 3.0);
+				const dynamicBlur = hasAcceleration
+					? baseBlur + accelerationFactor * 1.5
+					: baseBlur;
+
+				const finalBlurValue = Math.min(dynamicBlur, 3.5); // Üst sınır
+				ctx.filter = `blur(${finalBlurValue}px)`;
 
 				// Gölge ekle - daha iyi görünürlük için
 				ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
@@ -405,37 +386,26 @@ export const useMouseCursor = () => {
 				ctx.shadowOffsetX = 1 * dpr;
 				ctx.shadowOffsetY = 1 * dpr;
 
-				// Hızlı hareketlerde warp efekti - daha düşük değerler daha stabil
-				if (speed > 2.0) {
-					// Deformasyon faktörleri - daha düşük değerler
-					// İvmelenme varsa deformasyonu artır
-					const deformBoost = hasAcceleration ? accelerationFactor * 0.2 : 0;
-					const skewFactor =
-						(0.1 + deformBoost) * speedFactor * normalizedIntensity;
-					const stretchFactor =
-						(0.15 + deformBoost) * speedFactor * normalizedIntensity;
-
-					// Warp efekti
-					const skewX = -dirX * deformAmount * skewFactor * 1.2;
-					const skewY = -dirY * deformAmount * skewFactor * 1.2;
-					const stretchX =
-						1 + Math.abs(dirX * deformAmount * stretchFactor) * easedIntensity;
-					const stretchY =
-						1 + Math.abs(dirY * deformAmount * stretchFactor) * easedIntensity;
-
-					ctx.scale(stretchX, stretchY);
-					ctx.transform(1, skewY, skewX, 1, 0, 0);
-				} else {
-					// Normal hızda daha hafif warp - daha düşük değerler
+				// Hızlı hareketlerde warp efekti - daha kontrollü
+				if (speed > 4.0) {
+					// Skew ve stretch değerlerini azalt - daha az deformasyon
 					const skewFactor = 0.06 * speedFactor * normalizedIntensity;
 					const stretchFactor = 0.08 * speedFactor * normalizedIntensity;
 
 					const skewX = -dirX * deformAmount * skewFactor;
 					const skewY = -dirY * deformAmount * skewFactor;
+
+					// Uzatma efektini sınırla
 					const stretchX =
-						1 + Math.abs(dirX * deformAmount * stretchFactor) * easedIntensity;
+						1 +
+						Math.abs(dirX * deformAmount * stretchFactor) *
+							easedIntensity *
+							0.5;
 					const stretchY =
-						1 + Math.abs(dirY * deformAmount * stretchFactor) * easedIntensity;
+						1 +
+						Math.abs(dirY * deformAmount * stretchFactor) *
+							easedIntensity *
+							0.5;
 
 					ctx.scale(stretchX, stretchY);
 					ctx.transform(1, skewY, skewX, 1, 0, 0);
@@ -464,7 +434,7 @@ export const useMouseCursor = () => {
 				ctx.restore();
 			}
 		} else {
-			// Normal cursor çizimi (hareket yok)
+			// Hareketsiz veya düşük hızdaki cursor çizimi
 			ctx.save();
 			ctx.globalAlpha = 1.0;
 			ctx.filter = "none";

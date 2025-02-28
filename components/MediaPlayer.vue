@@ -761,6 +761,16 @@ const drawMousePositions = () => {
 	// Current video time
 	const currentVideoTime = videoElement.currentTime;
 
+	// Add static variable for tracking transition state between draws
+	// We need to use a closure variable since this function gets called repeatedly
+	if (typeof drawMousePositions.lastIsStationary === "undefined") {
+		drawMousePositions.lastIsStationary = true;
+		drawMousePositions.transitionFactor = 0;
+		drawMousePositions.lastUpdateTime = performance.now();
+		drawMousePositions.lastVelocity = { x: 0, y: 0 };
+		drawMousePositions.lastPosition = { x: 0, y: 0, timestamp: 0 };
+	}
+
 	// Mouse pozisyonları için toplam frame sayısı
 	const totalFrames = props.mousePositions.length;
 	if (totalFrames < 2) return;
@@ -815,14 +825,50 @@ const drawMousePositions = () => {
 	// Calculate time difference between frames in milliseconds
 	const timeDiff = nextPos.timestamp - prevPos.timestamp;
 
-	// Define thresholds for stationary detection
-	const MOVEMENT_THRESHOLD = 10; // pixels
-	const TIME_THRESHOLD = 100; // milliseconds
+	// Define thresholds for stationary detection - daha kararlı eşikler
+	const MOVEMENT_THRESHOLD = 8; // pixels - düşürüldü, daha duyarlı olması için
+	const TIME_THRESHOLD = 150; // milliseconds - artırıldı, daha kararlı olması için
 
 	// Determine if the mouse is truly stationary
-	// If movement is minimal or the time difference is significant, consider it stationary
 	const isStationary =
 		moveDistance < MOVEMENT_THRESHOLD || timeDiff > TIME_THRESHOLD;
+
+	// Calculate current mouse velocity
+	const velocity = {
+		x: timeDiff > 0 ? (nextPos.x - prevPos.x) / timeDiff : 0,
+		y: timeDiff > 0 ? (nextPos.y - prevPos.y) / timeDiff : 0,
+	};
+
+	// Calculate velocity magnitude (speed)
+	const velocityMagnitude = Math.sqrt(
+		velocity.x * velocity.x + velocity.y * velocity.y
+	);
+
+	// Handle transition between stationary and moving states
+	const now = performance.now();
+	const deltaTime = Math.min(now - drawMousePositions.lastUpdateTime, 50); // Limit to 50ms to avoid jumps
+	drawMousePositions.lastUpdateTime = now;
+
+	// Calculate transition speed based on velocity - faster for quick movements
+	const baseTransitionSpeed = 0.008; // Base transition speed - lower for smoother transitions
+	const velocityFactor = Math.min(velocityMagnitude * 0.5, 1.0); // Velocitye bağlı faktör
+	const TRANSITION_SPEED_IN = baseTransitionSpeed * (1 + velocityFactor); // Hızlanırken daha hızlı
+	const TRANSITION_SPEED_OUT = baseTransitionSpeed * 0.7; // Yavaşlarken daha yumuşak
+
+	// Update transition based on velocity and stationary state
+	if (isStationary) {
+		// Moving to stationary - smooth out
+		drawMousePositions.transitionFactor = Math.max(
+			0,
+			drawMousePositions.transitionFactor - TRANSITION_SPEED_OUT * deltaTime
+		);
+	} else {
+		// Stationary to moving - quicker
+		drawMousePositions.transitionFactor = Math.min(
+			1,
+			drawMousePositions.transitionFactor + TRANSITION_SPEED_IN * deltaTime
+		);
+	}
 
 	// Calculate interpolation factor (how far between prev and next)
 	let fraction = 0;
@@ -832,18 +878,27 @@ const drawMousePositions = () => {
 		fraction = Math.max(0, Math.min(1, fraction));
 	}
 
-	// Variables for position and direction
+	// Save state for next frame
+	drawMousePositions.lastIsStationary = isStationary;
+	drawMousePositions.lastVelocity = velocity;
+	drawMousePositions.lastPosition = {
+		x: prevPos.x + (nextPos.x - prevPos.x) * fraction,
+		y: prevPos.y + (nextPos.y - prevPos.y) * fraction,
+		timestamp: estimatedTimestamp,
+	};
+
+	// Apply transition factor to interpolation
 	let interpolatedX, interpolatedY;
 	let dirX = 0,
 		dirY = 0;
 	let speed = 0;
 
-	if (isStationary) {
-		// For stationary cursor, just use the previous position
+	if (drawMousePositions.transitionFactor < 0.01) {
+		// Almost fully stationary - use previous position exactly
 		interpolatedX = prevPos.x;
 		interpolatedY = prevPos.y;
-	} else {
-		// For moving cursor, use weighted interpolation
+	} else if (drawMousePositions.transitionFactor > 0.99) {
+		// Almost fully in motion - use full interpolation
 		interpolatedX = prevPos.x + (nextPos.x - prevPos.x) * fraction;
 		interpolatedY = prevPos.y + (nextPos.y - prevPos.y) * fraction;
 
@@ -852,6 +907,21 @@ const drawMousePositions = () => {
 			dirX = (nextPos.x - prevPos.x) / moveDistance;
 			dirY = (nextPos.y - prevPos.y) / moveDistance;
 			speed = timeDiff > 0 ? moveDistance / timeDiff : 0;
+		}
+	} else {
+		// In transition - blend between stationary and moving positions
+		const tf = drawMousePositions.transitionFactor;
+		const movingX = prevPos.x + (nextPos.x - prevPos.x) * fraction;
+		const movingY = prevPos.y + (nextPos.y - prevPos.y) * fraction;
+
+		interpolatedX = prevPos.x * (1 - tf) + movingX * tf;
+		interpolatedY = prevPos.y * (1 - tf) + movingY * tf;
+
+		// Scale speed and direction by transition factor
+		if (moveDistance > 0) {
+			dirX = ((nextPos.x - prevPos.x) / moveDistance) * tf;
+			dirY = ((nextPos.y - prevPos.y) / moveDistance) * tf;
+			speed = (timeDiff > 0 ? moveDistance / timeDiff : 0) * tf;
 		}
 	}
 
