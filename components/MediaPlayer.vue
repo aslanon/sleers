@@ -758,35 +758,104 @@ const drawMousePositions = () => {
 	const videoDuration = videoElement.duration;
 	if (!videoDuration) return;
 
+	// Current video time
+	const currentVideoTime = videoElement.currentTime;
+
 	// Mouse pozisyonları için toplam frame sayısı
 	const totalFrames = props.mousePositions.length;
+	if (totalFrames < 2) return;
+
+	// Find closest positions by timestamp
+	// First, convert video time to timestamp in the recorded data
 	const frameTime = videoDuration / totalFrames;
-	const exactFrame = videoElement.currentTime / frameTime;
-	const currentFrame = Math.floor(exactFrame);
-	const nextFrame = Math.min(currentFrame + 1, totalFrames - 1);
-	const framePart = exactFrame - currentFrame;
 
-	// İki frame arasında interpolasyon yap
-	const currentPos = props.mousePositions[currentFrame];
-	const nextPos = props.mousePositions[nextFrame];
-	if (!currentPos || !nextPos) return;
+	// Find the two closest points in time
+	let prevIndex = -1;
+	let nextIndex = -1;
+	let prevTimeDiff = Infinity;
+	let nextTimeDiff = Infinity;
 
-	// İnterpolasyon ile ara pozisyonu hesapla
-	const interpolatedX = currentPos.x + (nextPos.x - currentPos.x) * framePart;
-	const interpolatedY = currentPos.y + (nextPos.y - currentPos.y) * framePart;
+	// Calculate normalized time (0-1 scale) for current video position
+	const normalizedTime = currentVideoTime / videoDuration;
+	const estimatedTimestamp =
+		normalizedTime * props.mousePositions[totalFrames - 1].timestamp;
+
+	// Find the two points surrounding the current time
+	for (let i = 0; i < totalFrames; i++) {
+		const pos = props.mousePositions[i];
+		const timeDiff = pos.timestamp - estimatedTimestamp;
+
+		if (timeDiff <= 0 && Math.abs(timeDiff) < prevTimeDiff) {
+			prevTimeDiff = Math.abs(timeDiff);
+			prevIndex = i;
+		}
+
+		if (timeDiff >= 0 && timeDiff < nextTimeDiff) {
+			nextTimeDiff = timeDiff;
+			nextIndex = i;
+		}
+	}
+
+	// Fallbacks if we couldn't find proper indices
+	if (prevIndex === -1) prevIndex = 0;
+	if (nextIndex === -1 || nextIndex === prevIndex)
+		nextIndex = Math.min(prevIndex + 1, totalFrames - 1);
+
+	const prevPos = props.mousePositions[prevIndex];
+	const nextPos = props.mousePositions[nextIndex];
 
 	// DPR'ı hesaba kat
 	const dpr = window.devicePixelRatio || 1;
 
-	// Mouse hareketi hesapla
+	// Calculate movement distance
 	const moveDistance = Math.sqrt(
-		Math.pow(nextPos.x - currentPos.x, 2) +
-			Math.pow(nextPos.y - currentPos.y, 2)
+		Math.pow(nextPos.x - prevPos.x, 2) + Math.pow(nextPos.y - prevPos.y, 2)
 	);
-	const speed = moveDistance / (nextPos.timestamp - currentPos.timestamp);
-	const dirX = moveDistance ? (nextPos.x - currentPos.x) / moveDistance : 0;
-	const dirY = moveDistance ? (nextPos.y - currentPos.y) / moveDistance : 0;
 
+	// Calculate time difference between frames in milliseconds
+	const timeDiff = nextPos.timestamp - prevPos.timestamp;
+
+	// Define thresholds for stationary detection
+	const MOVEMENT_THRESHOLD = 10; // pixels
+	const TIME_THRESHOLD = 100; // milliseconds
+
+	// Determine if the mouse is truly stationary
+	// If movement is minimal or the time difference is significant, consider it stationary
+	const isStationary =
+		moveDistance < MOVEMENT_THRESHOLD || timeDiff > TIME_THRESHOLD;
+
+	// Calculate interpolation factor (how far between prev and next)
+	let fraction = 0;
+	if (timeDiff > 0) {
+		fraction = (estimatedTimestamp - prevPos.timestamp) / timeDiff;
+		// Clamp fraction between 0 and 1
+		fraction = Math.max(0, Math.min(1, fraction));
+	}
+
+	// Variables for position and direction
+	let interpolatedX, interpolatedY;
+	let dirX = 0,
+		dirY = 0;
+	let speed = 0;
+
+	if (isStationary) {
+		// For stationary cursor, just use the previous position
+		interpolatedX = prevPos.x;
+		interpolatedY = prevPos.y;
+	} else {
+		// For moving cursor, use weighted interpolation
+		interpolatedX = prevPos.x + (nextPos.x - prevPos.x) * fraction;
+		interpolatedY = prevPos.y + (nextPos.y - prevPos.y) * fraction;
+
+		// Calculate direction and speed for motion effects
+		if (moveDistance > 0) {
+			dirX = (nextPos.x - prevPos.x) / moveDistance;
+			dirY = (nextPos.y - prevPos.y) / moveDistance;
+			speed = timeDiff > 0 ? moveDistance / timeDiff : 0;
+		}
+	}
+
+	// Rest of the existing code for video/crop dimensions and cursor rendering
 	// Video veya crop boyutlarını kullan
 	let sourceWidth, sourceHeight, sourceX, sourceY;
 	if (cropArea.value?.isApplied) {
@@ -866,11 +935,11 @@ const drawMousePositions = () => {
 		x: canvasX,
 		y: canvasY,
 		event: {
-			type: currentPos.type || MOUSE_EVENTS.MOVE,
-			button: currentPos.button,
-			clickCount: currentPos.clickCount,
-			rotation: currentPos.rotation,
-			direction: currentPos.direction,
+			type: prevPos.type || MOUSE_EVENTS.MOVE,
+			button: prevPos.button,
+			clickCount: prevPos.clickCount,
+			rotation: prevPos.rotation,
+			direction: prevPos.direction,
 			speed,
 			dirX,
 			dirY,
