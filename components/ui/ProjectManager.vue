@@ -194,6 +194,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick, computed } from "vue";
 import { useProjectManager } from "~/composables/useProjectManager";
+import { useLayoutSettings } from "~/composables/useLayoutSettings";
 
 const props = defineProps({
 	mediaPlayer: {
@@ -397,9 +398,95 @@ const loadSelectedProject = async (projectId) => {
 				if (media.audioUrl) emit("update:audioUrl", media.audioUrl);
 				if (media.cameraUrl) emit("update:cameraUrl", media.cameraUrl);
 			},
+			loadMediaFiles: async (mediaFiles) => {
+				try {
+					console.log("Loading media files from project:", mediaFiles);
+					const electron = window.electron;
+
+					// Video dosyasını yükle
+					if (mediaFiles.videoPath) {
+						const videoBase64 = await electron?.ipcRenderer?.invoke(
+							electron.ipcRenderer.IPC_EVENTS.READ_VIDEO_FILE,
+							mediaFiles.videoPath
+						);
+
+						if (videoBase64) {
+							// Video dosyasını Blob'a dönüştür
+							const byteCharacters = atob(videoBase64);
+							const byteNumbers = new Array(byteCharacters.length);
+							for (let i = 0; i < byteCharacters.length; i++) {
+								byteNumbers[i] = byteCharacters.charCodeAt(i);
+							}
+							const byteArray = new Uint8Array(byteNumbers);
+							const videoBlob = new Blob([byteArray], { type: "video/mp4" });
+							const videoUrl = URL.createObjectURL(videoBlob);
+
+							emit("update:videoUrl", videoUrl);
+							console.log("Video URL updated:", videoUrl);
+						}
+					}
+
+					// Ses dosyasını yükle
+					if (
+						mediaFiles.audioPath &&
+						mediaFiles.audioPath !== mediaFiles.videoPath
+					) {
+						const audioBase64 = await electron?.ipcRenderer?.invoke(
+							electron.ipcRenderer.IPC_EVENTS.READ_VIDEO_FILE,
+							mediaFiles.audioPath
+						);
+
+						if (audioBase64) {
+							// Ses dosyasını Blob'a dönüştür
+							const byteCharacters = atob(audioBase64);
+							const byteNumbers = new Array(byteCharacters.length);
+							for (let i = 0; i < byteCharacters.length; i++) {
+								byteNumbers[i] = byteCharacters.charCodeAt(i);
+							}
+							const byteArray = new Uint8Array(byteNumbers);
+							const audioBlob = new Blob([byteArray], { type: "audio/webm" });
+							const audioUrl = URL.createObjectURL(audioBlob);
+
+							emit("update:audioUrl", audioUrl);
+							console.log("Audio URL updated:", audioUrl);
+						}
+					}
+
+					// Kamera dosyasını yükle
+					if (mediaFiles.cameraPath) {
+						const cameraBase64 = await electron?.ipcRenderer?.invoke(
+							electron.ipcRenderer.IPC_EVENTS.READ_VIDEO_FILE,
+							mediaFiles.cameraPath
+						);
+
+						if (cameraBase64) {
+							// Kamera dosyasını Blob'a dönüştür
+							const byteCharacters = atob(cameraBase64);
+							const byteNumbers = new Array(byteCharacters.length);
+							for (let i = 0; i < byteCharacters.length; i++) {
+								byteNumbers[i] = byteCharacters.charCodeAt(i);
+							}
+							const byteArray = new Uint8Array(byteNumbers);
+							const cameraBlob = new Blob([byteArray], { type: "video/webm" });
+							const cameraUrl = URL.createObjectURL(cameraBlob);
+
+							emit("update:cameraUrl", cameraUrl);
+							console.log("Camera URL updated:", cameraUrl);
+						}
+					}
+				} catch (error) {
+					console.error("Error loading media files:", error);
+				}
+			},
 			setLayouts: (layouts) => {
-				// Bu kısmı useLayoutSettings composable'ına eklemek gerekebilir
-				console.log("Layouts loaded:", layouts);
+				// useLayoutSettings composable'ındaki setLayouts fonksiyonunu kullan
+				const { setLayouts } = useLayoutSettings();
+				if (setLayouts) {
+					setLayouts(layouts);
+					console.log("Layouts loaded:", layouts.length);
+				} else {
+					console.warn("setLayouts function not available");
+				}
 			},
 		};
 

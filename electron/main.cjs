@@ -1549,6 +1549,28 @@ function setupIpcHandlers() {
 			return false;
 		}
 	});
+
+	// Dosya koruma işlemleri için IPC olayları
+	ipcMain.handle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.protectFile(filePath);
+		}
+		return false;
+	});
+
+	ipcMain.handle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.unprotectFile(filePath);
+		}
+		return false;
+	});
+
+	ipcMain.handle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
+		if (tempFileManager) {
+			return tempFileManager.getProtectedFiles();
+		}
+		return [];
+	});
 }
 
 async function createWindow() {

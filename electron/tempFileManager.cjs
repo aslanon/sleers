@@ -13,6 +13,7 @@ class TempFileManager {
 		};
 		this.activeStreams = new Map(); // Aktif write stream'leri tutacak
 		this.appDir = path.join(app.getPath("downloads"), ".sleer");
+		this.protectedFiles = new Set(); // Korunan dosyaları tutacak set
 		this.ensureAppDir();
 	}
 
@@ -94,10 +95,50 @@ class TempFileManager {
 		}
 	}
 
+	// Dosyayı koruma listesine ekle
+	protectFile(filePath) {
+		if (filePath && typeof filePath === "string") {
+			this.protectedFiles.add(filePath);
+			console.log(
+				`[TempFileManager] Dosya koruma listesine eklendi:`,
+				filePath
+			);
+			return true;
+		}
+		return false;
+	}
+
+	// Dosyayı koruma listesinden çıkar
+	unprotectFile(filePath) {
+		if (filePath && this.protectedFiles.has(filePath)) {
+			this.protectedFiles.delete(filePath);
+			console.log(
+				`[TempFileManager] Dosya koruma listesinden çıkarıldı:`,
+				filePath
+			);
+			return true;
+		}
+		return false;
+	}
+
+	// Tüm korunan dosyaları listele
+	getProtectedFiles() {
+		return Array.from(this.protectedFiles);
+	}
+
 	async cleanupFile(type) {
 		const oldPath = this.tempFiles[type];
 		if (oldPath) {
 			try {
+				// Dosya korunan listesinde mi kontrol et
+				if (this.protectedFiles.has(oldPath)) {
+					console.log(
+						`[TempFileManager] ${type} için dosya koruma listesinde, silinmeyecek:`,
+						oldPath
+					);
+					return;
+				}
+
 				if (fs.existsSync(oldPath)) {
 					await fs.promises.unlink(oldPath);
 					console.log(
@@ -119,15 +160,27 @@ class TempFileManager {
 		console.log("[TempFileManager] Tüm geçici dosyalar temizleniyor...");
 		console.log("Mevcut dosyalar:", this.tempFiles);
 
-		const cleanupPromises = Object.keys(this.tempFiles).map((type) =>
-			this.cleanupFile(type)
-		);
+		const cleanupPromises = Object.keys(this.tempFiles).map((type) => {
+			const filePath = this.tempFiles[type];
+			// Dosya korunan listesinde mi kontrol et
+			if (filePath && this.protectedFiles.has(filePath)) {
+				console.log(
+					`[TempFileManager] ${type} için dosya koruma listesinde, silinmeyecek:`,
+					filePath
+				);
+				return Promise.resolve();
+			}
+			return this.cleanupFile(type);
+		});
 
 		await Promise.all(cleanupPromises);
 
-		// Tüm dosyaları null yap
+		// Korunan dosyalar hariç tüm dosyaları null yap
 		Object.keys(this.tempFiles).forEach((type) => {
-			this.tempFiles[type] = null;
+			const filePath = this.tempFiles[type];
+			if (filePath && !this.protectedFiles.has(filePath)) {
+				this.tempFiles[type] = null;
+			}
 		});
 
 		console.log("[TempFileManager] Geçici dosya temizliği tamamlandı");

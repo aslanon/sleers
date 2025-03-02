@@ -4,7 +4,7 @@ import { useLayoutSettings } from "~/composables/useLayoutSettings";
 
 export const useProjectManager = () => {
 	const playerSettings = usePlayerSettings();
-	const { savedLayouts } = useLayoutSettings();
+	const { savedLayouts, setLayouts } = useLayoutSettings();
 
 	const currentProjectName = ref("");
 	const savedProjects = ref([]);
@@ -27,6 +27,31 @@ export const useProjectManager = () => {
 				Math.random() * 1000
 			)}`;
 
+			// Medya dosya yollarını al
+			const electron = window.electron;
+			const mediaState = await electron?.ipcRenderer?.invoke("GET_MEDIA_STATE");
+
+			// Dosya yollarını koruma listesine ekle
+			const filesToProtect = [];
+			if (mediaState?.videoPath) {
+				filesToProtect.push(mediaState.videoPath);
+			}
+			if (
+				mediaState?.audioPath &&
+				mediaState.audioPath !== mediaState.videoPath
+			) {
+				filesToProtect.push(mediaState.audioPath);
+			}
+			if (mediaState?.cameraPath) {
+				filesToProtect.push(mediaState.cameraPath);
+			}
+
+			// Dosyaları koruma listesine ekle
+			for (const filePath of filesToProtect) {
+				await electron?.ipcRenderer?.invoke("PROTECT_FILE", filePath);
+				console.log("Dosya koruma listesine eklendi:", filePath);
+			}
+
 			// Mevcut ayarları ve durumları al
 			const projectData = {
 				id: projectId,
@@ -37,6 +62,12 @@ export const useProjectManager = () => {
 					videoUrl,
 					audioUrl,
 					cameraUrl,
+				},
+				// Medya dosya yolları
+				mediaFiles: {
+					videoPath: mediaState?.videoPath || null,
+					audioPath: mediaState?.audioPath || null,
+					cameraPath: mediaState?.cameraPath || null,
 				},
 				// Player ayarları
 				playerSettings: {
@@ -81,6 +112,8 @@ export const useProjectManager = () => {
 				mousePositions: JSON.parse(JSON.stringify(mousePositions || [])),
 				// Kaydedilmiş düzenler
 				layouts: JSON.parse(JSON.stringify(savedLayouts.value || [])),
+				// Korunan dosyalar
+				protectedFiles: filesToProtect,
 			};
 
 			// Projeyi kaydedilmiş projelere ekle
@@ -132,6 +165,19 @@ export const useProjectManager = () => {
 			}
 
 			console.log("Found project:", project.name);
+
+			// Electron API'sini al
+			const electron = window.electron;
+
+			// Korunan dosyaları kontrol et ve gerekirse yeniden koru
+			if (project.protectedFiles && Array.isArray(project.protectedFiles)) {
+				for (const filePath of project.protectedFiles) {
+					if (filePath) {
+						await electron?.ipcRenderer?.invoke("PROTECT_FILE", filePath);
+						console.log("Dosya koruma listesine eklendi:", filePath);
+					}
+				}
+			}
 
 			// Player ayarlarını uygula
 			if (project.playerSettings) {
@@ -217,14 +263,21 @@ export const useProjectManager = () => {
 				callbacks.setMousePositions(project.mousePositions);
 			}
 
-			// Medya URL'lerini uygula
-			if (project.media && callbacks.setMedia) {
+			// Medya dosyalarını yükle
+			if (project.mediaFiles && callbacks.loadMediaFiles) {
+				callbacks.loadMediaFiles(project.mediaFiles);
+			} else if (project.media && callbacks.setMedia) {
+				// Eski yöntem: URL'leri kullan
 				callbacks.setMedia(project.media);
 			}
 
 			// Düzenleri uygula
-			if (project.layouts && callbacks.setLayouts) {
-				callbacks.setLayouts(project.layouts);
+			if (project.layouts && Array.isArray(project.layouts)) {
+				if (callbacks.setLayouts) {
+					callbacks.setLayouts(project.layouts);
+				} else if (setLayouts) {
+					setLayouts(project.layouts);
+				}
 			}
 
 			// Mevcut proje adını güncelle
@@ -252,6 +305,30 @@ export const useProjectManager = () => {
 				return false;
 			}
 
+			// Projeden korunan dosyaları al
+			const project = savedProjects.value[projectIndex];
+			const protectedFiles = project.protectedFiles || [];
+
+			// Electron API'sini al
+			const electron = window.electron;
+
+			// Korunan dosyaları koruma listesinden çıkar
+			// Not: Diğer projelerde de kullanılıyor olabilir, bu yüzden dikkatli olmalıyız
+			// Önce diğer projelerde kullanılıp kullanılmadığını kontrol edelim
+			for (const filePath of protectedFiles) {
+				// Bu dosyayı kullanan başka proje var mı?
+				const isUsedInOtherProjects = savedProjects.value.some((p, idx) => {
+					if (idx === projectIndex) return false; // Kendisini sayma
+					return p.protectedFiles && p.protectedFiles.includes(filePath);
+				});
+
+				// Başka projede kullanılmıyorsa koruma listesinden çıkar
+				if (!isUsedInOtherProjects && filePath) {
+					await electron?.ipcRenderer?.invoke("UNPROTECT_FILE", filePath);
+					console.log("Dosya koruma listesinden çıkarıldı:", filePath);
+				}
+			}
+
 			// Projeler listesinden kaldır
 			savedProjects.value.splice(projectIndex, 1);
 
@@ -270,9 +347,7 @@ export const useProjectManager = () => {
 			}
 
 			// Eğer silinen proje mevcut projeyse, mevcut proje adını temizle
-			if (
-				currentProjectName.value === savedProjects.value[projectIndex]?.name
-			) {
+			if (currentProjectName.value === project.name) {
 				currentProjectName.value = "";
 			}
 
@@ -339,6 +414,34 @@ export const useProjectManager = () => {
 						"Loaded saved projects from localStorage:",
 						savedProjects.value.length
 					);
+
+					// Korunan dosyaları yeniden koruma listesine ekle
+					const electron = window.electron;
+					if (electron?.ipcRenderer) {
+						// Her projedeki korunan dosyaları işle
+						savedProjects.value.forEach((project) => {
+							if (
+								project.protectedFiles &&
+								Array.isArray(project.protectedFiles)
+							) {
+								project.protectedFiles.forEach((filePath) => {
+									if (filePath) {
+										electron.ipcRenderer
+											.invoke("PROTECT_FILE", filePath)
+											.then(() =>
+												console.log("Dosya koruma listesine eklendi:", filePath)
+											)
+											.catch((err) =>
+												console.error(
+													"Dosya koruma listesine eklenirken hata:",
+													err
+												)
+											);
+									}
+								});
+							}
+						});
+					}
 				}
 			}
 		} catch (error) {
