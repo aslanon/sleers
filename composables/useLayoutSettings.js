@@ -440,6 +440,29 @@ export const useLayoutSettings = () => {
 		loadSavedLayouts();
 	});
 
+	// Düzenleri dışarıdan ayarla (proje yüklenirken kullanılır)
+	const setLayouts = (layouts) => {
+		try {
+			console.log("Setting layouts from external source:", layouts);
+			if (Array.isArray(layouts)) {
+				savedLayouts.value = layouts;
+				// localStorage'a kaydet
+				localStorage.setItem(
+					"sleer-layouts",
+					JSON.stringify(savedLayouts.value)
+				);
+				console.log("Layouts set successfully:", savedLayouts.value.length);
+				return true;
+			} else {
+				console.error("Invalid layouts format, expected array:", layouts);
+				return false;
+			}
+		} catch (error) {
+			console.error("Error setting layouts:", error);
+			return false;
+		}
+	};
+
 	return {
 		savedLayouts,
 		saveLayout,
@@ -447,5 +470,6 @@ export const useLayoutSettings = () => {
 		renameLayout,
 		deleteLayout,
 		loadSavedLayouts,
+		setLayouts,
 	};
 };

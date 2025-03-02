@@ -30,6 +30,20 @@
 
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
+				<ProjectManager
+					:media-player="mediaPlayerRef"
+					:video-url="videoUrl"
+					:audio-url="audioUrl"
+					:camera-url="cameraUrl"
+					:segments="segments"
+					:mouse-positions="mousePositions"
+					@update:video-url="videoUrl = $event"
+					@update:audio-url="audioUrl = $event"
+					@update:camera-url="cameraUrl = $event"
+					@update:segments="segments = $event"
+					@update:mouse-positions="mousePositions = $event"
+					@project-loaded="onProjectLoaded"
+				/>
 				<LayoutManager :media-player="mediaPlayerRef" />
 				<button
 					class="btn-export flex flex-row gap-2 items-center"
@@ -150,12 +164,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from "vue";
 import MediaPlayer from "~/components/MediaPlayer.vue";
 import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
 import LayoutManager from "~/components/ui/LayoutManager.vue";
+import ProjectManager from "~/components/ui/ProjectManager.vue";
 
 const { updateCameraSettings } = usePlayerSettings();
 
@@ -996,4 +1011,30 @@ async function loadMediaFromState() {
 		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
 	}
 }
+
+// Proje yüklendiğinde çağrılacak fonksiyon
+const onProjectLoaded = (project) => {
+	console.log("Proje yüklendi:", project);
+
+	// Proje yüklendikten sonra MediaPlayer'ı güncelle
+	nextTick(() => {
+		if (mediaPlayerRef.value) {
+			// Video ve kamera pozisyonlarını güncelle
+			if (project.positions) {
+				if (project.positions.video) {
+					mediaPlayerRef.value.setVideoPosition(project.positions.video);
+				}
+				if (project.positions.camera) {
+					mediaPlayerRef.value.setCameraPosition(project.positions.camera);
+				}
+			}
+
+			// Canvas'ı güncelle
+			mediaPlayerRef.value.updateCanvas(performance.now());
+		}
+
+		// Kullanıcıya bilgi ver
+		alert(`"${project.name}" projesi başarıyla yüklendi.`);
+	});
+};
 </script>
