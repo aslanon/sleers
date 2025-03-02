@@ -207,7 +207,10 @@
 			/>
 
 			<!-- Border Rengi -->
-			<div class="flex w-full flex-col gap-2 items-center justify-between">
+			<div
+				v-if="cameraBorderWidth > 0"
+				class="flex w-full flex-col gap-2 items-center justify-between"
+			>
 				<div class="w-full">
 					<h4 class="text-base font-semibold text-white">Kenarlık Rengi</h4>
 				</div>
