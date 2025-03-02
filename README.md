@@ -1,75 +1,72 @@
-# Nuxt Minimal Starter
+# Sleer
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Sleer, ekran kayıtlarınızı kolayca yapmanızı ve düzenlemenizi sağlayan bir masaüstü uygulamasıdır.
 
-## Setup
+## Özellikler
 
-Make sure to install dependencies:
+- Ekran kaydı
+- Kamera kaydı
+- Sistem sesi kaydı
+- Video düzenleme
+  - Segment bölme ve yeniden sıralama
+  - Kırpma (crop)
+  - Aspect ratio değiştirme
+  - Ses kontrolü
+- Düzen yönetimi
+  - Kamera ve video konumlarını kaydetme
+  - Özel düzenleri saklama ve yükleme
+  - Düzenleri yeniden adlandırma ve silme
+
+## Kurulum
 
 ```bash
-# npm
+# Bağımlılıkları yükle
 npm install
 
-# pnpm
-pnpm install
+# Geliştirme modunda çalıştır
+npm run electron:dev
 
-# yarn
-yarn install
-
-# bun
-bun install
+# Üretim için build
+npm run electron:build
 ```
 
-## Development Server
+## Kullanım
 
-Start the development server on `http://localhost:3000`:
+### Kayıt
 
-```bash
-# npm
-npm run dev
+1. Ana ekrandan "Yeni Kayıt" butonuna tıklayın
+2. Kaydetmek istediğiniz ekran alanını seçin
+3. Kamera ayarlarını yapın
+4. Kayıt başlat butonuna tıklayın
+5. Kaydı durdurmak için "Durdur" butonuna tıklayın
 
-# pnpm
-pnpm dev
+### Düzenleme
 
-# yarn
-yarn dev
+1. Kaydedilen videoyu düzenlemek için editör ekranını kullanın
+2. Timeline üzerinde segmentleri bölün, sıralayın veya silin
+3. Kırpma aracı ile videoyu kırpın
+4. Aspect ratio değiştirin
+5. Ses seviyesini ayarlayın
+6. Düzenlerinizi kaydedin ve yönetin
+7. İşlem tamamlandığında "Kaydet" butonuna tıklayın
 
-# bun
-bun run dev
-```
+### Düzen Yönetimi
 
-## Production
+1. Editör ekranında "Düzen" butonuna tıklayın
+2. Mevcut düzeni kaydetmek için "Mevcut Düzeni Kaydet" butonuna tıklayın
+3. Kaydedilen düzenleri görmek için düzen listesine bakın
+4. Bir düzeni uygulamak için üzerine tıklayın
+5. Düzenleri yeniden adlandırmak veya silmek için ilgili butonları kullanın
 
-Build the application for production:
+## Geliştirme
 
-```bash
-# npm
-npm run build
+Sleer, aşağıdaki teknolojileri kullanır:
 
-# pnpm
-pnpm build
+- Electron
+- Vue.js / Nuxt.js
+- FFmpeg
+- TailwindCSS
 
-# yarn
-yarn build
+## Lisans
 
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
-```
-
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+MIT

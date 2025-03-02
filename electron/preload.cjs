@@ -60,6 +60,14 @@ contextBridge.exposeInMainWorld("electron", {
 	selection: {
 		closeWindow: () => ipcRenderer.send("CLOSE_SELECTION_WINDOW"),
 	},
+	dialog: {
+		showPrompt: (options) => ipcRenderer.invoke("SHOW_PROMPT", options),
+		showConfirm: (options) => ipcRenderer.invoke("SHOW_CONFIRM", options),
+	},
+	store: {
+		get: (key) => ipcRenderer.invoke("STORE_GET", key),
+		set: (key, value) => ipcRenderer.invoke("STORE_SET", key, value),
+	},
 });
 
 // Mouse event IPC handlers

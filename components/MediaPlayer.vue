@@ -2355,6 +2355,36 @@ defineExpose({
 		console.log("[MediaPlayer] Toggling crop modal");
 		showCropModal.value = !showCropModal.value;
 	},
+
+	// Expose methods to get and set positions
+	getVideoPosition: () => {
+		return { ...videoPosition.value };
+	},
+
+	getCameraPosition: () => {
+		return { ...cameraPosition.value };
+	},
+
+	setVideoPosition: (newPosition) => {
+		if (
+			newPosition &&
+			typeof newPosition.x === "number" &&
+			typeof newPosition.y === "number"
+		) {
+			videoPosition.value = { ...newPosition };
+			position.value = { ...newPosition }; // Update the main position as well
+		}
+	},
+
+	setCameraPosition: (newPosition) => {
+		if (
+			newPosition &&
+			typeof newPosition.x === "number" &&
+			typeof newPosition.y === "number"
+		) {
+			cameraPosition.value = { ...newPosition };
+		}
+	},
 });
 
 // cropRatio değişikliğini izle

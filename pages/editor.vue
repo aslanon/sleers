@@ -30,6 +30,7 @@
 
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
+				<LayoutManager :media-player="mediaPlayerRef" />
 				<button
 					class="btn-export flex flex-row gap-2 items-center"
 					@click="saveVideo()"
@@ -154,6 +155,7 @@ import MediaPlayer from "~/components/MediaPlayer.vue";
 import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
+import LayoutManager from "~/components/ui/LayoutManager.vue";
 
 const { updateCameraSettings } = usePlayerSettings();
 

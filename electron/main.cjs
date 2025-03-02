@@ -8,6 +8,7 @@ const {
 	nativeImage,
 	protocol,
 	screen,
+	dialog,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -1387,6 +1388,165 @@ function setupIpcHandlers() {
 			} catch (error) {
 				console.error("[Main] Pencere kapatma hatası (ESC):", error);
 			}
+		}
+	});
+
+	// Dialog handlers for layout management
+	ipcMain.handle("SHOW_PROMPT", async (event, options) => {
+		if (!mainWindow) return null;
+
+		const { title, message, defaultValue } = options;
+
+		// Create a simple HTML prompt dialog
+		const promptWindow = new BrowserWindow({
+			width: 400,
+			height: 200,
+			parent: mainWindow,
+			modal: true,
+			show: false,
+			resizable: false,
+			minimizable: false,
+			maximizable: false,
+			webPreferences: {
+				nodeIntegration: true,
+				contextIsolation: false,
+			},
+		});
+
+		// Load HTML content
+		promptWindow.loadURL(`data:text/html,
+			<html>
+			<head>
+				<title>${title || "Giriş"}</title>
+				<style>
+					body {
+						font-family: system-ui, -apple-system, sans-serif;
+						background-color: #1f2937;
+						color: white;
+						padding: 20px;
+						margin: 0;
+						display: flex;
+						flex-direction: column;
+						height: 100vh;
+					}
+					h3 {
+						margin-top: 0;
+						margin-bottom: 15px;
+					}
+					input {
+						padding: 8px;
+						margin-bottom: 20px;
+						background-color: #374151;
+						border: 1px solid #4b5563;
+						color: white;
+						border-radius: 4px;
+					}
+					.buttons {
+						display: flex;
+						justify-content: flex-end;
+						gap: 10px;
+					}
+					button {
+						padding: 8px 16px;
+						border: none;
+						border-radius: 4px;
+						cursor: pointer;
+					}
+					.cancel {
+						background-color: #4b5563;
+						color: white;
+					}
+					.ok {
+						background-color: #2563eb;
+						color: white;
+					}
+				</style>
+			</head>
+			<body>
+				<h3>${message || "Lütfen bir değer girin:"}</h3>
+				<input id="prompt-input" type="text" value="${defaultValue || ""}" autofocus />
+				<div class="buttons">
+					<button class="cancel" onclick="cancel()">İptal</button>
+					<button class="ok" onclick="ok()">Tamam</button>
+				</div>
+				<script>
+					const input = document.getElementById('prompt-input');
+					input.select();
+					
+					function cancel() {
+						window.promptResult = null;
+						window.close();
+					}
+					
+					function ok() {
+						window.promptResult = input.value;
+						window.close();
+					}
+					
+					// Handle Enter key
+					input.addEventListener('keyup', (e) => {
+						if (e.key === 'Enter') ok();
+						if (e.key === 'Escape') cancel();
+					});
+				</script>
+			</body>
+			</html>
+		`);
+
+		// Show window
+		promptWindow.once("ready-to-show", () => {
+			promptWindow.show();
+		});
+
+		// Wait for window to close and get result
+		return new Promise((resolve) => {
+			promptWindow.on("closed", () => {
+				resolve(
+					promptWindow.webContents.executeJavaScript("window.promptResult")
+				);
+			});
+		});
+	});
+
+	ipcMain.handle("SHOW_CONFIRM", async (event, options) => {
+		if (!mainWindow) return 0;
+
+		const { title, message, buttons } = options;
+		const result = await dialog.showMessageBox(mainWindow, {
+			type: "question",
+			buttons: buttons || ["İptal", "Tamam"],
+			defaultId: 1,
+			cancelId: 0,
+			title: title || "Onay",
+			message: message || "Bu işlemi yapmak istediğinize emin misiniz?",
+		});
+
+		return result.response;
+	});
+
+	// Store handlers
+	ipcMain.handle("STORE_GET", async (event, key) => {
+		try {
+			// You can implement your own storage solution here
+			// For now, we'll use a simple in-memory store
+			const store = global.store || {};
+			return store[key];
+		} catch (error) {
+			console.error(`[Main] Error getting store value for key ${key}:`, error);
+			return null;
+		}
+	});
+
+	ipcMain.handle("STORE_SET", async (event, key, value) => {
+		try {
+			// You can implement your own storage solution here
+			// For now, we'll use a simple in-memory store
+			global.store = global.store || {};
+			global.store[key] = value;
+			return true;
+		} catch (error) {
+			console.error(`[Main] Error setting store value for key ${key}:`, error);
+			return false;
 		}
 	});
 }
