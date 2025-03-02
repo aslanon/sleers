@@ -2385,6 +2385,40 @@ defineExpose({
 			cameraPosition.value = { ...newPosition };
 		}
 	},
+
+	// Add methods to get canvas size, camera settings, and video border settings
+	getCanvasSize: () => {
+		if (!canvasRef.value) return { width: 800, height: 600 };
+		return {
+			width: canvasRef.value.width,
+			height: canvasRef.value.height,
+		};
+	},
+
+	getCameraSettings: () => {
+		return JSON.parse(JSON.stringify(cameraSettings.value || {}));
+	},
+
+	getVideoBorderSettings: () => {
+		return JSON.parse(JSON.stringify(videoBorderSettings.value || {}));
+	},
+
+	getMouseCursorSettings: () => {
+		return {
+			size: mouseSize.value,
+			visible: mouseVisible.value,
+			motionBlur: motionBlurValue.value,
+		};
+	},
+
+	getZoomSettings: () => {
+		return {
+			zoomRanges: JSON.parse(JSON.stringify(zoomRanges.value || [])),
+			currentZoomRange: currentZoomRange.value
+				? JSON.parse(JSON.stringify(currentZoomRange.value))
+				: null,
+		};
+	},
 });
 
 // cropRatio değişikliğini izle

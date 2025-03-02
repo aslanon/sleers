@@ -148,7 +148,7 @@
 						</div>
 						<div v-else class="flex items-center justify-between">
 							<button
-								@click="applyLayout(layout)"
+								@click="applyLayout(layout.id)"
 								class="flex-1 text-left hover:text-blue-400 truncate"
 								:title="layout.name"
 							>
@@ -230,14 +230,87 @@ const editingLayoutId = ref(null);
 const editingLayoutName = ref("");
 const popoverPosition = ref({ top: 0, left: 0 });
 
-// Get current positions from MediaPlayer
+// Get current positions and settings from MediaPlayer
 const getCurrentPositions = () => {
-	if (!props.mediaPlayer) return { videoPosition: null, cameraPosition: null };
+	if (!props.mediaPlayer) {
+		console.warn("MediaPlayer reference not available");
+		return {
+			videoPosition: null,
+			cameraPosition: null,
+			canvasSize: { width: 800, height: 600 },
+			cameraSettings: {},
+			videoBorderSettings: {},
+			mouseCursorSettings: {},
+			zoomSettings: { zoomRanges: [], currentZoomRange: null },
+		};
+	}
 
-	return {
-		videoPosition: props.mediaPlayer.getVideoPosition?.() || null,
-		cameraPosition: props.mediaPlayer.getCameraPosition?.() || null,
-	};
+	try {
+		console.log("Getting current positions and settings from MediaPlayer");
+
+		// Get video and camera positions
+		const videoPosition = props.mediaPlayer.getVideoPosition?.() || null;
+		const cameraPosition = props.mediaPlayer.getCameraPosition?.() || null;
+
+		// Get canvas size
+		let canvasSize = { width: 800, height: 600 };
+		if (props.mediaPlayer.getCanvasSize) {
+			canvasSize = props.mediaPlayer.getCanvasSize();
+			console.log("Got canvas size:", canvasSize);
+		}
+
+		// Get camera settings
+		let cameraSettings = {};
+		if (props.mediaPlayer.getCameraSettings) {
+			cameraSettings = props.mediaPlayer.getCameraSettings();
+			console.log("Got camera settings:", cameraSettings);
+		}
+
+		// Get video border settings
+		let videoBorderSettings = {};
+		if (props.mediaPlayer.getVideoBorderSettings) {
+			videoBorderSettings = props.mediaPlayer.getVideoBorderSettings();
+			console.log("Got video border settings:", videoBorderSettings);
+		}
+
+		// Get mouse cursor settings
+		let mouseCursorSettings = {};
+		if (props.mediaPlayer.getMouseCursorSettings) {
+			mouseCursorSettings = props.mediaPlayer.getMouseCursorSettings();
+			console.log("Got mouse cursor settings:", mouseCursorSettings);
+		}
+
+		// Get zoom settings
+		let zoomSettings = { zoomRanges: [], currentZoomRange: null };
+		if (props.mediaPlayer.getZoomSettings) {
+			zoomSettings = props.mediaPlayer.getZoomSettings();
+			console.log("Got zoom settings:", zoomSettings);
+		}
+
+		return {
+			videoPosition,
+			cameraPosition,
+			canvasSize,
+			cameraSettings,
+			videoBorderSettings,
+			mouseCursorSettings,
+			zoomSettings,
+		};
+	} catch (error) {
+		console.error(
+			"Error getting positions and settings from MediaPlayer:",
+			error
+		);
+		return {
+			videoPosition: null,
+			cameraPosition: null,
+			canvasSize: { width: 800, height: 600 },
+			cameraSettings: {},
+			videoBorderSettings: {},
+			mouseCursorSettings: {},
+			zoomSettings: { zoomRanges: [], currentZoomRange: null },
+		};
+	}
 };
 
 // Toggle layout popover
@@ -324,9 +397,27 @@ const saveCurrentLayout = async () => {
 
 		console.log("Saving layout with name:", layoutName);
 
-		// Get positions and save layout
-		const { videoPosition, cameraPosition } = getCurrentPositions();
-		const result = await saveLayout(layoutName, videoPosition, cameraPosition);
+		// Get all positions and settings
+		const {
+			videoPosition,
+			cameraPosition,
+			canvasSize,
+			cameraSettings,
+			videoBorderSettings,
+			mouseCursorSettings,
+			zoomSettings,
+		} = getCurrentPositions();
+
+		// Save the layout with all settings
+		const result = await saveLayout(layoutName, videoPosition, cameraPosition, {
+			canvasSize,
+			cameraSettings,
+			videoBorderSettings,
+			mouseCursorSettings,
+			zoomRanges: zoomSettings?.zoomRanges || [],
+			currentZoomRange: zoomSettings?.currentZoomRange || null,
+		});
+
 		console.log("Layout saved:", result);
 
 		// Force update popover position after adding a new layout
@@ -339,31 +430,47 @@ const saveCurrentLayout = async () => {
 	}
 };
 
-// Apply layout
-const applyLayout = (layout) => {
-	console.log("Applying layout:", layout);
+// Apply a layout
+const applyLayout = async (layoutId) => {
+	try {
+		console.log("Applying layout with ID:", layoutId);
 
-	// Make sure we have a valid layout object
-	if (!layout || !layout.id) {
-		console.error("Invalid layout object:", layout);
-		return;
-	}
-
-	applyLayoutSettings(
-		layout.id,
-		(videoPos) => {
-			if (props.mediaPlayer) {
-				console.log("Setting video position:", videoPos);
-				props.mediaPlayer.setVideoPosition?.(videoPos);
-			}
-		},
-		(cameraPos) => {
-			if (props.mediaPlayer) {
-				console.log("Setting camera position:", cameraPos);
-				props.mediaPlayer.setCameraPosition?.(cameraPos);
-			}
+		if (!props.mediaPlayer) {
+			console.error("MediaPlayer reference not available");
+			alert("Düzen uygulanamadı: MediaPlayer referansı bulunamadı");
+			return;
 		}
-	);
+
+		// Define callbacks for setting positions
+		const setVideoPosition = (position) => {
+			if (props.mediaPlayer.setVideoPosition) {
+				props.mediaPlayer.setVideoPosition(position);
+			}
+		};
+
+		const setCameraPosition = (position) => {
+			if (props.mediaPlayer.setCameraPosition) {
+				props.mediaPlayer.setCameraPosition(position);
+			}
+		};
+
+		// Apply the layout with callbacks
+		const result = await applyLayoutSettings(
+			layoutId,
+			setVideoPosition,
+			setCameraPosition
+		);
+
+		if (result) {
+			console.log("Layout applied successfully");
+		} else {
+			console.error("Failed to apply layout");
+			alert("Düzen uygulanamadı");
+		}
+	} catch (error) {
+		console.error("Error applying layout:", error);
+		alert("Düzen uygulanırken bir hata oluştu: " + error.message);
+	}
 };
 
 // Start editing layout name
