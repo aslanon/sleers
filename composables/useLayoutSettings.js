@@ -65,7 +65,7 @@ export const useLayoutSettings = () => {
 									borderColor: "#ffffff", // Camera border color
 									followMouse: true, // Whether camera follows mouse
 									visible: true, // Camera visibility
-									position: { x: 0, y: 0 }, // Camera position
+									position: cameraPos || { x: 0, y: 0 }, // Use provided camera position
 								}
 							)
 						),
@@ -112,6 +112,11 @@ export const useLayoutSettings = () => {
 				},
 			};
 
+			// Ensure camera position is properly set in camera settings
+			if (cameraPos && currentSettings.settings.cameraSettings) {
+				currentSettings.settings.cameraSettings.position = { ...cameraPos };
+			}
+
 			// Add to saved layouts
 			savedLayouts.value.push(currentSettings);
 
@@ -153,6 +158,7 @@ export const useLayoutSettings = () => {
 
 			// Apply video and camera positions if callbacks are provided
 			try {
+				// Apply video position
 				if (setVideoPosition && layout.settings.videoPosition) {
 					console.log(
 						`Setting video position to:`,
@@ -161,12 +167,37 @@ export const useLayoutSettings = () => {
 					setVideoPosition(layout.settings.videoPosition);
 				}
 
-				if (setCameraPosition && layout.settings.cameraPosition) {
-					console.log(
-						`Setting camera position to:`,
-						layout.settings.cameraPosition
-					);
-					setCameraPosition(layout.settings.cameraPosition);
+				// Apply camera position - check both direct cameraPosition and position in cameraSettings
+				if (setCameraPosition) {
+					let cameraPos = null;
+
+					// First try to get the direct camera position
+					if (layout.settings.cameraPosition) {
+						cameraPos = layout.settings.cameraPosition;
+						console.log(
+							`Setting camera position from direct cameraPosition:`,
+							cameraPos
+						);
+					}
+					// If not available, try to get it from camera settings
+					else if (
+						layout.settings.cameraSettings &&
+						layout.settings.cameraSettings.position
+					) {
+						cameraPos = layout.settings.cameraSettings.position;
+						console.log(
+							`Setting camera position from cameraSettings:`,
+							cameraPos
+						);
+					}
+
+					// Apply the camera position if we found one
+					if (cameraPos) {
+						setCameraPosition(cameraPos);
+						console.log("Camera position applied successfully");
+					} else {
+						console.warn("No camera position found in layout settings");
+					}
 				}
 			} catch (positionError) {
 				console.error("Error applying positions:", positionError);
@@ -232,7 +263,18 @@ export const useLayoutSettings = () => {
 						"Setting camera settings to:",
 						layout.settings.cameraSettings
 					);
-					playerSettings.cameraSettings.value = layout.settings.cameraSettings;
+
+					// Make a copy of the camera settings to avoid reference issues
+					const cameraSettingsCopy = JSON.parse(
+						JSON.stringify(layout.settings.cameraSettings)
+					);
+
+					// If we have a camera position in the settings, make sure it's preserved
+					if (layout.settings.cameraPosition && !cameraSettingsCopy.position) {
+						cameraSettingsCopy.position = layout.settings.cameraPosition;
+					}
+
+					playerSettings.cameraSettings.value = cameraSettingsCopy;
 				}
 
 				// Apply video border settings

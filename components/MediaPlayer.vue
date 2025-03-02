@@ -1463,12 +1463,28 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			if (isCameraDragging.value) {
 				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
 				cameraPos = cameraPosition.value;
+				console.log("[MediaPlayer] Using dragged camera position:", cameraPos);
 			} else if (cameraSettings.value.followMouse && lastCameraPosition.value) {
 				// Mouse takibi aktifse video pozisyonunu ekle
 				cameraPos = {
 					x: lastCameraPosition.value.x,
 					y: lastCameraPosition.value.y,
 				};
+				console.log(
+					"[MediaPlayer] Using mouse-following camera position:",
+					cameraPos
+				);
+			} else if (cameraPosition.value) {
+				// Kamera pozisyonu varsa onu kullan (düzen uygulandıktan sonra veya manuel ayarlandıktan sonra)
+				cameraPos = { ...cameraPosition.value };
+				console.log("[MediaPlayer] Using stored camera position:", cameraPos);
+			} else if (cameraSettings.value.position) {
+				// Kamera ayarlarında pozisyon varsa onu kullan (son çare olarak)
+				cameraPos = { ...cameraSettings.value.position };
+				console.log(
+					"[MediaPlayer] Using camera position from settings:",
+					cameraPos
+				);
 			}
 
 			try {
@@ -2091,6 +2107,18 @@ const onVideoVolumeChange = () => {
 onMounted(() => {
 	initVideo();
 
+	// Initialize camera position from camera settings if available
+	if (cameraSettings.value && cameraSettings.value.position) {
+		console.log(
+			"[MediaPlayer] Initializing camera position from settings:",
+			cameraSettings.value.position
+		);
+		cameraPosition.value = { ...cameraSettings.value.position };
+		if (lastCameraPosition.value) {
+			lastCameraPosition.value = { ...cameraSettings.value.position };
+		}
+	}
+
 	let newImage = backgroundImage.value;
 
 	if (newImage) {
@@ -2362,7 +2390,30 @@ defineExpose({
 	},
 
 	getCameraPosition: () => {
-		return { ...cameraPosition.value };
+		// Return the camera position from the useCameraDrag composable
+		// Make a deep copy to avoid reference issues
+		if (cameraPosition.value) {
+			console.log(
+				"[MediaPlayer] Getting camera position:",
+				cameraPosition.value
+			);
+			return { ...cameraPosition.value };
+		}
+
+		// Fallback to lastCameraPosition if available
+		if (lastCameraPosition.value) {
+			console.log(
+				"[MediaPlayer] Getting camera position from lastCameraPosition:",
+				lastCameraPosition.value
+			);
+			return { ...lastCameraPosition.value };
+		}
+
+		// Default position if nothing else is available
+		console.log(
+			"[MediaPlayer] No camera position available, returning default"
+		);
+		return { x: 0, y: 0 };
 	},
 
 	setVideoPosition: (newPosition) => {
@@ -2371,6 +2422,7 @@ defineExpose({
 			typeof newPosition.x === "number" &&
 			typeof newPosition.y === "number"
 		) {
+			console.log("[MediaPlayer] Setting video position to:", newPosition);
 			videoPosition.value = { ...newPosition };
 			position.value = { ...newPosition }; // Update the main position as well
 		}
@@ -2382,7 +2434,23 @@ defineExpose({
 			typeof newPosition.x === "number" &&
 			typeof newPosition.y === "number"
 		) {
+			console.log("[MediaPlayer] Setting camera position to:", newPosition);
+
+			// Kamera pozisyonunu güncelle
 			cameraPosition.value = { ...newPosition };
+
+			// Ayrıca lastCameraPosition'ı da güncelle (render için)
+			if (lastCameraPosition.value) {
+				lastCameraPosition.value = { ...newPosition };
+			}
+
+			// Kamera ayarlarındaki pozisyonu güncelleme - bu sadece kaydetme sırasında yapılmalı
+			// Burada güncellemeyi kaldırıyoruz ki düzen uygulandıktan sonra kamera serbest hareket edebilsin
+
+			// Kamera pozisyonunu canvas'ta hemen güncelle
+			requestAnimationFrame(() => {
+				updateCanvas(performance.now());
+			});
 		}
 	},
 
@@ -2513,9 +2581,16 @@ const handleMouseDown = (e) => {
 	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
 	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
 
+	// Kamera üzerinde tıklandıysa ve takip modu kapalıysa kamerayı sürükle
 	if (isMouseOverCamera.value && !cameraSettings.value.followMouse) {
-		startCameraDrag(e, lastCameraPosition.value, mouseX, mouseY);
+		console.log("[MediaPlayer] Starting camera drag");
+		// Kamera pozisyonu için lastCameraPosition veya cameraPosition kullan
+		const currentCameraPos = lastCameraPosition.value ||
+			cameraPosition.value || { x: 0, y: 0 };
+		startCameraDrag(e, currentCameraPos, mouseX, mouseY);
 	} else {
+		// Değilse videoyu sürükle
+		console.log("[MediaPlayer] Starting video drag");
 		startVideoDrag(
 			e,
 			{ x: position.value.x, y: position.value.y },

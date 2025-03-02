@@ -234,7 +234,13 @@ const getCurrentPositions = () => {
 
 		// Get video and camera positions
 		const videoPosition = props.mediaPlayer.getVideoPosition?.() || null;
-		const cameraPosition = props.mediaPlayer.getCameraPosition?.() || null;
+
+		// Get camera position - ensure we're getting the actual position
+		let cameraPosition = null;
+		if (props.mediaPlayer.getCameraPosition) {
+			cameraPosition = props.mediaPlayer.getCameraPosition();
+			console.log("Got camera position:", cameraPosition);
+		}
 
 		// Get canvas size
 		let canvasSize = { width: 800, height: 600 };
@@ -248,6 +254,16 @@ const getCurrentPositions = () => {
 		if (props.mediaPlayer.getCameraSettings) {
 			cameraSettings = props.mediaPlayer.getCameraSettings();
 			console.log("Got camera settings:", cameraSettings);
+
+			// Düzen kaydedilirken, kamera pozisyonunu cameraSettings içine de kaydet
+			// Bu, düzen uygulandığında kameranın doğru konuma gitmesini sağlar
+			if (cameraPosition) {
+				cameraSettings.position = { ...cameraPosition };
+				console.log(
+					"Updated camera settings with current position:",
+					cameraSettings
+				);
+			}
 		}
 
 		// Get video border settings

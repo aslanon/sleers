@@ -25,7 +25,15 @@ export const useCameraDrag = () => {
 		if (!isDragging.value) return;
 
 		const dpr = window.devicePixelRatio || 1;
-		const rect = document.getElementById("canvasID").getBoundingClientRect();
+		const canvas = document.getElementById("canvasID");
+
+		// Canvas elementini bulamazsak işlemi iptal et
+		if (!canvas) {
+			console.warn("Canvas element not found during camera drag");
+			return;
+		}
+
+		const rect = canvas.getBoundingClientRect();
 		const mouseX = (e.clientX - rect.left) * dpr * 3; // scaleValue = 3
 		const mouseY = (e.clientY - rect.top) * dpr * 3;
 
@@ -34,6 +42,9 @@ export const useCameraDrag = () => {
 			x: mouseX - dragOffset.value.x,
 			y: mouseY - dragOffset.value.y,
 		};
+
+		// Kamera pozisyonu değiştiğinde log
+		console.log("Camera position updated during drag:", cameraPosition.value);
 	};
 
 	const stopDrag = () => {
