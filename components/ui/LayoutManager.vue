@@ -3,7 +3,7 @@
 		<!-- Layout Button -->
 		<button
 			ref="layoutButtonRef"
-			class="btn-layout flex flex-row gap-2 items-center px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+			class="btn-layout flex flex-row gap-2 items-center px-4 py-1 rounded-lg"
 			@click="toggleLayoutPopover"
 		>
 			<svg
@@ -34,56 +34,40 @@
 			<!-- Layout Popover -->
 			<div
 				ref="layoutPopoverRef"
-				class="fixed z-[100] bg-gray-800 border border-gray-700 rounded-lg shadow-lg p-4 w-[280px] max-h-[80vh] overflow-y-auto"
+				class="fixed z-[100] bg-black border border-gray-700 rounded-xl shadow-lg p-4 w-[360px] max-h-[80vh] overflow-y-auto"
 				:style="{
 					top: popoverPosition.top + 'px',
 					left: popoverPosition.left + 'px',
 				}"
 			>
-				<div class="flex justify-between items-center mb-4">
-					<h3 class="text-lg font-semibold">Düzen Yönetimi</h3>
-					<button
-						@click="isLayoutPopoverOpen = false"
-						class="text-gray-400 hover:text-white"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
+				<div class="flex flex-col justify-between gap-2 items-start mb-4">
+					<div class="w-full flex justify-between items-center">
+						<h3 class="w-full text-md font-semibold">Düzen Yönetimi</h3>
+						<button
+							@click="saveCurrentLayout"
+							class="w-full text-md rounded-lg text-blue-500 flex items-center justify-end gap-2"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M6 18L18 6M6 6l12 12"
-							/>
-						</svg>
-					</button>
-				</div>
-
-				<div class="mb-4">
-					<button
-						@click="saveCurrentLayout"
-						class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center justify-center gap-2"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 4v16m8-8H4"
-							/>
-						</svg>
-						Düzeni Kaydet
-					</button>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-4 w-4"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 4v16m8-8H4"
+								/>
+							</svg>
+							Düzeni Kaydet
+						</button>
+					</div>
+					<p class="text-xs text-gray-400">
+						Yerleşim düzeninizi ve bazı ayarlarınızı daha sonradan kullanmak
+						için kaydedebilirsiniz.
+					</p>
 				</div>
 
 				<div class="max-h-[300px] overflow-y-auto">
@@ -96,7 +80,7 @@
 					<div
 						v-for="layout in savedLayouts"
 						:key="layout.id"
-						class="mb-2 p-2 bg-gray-700 rounded-lg"
+						class="mb-2 py-2 border-b border-gray-700"
 					>
 						<div
 							v-if="editingLayoutId === layout.id"
@@ -104,7 +88,7 @@
 						>
 							<input
 								v-model="editingLayoutName"
-								class="flex-1 px-2 py-1 bg-gray-600 rounded border border-gray-500 focus:outline-none focus:border-blue-500"
+								class="flex-1 px-2 py-1 bg-black rounded border border-gray-500 focus:outline-none focus:border-blue-500"
 								@keyup.enter="saveLayoutName(layout.id)"
 							/>
 							<button
