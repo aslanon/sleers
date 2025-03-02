@@ -193,6 +193,7 @@ const {
 	setCurrentZoomRange,
 	cameraSettings,
 	videoBorderSettings,
+	mouseVisible,
 } = usePlayerSettings();
 
 // Kamera renderer'ı al
@@ -749,6 +750,9 @@ const {
 
 // Mouse pozisyonlarını çiz
 const drawMousePositions = () => {
+	// Mouse görünürlüğü kapalıysa çizme
+	if (!mouseVisible.value) return;
+
 	if (!props.mousePositions || !canvasRef.value || !videoElement) return;
 
 	const ctx = canvasRef.value.getContext("2d");
@@ -1018,6 +1022,7 @@ const drawMousePositions = () => {
 		dpr,
 		motionEnabled: mouseMotionEnabled.value,
 		motionBlurValue: motionBlurValue.value,
+		visible: mouseVisible.value, // Add visibility parameter
 	});
 
 	// Kamera pozisyonunu güncelle
@@ -1903,6 +1908,7 @@ watch(
 		mouseSize,
 		mouseMotionEnabled,
 		motionBlurValue,
+		mouseVisible, // mouseVisible ekledim
 		zoomRanges,
 		currentZoomRange,
 	],
@@ -2458,6 +2464,7 @@ const handleMouseDown = (e) => {
 const handleMouseMove = (e) => {
 	if (!canvasRef.value) return;
 
+	// Mouse görünürlüğü kapalıysa sadece pozisyonu güncelle, canvas'ı güncelleme
 	const rect = canvasRef.value.getBoundingClientRect();
 	const dpr = window.devicePixelRatio || 1;
 	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
@@ -2570,6 +2577,22 @@ watch(
 	{ immediate: true }
 );
 // ... existing code ...
+
+// mouseVisible değişikliğini izle ve canvas'ı güncelle
+watch(
+	mouseVisible,
+	() => {
+		if (!ctx || !canvasRef.value) return;
+
+		// Canvas'ı hemen güncelle
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
+	},
+	{ immediate: true }
+);
+
+// İlk frame'e seek etmek için yardımcı fonksiyon
 </script>
 
 <style scoped>

@@ -2,6 +2,7 @@ import { ref, computed } from "vue";
 
 const mouseSize = ref(180);
 const motionBlurValue = ref(0.5);
+const mouseVisible = ref(true);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
@@ -71,6 +72,10 @@ export const usePlayerSettings = () => {
 
 	const updateMotionBlur = (value) => {
 		motionBlurValue.value = value;
+	};
+
+	const updateMouseVisible = (visible) => {
+		mouseVisible.value = visible;
 	};
 
 	const updateBackgroundColor = (color) => {
@@ -189,6 +194,7 @@ export const usePlayerSettings = () => {
 	return {
 		mouseSize,
 		motionBlurValue,
+		mouseVisible,
 		backgroundColor,
 		backgroundImage,
 		backgroundBlur,
@@ -206,6 +212,7 @@ export const usePlayerSettings = () => {
 		MOTION_BLUR_CONSTANTS,
 		updateMouseSize,
 		updateMotionBlur,
+		updateMouseVisible,
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,

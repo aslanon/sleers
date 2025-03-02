@@ -170,7 +170,10 @@ export const useMouseCursor = () => {
 			dpr = 1,
 			motionEnabled = false,
 			motionBlurValue = 0.5,
+			visible = true,
 		} = options;
+
+		if (!visible) return;
 
 		if (!cursorImages.value[currentCursorType.value]) {
 			console.warn(
