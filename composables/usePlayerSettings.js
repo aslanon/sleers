@@ -17,6 +17,7 @@ const cameraSettings = ref({
 	shadow: 10,
 	followMouse: true,
 	mirror: true,
+	visible: true,
 	aspectRatio: "1:1",
 	crop: {
 		x: 21.875,

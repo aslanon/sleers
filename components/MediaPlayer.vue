@@ -2265,7 +2265,8 @@ const renderVideo = () => {
 
 	// Videoyu çiz
 	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-	if (camera) ctx.drawImage(camera, 0, 0, canvas.width, canvas.height);
+	if (camera && cameraSettings.value.visible)
+		ctx.drawImage(camera, 0, 0, canvas.width, canvas.height);
 
 	// Bir sonraki frame'i iste
 	requestAnimationFrame(renderVideo);

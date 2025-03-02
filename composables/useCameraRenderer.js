@@ -33,6 +33,9 @@ export const useCameraRenderer = () => {
 		zoomScale = 1,
 		videoPosition = { x: 0, y: 0 }
 	) => {
+		// Check if camera should be visible
+		if (!cameraSettings.value.visible) return false;
+
 		// Always try to draw even if camera is not fully ready
 		if (!cameraElement) return false;
 
