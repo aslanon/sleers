@@ -168,6 +168,15 @@ class EditorManager {
 		if (this.editorWindow && !this.editorWindow.isDestroyed()) {
 			this.editorWindow.destroy();
 			this.editorWindow = null;
+
+			// EDITOR_CLOSED eventini gönder
+			const { ipcMain } = require("electron");
+			const { IPC_EVENTS } = require("./constants.cjs");
+			ipcMain.emit(IPC_EVENTS.EDITOR_CLOSED);
+
+			console.log(
+				"[editorManager.cjs] Editor penceresi kapatıldı, EDITOR_CLOSED eventi gönderildi"
+			);
 		}
 	}
 

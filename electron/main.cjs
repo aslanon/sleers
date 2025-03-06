@@ -802,14 +802,40 @@ function setupIpcHandlers() {
 
 	// Editor events
 	ipcMain.on(IPC_EVENTS.EDITOR_CLOSED, () => {
-		mediaStateManager.resetState();
+		handleEditorToRecordTransition();
 	});
 
 	ipcMain.on(IPC_EVENTS.CLOSE_EDITOR_WINDOW, () => {
 		if (editorManager) {
 			editorManager.closeEditorWindow();
 		}
+		// closeEditorWindow zaten EDITOR_CLOSED eventini gönderiyor,
+		// bu event de handleEditorToRecordTransition'ı çağıracak
 	});
+
+	// Editörden kayıt moduna geçişi yöneten fonksiyon
+	function handleEditorToRecordTransition() {
+		console.log("[Main] Editörden kayıt moduna geçiliyor...");
+
+		// State'i sıfırla
+		if (mediaStateManager) {
+			mediaStateManager.resetState();
+		}
+
+		// Kamerayı açma işlemini setTimeout ile geciktirelim (güvenilirlik için)
+		setTimeout(() => {
+			if (cameraManager) {
+				console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
+				cameraManager.initializeCamera();
+			}
+
+			// Ana pencereyi göster
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				console.log("[Main] Ana pencere gösteriliyor...");
+				mainWindow.show();
+			}
+		}, 200); // 200ms gecikme
+	}
 
 	// Media state
 	ipcMain.handle(IPC_EVENTS.GET_MEDIA_STATE, () => {
@@ -1582,9 +1608,24 @@ function setupIpcHandlers() {
 function openEditorMode() {
 	console.log("[Main] Editör modu doğrudan açılıyor...");
 
-	// Eğer kamera açıksa kapatın
+	// Kamera penceresini kapat - kesin olarak kapanmasını sağlayalım
 	if (cameraManager) {
+		console.log("[Main] Kamera penceresi kapatılıyor...");
+		// Önce stopCamera() ile stream'i durdur
 		cameraManager.stopCamera();
+
+		// Kamera penceresinin tam olarak kapandığından emin olmak için
+		try {
+			if (
+				cameraManager.cameraWindow &&
+				!cameraManager.cameraWindow.isDestroyed()
+			) {
+				cameraManager.cameraWindow.hide();
+				console.log("[Main] Kamera penceresi gizlendi");
+			}
+		} catch (err) {
+			console.error("[Main] Kamera penceresi gizlenirken hata:", err);
+		}
 	}
 
 	// Editör penceresini aç
@@ -1667,6 +1708,9 @@ function initializeManagers() {
 
 	// Tray ekle
 	trayManager.createTray();
+
+	// Kamera penceresini başlat
+	cameraManager.initializeCamera();
 }
 
 function setupWindowEvents() {

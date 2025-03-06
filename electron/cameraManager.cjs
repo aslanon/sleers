@@ -31,20 +31,46 @@ class CameraManager {
 
 	// Initialize camera with retry mechanism
 	async initializeCamera() {
-		if (this.initializationAttempts >= this.maxInitializationAttempts) {
-			console.error("Maximum camera initialization attempts reached");
-			this.mainWindow.webContents.send(
-				"camera-error",
-				"Failed to initialize camera after multiple attempts"
+		console.log(
+			"[cameraManager.cjs] Kamera başlatılıyor... (deneme: " +
+				(this.initializationAttempts + 1) +
+				"/" +
+				(this.maxInitializationAttempts + 1) +
+				")"
+		);
+
+		// Zaten başlatılmış ve çalışır durumdaysa tekrar başlatmaya gerek yok
+		if (
+			this.cameraWindow &&
+			!this.cameraWindow.isDestroyed() &&
+			this.cameraWindow.isVisible()
+		) {
+			console.log(
+				"[cameraManager.cjs] Kamera zaten çalışıyor, tekrar başlatılmıyor."
 			);
 			return;
 		}
 
+		if (this.initializationAttempts >= this.maxInitializationAttempts) {
+			console.error(
+				"[cameraManager.cjs] Maksimum kamera başlatma deneme sayısına ulaşıldı"
+			);
+			if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+				this.mainWindow.webContents.send(
+					"camera-error",
+					"Kamera birden fazla deneme sonrasında başlatılamadı"
+				);
+			}
+			return;
+		}
+
 		try {
+			console.log("[cameraManager.cjs] Kamera penceresi oluşturuluyor...");
 			await this.createCameraWindow();
 			this.initializationAttempts = 0; // Reset attempts on success
+			console.log("[cameraManager.cjs] Kamera başarıyla başlatıldı");
 		} catch (error) {
-			console.error("Camera initialization failed:", error);
+			console.error("[cameraManager.cjs] Kamera başlatma hatası:", error);
 			this.initializationAttempts++;
 
 			// Schedule retry
@@ -52,6 +78,11 @@ class CameraManager {
 				if (this.initializationTimeout) {
 					clearTimeout(this.initializationTimeout);
 				}
+				console.log(
+					"[cameraManager.cjs] Kamera başlatma yeniden deneniyor... (" +
+						this.INITIALIZATION_RETRY_DELAY +
+						"ms sonra)"
+				);
 				this.initializationTimeout = setTimeout(() => {
 					this.initializeCamera();
 				}, this.INITIALIZATION_RETRY_DELAY);
