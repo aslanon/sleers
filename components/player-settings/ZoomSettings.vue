@@ -19,8 +19,36 @@
 				unit="x"
 			/>
 
-			<!-- Zoom Position Selector -->
+			<!-- Zoom Origin Selector -->
 			<div class="setting-group pb-4">
+				<label class="setting-label">Zoom Origin</label>
+				<p class="setting-desc">Zoom efektinin merkez noktasını belirler.</p>
+				<div class="mt-3 flex flex-col space-y-2">
+					<label class="flex items-center space-x-2 cursor-pointer">
+						<input
+							type="radio"
+							name="zoomOrigin"
+							value="cursor"
+							v-model="zoomOriginType"
+							class="w-4 h-4 text-indigo-500"
+						/>
+						<span class="text-sm">Cursor Position (At segment start)</span>
+					</label>
+					<label class="flex items-center space-x-2 cursor-pointer">
+						<input
+							type="radio"
+							name="zoomOrigin"
+							value="custom"
+							v-model="zoomOriginType"
+							class="w-4 h-4 text-indigo-500"
+						/>
+						<span class="text-sm">Custom Position</span>
+					</label>
+				</div>
+			</div>
+
+			<!-- Zoom Position Selector (only visible when zoomOriginType is 'custom') -->
+			<div v-if="zoomOriginType === 'custom'" class="setting-group pb-4">
 				<label class="setting-label">Zoom Position</label>
 				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
 				<div
@@ -88,6 +116,7 @@ const zoomScale = ref(currentZoomRange.value?.scale || 1);
 const isDragging = ref(false);
 const dragArea = ref(null);
 const position = ref({ x: 50, y: 50 }); // Default to center
+const zoomOriginType = ref("cursor"); // Default to cursor position
 
 // Frame data URL
 const frameDataUrl = ref(null);
@@ -108,6 +137,29 @@ onMounted(() => {
 
 	// Her 100ms'de bir frame'i güncelle (daha sık güncelleme için 500ms'den düşürüldü)
 	frameUpdateInterval = setInterval(updateFrame, 100);
+
+	// Initialize based on current zoom range if available
+	if (currentZoomRange.value) {
+		// Set the origin type based on the current zoom range
+		zoomOriginType.value =
+			currentZoomRange.value.position === "cursor" ? "cursor" : "custom";
+
+		// If it's a custom position, set the position values
+		if (
+			zoomOriginType.value === "custom" &&
+			typeof currentZoomRange.value.position === "object"
+		) {
+			position.value.x = currentZoomRange.value.position.x;
+			position.value.y = currentZoomRange.value.position.y;
+		} else if (
+			zoomOriginType.value === "cursor" &&
+			currentZoomRange.value.cursorX !== undefined
+		) {
+			// If it's cursor position, use the stored cursor coordinates
+			position.value.x = currentZoomRange.value.cursorX;
+			position.value.y = currentZoomRange.value.cursorY;
+		}
+	}
 });
 
 onUnmounted(() => {
@@ -116,7 +168,7 @@ onUnmounted(() => {
 	}
 });
 
-// Watch local changes
+// Watch zoomScale changes
 watch(zoomScale, (newValue) => {
 	if (!currentZoomRange.value) return;
 
@@ -135,16 +187,8 @@ watch(zoomScale, (newValue) => {
 	}
 });
 
-// Watch store changes
-watch(
-	() => currentZoomRange.value?.scale,
-	(newValue) => {
-		zoomScale.value = newValue || 1;
-	}
-);
-
-// Zoom pozisyonu güncelleme
-const updateZoomPosition = (position) => {
+// Watch zoomOriginType changes
+watch(zoomOriginType, (newType) => {
 	if (!currentZoomRange.value) return;
 
 	const index = zoomRanges.value.findIndex(
@@ -156,7 +200,69 @@ const updateZoomPosition = (position) => {
 	if (index !== -1) {
 		const updatedRange = {
 			...currentZoomRange.value,
-			position,
+		};
+
+		if (newType === "cursor") {
+			// If cursor type is selected, keep the original cursor position from when segment was created
+			updatedRange.position = "cursor";
+		} else {
+			// If custom type is selected, use the current position
+			updatedRange.position = {
+				type: "custom",
+				x: position.value.x,
+				y: position.value.y,
+			};
+		}
+
+		updateZoomRange(index, updatedRange);
+	}
+});
+
+// Watch store changes
+watch(
+	() => currentZoomRange.value,
+	(newValue) => {
+		if (newValue) {
+			zoomScale.value = newValue.scale || 1;
+
+			// Update the origin type and position
+			if (newValue.position === "cursor") {
+				zoomOriginType.value = "cursor";
+				// For cursor position, use the stored cursor coordinates
+				if (newValue.cursorX !== undefined && newValue.cursorY !== undefined) {
+					position.value.x = newValue.cursorX;
+					position.value.y = newValue.cursorY;
+				}
+			} else {
+				zoomOriginType.value = "custom";
+				if (typeof newValue.position === "object") {
+					position.value.x = newValue.position.x;
+					position.value.y = newValue.position.y;
+				}
+			}
+		}
+	},
+	{ deep: true, immediate: true }
+);
+
+// Zoom pozisyonu güncelleme
+const updateZoomPosition = (newPosition) => {
+	if (!currentZoomRange.value) return;
+
+	const index = zoomRanges.value.findIndex(
+		(range) =>
+			range.start === currentZoomRange.value.start &&
+			range.end === currentZoomRange.value.end
+	);
+
+	if (index !== -1) {
+		const updatedRange = {
+			...currentZoomRange.value,
+			position: {
+				type: "custom",
+				x: newPosition.x,
+				y: newPosition.y,
+			},
 		};
 		updateZoomRange(index, updatedRange);
 	}

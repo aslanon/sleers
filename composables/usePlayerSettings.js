@@ -61,9 +61,23 @@ const mouseMotionEnabled = computed(() => motionBlurValue.value > 0);
 
 // Aktif zoom range için computed değerler
 const activeZoomScale = computed(() => currentZoomRange.value?.scale || 1.25);
-const activeZoomPosition = computed(
-	() => currentZoomRange.value?.position || "center"
-);
+const activeZoomPosition = computed(() => {
+	if (!currentZoomRange.value) return { type: "center", x: 50, y: 50 };
+
+	const position = currentZoomRange.value.position || "cursor";
+
+	// Eğer pozisyon "cursor" ise cursor koordinatlarını da döndür
+	if (position === "cursor") {
+		return {
+			type: "cursor",
+			x: currentZoomRange.value.cursorX || 50,
+			y: currentZoomRange.value.cursorY || 50,
+		};
+	}
+
+	// Diğer pozisyonlar için sadece pozisyon bilgisini döndür
+	return { type: position, x: 50, y: 50 };
+});
 
 export const usePlayerSettings = () => {
 	const updateMouseSize = (size) => {
@@ -111,7 +125,9 @@ export const usePlayerSettings = () => {
 		const newRange = {
 			...range,
 			scale: range.scale || 1.25,
-			position: range.position || "center",
+			position: range.position || "cursor",
+			cursorX: range.cursorX || 50,
+			cursorY: range.cursorY || 50,
 		};
 
 		// Aynı start-end aralığında başka bir range varsa güncelle

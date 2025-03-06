@@ -991,11 +991,15 @@ const handleZoomTrackClick = (event) => {
 	// Yeni zoom segmentinin boyutunu hesapla (maksimum 1 saniye)
 	const zoomDuration = Math.min(1, availableSpace);
 
-	// Zoom range'i oluştur
+	// Zoom range'i oluştur - varsayılan olarak cursor pozisyonunu kullan
+	// Cursor pozisyonu olarak 50,50 (merkez) kullan, kullanıcı daha sonra ayarlardan değiştirebilir
 	const zoomRange = {
 		start: clickedTime,
 		end: clickedTime + zoomDuration,
 		scale: 2,
+		position: "cursor", // Varsayılan olarak cursor pozisyonunu kullan
+		cursorX: 50, // Varsayılan olarak merkez X
+		cursorY: 50, // Varsayılan olarak merkez Y
 	};
 
 	addZoomRange(zoomRange);

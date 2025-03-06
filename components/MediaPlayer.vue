@@ -1248,9 +1248,21 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			const centerY = y + drawHeight / 2;
 
 			// Zoom origin'i hesapla
+			let zoomPosition =
+				activeZoom?.position || lastZoomPosition.value || "center";
+
+			// Cursor pozisyonu için cursorX ve cursorY değerlerini kullan
+			if (zoomPosition === "cursor" && activeZoom) {
+				zoomPosition = {
+					type: "cursor",
+					x: activeZoom.cursorX || 50,
+					y: activeZoom.cursorY || 50,
+				};
+			}
+
 			const { originX: transformOriginX, originY: transformOriginY } =
 				calculateZoomOrigin(
-					activeZoom?.position || lastZoomPosition.value || "center",
+					zoomPosition,
 					x,
 					y,
 					drawWidth,
@@ -2732,6 +2744,122 @@ watch(
 );
 
 // İlk frame'e seek etmek için yardımcı fonksiyon
+const findClosestMousePosition = (currentTime) => {
+	if (!props.mousePositions || !props.mousePositions.length) return null;
+
+	let closestPos = null;
+	let minDiff = Infinity;
+
+	for (const pos of props.mousePositions) {
+		const diff = Math.abs(pos.timestamp - currentTime);
+		if (diff < minDiff) {
+			minDiff = diff;
+			closestPos = pos;
+		}
+	}
+
+	return closestPos;
+};
+
+// Mouse pozisyonlarını çiz
+const drawMouseCursors = () => {
+	if (!videoElement || !ctx || !props.mousePositions.length) return;
+
+	const currentTime = videoState.value.currentTime;
+
+	// En yakın pozisyonu bul
+	const prevPos = findClosestMousePosition(currentTime);
+	if (!prevPos) return;
+
+	// Pozisyonları normalize et ve videoScale'i uygula
+	let interpolatedX = prevPos.x;
+	let interpolatedY = prevPos.y;
+
+	// Crop uygulanmışsa, mouse cursor pozisyonunu crop değerlerine göre ayarla
+	let canvasX, canvasY;
+
+	// Çizim koordinatlarını hesapla
+	const { displayX, displayY, displayWidth, displayHeight } =
+		calculateVideoDisplaySize(ctx, videoElement);
+
+	if (cropArea.value?.isApplied) {
+		// Crop uygulanmışsa crop ayarları ile hesapla
+		canvasX =
+			displayX +
+			((interpolatedX - cropArea.value.x) / cropArea.value.width) *
+				displayWidth +
+			position.value.x;
+		canvasY =
+			displayY +
+			((interpolatedY - cropArea.value.y) / cropArea.value.height) *
+				displayHeight +
+			position.value.y;
+	} else {
+		// Crop uygulanmamışsa normal hesaplama yap
+		canvasX =
+			displayX +
+			(interpolatedX / videoElement.videoWidth) * displayWidth +
+			position.value.x;
+		canvasY =
+			displayY +
+			(interpolatedY / videoElement.videoHeight) * displayHeight +
+			position.value.y;
+	}
+
+	// Zoom durumunda pozisyonu ayarla
+	if (videoScale.value > 1.001) {
+		const activeZoom = checkZoomSegments(
+			videoElement.currentTime,
+			zoomRanges.value
+		);
+
+		let zoomPosition = activeZoom?.position || "center";
+
+		// Cursor pozisyonu için cursorX ve cursorY değerlerini kullan
+		if (zoomPosition === "cursor" && activeZoom) {
+			zoomPosition = {
+				type: "cursor",
+				x: activeZoom.cursorX || 50,
+				y: activeZoom.cursorY || 50,
+			};
+		}
+
+		const { originX: zoomOriginX, originY: zoomOriginY } = calculateZoomOrigin(
+			zoomPosition,
+			displayWidth,
+			displayHeight,
+			displayX + displayWidth,
+			displayY + displayHeight
+		);
+
+		// Zoom'u hesaba katarak pozisyonu güncelle
+		canvasX = zoomOriginX + (canvasX - zoomOriginX) * videoScale.value;
+		canvasY = zoomOriginY + (canvasY - zoomOriginY) * videoScale.value;
+	}
+
+	// Mouse cursor'ı çiz
+	drawMousePosition(ctx, {
+		x: canvasX,
+		y: canvasY,
+		event: {
+			type: prevPos.type || MOUSE_EVENTS.MOVE,
+			button: prevPos.button,
+			clickCount: prevPos.clickCount,
+			rotation: prevPos.rotation,
+			direction: prevPos.direction,
+			speed,
+			dirX,
+			dirY,
+		},
+		size: mouseSize.value,
+		dpr,
+		motionEnabled: mouseMotionEnabled.value,
+		motionBlurValue: motionBlurValue.value,
+		visible: mouseVisible.value, // Add visibility parameter
+	});
+};
+
+// ... existing code ...
 </script>
 
 <style scoped>

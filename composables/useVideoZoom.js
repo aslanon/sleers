@@ -105,15 +105,52 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 	// Zoom origin pozisyonlarını hesapla
 	const calculateZoomOrigin = (
 		position,
-		x,
-		y,
 		drawWidth,
 		drawHeight,
-		centerX,
-		centerY
+		containerWidth,
+		containerHeight,
+		cursorX,
+		cursorY
 	) => {
-		let originX = position.x * 40;
-		let originY = position.y * 40;
+		// position bir obje ya da string olabilir
+		const positionType =
+			typeof position === "object" ? position.type : position;
+
+		let originX, originY;
+
+		// Cursor pozisyonu kullanılıyorsa
+		if (positionType === "cursor") {
+			// cursorX ve cursorY 0-100 aralığında yüzde değerleri olarak gelir
+			// Bunları piksel değerine çevir
+			if (
+				typeof position === "object" &&
+				position.x !== undefined &&
+				position.y !== undefined
+			) {
+				// İlk olarak cursorX ve cursorY'yi normalize et (0-1 aralığı)
+				const normalizedX = position.x / 100;
+				const normalizedY = position.y / 100;
+
+				// Konteynır içindeki konumu hesapla
+				originX = containerWidth * normalizedX;
+				originY = containerHeight * normalizedY;
+			} else {
+				// Varsayılan cursor pozisyonu merkez
+				originX = containerWidth / 2;
+				originY = containerHeight / 2;
+			}
+		}
+		// Merkez pozisyonu
+		else if (positionType === "center") {
+			originX = containerWidth / 2;
+			originY = containerHeight / 2;
+		}
+		// Diğer pozisyon seçenekleri
+		else {
+			// Varsayılan olarak merkez pozisyonunu kullan
+			originX = containerWidth / 2;
+			originY = containerHeight / 2;
+		}
 
 		return { originX, originY };
 	};
