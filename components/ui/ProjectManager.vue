@@ -34,7 +34,7 @@
 			<!-- Project Popover -->
 			<div
 				ref="projectPopoverRef"
-				class="fixed z-[100] bg-black border border-gray-700 rounded-xl shadow-lg p-4 w-[360px] max-h-[80vh] overflow-y-auto"
+				class="fixed z-[100] bg-black border border-gray-700 rounded-xl shadow-lg p-4 w-[420px] max-h-[80vh] overflow-y-auto"
 				:style="{
 					top: popoverPosition.top + 'px',
 					left: popoverPosition.left + 'px',
@@ -45,7 +45,7 @@
 						<h3 class="w-full text-md font-semibold">Proje Yönetimi</h3>
 						<button
 							@click="saveCurrentProject"
-							class="w-full text-md rounded-lg text-blue-500 flex items-center justify-end gap-2"
+							class="w-full text-md mb-2 rounded-lg text-blue-500 flex items-center justify-end gap-2"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -306,8 +306,8 @@ const updatePopoverPosition = () => {
 
 	// Set position with a slight delay to ensure DOM is updated
 	popoverPosition.value = {
-		top: buttonRect.bottom + 10,
-		left: leftPosition,
+		top: buttonRect.bottom + 20,
+		left: leftPosition + 100,
 	};
 	console.log("Final popover position:", popoverPosition.value);
 
