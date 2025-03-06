@@ -1,11 +1,13 @@
 const { Tray, Menu, nativeImage } = require("electron");
 const path = require("path");
+const { IPC_EVENTS } = require("./constants.cjs");
 
 class TrayManager {
-	constructor(mainWindow) {
+	constructor(mainWindow, openEditorMode) {
 		this.mainWindow = mainWindow;
 		this.tray = null;
 		this.isRecording = false;
+		this.openEditorMode = openEditorMode;
 	}
 
 	createTrayMenu() {
@@ -22,6 +24,16 @@ class TrayManager {
 					}
 					this.isRecording = !this.isRecording;
 					this.updateTrayIcon();
+				},
+			},
+			{
+				label: "Editör Modunu Aç",
+				click: () => {
+					if (this.openEditorMode) {
+						this.openEditorMode();
+					} else {
+						this.mainWindow.webContents.send(IPC_EVENTS.OPEN_EDITOR_MODE);
+					}
 				},
 			},
 			{

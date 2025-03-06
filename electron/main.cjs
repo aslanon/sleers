@@ -1571,6 +1571,31 @@ function setupIpcHandlers() {
 		}
 		return [];
 	});
+
+	// OPEN_EDITOR_MODE
+	ipcMain.on(IPC_EVENTS.OPEN_EDITOR_MODE, (event) => {
+		openEditorMode();
+	});
+}
+
+// Editör modunu açan fonksiyon
+function openEditorMode() {
+	console.log("[Main] Editör modu doğrudan açılıyor...");
+
+	// Eğer kamera açıksa kapatın
+	if (cameraManager) {
+		cameraManager.stopCamera();
+	}
+
+	// Editör penceresini aç
+	if (editorManager) {
+		editorManager.createEditorWindow();
+	}
+
+	// Ana pencereyi gizle
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.hide();
+	}
 }
 
 async function createWindow() {
@@ -1633,15 +1658,15 @@ function setupSecurityPolicies() {
 }
 
 function initializeManagers() {
-	trayManager = new TrayManager(mainWindow);
 	cameraManager = new CameraManager(mainWindow);
 	selectionManager = new SelectionManager(mainWindow);
 	editorManager = new EditorManager(mainWindow);
-	tempFileManager = new TempFileManager();
-	mediaStateManager = new MediaStateManager(mainWindow);
+	tempFileManager = new TempFileManager(mainWindow);
+	mediaStateManager = new MediaStateManager(mainWindow, cameraManager);
+	trayManager = new TrayManager(mainWindow, openEditorMode);
 
+	// Tray ekle
 	trayManager.createTray();
-	cameraManager.createCameraWindow();
 }
 
 function setupWindowEvents() {

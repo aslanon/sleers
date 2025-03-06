@@ -116,8 +116,31 @@
 					></div>
 				</div>
 			</button>
-			<!-- Sistem Sesi -->
 
+			<!-- Editör Modu Butonu -->
+			<button
+				@click="openEditorMode"
+				class="flex items-center space-x-2 h-[36px] px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg"
+				title="Kayıt Yapmadan Editöre Geç"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="h-5 w-5"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke="currentColor"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+					/>
+				</svg>
+				<span>Editör</span>
+			</button>
+
+			<!-- Sistem Sesi -->
 			<button
 				class="flex flex-row opacity-50 items-center gap-2 p-2 text-white hover:bg-gray-700 rounded-lg"
 				:class="{ '!opacity-100': systemAudioEnabled }"
@@ -299,41 +322,20 @@ const onRecordButtonClick = async () => {
 				};
 			}
 
-			// Önce IPC'ye kaydın başlayacağını bildir
-			if (electron?.ipcRenderer) {
-				electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, true);
-			}
-
-			// Kısa bir gecikme ekle
-			await new Promise((resolve) => setTimeout(resolve, 300));
-
-			// Kayıt başlatma işlemi
-			console.log("Kayıt başlatılıyor, seçenekler:", recordingOptions);
-			const result = await startRecording(recordingOptions);
-
-			if (!result) {
-				console.error("Kayıt başlatılamadı, result:", result);
-				// Hatayı bildir
-				if (electron?.ipcRenderer) {
-					electron.ipcRenderer.send(
-						IPC_EVENTS.RECORDING_ERROR,
-						"Kayıt başlatılamadı"
-					);
-				}
-			}
+			// Kayıt başlat
+			await startRecording(recordingOptions);
 		}
 	} catch (error) {
-		console.error("Kayıt işlemi sırasında hata:", error);
+		console.error("Kayıt işleminde hata:", error);
+	}
+};
 
-		// Hatayı bildir
-		if (electron?.ipcRenderer) {
-			electron.ipcRenderer.send(IPC_EVENTS.RECORDING_ERROR, error.message);
-		}
-
-		// Kayıt durumunu sıfırla
-		if (electron?.ipcRenderer) {
-			electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, false);
-		}
+// Editör modunu açma fonksiyonu
+const openEditorMode = () => {
+	if (electron?.ipcRenderer) {
+		// Editör modunu aç
+		electron.ipcRenderer.send(IPC_EVENTS.OPEN_EDITOR_MODE);
+		console.log("Editör modu açılıyor...");
 	}
 };
 
