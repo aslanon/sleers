@@ -212,15 +212,35 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 			const timeToEnd = activeZoom.end - currentTime;
 			const duration = 0.3; // Sabit geçiş süresi
 
+			// Segmentin başlangıcı ve bitişi diğer segmentlerle bitişik mi kontrol et
+			let hasAdjacentSegmentAtStart = false;
+			let hasAdjacentSegmentAtEnd = false;
+
+			// Diğer segmentlerle bitişiklik kontrolü
+			for (const segment of sortedRanges) {
+				if (segment === activeZoom) continue; // Aynı segment ise atla
+
+				// Başlangıçta bitişik segment var mı?
+				if (Math.abs(segment.end - activeZoom.start) < 0.001) {
+					hasAdjacentSegmentAtStart = true;
+				}
+
+				// Bitişte bitişik segment var mı?
+				if (Math.abs(segment.start - activeZoom.end) < 0.001) {
+					hasAdjacentSegmentAtEnd = true;
+				}
+			}
+
 			let segmentProgress;
-			if (timeFromStart < duration) {
-				// Giriş animasyonu
+
+			if (timeFromStart < duration && !hasAdjacentSegmentAtStart) {
+				// Giriş animasyonu (sadece bitişik segment yoksa)
 				segmentProgress = timeFromStart / duration;
-			} else if (timeToEnd < duration) {
-				// Çıkış animasyonu
+			} else if (timeToEnd < duration && !hasAdjacentSegmentAtEnd) {
+				// Çıkış animasyonu (sadece bitişik segment yoksa)
 				segmentProgress = timeToEnd / duration;
 			} else {
-				// Tam zoom
+				// Tam zoom (ya da bitişik segment varsa)
 				segmentProgress = 1;
 			}
 
