@@ -50,7 +50,7 @@ class EditorManager {
 				backgroundColor: "#1a1a1a",
 				titleBarOverlay: false,
 				titleBarStyle: "hidden",
-				trafficLightPosition: { x: 15, y: 15 },
+				trafficLightPosition: { x: 15, y: 20 },
 				hasShadow: true,
 				roundedCorners: true,
 				visualEffectState: "active",

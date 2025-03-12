@@ -2,9 +2,19 @@
 export default defineNuxtConfig({
 	ssr: false,
 	modules: ["@nuxtjs/tailwindcss"],
+	tailwindcss: {
+		configPath: "~/tailwind.config.js",
+		exposeConfig: true,
+		injectPosition: 0,
+		viewer: true,
+	},
 	devtools: { enabled: false },
 
-	css: ["~/assets/css/scrollbar.css"],
+	css: [
+		"~/assets/css/fonts.css",
+		"~/assets/css/main.css",
+		"~/assets/css/scrollbar.css",
+	],
 
 	app: {
 		baseURL: "/",
