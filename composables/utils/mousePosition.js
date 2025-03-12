@@ -1,3 +1,9 @@
+import { cubicBezier, calculateLargeDistanceTransition } from "./motionBlur";
+
+// Ayarlanabilir parametreler - geliştirme ve test için
+const DEBUG = false; // Debug modunu aktifleştirme
+const HIGH_DISTANCE_THRESHOLD = 80; // Yüksek mesafe eşiği - bu değerin üzerindeki mesafelerde cubic-bezier animasyonu kullanılır
+
 // Mouse pozisyonlarını hesapla
 export const calculateMousePosition = (
 	currentPos,
@@ -19,7 +25,60 @@ export const calculateMousePosition = (
 		const nextX = videoX + (nextPos.x * displayWidth) / videoWidth;
 		const nextY = videoY + (nextPos.y * displayHeight) / videoHeight;
 
-		// Lineer interpolasyon
+		// İki nokta arasındaki mesafeyi hesapla
+		const distance = Math.sqrt(
+			Math.pow(nextX - finalX, 2) + Math.pow(nextY - finalY, 2)
+		);
+
+		// Debug mod aktifse bilgileri konsola yaz
+		if (DEBUG && distance > HIGH_DISTANCE_THRESHOLD) {
+			console.log(
+				`[CubicBezier] Mesafe: ${distance.toFixed(
+					2
+				)}px, Eşik: ${HIGH_DISTANCE_THRESHOLD}px`
+			);
+		}
+
+		// Mesafe çok fazla ise cubic-bezier kullan
+		if (distance > HIGH_DISTANCE_THRESHOLD) {
+			// calculateLargeDistanceTransition fonksiyonunu kullan
+			const { shouldApplyCubicBezier, cubicBezierParams, effectStrength } =
+				calculateLargeDistanceTransition(distance, HIGH_DISTANCE_THRESHOLD);
+
+			if (shouldApplyCubicBezier) {
+				const { x1, y1, x2, y2 } = cubicBezierParams;
+
+				// Debug mod aktifse bezier parametrelerini göster
+				if (DEBUG) {
+					console.log(
+						`[CubicBezier] Parametreler: x1=${x1.toFixed(2)}, y1=${y1.toFixed(
+							2
+						)}, x2=${x2.toFixed(2)}, y2=${y2.toFixed(2)}`
+					);
+					console.log(`[CubicBezier] Efekt gücü: ${effectStrength.toFixed(2)}`);
+				}
+
+				// Cubic-bezier interpolasyonu kullan
+				const cubicBezierProgress = cubicBezier(x1, y1, x2, y2)(framePart);
+
+				// Debug mod aktifse ilerleme değerini göster
+				if (DEBUG) {
+					console.log(
+						`[CubicBezier] Progress: ${framePart.toFixed(
+							2
+						)} => ${cubicBezierProgress.toFixed(2)}`
+					);
+				}
+
+				// Pozisyonu güncelle
+				return {
+					finalX: finalX + (nextX - finalX) * cubicBezierProgress,
+					finalY: finalY + (nextY - finalY) * cubicBezierProgress,
+				};
+			}
+		}
+
+		// Normal lineer interpolasyon
 		return {
 			finalX: finalX + (nextX - finalX) * framePart,
 			finalY: finalY + (nextY - finalY) * framePart,

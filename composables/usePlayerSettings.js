@@ -1,8 +1,13 @@
 import { ref, computed } from "vue";
+import {
+	CURSOR_TRANSITION_TYPES,
+	setCursorTransitionType as setTransitionInMotionBlur,
+} from "~/composables/utils/motionBlur";
 
 const mouseSize = ref(180);
 const motionBlurValue = ref(0.5);
 const mouseVisible = ref(true);
+const cursorTransitionType = ref(CURSOR_TRANSITION_TYPES.EASE);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
@@ -76,6 +81,13 @@ export const usePlayerSettings = () => {
 
 	const updateMouseVisible = (visible) => {
 		mouseVisible.value = visible;
+	};
+
+	const updateCursorTransitionType = (type) => {
+		if (Object.values(CURSOR_TRANSITION_TYPES).includes(type)) {
+			cursorTransitionType.value = type;
+			setTransitionInMotionBlur(type);
+		}
 	};
 
 	const updateBackgroundColor = (color) => {
@@ -195,6 +207,7 @@ export const usePlayerSettings = () => {
 		mouseSize,
 		motionBlurValue,
 		mouseVisible,
+		cursorTransitionType,
 		backgroundColor,
 		backgroundImage,
 		backgroundBlur,
@@ -213,6 +226,7 @@ export const usePlayerSettings = () => {
 		updateMouseSize,
 		updateMotionBlur,
 		updateMouseVisible,
+		updateCursorTransitionType,
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,
@@ -226,5 +240,6 @@ export const usePlayerSettings = () => {
 		setCurrentZoomRange,
 		updateCameraSettings,
 		updateVideoBorderSettings,
+		CURSOR_TRANSITION_TYPES,
 	};
 };

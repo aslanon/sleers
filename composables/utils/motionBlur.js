@@ -1,25 +1,142 @@
-// Ease fonksiyonları
-const easeOutQuad = (t) => t * (2 - t);
-const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
-const easeInOutCubic = (t) =>
+// Easing fonksiyonları
+export const easeOutQuad = (t) => 1 - (1 - t) * (1 - t);
+export const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+export const easeInOutCubic = (t) =>
 	t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+export const easeInCubic = (t) => t * t * t;
+export const linear = (t) => t;
+
+// Kullanılabilir cursor transition tipleri
+export const CURSOR_TRANSITION_TYPES = {
+	LINEAR: "linear",
+	EASE: "ease",
+	EASE_IN: "ease-in",
+	EASE_OUT: "ease-out",
+};
+
+// Varsayılan transition tipi
+let currentTransitionType = CURSOR_TRANSITION_TYPES.EASE;
+
+// Transition tipini ayarlamak için fonksiyon
+export const setCursorTransitionType = (transitionType) => {
+	if (Object.values(CURSOR_TRANSITION_TYPES).includes(transitionType)) {
+		currentTransitionType = transitionType;
+		return true;
+	}
+	return false;
+};
+
+// Geçerli transition tipini almak için fonksiyon
+export const getCurrentTransitionType = () => currentTransitionType;
+
+/**
+ * Cubic-bezier eğrisi hesaplayan fonksiyon
+ * @param {number} x1 - Kontrol noktası 1 x koordinatı (0-1 arası)
+ * @param {number} y1 - Kontrol noktası 1 y koordinatı (0-1 arası)
+ * @param {number} x2 - Kontrol noktası 2 x koordinatı (0-1 arası)
+ * @param {number} y2 - Kontrol noktası 2 y koordinatı (0-1 arası)
+ * @returns {Function} - t parametresi alıp eğrideki y değerini döndüren fonksiyon
+ */
+export const cubicBezier = (x1, y1, x2, y2) => {
+	// Kübik Bezier eğrisini hesaplayan yardımcı fonksiyon
+	const calcBezier = (t, p1, p2) => {
+		const u = 1 - t;
+		const tt = t * t;
+		const uu = u * u;
+		const uuu = uu * u;
+		const ttt = tt * t;
+
+		// Bezier formülü: (1-t)^3 * P0 + 3 * (1-t)^2 * t * P1 + 3 * (1-t) * t^2 * P2 + t^3 * P3
+		// P0 = (0,0) ve P3 = (1,1) olduğundan sadece P1 ve P2'yi hesapla
+		return 3 * uu * t * p1 + 3 * u * tt * p2 + ttt;
+	};
+
+	// X koordinatı için Newton-Raphson yöntemiyle t parametresini hesaplayan fonksiyon
+	const getTFromX = (x) => {
+		if (x <= 0) return 0;
+		if (x >= 1) return 1;
+
+		// Newton-Raphson iterasyonu için başlangıç değeri
+		let t = x;
+
+		// Epsilon değeri - yeterli hassasiyet için
+		const epsilon = 1e-6;
+
+		// Maksimum iterasyon sayısı
+		const maxIterations = 8;
+
+		// Newton-Raphson iterasyonu
+		for (let i = 0; i < maxIterations; i++) {
+			// Şu anki t değeri için x koordinatını hesapla
+			const currentX = calcBezier(t, x1, x2);
+
+			// Eğer yeterince yakınsak, döngüden çık
+			if (Math.abs(currentX - x) < epsilon) {
+				break;
+			}
+
+			// Türevi hesapla
+			const dx = (calcBezier(t + epsilon, x1, x2) - currentX) / epsilon;
+
+			// t değerini güncelle
+			if (Math.abs(dx) < epsilon) break; // Türev çok küçükse çık
+			t -= (currentX - x) / dx;
+
+			// t'yi [0,1] aralığında sınırla
+			if (t < 0) t = 0;
+			if (t > 1) t = 1;
+		}
+
+		return t;
+	};
+
+	// Ana fonksiyon: x için y koordinatını hesapla
+	return (x) => {
+		// Önce x için t parametresini bul
+		const t = getTFromX(x);
+		// Sonra bu t değeri için y koordinatını hesapla
+		return calcBezier(t, y1, y2);
+	};
+};
+
+// Transition tipine göre cubic-bezier parametrelerini döndüren yardımcı fonksiyon
+export const getTransitionParams = (transitionType) => {
+	switch (transitionType) {
+		case CURSOR_TRANSITION_TYPES.LINEAR:
+			return { x1: 0, y1: 0, x2: 1, y2: 1 };
+		case CURSOR_TRANSITION_TYPES.EASE:
+			return { x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0 };
+		case CURSOR_TRANSITION_TYPES.EASE_IN:
+			return { x1: 0.42, y1: 0, x2: 1, y2: 1 };
+		case CURSOR_TRANSITION_TYPES.EASE_OUT:
+			return { x1: 0, y1: 0, x2: 0.58, y2: 1 };
+		default:
+			return { x1: 0.25, y1: 0.1, x2: 0.25, y2: 1.0 }; // varsayılan olarak ease
+	}
+};
+
+// Hız eşikleri ve katsayıları
+const MIN = 2; // Efekt başlangıç hızı (piksel/saniye)
+const MAX = 150; // Maksimum efekt hızı (piksel/saniye)
+const DEFORM = 200; // Deformasyon başlangıç hızı
 
 // Hız eşikleri - daha basit ve anlaşılır değerler
 const SPEED_THRESHOLDS = {
-	MIN: 1.5, // Minimum hız eşiği - efektlerin başlayacağı hız (düşürüldü)
-	MAX: 5.0, // Maksimum hız eşiği - efektlerin maksimuma ulaşacağı hız
-	DEFORM: 6.0, // Deformasyon eşiği - warp efektlerinin artacağı hız
+	MIN: 2.5, // Efekt başlangıç hızı (piksel/saniye)
+	MAX: 150, // Maksimum efekt hızı (piksel/saniye)
+	DEFORM: 200, // Deformasyon başlangıç hızı
 };
 
-// Pozisyon geçmişi için değişkenler
-let positionHistory = [];
-const MAX_HISTORY = 15; // Daha fazla geçmiş = daha stabil (artırıldı)
-const STABILIZATION_WEIGHT = 0.9; // Daha yüksek stabilizasyon = daha stabil (artırıldı)
+// Pozisyon ve açı geçmişi ayarları
+const positionHistory = [];
+const maxPositionHistory = 5;
+const stabilizationWeights = [0.5, 0.3, 0.15, 0.03, 0.02]; // Ağırlıkların toplamı 1 olmalı
 
-// Açı stabilizasyonu için değişkenler
-let angleHistory = [];
-const ANGLE_MAX_HISTORY = 12; // Daha fazla geçmiş = daha stabil (artırıldı)
-const ANGLE_STABILIZATION_WEIGHT = 0.85; // Daha yüksek stabilizasyon = daha stabil
+const angleHistory = [];
+const maxAngleHistory = 8;
+const angleStabilizationWeights = [
+	0.35, 0.25, 0.15, 0.1, 0.05, 0.05, 0.03, 0.02,
+]; // Ağırlıkların toplamı 1 olmalı
 
 // Son pozisyon ve hareket bilgileri
 let lastStablePosition = { x: 0, y: 0, timestamp: 0 };
@@ -99,7 +216,7 @@ export function calculateStabilizedPosition(currentX, currentY, currentSpeed) {
 	});
 
 	// Geçmişi sınırla
-	if (positionHistory.length > MAX_HISTORY) {
+	if (positionHistory.length > maxPositionHistory) {
 		positionHistory.shift();
 	}
 
@@ -109,9 +226,9 @@ export function calculateStabilizedPosition(currentX, currentY, currentSpeed) {
 		return { x: currentX, y: currentY };
 	}
 
-	// Hız bazlı stabilizasyon - hızlı hareketlerde daha az stabilizasyon
+	// Hız bazlı stabilizasyon - hızılı hareketlerde daha az stabilizasyon
 	const speedFactor = Math.min(Math.max(currentSpeed / 10, 0.2), 0.8);
-	const dynamicWeight = STABILIZATION_WEIGHT * (1 - speedFactor * 0.2);
+	const dynamicWeight = stabilizationWeights[0] * (1 - speedFactor * 0.2);
 
 	// Ağırlıklı ortalama hesapla
 	let totalWeight = 0;
@@ -216,13 +333,13 @@ function calculateAcceleration(currentSpeed) {
 export function calculateStabilizedAngle(rawAngle, speed) {
 	// Düşük hızlarda açı stabilizasyonu daha güçlü
 	const speedFactor = Math.min(speed / SPEED_THRESHOLDS.MAX, 1.0);
-	const adaptiveWeight = ANGLE_STABILIZATION_WEIGHT * (1 - speedFactor * 0.3);
+	const adaptiveWeight = angleStabilizationWeights[0] * (1 - speedFactor * 0.3);
 
 	// Son açı değerini kaydet
 	angleHistory.push(rawAngle);
 
 	// Geçmiş sınırını aşmayacak şekilde koru
-	if (angleHistory.length > ANGLE_MAX_HISTORY) {
+	if (angleHistory.length > maxAngleHistory) {
 		angleHistory.shift();
 	}
 
@@ -335,3 +452,114 @@ function calculateAccelerationFactor(acceleration) {
 	// Geçiş fonksiyonu uygula - daha yumuşak geçiş
 	return easeOutCubic(normalizedAcceleration);
 }
+
+// Büyük mesafe geçişleri için cubic-bezier fonksiyonunu kullan
+export const calculateLargeDistanceTransition = (
+	distance,
+	threshold = 80,
+	isClick = false
+) => {
+	// Click eventi için daha hızlı ve agresif geçiş
+	if (isClick) {
+		return {
+			shouldApplyCubicBezier: true,
+			cubicBezierParams: { x1: 0.1, y1: 0, x2: 0.45, y2: 1.0 },
+			transitionType: "click_fast",
+			effectStrength: 0.6,
+		};
+	}
+
+	// Eşiğin üzerindeki mesafelerde cubic-bezier efekti uygula
+	if (distance > threshold) {
+		// Normalize edilmiş mesafe (1'den büyük olabilir, maksimum etki için 3 ile sınırla)
+		const normalizedDistance = Math.min(distance / threshold, 5);
+
+		// Geçerli transition tipine göre bezier parametrelerini al
+		const baseParams = getTransitionParams(currentTransitionType);
+
+		// Mesafe etkisine göre cubic-bezier parametrelerini ayarla
+		let { x1, y1, x2, y2 } = baseParams;
+
+		// Mesafe çok büyükse daha hızlı ve daha belirgin geçiş sağla
+		const speedFactor = Math.min(normalizedDistance * 0.4, 2);
+
+		// Mesafeye göre kontrol noktalarını ince ayarla
+		if (normalizedDistance > 2.5) {
+			// Çok uzun mesafelerde daha hızlı geçiş
+			if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+				// Ease için daha agresif hızlanma
+				x1 = 0.15;
+				y1 = 0.05;
+				x2 = 0.45;
+				y2 = 1.0;
+			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
+				// Ease-out için daha hızlı başlangıçlı yavaşlama
+				x1 = 0;
+				y1 = 0;
+				x2 = 0.4;
+				y2 = 1.0;
+			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
+				// Ease-in için daha hızlı başlangıç
+				x1 = 0.35;
+				y1 = 0;
+				x2 = 0.85;
+				y2 = 1.0;
+			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.LINEAR) {
+				// Linear için hafif bir hızlanma ekle
+				x1 = 0.1;
+				y1 = 0.1;
+				x2 = 0.9;
+				y2 = 0.9;
+			}
+		} else if (normalizedDistance > 1.5) {
+			// Orta uzun mesafelerde daha belirgin geçiş
+			if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+				x1 = 0.2;
+				y1 = 0.1;
+				x2 = 0.4;
+				y2 = 1.0;
+			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
+				x1 = 0;
+				y1 = 0;
+				x2 = 0.55;
+				y2 = 1.0;
+			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
+				x1 = 0.45;
+				y1 = 0;
+				x2 = 0.9;
+				y2 = 1.0;
+			}
+		} else if (normalizedDistance > 1) {
+			// Kısa mesafelerde daha yumuşak geçiş
+			if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+				x1 = 0.25;
+				y1 = 0.1;
+				x2 = 0.35;
+				y2 = 1.0;
+			}
+		}
+
+		// Daha yüksek mesafelerde daha belirgin efekt
+		const effectStrength = Math.min(
+			Math.max(0.3, (normalizedDistance - 0.5) * 0.25),
+			1
+		);
+
+		return {
+			shouldApplyCubicBezier: true,
+			cubicBezierParams: { x1, y1, x2, y2 },
+			transitionType: currentTransitionType,
+			effectStrength: effectStrength,
+			speedFactor: speedFactor,
+		};
+	}
+
+	// Eşiğin altındaki mesafelerde varsayılan değerler
+	return {
+		shouldApplyCubicBezier: false,
+		cubicBezierParams: getTransitionParams(currentTransitionType),
+		transitionType: currentTransitionType,
+		effectStrength: 0,
+		speedFactor: 1,
+	};
+};
