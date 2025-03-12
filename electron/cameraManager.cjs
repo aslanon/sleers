@@ -313,9 +313,6 @@ class CameraManager {
 			// Load camera content
 			await this.loadCameraContent();
 
-			// Start mouse tracking after successful initialization
-			this.startMouseTracking();
-
 			return true;
 		} catch (error) {
 			console.error("Error creating camera window:", error);

@@ -47,7 +47,7 @@ class EditorManager {
 					backgroundThrottling: false,
 					preload: path.join(__dirname, "preload.cjs"),
 				},
-				backgroundColor: "#1a1a1a",
+				backgroundColor: "#000000",
 				titleBarOverlay: false,
 				titleBarStyle: "hidden",
 				trafficLightPosition: { x: 15, y: 20 },
