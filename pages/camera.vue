@@ -130,6 +130,8 @@ const stopCamera = () => {
 onMounted(() => {
 	if (document) {
 		document.body.style.overflow = "hidden";
+		document.body.style.backgroundColor = "transparent";
+		document.documentElement.style.backgroundColor = "transparent";
 	}
 	startCamera();
 
@@ -212,7 +214,7 @@ onUnmounted(() => {
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
-	padding: 5rem;
+	padding: 0rem;
 	overflow: hidden;
 	position: relative;
 	display: flex;
@@ -220,6 +222,8 @@ onUnmounted(() => {
 	align-items: center;
 	aspect-ratio: 1;
 	-webkit-app-region: no-drag; /* Electron'un varsayılan sürükleme davranışını devre dışı bırak */
+	background-color: transparent !important;
+	background: transparent !important;
 }
 
 .camera-video {

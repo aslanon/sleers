@@ -21,8 +21,8 @@ class CameraManager {
 		this.initializationTimeout = null;
 
 		// Constants
-		this.SMALL_SIZE = 260;
-		this.LARGE_SIZE = 460;
+		this.SMALL_SIZE = 160;
+		this.LARGE_SIZE = 360;
 		this.SHAKE_THRESHOLD = 800;
 		this.SHAKE_TIME_WINDOW = 500;
 		this.REQUIRED_MOVEMENTS = 5;
@@ -306,16 +306,14 @@ class CameraManager {
 			});
 
 			this.cameraWindow.setContentProtection(true);
+			this.cameraWindow.setBackgroundColor("#00000000");
 
 			// Set up window event handlers
 			this.setupWindowEventHandlers();
 
 			// Load camera content
-			await this.loadCameraContent();
-
-			// Start mouse tracking after successful initialization
+			await this.loadCameraContent(); // Start mouse tracking after successful initialization
 			this.startMouseTracking();
-
 			return true;
 		} catch (error) {
 			console.error("Error creating camera window:", error);
