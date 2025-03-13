@@ -112,6 +112,44 @@
 							fill="white"
 						/>
 					</svg>
+
+					<svg
+						v-if="tab.id === 'brandkit'"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M4 5C4 4.44772 4.44772 4 5 4H19C19.5523 4 20 4.44772 20 5V7C20 7.55228 19.5523 8 19 8H5C4.44772 8 4 7.55228 4 7V5Z"
+							fill="white"
+						/>
+						<path
+							d="M4 11C4 10.4477 4.44772 10 5 10H11C11.5523 10 12 10.4477 12 11V19C12 19.5523 11.5523 20 11 20H5C4.44772 20 4 19.5523 4 19V11Z"
+							fill="white"
+						/>
+						<path
+							d="M16 11C16 10.4477 15.5523 10 15 10H14C13.4477 10 13 10.4477 13 11V12C13 12.5523 13.4477 13 14 13H15C15.5523 13 16 12.5523 16 12V11Z"
+							fill="white"
+						/>
+						<path
+							d="M16 15C16 14.4477 15.5523 14 15 14H14C13.4477 14 13 14.4477 13 15V16C13 16.5523 13.4477 17 14 17H15C15.5523 17 16 16.5523 16 16V15Z"
+							fill="white"
+						/>
+						<path
+							d="M20 11C20 10.4477 19.5523 10 19 10H18C17.4477 10 17 10.4477 17 11V12C17 12.5523 17.4477 13 18 13H19C19.5523 13 20 12.5523 20 12V11Z"
+							fill="white"
+						/>
+						<path
+							d="M20 15C20 14.4477 19.5523 14 19 14H18C17.4477 14 17 14.4477 17 15V16C17 16.5523 17.4477 17 18 17H19C19.5523 17 20 16.5523 20 16V15Z"
+							fill="white"
+						/>
+						<path
+							d="M20 19C20 18.4477 19.5523 18 19 18H14C13.4477 18 13 18.4477 13 19V19C13 19.5523 13.4477 20 14 20H19C19.5523 20 20 19.5523 20 19V19Z"
+							fill="white"
+						/>
+					</svg>
 				</button>
 			</div>
 
@@ -138,6 +176,12 @@
 
 				<!-- Kamera Ayarları Tab -->
 				<CameraSettings v-if="currentTab === 'camera'" />
+
+				<!-- Brand Kit Tab -->
+				<BrandKitSettings
+					v-if="currentTab === 'brandkit'"
+					:media-player="mediaPlayer"
+				/>
 			</div>
 		</div>
 	</div>
@@ -149,6 +193,7 @@ import VideoSettings from "./player-settings/VideoSettings.vue";
 import MouseSettings from "./player-settings/MouseSettings.vue";
 import ZoomSettings from "./player-settings/ZoomSettings.vue";
 import CameraSettings from "./player-settings/CameraSettings.vue";
+import BrandKitSettings from "./player-settings/BrandKitSettings.vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -203,6 +248,11 @@ const tabs = [
 		id: "zoom",
 		name: "Zoom Ayarları",
 		isShowInTab: false,
+	},
+	{
+		id: "brandkit",
+		name: "Brand Kit",
+		isShowInTab: true,
 	},
 ];
 

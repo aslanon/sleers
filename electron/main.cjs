@@ -924,6 +924,62 @@ function setupIpcHandlers() {
 		}
 	});
 
+	// Brand Kit işlemleri
+	ipcMain.on(IPC_EVENTS.CREATE_BRAND_ELEMENT_SEGMENT, async (event, data) => {
+		try {
+			console.log("[Main] Brand Kit element oluşturma isteği:", data);
+
+			// Dosya yolunu ve verilerini al
+			const { filePath, fileType, fileName } = data;
+
+			// Dosyayı geçici olarak kaydet (eğer blob URL ise)
+			let savedFilePath = filePath;
+			if (filePath.startsWith("blob:")) {
+				// Blob URL'den dosya indirme işlemi gerekirse burada yapılacak
+				// Şimdilik doğrudan kullanıyoruz, editör tarafında blob kullanılabilir
+			}
+
+			// Editor penceresine bildir
+			if (editorManager) {
+				const editorWindow = editorManager.getEditorWindow();
+				if (editorWindow && !editorWindow.isDestroyed()) {
+					// Yeni bir segment oluştur
+					const newSegment = {
+						id: `brand-element-${Date.now()}`,
+						type: "brandElement",
+						filePath: savedFilePath,
+						fileType,
+						fileName,
+						// Videoda görüntülenecek zaman aralığı
+						// (şu anki playhead pozisyonundan başlayarak varsayılan süre)
+						startTime: 0, // Editor tarafında güncellenecek
+						endTime: 5, // Editor tarafında güncellenecek
+						// Görselin özelliklerini burada belirt
+						properties: {
+							width: "auto",
+							height: "auto",
+							position: "center",
+							opacity: 1,
+							scale: 1,
+						},
+					};
+
+					// Editör penceresine bilgi gönder
+					editorWindow.webContents.send(
+						"BRAND_ELEMENT_SEGMENT_CREATED",
+						newSegment
+					);
+					console.log(
+						"[Main] Brand element segment bilgisi editöre gönderildi:",
+						newSegment
+					);
+				}
+			}
+		} catch (error) {
+			console.error("[Main] Brand element oluşturma hatası:", error);
+		}
+	});
+
 	// Window dragging
 	ipcMain.on(IPC_EVENTS.START_WINDOW_DRAG, (event, mousePos) => {
 		isDragging = true;

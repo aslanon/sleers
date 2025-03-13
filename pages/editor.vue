@@ -753,6 +753,28 @@ onMounted(async () => {
 		followMouse: isCameraFollowMouse,
 	});
 
+	// Brand element segment oluşturma dinleyicisi ekle
+	electron.ipcRenderer.on("BRAND_ELEMENT_SEGMENT_CREATED", (newSegment) => {
+		console.log("[editor.vue] Yeni brand element segment alındı:", newSegment);
+
+		// Segmentin zamanlarını mevcut oynatma konumuna göre ayarla
+		const duration = 5; // 5 saniyelik bir süre
+		newSegment.startTime = currentTime.value;
+		newSegment.endTime = currentTime.value + duration;
+		newSegment.start = newSegment.startTime;
+		newSegment.end = newSegment.endTime;
+
+		// Segmenti listeye ekle
+		const updatedSegments = [...segments.value, newSegment];
+		segments.value = updatedSegments;
+
+		// Timeline'ı güncelle
+		updateSegments();
+
+		// Kullanıcıya bilgi ver
+		console.log("[editor.vue] Brand element segment eklendi:", newSegment);
+	});
+
 	// Mevcut kaydedicileri temizle
 	if (mediaRecorder.value) {
 		mediaRecorder.value = null;

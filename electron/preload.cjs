@@ -57,6 +57,13 @@ contextBridge.exposeInMainWorld("electron", {
 	mediaStateManager: {
 		loadCursorData: () => ipcRenderer.invoke(IPC_EVENTS.LOAD_CURSOR_DATA),
 	},
+	brandKit: {
+		createElementSegment: (data) =>
+			ipcRenderer.send(IPC_EVENTS.CREATE_BRAND_ELEMENT_SEGMENT, data),
+	},
+	screen: {
+		getPrimaryDisplay: () => ipcRenderer.invoke("GET_PRIMARY_DISPLAY"),
+	},
 	selection: {
 		closeWindow: () => ipcRenderer.send("CLOSE_SELECTION_WINDOW"),
 	},
