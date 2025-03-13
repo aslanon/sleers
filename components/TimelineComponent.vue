@@ -290,6 +290,98 @@
 								</div>
 							</div>
 						</div>
+
+						<!-- Brand Kit Track -->
+						<div
+							class="timeline-layer-bar w-full rounded-xl relative mt-2"
+							@mouseenter="isBrandTrackHovered = true"
+							@mouseleave="isBrandTrackHovered = false"
+						>
+							<div
+								class="flex flex-row h-[50px] relative"
+								:class="{ 'z-50': isBrandTrackHovered }"
+							>
+								<!-- Empty State Label -->
+								<div
+									v-if="!hasBrandSegments"
+									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<span class="text-sm font-medium tracking-wide"
+										>Add brand elements</span
+									>
+								</div>
+
+								<!-- Brand Segments -->
+								<div
+									v-for="(segment, index) in brandSegments"
+									:key="segment.id || index"
+									class="h-full ring-inset relative transition-all duration-200 group"
+									:class="{
+										'ring-[1px] ring-white z-50': selectedBrandIndex === index,
+										'hover:!ring-[1px] hover:!ring-white hover:z-50':
+											!isBrandResizing && selectedBrandIndex !== index,
+										'z-10':
+											!isBrandResizing &&
+											selectedBrandIndex !== index &&
+											!isHovered,
+										'cursor-grab': !isBrandDragging,
+										'cursor-grabbing': isBrandDragging,
+									}"
+									:style="getBrandStyle(segment, index)"
+									@click.stop="handleBrandSegmentClick($event, index)"
+									@mousedown.stop="handleBrandDragStart($event, index)"
+								>
+									<!-- Sol Resize Handle -->
+									<div
+										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80': selectedBrandIndex === index,
+											'group-hover:opacity-80':
+												!isBrandResizing && !isBrandDragging,
+										}"
+										@mousedown.stop="
+											handleBrandResizeStart($event, index, 'start')
+										"
+									>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
+										></div>
+									</div>
+
+									<!-- Sağ Resize Handle -->
+									<div
+										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
+										:class="{
+											'opacity-80': selectedBrandIndex === index,
+											'group-hover:opacity-80':
+												!isBrandResizing && !isBrandDragging,
+										}"
+										@mousedown.stop="
+											handleBrandResizeStart($event, index, 'end')
+										"
+									>
+										<div
+											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
+										></div>
+									</div>
+
+									<!-- Brand İçeriği -->
+									<div
+										class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
+									>
+										<span
+											class="text-white/70 text-[10px] font-medium tracking-wide"
+											>Brand</span
+										>
+										<span
+											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
+										>
+											{{ formatDuration(segment.end - segment.start) }}
+										</span>
+									</div>
+								</div>
+							</div>
+						</div>
 					</div>
 
 					<!-- Preview Playhead -->
@@ -837,6 +929,10 @@ onUnmounted(() => {
 	window.removeEventListener("mousemove", handlePlayheadDrag);
 	window.removeEventListener("mouseup", handlePlayheadDragEnd);
 	window.removeEventListener("keydown", handleKeyDown);
+	window.removeEventListener("mousemove", handleBrandDrag);
+	window.removeEventListener("mouseup", handleBrandDragEnd);
+	window.removeEventListener("mousemove", handleBrandResizeMove);
+	window.removeEventListener("mouseup", handleBrandResizeEnd);
 });
 
 // Resize state'leri
@@ -1398,8 +1494,20 @@ const handleKeyDown = (event) => {
 		selectedZoomIndex.value !== null &&
 		(event.key === "Delete" || event.key === "Backspace")
 	) {
+		// Seçili zoom segmentini sil
 		removeZoomRange(selectedZoomIndex.value);
 		selectedZoomIndex.value = null;
+	} else if (
+		selectedBrandIndex.value !== null &&
+		(event.key === "Delete" || event.key === "Backspace")
+	) {
+		// Seçili brand segmentini sil
+		const brandSegment = brandSegments.value[selectedBrandIndex.value];
+		const updatedSegments = props.segments.filter(
+			(segment) => segment.id !== brandSegment.id
+		);
+		emit("segmentUpdate", updatedSegments);
+		selectedBrandIndex.value = null;
 	}
 };
 
@@ -1419,6 +1527,215 @@ const isZoomDragging = ref(false);
 const draggedZoomIndex = ref(null);
 const dragStartX = ref(0);
 const dragStartRange = ref(null);
+
+// Brand segmentleri için state değişkenleri
+const isBrandTrackHovered = ref(false);
+const selectedBrandIndex = ref(null);
+const isBrandResizing = ref(false);
+const isBrandDragging = ref(false);
+const draggedBrandIndex = ref(null);
+const dragStartBrandRange = ref(null);
+const initialBrandRange = ref(null);
+const resizingBrandEdge = ref(null);
+const activeBrandIndex = ref(null);
+const initialBrandClientX = ref(0);
+
+// Brand segmentlerini filtreleme
+const brandSegments = computed(() => {
+	return props.segments.filter((segment) => segment.type === "brandElement");
+});
+
+// Brand segmentleri var mı kontrolü
+const hasBrandSegments = computed(() => brandSegments.value.length > 0);
+
+// Brand segmentleri için style hesaplama
+const getBrandStyle = (segment, index) => {
+	const isSelected = selectedBrandIndex.value === index;
+	const isDragging = draggedBrandIndex.value === index;
+
+	return {
+		position: "absolute",
+		left: `${(segment.start / maxDuration.value) * 100}%`,
+		width: `${((segment.end - segment.start) / maxDuration.value) * 100}%`,
+		backgroundColor: isSelected ? "rgb(41, 121, 255)" : "rgb(21, 101, 235)",
+		background: isSelected
+			? "linear-gradient(180deg, rgba(61, 141, 255, 1) 0%, rgba(100, 180, 255, 1) 100%)"
+			: "linear-gradient(180deg, rgba(21, 101, 235, 1) 0%, rgba(80, 160, 255, 1) 100%)",
+		borderRadius: "10px",
+		height: "100%",
+		cursor: isDragging ? "grabbing" : "grab",
+		transition: isDragging ? "none" : "all 0.2s ease",
+		transform: "translate3d(0,0,0)", // Hardware acceleration
+		willChange: isDragging ? "transform" : "auto",
+	};
+};
+
+// Brand segmentine tıklama
+const handleBrandSegmentClick = (event, index) => {
+	event.stopPropagation();
+	selectedBrandIndex.value = index;
+	emit("segmentSelect", brandSegments.value[index]);
+};
+
+// Brand segment sürükleme başlatma
+const handleBrandDragStart = (event, index) => {
+	if (isBrandResizing.value) return;
+
+	event.stopPropagation();
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const clickX = event.clientX - rect.left + timeline.scrollLeft;
+	const clickTime = (clickX / timelineWidth.value) * maxDuration.value;
+
+	const segment = brandSegments.value[index];
+	const clickOffset = clickTime - segment.start;
+
+	isBrandDragging.value = true;
+	draggedBrandIndex.value = index;
+	dragStartBrandRange.value = {
+		...segment,
+		clickOffset, // Tıklanan noktanın segment başlangıcına olan uzaklığı
+	};
+
+	// Performance için style güncellemesi
+	const segmentEl = event.currentTarget;
+	segmentEl.style.willChange = "transform";
+	segmentEl.style.transition = "none";
+
+	window.addEventListener("mousemove", handleBrandDrag, { passive: true });
+	window.addEventListener("mouseup", handleBrandDragEnd);
+};
+
+// Brand segment sürükleme
+const handleBrandDrag = (event) => {
+	if (!isBrandDragging.value || draggedBrandIndex.value === null) return;
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+
+	// Mouse pozisyonunu timeline içindeki konuma çevir
+	const mouseX = event.clientX - rect.left + timeline.scrollLeft;
+	const currentTime = (mouseX / timelineWidth.value) * maxDuration.value;
+
+	const segment = dragStartBrandRange.value;
+	const duration = segment.end - segment.start;
+
+	// Tıklanan noktayı koruyarak yeni pozisyonu hesapla
+	let newStart = currentTime - segment.clickOffset;
+	let newEnd = newStart + duration;
+
+	// Sınırları kontrol et
+	if (newStart < 0) {
+		newStart = 0;
+		newEnd = duration;
+	}
+	// Video süresini kontrol et
+	if (newEnd > props.duration) {
+		newEnd = props.duration;
+		newStart = newEnd - duration;
+	}
+
+	// Segmenti güncelle
+	const updatedSegments = [...props.segments];
+	const segmentIndex = updatedSegments.findIndex((s) => s.id === segment.id);
+
+	if (segmentIndex !== -1) {
+		updatedSegments[segmentIndex] = {
+			...updatedSegments[segmentIndex],
+			start: newStart,
+			end: newEnd,
+			startTime: newStart,
+			endTime: newEnd,
+		};
+
+		emit("segmentUpdate", updatedSegments);
+	}
+};
+
+// Brand segment sürükleme bitirme
+const handleBrandDragEnd = () => {
+	isBrandDragging.value = false;
+	draggedBrandIndex.value = null;
+	dragStartBrandRange.value = null;
+
+	window.removeEventListener("mousemove", handleBrandDrag);
+	window.removeEventListener("mouseup", handleBrandDragEnd);
+};
+
+// Brand segment resize başlatma
+const handleBrandResizeStart = (event, index, edge) => {
+	event.stopPropagation();
+	isBrandResizing.value = true;
+	activeBrandIndex.value = index;
+	resizingBrandEdge.value = edge;
+	initialBrandRange.value = { ...brandSegments.value[index] };
+	initialBrandClientX.value = event.clientX;
+
+	// Performance için style güncellemesi
+	const segmentEl = event.currentTarget.closest(
+		".timeline-layer-bar > div > div"
+	);
+	if (segmentEl) {
+		segmentEl.style.willChange = "transform";
+		segmentEl.style.transition = "none";
+	}
+
+	window.addEventListener("mousemove", handleBrandResizeMove);
+	window.addEventListener("mouseup", handleBrandResizeEnd);
+};
+
+// Brand segment resize hareketi
+const handleBrandResizeMove = (event) => {
+	if (!isBrandResizing.value || activeBrandIndex.value === null) return;
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const mouseX = event.clientX - rect.left + timeline.scrollLeft;
+	const currentTime = (mouseX / timelineWidth.value) * maxDuration.value;
+
+	const segment = initialBrandRange.value;
+	const minDuration = 0.1; // Minimum 100ms uzunluk
+
+	// Yeni başlangıç ve bitiş zamanlarını hesapla
+	let newStart = segment.start;
+	let newEnd = segment.end;
+
+	if (resizingBrandEdge.value === "start") {
+		newStart = Math.min(currentTime, segment.end - minDuration);
+		newStart = Math.max(0, newStart); // 0'ın altına inmemesi için
+	} else {
+		newEnd = Math.max(currentTime, segment.start + minDuration);
+		newEnd = Math.min(props.duration, newEnd); // Video süresini aşmaması için
+	}
+
+	// Segmenti güncelle
+	const updatedSegments = [...props.segments];
+	const segmentIndex = updatedSegments.findIndex((s) => s.id === segment.id);
+
+	if (segmentIndex !== -1) {
+		updatedSegments[segmentIndex] = {
+			...updatedSegments[segmentIndex],
+			start: newStart,
+			end: newEnd,
+			startTime: newStart,
+			endTime: newEnd,
+		};
+
+		emit("segmentUpdate", updatedSegments);
+	}
+};
+
+// Brand segment resize bitirme
+const handleBrandResizeEnd = () => {
+	isBrandResizing.value = false;
+	activeBrandIndex.value = null;
+	resizingBrandEdge.value = null;
+	initialBrandRange.value = null;
+
+	window.removeEventListener("mousemove", handleBrandResizeMove);
+	window.removeEventListener("mouseup", handleBrandResizeEnd);
+};
 </script>
 
 <style scoped>
