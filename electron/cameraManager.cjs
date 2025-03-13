@@ -313,6 +313,9 @@ class CameraManager {
 			// Load camera content
 			await this.loadCameraContent();
 
+			// Start mouse tracking after successful initialization
+			this.startMouseTracking();
+
 			return true;
 		} catch (error) {
 			console.error("Error creating camera window:", error);
@@ -422,10 +425,7 @@ class CameraManager {
 	setRecordingStatus(status) {
 		this.isRecording = status;
 		if (status) {
-			// Kayıt başladığında kamera penceresini gizle
-			if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
-				this.cameraWindow.hide();
-			}
+			this.showCameraWindow();
 			this.startMouseTracking();
 		} else {
 			this.closeCameraWindow();
