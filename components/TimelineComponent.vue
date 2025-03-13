@@ -90,81 +90,22 @@
 								@drop.prevent="handleSegmentDrop"
 							>
 								<!-- Video Segments -->
-								<div
+								<TimelineSegment
 									v-for="(segment, index) in props.segments"
 									:key="segment.id || index"
-									class="h-full ring-inset relative transition-all duration-200 group"
-									:class="{
-										'ring-[1px] ring-white z-50': activeSegmentIndex === index,
-										'hover:!ring-[1px] hover:!ring-white hover:z-50':
-											!isResizing && activeSegmentIndex !== index,
-										'z-10':
-											!isResizing && activeSegmentIndex !== index && !isHovered,
-									}"
-									:style="getSegmentStyle(segment, index)"
-									@click.stop="handleSegmentClick(index, $event)"
-									@mousemove="handleSegmentMouseMove($event, index)"
-									@mouseleave="handleSegmentMouseLeave"
-									@mousedown.stop="
-										isSplitMode ? handleSegmentSplit($event, index) : null
-									"
-								>
-									<!-- Split Indicator -->
-									<div
-										v-if="isSplitMode && mousePosition.segmentIndex === index"
-										class="absolute top-0 bottom-0 w-[1px] bg-white pointer-events-none transition-all duration-75"
-										:style="{
-											left: `${mousePosition.x}px`,
-											opacity: 0.8,
-											height: '100%',
-										}"
-									></div>
-
-									<!-- Sol Kenar İşareti -->
-									<div
-										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
-										:class="{
-											'opacity-80': activeSegmentIndex === index,
-											'group-hover:opacity-80': !isResizing,
-										}"
-									>
-										<div
-											class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
-											@mousedown.stop="
-												handleResizeStart($event, index, 'start')
-											"
-										></div>
-									</div>
-
-									<!-- Sağ Kenar İşareti -->
-									<div
-										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
-										:class="{
-											'opacity-80': activeSegmentIndex === index,
-											'group-hover:opacity-80': !isResizing,
-										}"
-									>
-										<div
-											class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
-											@mousedown.stop="handleResizeStart($event, index, 'end')"
-										></div>
-									</div>
-
-									<!-- Segment İçeriği -->
-									<div
-										class="absolute inset-0 flex flex-col items-center justify-center text-center"
-									>
-										<span
-											class="text-white/70 text-[10px] font-medium tracking-wide"
-											>Clip</span
-										>
-										<span
-											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
-										>
-											{{ formatDuration(segment.end - segment.start) }} @ 1x
-										</span>
-									</div>
-								</div>
+									:segment="segment"
+									:index="index"
+									:is-active="activeSegmentIndex === index"
+									:is-resizing="isResizing"
+									:is-hovered="isHovered"
+									:is-split-mode="isSplitMode"
+									:duration="maxDuration"
+									@click="handleSegmentClick"
+									@mouse-move="handleSegmentMouseMove"
+									@mouse-leave="handleSegmentMouseLeave"
+									@resize-start="handleResizeStart"
+									@split="handleSegmentSplit"
+								/>
 							</div>
 						</div>
 
@@ -191,103 +132,35 @@
 								</div>
 
 								<!-- Zoom Ranges -->
-								<div
+								<TimelineZoomSegment
 									v-for="(range, index) in zoomRanges"
 									:key="index"
-									class="h-full ring-inset relative transition-all duration-200 group"
-									:class="{
-										'ring-[1px] ring-white z-50 selected-zoom':
-											selectedZoomIndex === index,
-										'hover:!ring-[1px] hover:!ring-white hover:z-50':
-											!isZoomResizing && selectedZoomIndex !== index,
-										'z-10':
-											!isZoomResizing &&
-											selectedZoomIndex !== index &&
-											!isHovered,
-										'cursor-grab': !isZoomDragging,
-										'cursor-grabbing': isZoomDragging,
-									}"
-									:style="getZoomStyle(range, index)"
-									@mouseenter="handleZoomRangeEnter(range, index)"
-									@mouseleave="handleZoomRangeLeave"
-									@click.stop="handleZoomSegmentClick($event, index)"
-									@mousedown.stop="handleZoomDragStart($event, index)"
-								>
-									<!-- Sol Resize Handle -->
-									<div
-										class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
-										:class="{
-											'opacity-80': selectedZoomIndex === index,
-											'group-hover:opacity-80':
-												!isZoomResizing && !isZoomDragging,
-										}"
-										@mousedown.stop="
-											handleZoomResizeStart($event, index, 'start')
-										"
-									>
-										<div
-											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
-										></div>
-									</div>
-
-									<!-- Sağ Resize Handle -->
-									<div
-										class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
-										:class="{
-											'opacity-80': selectedZoomIndex === index,
-											'group-hover:opacity-80':
-												!isZoomResizing && !isZoomDragging,
-										}"
-										@mousedown.stop="
-											handleZoomResizeStart($event, index, 'end')
-										"
-									>
-										<div
-											class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
-										></div>
-									</div>
-
-									<!-- Zoom İçeriği -->
-									<div
-										class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
-									>
-										<span
-											class="text-white/70 text-[10px] font-medium tracking-wide"
-											>Zoom</span
-										>
-										<span
-											class="text-white/90 text-sm font-medium tracking-wide mt-0.5"
-										>
-											{{ formatDuration(range.end - range.start) }} @
-											{{ range.scale }}x
-										</span>
-									</div>
-								</div>
+									:range="range"
+									:index="index"
+									:is-selected="selectedZoomIndex === index"
+									:is-resizing="isZoomResizing"
+									:is-dragging="isZoomDragging && draggedZoomIndex === index"
+									:is-hovered="isHovered"
+									:duration="maxDuration"
+									@click="handleZoomSegmentClick"
+									@mouse-enter="handleZoomRangeEnter"
+									@mouse-leave="handleZoomRangeLeave"
+									@drag-start="handleZoomDragStart"
+									@resize-start="handleZoomResizeStart"
+								/>
 
 								<!-- Ghost Zoom Preview -->
-								<div
-									v-if="
+								<TimelineGhostZoom
+									:position="
 										ghostZoomPosition !== null &&
 										!isZoomResizing &&
 										!isZoomDragging
+											? ghostZoomPosition
+											: null
 									"
-									class="absolute h-full transition-all rounded-[10px] duration-75 opacity-30 bg-white/20 ring-1 ring-white/20"
-									:style="{
-										left: `${ghostZoomPosition}%`,
-										width: `${calculateGhostBarWidth()}%`,
-										background:
-											'linear-gradient(rgb(87, 62, 244) 0%, rgb(134 119 233) 100%)',
-									}"
-								>
-									<div
-										class="absolute inset-0 flex flex-col items-center justify-center text-center"
-									>
-										<span
-											class="text-white text-[14px] font-medium tracking-wide"
-											>Add zoom effect</span
-										>
-									</div>
-								</div>
+									:width="calculateGhostBarWidth()"
+									label="Add zoom effect"
+								/>
 							</div>
 						</div>
 					</div>
@@ -362,6 +235,9 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import TimelineSegment from "~/components/timeline/TimelineSegment.vue";
+import TimelineZoomSegment from "~/components/timeline/TimelineZoomSegment.vue";
+import TimelineGhostZoom from "~/components/timeline/TimelineGhostZoom.vue";
 
 const props = defineProps({
 	duration: {
@@ -539,33 +415,6 @@ const shouldShowTime = (time) => {
 
 // Aktif segment state'i
 const activeSegmentIndex = ref(null);
-
-// Segment pozisyonlama hesaplamaları
-const getSegmentStyle = (segment, index) => {
-	const isActive = activeSegmentIndex.value === index;
-	const start = segment.start || segment.startTime || 0;
-	const end = segment.end || segment.endTime || maxDuration.value;
-	const width = ((end - start) / maxDuration.value) * 100;
-	const left = (start / maxDuration.value) * 100;
-
-	return {
-		width: `${width}%`,
-		left: `${left}%`,
-		position: "absolute",
-		transition: "all 0.2s ease",
-		zIndex: isActive ? "10" : "1",
-		borderRadius: "10px",
-		backgroundColor: "rgb(140,91,7)",
-		background: isActive
-			? "linear-gradient(180deg, rgba(160,111,27,1) 0%, rgba(225,161,50,1) 100%, rgba(254,168,19,1) 100%)"
-			: "linear-gradient(180deg, rgba(140,91,7,1) 0%, rgba(205,141,30,1) 100%, rgba(254,168,19,1) 100%)",
-		border: isActive
-			? "1px solid rgba(255, 255, 255, 0.3)"
-			: "0.25px solid rgba(255, 255, 255, 0.1)",
-		height: "100%",
-		cursor: "pointer",
-	};
-};
 
 // Segment seçme
 const handleSegmentClick = (index, event) => {
@@ -753,11 +602,10 @@ const mousePosition = ref({ x: 0, segmentIndex: null });
 // Segment üzerinde mouse hareketi
 const handleSegmentMouseMove = (event, index) => {
 	if (!props.isSplitMode) return;
-
-	const segment = event.currentTarget;
-	const rect = segment.getBoundingClientRect();
-	const x = event.clientX - rect.left;
-	mousePosition.value = { x, segmentIndex: index };
+	mousePosition.value = {
+		x: event.clientX - event.currentTarget.getBoundingClientRect().left,
+		segmentIndex: index,
+	};
 };
 
 // Segment üzerinden mouse ayrıldığında
@@ -766,17 +614,11 @@ const handleSegmentMouseLeave = () => {
 };
 
 // Segment bölme işlemi
-const handleSegmentSplit = (event, index) => {
+const handleSegmentSplit = (event, index, ratio) => {
 	if (!props.isSplitMode) return;
-	event.stopPropagation();
 
 	const segment = props.segments[index];
 	if (!segment) return;
-
-	const segmentEl = event.currentTarget;
-	const rect = segmentEl.getBoundingClientRect();
-	const x = event.clientX - rect.left;
-	const ratio = x / rect.width;
 
 	// Bölme noktasındaki zamanı hesapla
 	const splitTime = segment.start + (segment.end - segment.start) * ratio;
@@ -1265,9 +1107,13 @@ const handleZoomResizeEnd = () => {
 
 // Zoom range'e mouse girdiğinde aktif et
 const handleZoomRangeEnter = (range, index) => {
-	if (selectedZoomIndex !== index && !isZoomResizing && !isZoomDragging) {
-		ghostZoomPosition.value = range.start;
-		ghostZoomDuration.value = range.duration;
+	if (
+		selectedZoomIndex.value !== index &&
+		!isZoomResizing.value &&
+		!isZoomDragging.value
+	) {
+		ghostZoomPosition.value = (range.start / maxDuration.value) * 100;
+		ghostZoomDuration.value = range.end - range.start;
 		ghostZoomScale.value = range.scale;
 	}
 };
@@ -1324,28 +1170,6 @@ const hideGhostZoom = () => {
 const calculateGhostBarWidth = () => {
 	if (ghostZoomPosition.value === null) return 0;
 	return (ghostZoomDuration.value / maxDuration.value) * 100;
-};
-
-// Zoom segmentleri için style hesaplama
-const getZoomStyle = (range, index) => {
-	const isSelected = selectedZoomIndex.value === index;
-	const isDragging = draggedZoomIndex.value === index;
-
-	return {
-		position: "absolute",
-		left: `${(range.start / maxDuration.value) * 100}%`,
-		width: `${((range.end - range.start) / maxDuration.value) * 100}%`,
-		backgroundColor: isSelected ? "rgb(87, 62, 244)" : "rgb(67, 42, 244)",
-		background: isSelected
-			? "linear-gradient(rgb(87, 62, 244) 0%, rgb(134 119 233) 100%)"
-			: "linear-gradient(rgb(67, 42, 244) 0%, rgb(114 99 213) 100%)",
-		borderRadius: "10px",
-		height: "100%",
-		cursor: isDragging ? "grabbing" : "grab",
-		transition: isDragging ? "none" : "all 0.2s ease",
-		transform: "translate3d(0,0,0)", // Hardware acceleration
-		willChange: isDragging ? "transform" : "auto",
-	};
 };
 
 // Playhead sürükleme state'i
