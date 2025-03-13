@@ -82,7 +82,7 @@
 		</div>
 		<!-- Ana İçerik -->
 		<div class="flex-1 flex flex-col min-h-0">
-			<div class="w-full flex flex-1 h-[600px]">
+			<div class="w-full flex flex-1 h-[500px]">
 				<div class="flex-shrink-0 w-[500px] h-full flex flex-col">
 					<div class="flex-1 p-4 relative">
 						<MediaPlayerSettings
@@ -100,9 +100,10 @@
 						class="flex-1 relative min-h-0 m-auto"
 						style="
 							width: 800px;
-							height: 600px;
+							height: 500px;
 							min-width: 800px;
-							min-height: 600px;
+							min-height: 500px;
+							max-height: 500px;
 						"
 					>
 						<MediaPlayer

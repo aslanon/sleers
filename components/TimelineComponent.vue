@@ -1,7 +1,11 @@
 <template>
-	<div class="timeline-container flex-1 relative flex flex-col text-white">
+	<div
+		class="timeline-container bg-pink flex-1 relative flex flex-col text-white"
+	>
 		<!-- Timeline Header -->
-		<div class="flex justify-between items-center px-4 py-2">
+		<div
+			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
+		>
 			<div class="text-sm font-medium text-gray-300"></div>
 			<div class="flex gap-1">
 				<button
@@ -47,7 +51,7 @@
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content relative h-[260px] min-h-[260px] pt-6 transition-[width] duration-100 ease-linear"
+					class="timeline-content h-[260px] relative pt-6 transition-[width] duration-100 ease-linear"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -1246,32 +1250,6 @@ const dragStartRange = ref(null);
 </script>
 
 <style scoped>
-.timeline-container {
-	padding: 0 0px;
-	position: relative;
-	/* &::before {
-		content: "";
-		position: absolute;
-		top: 122px;
-		left: 0px;
-		right: 0;
-		width: 120px;
-		height: 100%;
-		background: linear-gradient(to right, #000, transparent);
-		z-index: 2;
-	}
-	&::after {
-		content: "";
-		position: absolute;
-		top: 122px;
-		right: 0px;
-		width: 120px;
-		height: 100%;
-		background: linear-gradient(to left, #000, transparent);
-		z-index: 2;
-	} */
-}
-
 /* ScrollContainer scrollbar'ını gizle */
 .overflow-x-scroll::-webkit-scrollbar {
 	display: none;

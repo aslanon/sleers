@@ -2,7 +2,13 @@
 	<div
 		class="media-player w-full h-full m-auto rounded-lg overflow-hidden bg-black/80"
 		@togglePlayback="togglePlay"
-		style="width: 800px; height: 600px; min-width: 800px; min-height: 600px"
+		style="
+			width: 800px;
+			height: 500px;
+			min-width: 800px;
+			min-height: 500px;
+			max-height: 500px;
+		"
 	>
 		<div
 			ref="containerRef"
