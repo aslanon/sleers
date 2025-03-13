@@ -422,7 +422,10 @@ class CameraManager {
 	setRecordingStatus(status) {
 		this.isRecording = status;
 		if (status) {
-			this.showCameraWindow();
+			// Kayıt başladığında kamera penceresini gizle
+			if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+				this.cameraWindow.hide();
+			}
 			this.startMouseTracking();
 		} else {
 			this.closeCameraWindow();

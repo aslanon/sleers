@@ -603,6 +603,16 @@ function setupIpcHandlers() {
 		if (status) {
 			console.log("[Main] Kayıt başlatılıyor...");
 			startMouseTracking();
+
+			// Kayıt başladığında kamera penceresini gizle
+			if (
+				cameraManager &&
+				cameraManager.cameraWindow &&
+				!cameraManager.cameraWindow.isDestroyed()
+			) {
+				console.log("[Main] Kayıt başladığında kamera penceresi gizleniyor...");
+				cameraManager.cameraWindow.hide();
+			}
 		} else {
 			console.log("[Main] Kayıt durduruluyor...");
 			stopMouseTracking();
@@ -826,7 +836,7 @@ function setupIpcHandlers() {
 		setTimeout(() => {
 			if (cameraManager) {
 				console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
-				cameraManager.initializeCamera();
+				cameraManager.resetForNewRecording();
 			}
 
 			// Ana pencereyi göster
