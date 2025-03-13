@@ -47,7 +47,7 @@
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content relative h-[220px] pt-6 transition-[width] duration-100 ease-linear"
+					class="timeline-content relative h-[260px] min-h-[260px] pt-6 transition-[width] duration-100 ease-linear"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
