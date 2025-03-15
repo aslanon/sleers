@@ -1,8 +1,11 @@
 ---
 description: 
 globs: 
+alwaysApply: false
 ---
 // Screen Studio .cursorrules
+
+tüm özellikleri coponent ve composable kullanarak modüler olarak inşa etmelisin. tüm sayfaları da o şekilde parçalarına ayırıp inşa etmelisin. senden bir özellik eklemeni istediğimde var olan diğer özellikleri ve çalışan yapıları bozmamalısın. sadece istediğim özelliği eklemelisin. bir şeyi sil ya da kaldır demeden bana sormadan silip kaldırmamalısın.
 
 // Genel İlkeler
 - Uygulamanın masaüstü sürümü için Electron framework'ünü kullanın.
