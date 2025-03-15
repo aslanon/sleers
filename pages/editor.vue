@@ -127,7 +127,7 @@
 						@timeUpdate="onTimeUpdate"
 						@mute-change="isMuted = $event"
 						@update:isCropMode="isCropMode = $event"
-						class="absolute inset-0 h-full"
+						class="inset-0 h-full"
 					/>
 				</div>
 				<MediaPlayerControls

@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="media-player-settings bg-black w-[500px] min-w-[500px] rounded-lg"
+		class="media-player-settings bg-black w-[435px] min-w-[435px] rounded-lg"
 	>
 		<!-- Tab yapısı -->
 		<div class="flex">
@@ -117,7 +117,7 @@
 
 			<!-- Tab içerikleri -->
 			<div
-				class="flex-1 pt-2 pr-8 rounded-2xl max-h-[500px] px-8 overflow-y-auto"
+				class="flex-1 pt-2 pr-8 rounded-2xl max-h-[435px] px-8 overflow-y-auto"
 			>
 				<!-- Video Ayarları Tab -->
 				<VideoSettings

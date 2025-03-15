@@ -1,14 +1,7 @@
 <template>
 	<div
-		class="media-player w-full h-full m-auto rounded-lg overflow-hidden bg-black/80"
+		class="media-player w-full h-full m-auto rounded-lg overflow-hidden"
 		@togglePlayback="togglePlay"
-		style="
-			width: 800px;
-			height: 500px;
-			min-width: 800px;
-			min-height: 500px;
-			max-height: 500px;
-		"
 	>
 		<div
 			ref="containerRef"
@@ -23,7 +16,7 @@
 			@mouseleave="handleMouseUp"
 		>
 			<div
-				class="relative"
+				class="relative crop-area"
 				:style="{
 					width: `${cropArea.width}px`,
 					height: `${cropArea.height}px`,
@@ -32,7 +25,7 @@
 				<canvas
 					id="canvasID"
 					ref="canvasRef"
-					class="absolute rounded-md inset-0 w-full h-full"
+					class="rounded-md inset-0 w-full h-full"
 				></canvas>
 			</div>
 
@@ -1876,7 +1869,7 @@ const onVideoMetadataLoaded = () => {
 			willChange: "transform",
 			imageRendering: "high-quality",
 			webkitImageRendering: "high-quality",
-			position: "absolute",
+			position: "relative",
 			left: "50%",
 			top: "50%",
 			transform: "translate(-50%, -50%)",
