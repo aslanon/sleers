@@ -117,7 +117,7 @@
 
 			<!-- Tab içerikleri -->
 			<div
-				class="flex-1 pt-2 pr-8 rounded-2xl max-h-[calc(100vh-400px)] px-8 overflow-y-auto"
+				class="flex-1 pt-2 pr-8 rounded-2xl max-h-[500px] px-8 overflow-y-auto"
 			>
 				<!-- Video Ayarları Tab -->
 				<VideoSettings

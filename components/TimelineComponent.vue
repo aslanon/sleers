@@ -1,7 +1,5 @@
 <template>
-	<div
-		class="timeline-container bg-pink flex-1 relative flex flex-col text-white"
-	>
+	<div class="timeline-container h-full">
 		<!-- Timeline Header -->
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
@@ -38,7 +36,7 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll overflow-y-hidden"
+			class="overflow-x-scroll h-full overflow-y-hidden"
 			@wheel="handleZoom"
 		>
 			<!-- @wheel.prevent="handleContainerWheel" -->
@@ -51,7 +49,7 @@
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content h-[260px] relative pt-6 transition-[width] duration-100 ease-linear"
+					class="timeline-content h-full relative pt-6 transition-[width] duration-100 ease-linear"
 					:style="{ width: `${timelineWidth}px` }"
 				>
 					<!-- Zaman İşaretleri -->
@@ -89,7 +87,7 @@
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
 							<div
-								class="flex flex-row h-[50px] relative w-full"
+								class="flex flex-row h-[42px] relative w-full"
 								@dragover.prevent
 								@drop.prevent="handleSegmentDrop"
 							>
@@ -122,7 +120,7 @@
 							@mouseleave="handleZoomTrackLeave"
 						>
 							<div
-								class="flex flex-row h-[50px] relative"
+								class="flex flex-row h-[42px] relative"
 								:class="{ 'z-50': isZoomTrackHovered }"
 							>
 								<!-- Empty State Label -->

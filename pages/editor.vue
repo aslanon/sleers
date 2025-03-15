@@ -81,92 +81,88 @@
 			</div>
 		</div>
 		<!-- Ana İçerik -->
-		<div class="flex-1 flex flex-col min-h-0">
-			<div class="w-full flex flex-1 h-[500px]">
-				<div class="flex-shrink-0 w-[500px] h-full flex flex-col">
-					<div class="flex-1 p-4 relative">
-						<MediaPlayerSettings
-							:duration="videoDuration"
-							:width="videoWidth"
-							:height="videoHeight"
-							v-model="mouseSize"
-							:media-player="mediaPlayerRef"
-							class="relative"
-						/>
-					</div>
-				</div>
-				<div class="w-full p-4 flex-1 flex flex-col">
-					<div
-						class="flex-1 relative min-h-0 m-auto"
-						style="
-							width: 800px;
-							height: 500px;
-							min-width: 800px;
-							min-height: 500px;
-							max-height: 500px;
-						"
-					>
-						<MediaPlayer
-							ref="mediaPlayerRef"
-							:video-url="videoUrl"
-							:audio-url="audioUrl"
-							:camera-url="cameraUrl"
-							:video-type="videoType"
-							:audio-type="audioType"
-							:camera-type="cameraType"
-							:is-playing="isPlaying"
-							:current-time="currentTime"
-							:preview-time="previewTime"
-							:is-muted="isMuted"
-							:segments="segments"
-							:mouse-positions="mousePositions"
-							:mouse-size="mouseSize"
-							:is-crop-mode="isCropMode"
-							@video-loaded="onVideoLoaded"
-							@video-ended="onVideoEnded"
-							@video-paused="isPlaying = false"
-							@timeUpdate="onTimeUpdate"
-							@mute-change="isMuted = $event"
-							@update:isCropMode="isCropMode = $event"
-							class="absolute inset-0 h-full"
-						/>
-					</div>
-					<MediaPlayerControls
-						:is-playing="isPlaying"
-						:current-time="currentTime"
-						:preview-time="previewTime"
+		<div class="w-full flex flex-1 h-[600px] min-h-[600px] max-h-[600px]">
+			<div class="flex-shrink-0 w-[500px] h-full flex flex-col">
+				<div class="flex-1 p-4 relative">
+					<MediaPlayerSettings
 						:duration="videoDuration"
-						:is-trim-mode="isTrimMode"
-						:selected-ratio="selectedRatio"
-						:is-muted="isMuted"
-						:is-split-mode="isSplitMode"
-						:is-crop-mode="isCropMode"
-						@toggle-playback="togglePlayback"
-						@toggle-trim-mode="toggleTrimMode"
-						@update:selected-ratio="onAspectRatioChange"
-						@toggle-mute="toggleMute"
-						@toggle-split-mode="toggleSplitMode"
-						@update:isCropMode="isCropMode = $event"
-						@captureScreenshot="handleCaptureScreenshot"
-						class="mt-4"
+						:width="videoWidth"
+						:height="videoHeight"
+						v-model="mouseSize"
+						:media-player="mediaPlayerRef"
+						class="relative"
 					/>
 				</div>
 			</div>
-
-			<div class="flex-shrink-0">
-				<TimelineComponent
-					:duration="videoDuration"
+			<div class="w-full p-4 flex-1 flex flex-col">
+				<div
+					class="flex-1 relative min-h-0 m-auto"
+					style="
+						width: 800px;
+						height: 500px;
+						min-width: 800px;
+						min-height: 500px;
+						max-height: 500px;
+					"
+				>
+					<MediaPlayer
+						ref="mediaPlayerRef"
+						:video-url="videoUrl"
+						:audio-url="audioUrl"
+						:camera-url="cameraUrl"
+						:video-type="videoType"
+						:audio-type="audioType"
+						:camera-type="cameraType"
+						:is-playing="isPlaying"
+						:current-time="currentTime"
+						:preview-time="previewTime"
+						:is-muted="isMuted"
+						:segments="segments"
+						:mouse-positions="mousePositions"
+						:mouse-size="mouseSize"
+						:is-crop-mode="isCropMode"
+						@video-loaded="onVideoLoaded"
+						@video-ended="onVideoEnded"
+						@video-paused="isPlaying = false"
+						@timeUpdate="onTimeUpdate"
+						@mute-change="isMuted = $event"
+						@update:isCropMode="isCropMode = $event"
+						class="absolute inset-0 h-full"
+					/>
+				</div>
+				<MediaPlayerControls
+					:is-playing="isPlaying"
 					:current-time="currentTime"
-					:segments="segments"
+					:preview-time="previewTime"
+					:duration="videoDuration"
+					:is-trim-mode="isTrimMode"
+					:selected-ratio="selectedRatio"
+					:is-muted="isMuted"
 					:is-split-mode="isSplitMode"
-					@timeUpdate="handleTimeUpdate"
-					@previewTimeUpdate="handlePreviewTimeUpdate"
-					@segmentsReordered="handleSegmentsReordered"
-					@splitSegment="handleSegmentSplit"
-					ref="timelineRef"
+					:is-crop-mode="isCropMode"
+					@toggle-playback="togglePlayback"
+					@toggle-trim-mode="toggleTrimMode"
+					@update:selected-ratio="onAspectRatioChange"
+					@toggle-mute="toggleMute"
+					@toggle-split-mode="toggleSplitMode"
+					@update:isCropMode="isCropMode = $event"
+					@captureScreenshot="handleCaptureScreenshot"
+					class="mt-4"
 				/>
 			</div>
 		</div>
+
+		<TimelineComponent
+			:duration="videoDuration"
+			:current-time="currentTime"
+			:segments="segments"
+			:is-split-mode="isSplitMode"
+			@timeUpdate="handleTimeUpdate"
+			@previewTimeUpdate="handlePreviewTimeUpdate"
+			@segmentsReordered="handleSegmentsReordered"
+			@splitSegment="handleSegmentSplit"
+			ref="timelineRef"
+		/>
 	</div>
 </template>
 
