@@ -1,15 +1,20 @@
-import { ref } from "vue";
+import { ref, shallowRef } from "vue";
 import { useRoundRect } from "~/composables/useRoundRect";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const useCameraRenderer = () => {
 	const { cameraSettings } = usePlayerSettings();
-	const lastCameraPosition = ref({ x: 0, y: 0 });
+	const lastCameraPosition = shallowRef({ x: 0, y: 0 });
 	const isMouseOverCamera = ref(false);
 	const scaleValue = 3;
 	const hoverScale = ref(1);
 	const HOVER_SCALE = 1.1; // Hover durumunda %10 büyüme
 	const TRANSITION_SPEED = 0.5; // Daha hızlı geçiş
+
+	// Cache ve optimizasyon için yeni referanslar
+	const lastFrameTime = ref(0);
+	const renderRequestID = ref(null);
+	const frameLimiter = ref(1000 / 30); // 30 FPS ile sınırla
 
 	// Hover scale değerini güncelle
 	const updateHoverScale = () => {
@@ -38,6 +43,13 @@ export const useCameraRenderer = () => {
 
 		// Always try to draw even if camera is not fully ready
 		if (!cameraElement) return false;
+
+		// Performans optimizasyonu: FPS sınırlama
+		const now = performance.now();
+		if (now - lastFrameTime.value < frameLimiter.value && !dragPosition) {
+			return isMouseOverCamera.value;
+		}
+		lastFrameTime.value = now;
 
 		// Update hover effect
 		updateHoverScale();
@@ -111,16 +123,17 @@ export const useCameraRenderer = () => {
 			}
 		}
 
-		let sourceWidth, sourceHeight, sourceX, sourceY;
-
-		// Get crop settings with fallbacks
+		// Cache değişkenleri için optimizasyon
 		const cropX = cameraSettings.value?.crop?.x || 0;
 		const cropY = cameraSettings.value?.crop?.y || 0;
 		const cropWidth = cameraSettings.value?.crop?.width || 56.25;
 		const cropHeight = cameraSettings.value?.crop?.height || 100;
+		const hasVideo = cameraElement.videoWidth && cameraElement.videoHeight;
 
-		// Calculate source dimensions based on crop settings
-		if (cameraElement.videoWidth && cameraElement.videoHeight) {
+		let sourceWidth, sourceHeight, sourceX, sourceY;
+
+		// Performans optimizasyonu: kaynak hesaplamaları sadece gerektiğinde
+		if (hasVideo) {
 			// Orijinal video boyutlarını al
 			const originalWidth = cameraElement.videoWidth;
 			const originalHeight = cameraElement.videoHeight;
@@ -342,44 +355,50 @@ export const useCameraRenderer = () => {
 			}
 
 			// Draw camera with error handling
-			try {
-				// Orijinal görüntü oranını korumak için hesaplamalar
-				const sourceRatio = sourceWidth / sourceHeight;
-				const targetRatio = cameraWidth / cameraHeight;
+			if (hasVideo) {
+				try {
+					// Orijinal görüntü oranını korumak için hesaplamalar
+					const sourceRatio = sourceWidth / sourceHeight;
+					const targetRatio = cameraWidth / cameraHeight;
 
-				let drawWidth = cameraWidth + 2;
-				let drawHeight = cameraHeight + 2;
-				let drawX = cameraX - 1;
-				let drawY = cameraY - 1;
+					let drawWidth = cameraWidth + 2;
+					let drawHeight = cameraHeight + 2;
+					let drawX = cameraX - 1;
+					let drawY = cameraY - 1;
 
-				// Görüntünün oranını korumak için hedef boyutları ayarla
-				if (sourceRatio > targetRatio) {
-					// Kaynak görüntü daha geniş, yüksekliği ayarla
-					const scaledHeight = drawWidth / sourceRatio;
-					drawY += (drawHeight - scaledHeight) / 2;
-					drawHeight = scaledHeight;
-				} else if (sourceRatio < targetRatio) {
-					// Kaynak görüntü daha uzun, genişliği ayarla
-					const scaledWidth = drawHeight * sourceRatio;
-					drawX += (drawWidth - scaledWidth) / 2;
-					drawWidth = scaledWidth;
+					// Görüntünün oranını korumak için hedef boyutları ayarla
+					if (sourceRatio > targetRatio) {
+						// Kaynak görüntü daha geniş, yüksekliği ayarla
+						const scaledHeight = drawWidth / sourceRatio;
+						drawY += (drawHeight - scaledHeight) / 2;
+						drawHeight = scaledHeight;
+					} else if (sourceRatio < targetRatio) {
+						// Kaynak görüntü daha uzun, genişliği ayarla
+						const scaledWidth = drawHeight * sourceRatio;
+						drawX += (drawWidth - scaledWidth) / 2;
+						drawWidth = scaledWidth;
+					}
+
+					// Görüntüyü çiz
+					ctx.drawImage(
+						cameraElement,
+						sourceX,
+						sourceY,
+						sourceWidth,
+						sourceHeight,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight
+					);
+				} catch (error) {
+					console.warn("[CameraRenderer] Failed to draw camera:", error);
+					// Draw fallback if camera draw fails
+					ctx.fillStyle = "#000000";
+					ctx.fillRect(cameraX, cameraY, cameraWidth, cameraHeight);
 				}
-
-				// Görüntüyü çiz
-				ctx.drawImage(
-					cameraElement,
-					sourceX,
-					sourceY,
-					sourceWidth,
-					sourceHeight,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight
-				);
-			} catch (error) {
-				console.warn("[CameraRenderer] Failed to draw camera:", error);
-				// Draw fallback if camera draw fails
+			} else {
+				// Draw fallback if no video
 				ctx.fillStyle = "#000000";
 				ctx.fillRect(cameraX, cameraY, cameraWidth, cameraHeight);
 			}
