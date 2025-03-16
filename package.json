@@ -17,6 +17,8 @@
 	"dependencies": {
 		"@ffmpeg-installer/ffmpeg": "^1.1.0",
 		"@nuxtjs/tailwindcss": "^6.10.1",
+		"@tensorflow-models/body-pix": "^2.2.1",
+		"@tensorflow/tfjs": "^4.22.0",
 		"@vueuse/components": "^12.3.0",
 		"@vueuse/core": "^12.3.0",
 		"aperture": "^7.0.0",

@@ -36,6 +36,13 @@ const cameraSettings = ref({
 	borderWidth: 0,
 	borderColor: "rgba(0, 0, 0, 1)",
 	borderOpacity: 1,
+	removeBackground: false,
+	backgroundRemovalSettings: {
+		segmentationThreshold: 0.6,
+		internalResolution: "medium",
+		flipHorizontal: false,
+		targetFps: 30,
+	},
 });
 
 // Ekran kaydı videosu için border ayarları

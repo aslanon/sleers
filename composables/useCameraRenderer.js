@@ -1,6 +1,7 @@
 import { ref, shallowRef } from "vue";
 import { useRoundRect } from "~/composables/useRoundRect";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import { useBackgroundRemoval } from "~/composables/useBackgroundRemoval";
 
 export const useCameraRenderer = () => {
 	const { cameraSettings } = usePlayerSettings();
@@ -16,6 +17,15 @@ export const useCameraRenderer = () => {
 	const renderRequestID = ref(null);
 	const frameLimiter = ref(1000 / 30); // 30 FPS ile sınırla
 
+	// Background removal integration
+	const {
+		isLoading: isBackgroundRemovalLoading,
+		isProcessing: isBackgroundRemovalActive,
+		startBackgroundRemoval,
+		stopBackgroundRemoval,
+		processFrame: processBackgroundRemovalFrame,
+	} = useBackgroundRemoval();
+
 	// Hover scale değerini güncelle
 	const updateHoverScale = () => {
 		const targetScale = isMouseOverCamera.value ? HOVER_SCALE : 1;
@@ -24,6 +34,16 @@ export const useCameraRenderer = () => {
 		if (canvas) {
 			canvas.style.cursor = isMouseOverCamera.value ? "grab" : "default";
 		}
+	};
+
+	// Toggle background removal
+	const toggleBackgroundRemoval = async () => {
+		if (isBackgroundRemovalActive.value) {
+			stopBackgroundRemoval();
+		} else {
+			await startBackgroundRemoval();
+		}
+		return isBackgroundRemovalActive.value;
 	};
 
 	const drawCamera = (
@@ -357,40 +377,101 @@ export const useCameraRenderer = () => {
 			// Draw camera with error handling
 			if (hasVideo) {
 				try {
-					// Orijinal görüntü oranını korumak için hesaplamalar
-					const sourceRatio = sourceWidth / sourceHeight;
-					const targetRatio = cameraWidth / cameraHeight;
+					// Process background removal if active
+					if (
+						isBackgroundRemovalActive.value &&
+						cameraSettings.value?.removeBackground
+					) {
+						// Process the current frame for background removal
+						const processedCanvas =
+							processBackgroundRemovalFrame(cameraElement);
 
-					let drawWidth = cameraWidth + 2;
-					let drawHeight = cameraHeight + 2;
-					let drawX = cameraX - 1;
-					let drawY = cameraY - 1;
+						if (processedCanvas) {
+							// Orijinal görüntü oranını korumak için hesaplamalar
+							const sourceRatio = sourceWidth / sourceHeight;
+							const targetRatio = cameraWidth / cameraHeight;
 
-					// Görüntünün oranını korumak için hedef boyutları ayarla
-					if (sourceRatio > targetRatio) {
-						// Kaynak görüntü daha geniş, yüksekliği ayarla
-						const scaledHeight = drawWidth / sourceRatio;
-						drawY += (drawHeight - scaledHeight) / 2;
-						drawHeight = scaledHeight;
-					} else if (sourceRatio < targetRatio) {
-						// Kaynak görüntü daha uzun, genişliği ayarla
-						const scaledWidth = drawHeight * sourceRatio;
-						drawX += (drawWidth - scaledWidth) / 2;
-						drawWidth = scaledWidth;
+							let drawWidth = cameraWidth + 2;
+							let drawHeight = cameraHeight + 2;
+							let drawX = cameraX - 1;
+							let drawY = cameraY - 1;
+
+							// Görüntünün oranını korumak için hedef boyutları ayarla
+							if (sourceRatio > targetRatio) {
+								// Kaynak görüntü daha geniş, yüksekliği ayarla
+								const scaledHeight = drawWidth / sourceRatio;
+								drawY += (drawHeight - scaledHeight) / 2;
+								drawHeight = scaledHeight;
+							} else if (sourceRatio < targetRatio) {
+								// Kaynak görüntü daha uzun, genişliği ayarla
+								const scaledWidth = drawHeight * sourceRatio;
+								drawX += (drawWidth - scaledWidth) / 2;
+								drawWidth = scaledWidth;
+							}
+
+							// Draw the processed canvas with background removed
+							ctx.drawImage(
+								processedCanvas,
+								sourceX,
+								sourceY,
+								sourceWidth,
+								sourceHeight,
+								drawX,
+								drawY,
+								drawWidth,
+								drawHeight
+							);
+						} else {
+							// Fallback to normal rendering if processing failed
+							ctx.drawImage(
+								cameraElement,
+								sourceX,
+								sourceY,
+								sourceWidth,
+								sourceHeight,
+								cameraX,
+								cameraY,
+								cameraWidth,
+								cameraHeight
+							);
+						}
+					} else {
+						// Normal rendering without background removal
+						// Orijinal görüntü oranını korumak için hesaplamalar
+						const sourceRatio = sourceWidth / sourceHeight;
+						const targetRatio = cameraWidth / cameraHeight;
+
+						let drawWidth = cameraWidth + 2;
+						let drawHeight = cameraHeight + 2;
+						let drawX = cameraX - 1;
+						let drawY = cameraY - 1;
+
+						// Görüntünün oranını korumak için hedef boyutları ayarla
+						if (sourceRatio > targetRatio) {
+							// Kaynak görüntü daha geniş, yüksekliği ayarla
+							const scaledHeight = drawWidth / sourceRatio;
+							drawY += (drawHeight - scaledHeight) / 2;
+							drawHeight = scaledHeight;
+						} else if (sourceRatio < targetRatio) {
+							// Kaynak görüntü daha uzun, genişliği ayarla
+							const scaledWidth = drawHeight * sourceRatio;
+							drawX += (drawWidth - scaledWidth) / 2;
+							drawWidth = scaledWidth;
+						}
+
+						// Görüntüyü çiz
+						ctx.drawImage(
+							cameraElement,
+							sourceX,
+							sourceY,
+							sourceWidth,
+							sourceHeight,
+							drawX,
+							drawY,
+							drawWidth,
+							drawHeight
+						);
 					}
-
-					// Görüntüyü çiz
-					ctx.drawImage(
-						cameraElement,
-						sourceX,
-						sourceY,
-						sourceWidth,
-						sourceHeight,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight
-					);
 				} catch (error) {
 					console.warn("[CameraRenderer] Failed to draw camera:", error);
 					// Draw fallback if camera draw fails
@@ -451,5 +532,8 @@ export const useCameraRenderer = () => {
 		isMouseOverCamera,
 		lastCameraPosition,
 		hoverScale,
+		toggleBackgroundRemoval,
+		isBackgroundRemovalLoading,
+		isBackgroundRemovalActive,
 	};
 };

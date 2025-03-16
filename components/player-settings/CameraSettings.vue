@@ -23,6 +23,9 @@
 			</label>
 		</div>
 
+		<!-- Arkaplan Kaldırma Ayarları -->
+		<BackgroundRemovalSettings v-if="cameraVisible" />
+
 		<!-- Kamera Mouse Takibi -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
@@ -260,6 +263,7 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import SliderInput from "~/components/ui/SliderInput.vue";
+import BackgroundRemovalSettings from "~/components/player-settings/BackgroundRemovalSettings.vue";
 
 const { cameraSettings, updateCameraSettings } = usePlayerSettings();
 
