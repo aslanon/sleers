@@ -317,6 +317,17 @@ export const useCameraRenderer = () => {
 			ctx.imageSmoothingEnabled = true;
 			ctx.imageSmoothingQuality = "high";
 
+			// Kamera için blur ve warp efektlerini kaldır
+			ctx.filter = "none";
+			// Kamera için dönüş ve warp efektlerini sıfırla
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.translate(cameraX + cameraWidth / 2, cameraY + cameraHeight / 2);
+			ctx.scale(hoverScale.value, hoverScale.value);
+			ctx.translate(
+				-(cameraX + cameraWidth / 2),
+				-(cameraY + cameraHeight / 2)
+			);
+
 			// Draw shadow if enabled
 			if (cameraSettings.value?.shadow > 0) {
 				ctx.save();

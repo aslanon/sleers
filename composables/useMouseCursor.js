@@ -66,47 +66,12 @@ export const useMouseCursor = () => {
 	const currentCursorType = ref("default");
 	const isMouseDown = ref(false);
 	const isDragging = ref(false);
+	const clickScale = ref(1); // Tıklama animasyonu için scale değeri
 	const isHovering = ref(false);
 	const hoverTarget = ref(null);
 
-	// Cursor canvas ve context
-	const cursorCanvas = ref(null);
-	const cursorCtx = ref(null);
-	const cursorSize = ref(80); // custom-cursor.js'deki gibi 80 değeri
-	const dpr = ref(1);
-
-	// Animasyon için değişkenler - custom-cursor.js'deki gibi
-	const cursorX = ref(0);
-	const cursorY = ref(0);
-	const targetX = ref(0);
-	const targetY = ref(0);
-	const currentScale = ref(1);
-	const targetScale = ref(1);
-	const rotation = ref(0);
-	const targetRotation = ref(0);
-	const warpX = ref(1);
-	const warpY = ref(1);
-	const targetWarpX = ref(1);
-	const targetWarpY = ref(1);
-	const speed = 0.1; // custom-cursor.js'deki gibi 0.1 değeri
-	const animationActive = ref(false);
-	const lastTimestamp = ref(0);
-	const isVisible = ref(true);
-
-	// Cursor canvas'ını oluştur
-	const createCursorCanvas = () => {
-		// Eğer zaten oluşturulmuşsa tekrar oluşturma
-		if (cursorCanvas.value) return;
-
-		// Canvas oluştur
-		cursorCanvas.value = document.createElement("canvas");
-		cursorCtx.value = cursorCanvas.value.getContext("2d");
-
-		// Canvas boyutunu ayarla - cursor boyutunun 3 katı (kırpılma sorununu önlemek için)
-		const size = cursorSize.value * 3;
-		cursorCanvas.value.width = size;
-		cursorCanvas.value.height = size;
-	};
+	// Son pozisyon bilgisi
+	const lastPosition = ref({ x: 0, y: 0, timestamp: 0 });
 
 	// Cursor görsellerini yükle
 	onMounted(async () => {
@@ -141,22 +106,27 @@ export const useMouseCursor = () => {
 				grabbing: grabbingImg,
 				text: textImg,
 			};
-
-			// Cursor canvas'ını oluştur
-			createCursorCanvas();
 		} catch (error) {
 			console.error("Error loading cursor images:", error);
 		}
 	});
 
-	// Tıklama animasyonu
+	// Tıklama animasyonu - daha smooth
 	const handleClickAnimation = () => {
-		targetScale.value = 0.9; // Tıklama anında küçült (0.8 yerine 0.9 kullanarak daha az küçültme)
+		clickScale.value = 0.85; // Tıklama anında %85'e küçült (daha az agresif)
 
-		// Belirli bir süre sonra normal boyuta dön
+		// Smooth geri dönüş için setTimeout kullan
 		setTimeout(() => {
-			targetScale.value = 1;
-		}, 150);
+			clickScale.value = 0.92;
+
+			setTimeout(() => {
+				clickScale.value = 0.96;
+
+				setTimeout(() => {
+					clickScale.value = 1;
+				}, 50);
+			}, 50);
+		}, 50);
 	};
 
 	// Mouse event'lerine göre cursor tipini güncelle
@@ -211,32 +181,21 @@ export const useMouseCursor = () => {
 		}
 	};
 
-	// Cursor çizim fonksiyonu (ana canvas'a)
+	// Mouse pozisyonunu çiz
 	const drawMousePosition = (ctx, options) => {
 		const {
 			x,
 			y,
 			event,
-			size = 80, // custom-cursor.js'deki gibi 80 değeri
-			dpr: devicePixelRatio = 1,
-			motionEnabled = true,
+			size = 180,
+			dpr = 1,
+			motionEnabled = false,
+			motionBlurValue = 0.5,
 			visible = true,
 		} = options;
 
-		if (!visible) {
-			isVisible.value = false;
-			return;
-		}
+		if (!visible) return;
 
-		isVisible.value = true;
-		dpr.value = devicePixelRatio;
-
-		// Size değiştiğinde cursor boyutunu güncelle
-		if (cursorSize.value !== size) {
-			cursorSize.value = size;
-		}
-
-		// Cursor görselini kontrol et
 		if (!cursorImages.value[currentCursorType.value]) {
 			console.warn(
 				`Cursor image not found for type: ${currentCursorType.value}`
@@ -247,148 +206,369 @@ export const useMouseCursor = () => {
 		// Event'e göre cursor tipini güncelle
 		updateCursorType(event);
 
-		// Hedef pozisyonu güncelle
-		targetX.value = x;
-		targetY.value = y;
-
-		// İlk çizimde cursor pozisyonunu hemen ayarla
-		if (cursorX.value === 0 && cursorY.value === 0) {
-			cursorX.value = x;
-			cursorY.value = y;
-		}
-
-		// Ana canvas'a cursor'ı çiz
+		// Context'i kaydet
 		ctx.save();
 
-		// Hareket hızını hesapla
-		const dx = targetX.value - cursorX.value;
-		const dy = targetY.value - cursorY.value;
-		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
+		// Her zaman en üstte çizilmesi için
+		ctx.globalCompositeOperation = "source-over";
+		ctx.globalAlpha = 1.0;
 
-		// İvmelenme durumunda blur efektini artır
-		if (motionEnabled) {
-			const blurAmount = Math.min(moveSpeed * 0.5, 3.0);
-			ctx.filter = `blur(${blurAmount}px)`;
-		} else {
-			ctx.filter = "none";
-		}
-
-		// Cursor görselini doğrudan çiz
+		// Cursor boyutunu ve pozisyonunu hesapla
+		const cursorSize = size * dpr * clickScale.value;
 		const cursorImg = cursorImages.value[currentCursorType.value];
-		if (!cursorImg) return;
+		const cursorWidth = cursorSize;
+		const cursorHeight = cursorSize;
 
-		// Cursor boyutunu hesapla
-		const cursorWidth = cursorSize.value * currentScale.value;
-		const cursorHeight = cursorSize.value * currentScale.value;
-
-		// Cursor tipine göre hotspot pozisyonunu ayarla (20px cursor boyutu için)
-		// Bu değerler SVG'lerin içindeki boşlukları dikkate alarak ayarlanmıştır
-		const hotspots = {
-			default: { x: 3, y: 3 }, // Default cursor için uç noktası (ok işareti)
-			pointer: { x: 3, y: 4 }, // Pointer cursor için uç noktası (el işareti)
-			grabbing: { x: 4, y: 5 }, // Grabbing cursor için uç noktası (yumruk işareti)
-			text: { x: 4, y: 5 }, // Text cursor için uç noktası (I-beam işareti)
-			grab: { x: 4, y: 5 }, // Grab cursor için uç noktası
-			resize: { x: 4, y: 5 }, // Resize cursor için uç noktası
+		// SVG viewBox içindeki cursor pozisyonlarını tanımla
+		const svgOffsets = {
+			default: { offsetX: -7, offsetY: -4 },
+			pointer: { offsetX: -8, offsetY: -5 },
+			grabbing: { offsetX: -12, offsetY: -12 },
+			text: { offsetX: -2, offsetY: -12 },
+			grab: { offsetX: -12, offsetY: -12 },
+			resize: { offsetX: -12, offsetY: -12 },
 		};
 
-		// Geçerli cursor tipi için hotspot'u al
-		const baseHotspot = hotspots[currentCursorType.value] || hotspots.default;
+		// Geçerli cursor için offset'i al
+		const offset = svgOffsets[currentCursorType.value] || svgOffsets.default;
 
-		// Hotspot pozisyonunu cursor boyutuna göre ölçekle
-		// 20px baz boyut için tanımlanmış hotspot değerlerini, mevcut cursor boyutuna göre orantılı olarak ayarla
-		const hotspotScale = cursorSize.value / 20;
+		// SVG offset'ini cursor boyutuna göre ölçekle
+		const scaledOffsetX = (offset.offsetX * cursorWidth) / 24;
+		const scaledOffsetY = (offset.offsetY * cursorHeight) / 24;
 
-		// Doğrusal olmayan ölçekleme için düzeltme faktörü
-		// Size arttıkça hotspot değerlerinin daha az artmasını sağlar
-		const correctionFactor =
-			0.85 + 0.15 * (20 / Math.max(20, cursorSize.value));
+		// Cursor'ı çizmek için pozisyonu ayarla
+		const adjustedX = x + scaledOffsetX;
+		const adjustedY = y + scaledOffsetY;
 
-		const hotspot = {
-			x: baseHotspot.x * hotspotScale * correctionFactor,
-			y: baseHotspot.y * hotspotScale * correctionFactor,
-		};
+		// Hareket hızını ve yönünü hesapla
+		let speed = 0;
+		let dirX = 0;
+		let dirY = 0;
+		let distance = 0;
+		let isSmallMovement = false;
+		let isClickMovement = false;
 
-		// Cursor'ı çiz - hotspot pozisyonunu kullanarak cursor'ın uç noktasının tam olarak mouse pozisyonuna gelmesini sağla
-		ctx.save();
+		if (event) {
+			// Tıklama eventini kontrol et
+			if (
+				event.type === MOUSE_EVENTS.DOWN ||
+				event.type === MOUSE_EVENTS.CLICK
+			) {
+				isClickMovement = true;
+			}
 
-		// Mouse size'a göre cursor pozisyonunu ayarla
-		// Size arttıkça cursor'ı sola ve yukarıya doğru kaydır
-		// Cursor tipine göre farklı offset faktörleri kullanıyoruz
-		const baseOffsetFactors = {
-			default: { x: 0.25, y: 0.15 },
-			pointer: { x: 0.3, y: 0.2 },
-			grabbing: { x: 0.35, y: 0.25 },
-			text: { x: 0.35, y: 0.25 },
-			grab: { x: 0.35, y: 0.25 },
-			resize: { x: 0.35, y: 0.25 },
-		};
+			// Hız ve yön bilgisi varsa kullan
+			if (
+				event.speed !== undefined &&
+				event.dirX !== undefined &&
+				event.dirY !== undefined
+			) {
+				speed = event.speed;
+				dirX = event.dirX;
+				dirY = event.dirY;
 
-		const offsetFactor =
-			baseOffsetFactors[currentCursorType.value] || baseOffsetFactors.default;
-		const offsetX = (cursorSize.value - 20) * offsetFactor.x;
-		const offsetY = (cursorSize.value - 20) * offsetFactor.y;
+				// Mesafeyi hesapla (eğer verilmemişse)
+				if (event.distance !== undefined) {
+					distance = event.distance;
+				} else {
+					distance = Math.sqrt(dirX * dirX + dirY * dirY) * 100;
+				}
+			}
+			// Yoksa son pozisyondan hesapla
+			else if (lastPosition.value.timestamp > 0) {
+				const now = Date.now();
+				const timeDiff = now - lastPosition.value.timestamp;
 
-		// Cursor'ı mouse pozisyonuna taşı ve offset uygula
-		ctx.translate(cursorX.value - offsetX, cursorY.value - offsetY);
+				if (timeDiff > 0 && timeDiff < 100) {
+					// 100ms'den eski verileri kullanma
+					const dx = x - lastPosition.value.x;
+					const dy = y - lastPosition.value.y;
+					distance = Math.sqrt(dx * dx + dy * dy);
 
-		// Dönüş ve warp efektlerini uygula
-		ctx.rotate(rotation.value);
-		ctx.scale(warpX.value, warpY.value);
+					// Yüksek mesafe eşiği - cubic-bezier animasyonu kullanmak için
+					// Tıklama anlarında eşiği düşür
+					const HIGH_DISTANCE_THRESHOLD = isClickMovement ? 20 : 80;
 
-		// Cursor'ı çiz - hotspot pozisyonunu kullanarak cursor'ın uç noktasının tam olarak mouse pozisyonuna gelmesini sağla
-		ctx.drawImage(cursorImg, -hotspot.x, -hotspot.y, cursorWidth, cursorHeight);
+					// Yüksek mesafelerde farklı animasyon stratejisi kullan
+					if (distance > HIGH_DISTANCE_THRESHOLD || isClickMovement) {
+						// Son pozisyonu güncelle
+						lastPosition.value = { x, y, timestamp: Date.now() };
+
+						// Piksel/ms -> piksel/s
+						speed = distance / (timeDiff / 1000);
+
+						// Yön vektörünü normalize et
+						dirX = dx / distance;
+						dirY = dy / distance;
+
+						// Cubic-bezier geçiş efektini hesapla - tıklama için özel parametre
+						const {
+							shouldApplyCubicBezier,
+							cubicBezierParams,
+							effectStrength,
+							speedFactor = 1,
+						} = calculateLargeDistanceTransition(
+							distance,
+							HIGH_DISTANCE_THRESHOLD,
+							isClickMovement
+						);
+
+						// Mesafeye göre blur miktarını ayarla
+						// Daha az blur, daha net cursor
+						let blurAmount = Math.min(effectStrength, 1.0);
+
+						// Tıklama anında blur azalt
+						if (isClickMovement) {
+							blurAmount = Math.min(blurAmount * 0.5, 0.5);
+						}
+
+						// Özel motion blur ayarları ile cursor çizimi
+						ctx.save();
+						ctx.globalAlpha = 1.0;
+
+						// Yüksek mesafelerde hafif blur uygula
+						if (
+							shouldApplyCubicBezier &&
+							effectStrength > 0.15 &&
+							!isClickMovement
+						) {
+							ctx.filter = `blur(${blurAmount}px)`;
+						}
+
+						ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+						ctx.shadowBlur = 2 * dpr;
+						ctx.shadowOffsetX = 1 * dpr;
+						ctx.shadowOffsetY = 1 * dpr;
+
+						// Cursor pozisyonunu çiz
+						ctx.drawImage(
+							cursorImg,
+							adjustedX,
+							adjustedY,
+							cursorWidth,
+							cursorHeight
+						);
+						ctx.restore();
+						ctx.restore(); // Ana context'i restore et
+						return;
+					}
+
+					// Çok küçük hareketleri filtrele
+					if (distance < 1.5 && !isClickMovement) {
+						isSmallMovement = true;
+						// Son pozisyonu güncelle ama hız ve yön hesaplama
+						lastPosition.value = { x, y, timestamp: Date.now() };
+
+						// Normal cursor çizimi (çok küçük hareket)
+						ctx.save();
+						ctx.globalAlpha = 1.0;
+						ctx.filter = "none";
+						ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+						ctx.shadowBlur = 2 * dpr;
+						ctx.shadowOffsetX = 1 * dpr;
+						ctx.shadowOffsetY = 1 * dpr;
+						ctx.drawImage(
+							cursorImg,
+							adjustedX,
+							adjustedY,
+							cursorWidth,
+							cursorHeight
+						);
+						ctx.restore();
+						ctx.restore(); // Ana context'i restore et
+						return;
+					}
+
+					// Piksel/ms -> piksel/s
+					speed = distance / (timeDiff / 1000);
+
+					// Yön vektörünü normalize et
+					if (distance > 0) {
+						dirX = dx / distance;
+						dirY = dy / distance;
+					}
+				} else {
+					// Zaman farkı çok büyükse veya negatifse, hareket yok say
+					isSmallMovement = true;
+				}
+			}
+
+			// Son pozisyonu güncelle
+			if (!isSmallMovement) {
+				lastPosition.value = { x, y, timestamp: Date.now() };
+			}
+		}
+
+		// Güncellenmiş motion blur efekti
+		if (motionEnabled && speed > 0 && !isSmallMovement) {
+			// Efekt değerini normalize et (0-1 arası)
+			const normalizedIntensity = motionBlurValue;
+
+			// Motion blur efektlerini hesapla
+			const {
+				easedIntensity,
+				deformAmount,
+				blurAmount,
+				shouldApplyEffect,
+				speedFactor,
+				accelerationFactor,
+				accelerationBoost,
+			} = calculateMotionBlurEffects(
+				speed,
+				distance,
+				normalizedIntensity * 100
+			);
+
+			// Daha keskin eşik değeri - düşük hızlarda hiç efekt olmasın
+			const MIN_SPEED_THRESHOLD = isClickMovement ? 1.0 : 2.5;
+			const effectThreshold = speed > MIN_SPEED_THRESHOLD;
+
+			if ((shouldApplyEffect && effectThreshold) || isClickMovement) {
+				// Stabilize edilmiş açı
+				const rawAngle = Math.atan2(dirY, dirX);
+				const angle = calculateStabilizedAngle(rawAngle, speed);
+
+				ctx.save();
+
+				// Cursor'u çiz
+				ctx.globalAlpha = 1.0;
+				ctx.globalCompositeOperation = "source-over";
+
+				// Cursor'u sol üst köşesinden konumlandır (origin olarak sol üst köşe)
+				ctx.translate(adjustedX, adjustedY);
+
+				// Hareket yönüne göre rotasyon uygula - sadece hareket başında/sonunda
+				const maxRotationDegree = isClickMovement ? 5 : 10; // Tıklama anında daha az rotasyon
+				const rotationFactor = isClickMovement ? 0.05 : 0.1; // Tıklama anında daha az rotasyon
+
+				// İvmelenme hesaplama - sadece ani ivme değişimlerinde yüksek değerler
+				const hasAcceleration = accelerationFactor > 0.3; // Daha yüksek eşik
+
+				// Rotasyon etkisini hesaplarken ani hız değişimlerine daha duyarlı ol
+				const rotationBoost = hasAcceleration
+					? Math.min(accelerationFactor * 0.3, 0.3)
+					: 0;
+
+				// Hız faktörünü daha dengeli hale getir - aşırı hızlarda bile daha yavaş artış
+				const limitedSpeedFactor = Math.min(
+					Math.pow(speedFactor, 1.5) * 0.8,
+					0.8
+				);
+
+				// Rotasyon açısını hesapla - daha kararlı
+				const directionRotation =
+					Math.min(
+						Math.max(
+							-maxRotationDegree,
+							angle * (180 / Math.PI) * rotationFactor
+						),
+						maxRotationDegree
+					) *
+					(limitedSpeedFactor + rotationBoost);
+
+				// Rotasyonu radyana çevir
+				const rotationRad = directionRotation * (Math.PI / 180);
+
+				// Rotasyonu uygula - tıklama hareketi için daha az rotasyon
+				if (!isClickMovement) {
+					ctx.rotate(rotationRad);
+				}
+
+				// Blur efekti - daha dengeli ve tutarlı
+				let baseBlur = Math.min(blurAmount * 1.2, 3.0);
+
+				// Tıklama anında daha az blur
+				if (isClickMovement) {
+					baseBlur = Math.min(baseBlur * 0.3, 0.8);
+				}
+
+				const dynamicBlur =
+					hasAcceleration && !isClickMovement
+						? baseBlur + accelerationFactor * 1.5
+						: baseBlur;
+
+				const finalBlurValue = Math.min(dynamicBlur, 3.0); // Üst sınır
+
+				// Tıklama anında blur'ı azalt veya kaldır
+				if (!isClickMovement && finalBlurValue > 0.5) {
+					ctx.filter = `blur(${finalBlurValue}px)`;
+				}
+
+				// Gölge ekle - daha iyi görünürlük için
+				ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+				ctx.shadowBlur = 2 * dpr;
+				ctx.shadowOffsetX = 1 * dpr;
+				ctx.shadowOffsetY = 1 * dpr;
+
+				// Hızlı hareketlerde warp efekti - daha kontrollü
+				if (speed > 4.0 && !isClickMovement) {
+					// Skew ve stretch değerlerini azalt - daha az deformasyon
+					const skewFactor = 0.06 * speedFactor * normalizedIntensity;
+					const stretchFactor = 0.08 * speedFactor * normalizedIntensity;
+
+					const skewX = -dirX * deformAmount * skewFactor;
+					const skewY = -dirY * deformAmount * skewFactor;
+
+					// Uzatma efektini sınırla
+					const stretchX =
+						1 +
+						Math.abs(dirX * deformAmount * stretchFactor) *
+							easedIntensity *
+							0.5;
+					const stretchY =
+						1 +
+						Math.abs(dirY * deformAmount * stretchFactor) *
+							easedIntensity *
+							0.5;
+
+					ctx.scale(stretchX, stretchY);
+					ctx.transform(1, skewY, skewX, 1, 0, 0);
+				}
+
+				// Cursor'u çiz (0,0 noktasından)
+				ctx.drawImage(cursorImg, 0, 0, cursorWidth, cursorHeight);
+
+				ctx.restore();
+			} else {
+				// Normal cursor çizimi (düşük hızda)
+				ctx.save();
+				ctx.globalAlpha = 1.0;
+				ctx.filter = "none";
+				ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+				ctx.shadowBlur = 2 * dpr;
+				ctx.shadowOffsetX = 1 * dpr;
+				ctx.shadowOffsetY = 1 * dpr;
+				ctx.drawImage(
+					cursorImg,
+					adjustedX,
+					adjustedY,
+					cursorWidth,
+					cursorHeight
+				);
+				ctx.restore();
+			}
+		} else {
+			// Hareketsiz veya düşük hızdaki cursor çizimi
+			ctx.save();
+			ctx.globalAlpha = 1.0;
+			ctx.filter = "none";
+			ctx.shadowColor = "rgba(0, 0, 0, 0.4)";
+			ctx.shadowBlur = 2 * dpr;
+			ctx.shadowOffsetX = 1 * dpr;
+			ctx.shadowOffsetY = 1 * dpr;
+			ctx.drawImage(cursorImg, adjustedX, adjustedY, cursorWidth, cursorHeight);
+			ctx.restore();
+		}
+
+		// Debug için hotspot noktasını göster (geliştirme sırasında yardımcı olur)
+		if (process.env.NODE_ENV === "development") {
+			ctx.beginPath();
+			ctx.arc(x, y, 2, 0, Math.PI * 2);
+			ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+			ctx.fill();
+		}
 
 		ctx.restore();
-
-		// Animasyonu başlat (eğer zaten çalışmıyorsa)
-		if (!animationActive.value) {
-			animationActive.value = true;
-			requestAnimationFrame(animateCursor);
-		}
-	};
-
-	// Animasyon fonksiyonu
-	const animateCursor = (timestamp) => {
-		if (!animationActive.value) return;
-
-		// Delta time hesapla (saniye cinsinden)
-		const deltaTime = lastTimestamp.value
-			? (timestamp - lastTimestamp.value) / 1000
-			: 0.016;
-		lastTimestamp.value = timestamp;
-
-		// Önceki pozisyonu kaydet
-		const prevX = cursorX.value;
-		const prevY = cursorY.value;
-
-		// Hedef pozisyona doğru hareket et
-		cursorX.value += (targetX.value - cursorX.value) * speed;
-		cursorY.value += (targetY.value - cursorY.value) * speed;
-
-		// Hareket yönünü ve hızını hesapla
-		const dx = cursorX.value - prevX;
-		const dy = cursorY.value - prevY;
-
-		// Hareket hızını hesapla
-		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
-
-		// Eğimi ve warp değerlerini hız ve yönlere göre ayarla
-		const maxRotation = 0.015;
-		targetRotation.value = dx * maxRotation;
-
-		const maxWarp = 0.02;
-		targetWarpX.value = 1 + Math.min(Math.abs(dx) * maxWarp, 0.03);
-		targetWarpY.value = 1 - Math.min(Math.abs(dy) * maxWarp, 0.03);
-
-		// Smooth geçişler
-		rotation.value += (targetRotation.value - rotation.value) * 0.1;
-		warpX.value += (targetWarpX.value - warpX.value) * 0.1;
-		warpY.value += (targetWarpY.value - warpY.value) * 0.1;
-		currentScale.value += (targetScale.value - currentScale.value) * 0.2;
-
-		// Animasyonu devam ettir
-		requestAnimationFrame(animateCursor);
 	};
 
 	// Hover state yönetimi
