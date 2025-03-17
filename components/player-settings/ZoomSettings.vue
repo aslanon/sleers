@@ -162,6 +162,105 @@ const updateZoomPosition = (position) => {
 	}
 };
 
+// Video aspect ratio hesaplama
+const videoAspectRatio = computed(() => {
+	if (props.mediaPlayer && props.mediaPlayer.videoElement) {
+		const video = props.mediaPlayer.videoElement;
+		return `${video.videoWidth} / ${video.videoHeight}`;
+	}
+	return "16 / 9"; // Varsayılan oran
+});
+
+// Preview boyutlarını hesapla
+const previewDimensions = computed(() => {
+	if (!dragArea.value) return { width: 0, height: 0 };
+
+	const containerWidth = dragArea.value.clientWidth;
+	const containerHeight = dragArea.value.clientHeight;
+	const margin = 24; // m-3 * 2 = 24px
+
+	const availableWidth = containerWidth - margin;
+	const availableHeight = containerHeight - margin;
+
+	// Video aspect ratio'sunu parse et
+	let aspectRatio = 16 / 9;
+	if (props.mediaPlayer && props.mediaPlayer.videoElement) {
+		const video = props.mediaPlayer.videoElement;
+		aspectRatio = video.videoWidth / video.videoHeight;
+	}
+
+	// Boyutları hesapla
+	let width, height;
+	if (aspectRatio > 1) {
+		// Yatay video
+		width = availableWidth;
+		height = width / aspectRatio;
+		if (height > availableHeight) {
+			height = availableHeight;
+			width = height * aspectRatio;
+		}
+	} else {
+		// Dikey video
+		height = availableHeight;
+		width = height * aspectRatio;
+		if (width > availableWidth) {
+			width = availableWidth;
+			height = width / aspectRatio;
+		}
+	}
+
+	return { width, height };
+});
+
+// Position değerini izle ve currentZoomRange'den al
+watch(
+	() => currentZoomRange.value?.position,
+	(newPosition) => {
+		if (newPosition) {
+			// Eğer string ise (örn. "center"), onu koordinatlara çevir
+			if (typeof newPosition === "string") {
+				switch (newPosition) {
+					case "center":
+						position.value = { x: 50, y: 50 };
+						break;
+					case "top":
+						position.value = { x: 50, y: 25 };
+						break;
+					case "bottom":
+						position.value = { x: 50, y: 75 };
+						break;
+					case "left":
+						position.value = { x: 25, y: 50 };
+						break;
+					case "right":
+						position.value = { x: 75, y: 50 };
+						break;
+					case "top-left":
+						position.value = { x: 25, y: 25 };
+						break;
+					case "top-right":
+						position.value = { x: 75, y: 25 };
+						break;
+					case "bottom-left":
+						position.value = { x: 25, y: 75 };
+						break;
+					case "bottom-right":
+						position.value = { x: 75, y: 75 };
+						break;
+					default:
+						position.value = { x: 50, y: 50 };
+				}
+			} else {
+				position.value = { ...newPosition };
+			}
+		} else {
+			// Varsayılan olarak merkez
+			position.value = { x: 50, y: 50 };
+		}
+	},
+	{ immediate: true }
+);
+
 const startDragging = (event) => {
 	isDragging.value = true;
 	updatePosition(event);
@@ -182,20 +281,23 @@ const updatePosition = (event) => {
 	const rect = dragArea.value.getBoundingClientRect();
 	const margin = 12; // m-3 = 12px
 
-	// Calculate available space considering margins
-	const availableWidth = rect.width - margin * 2;
-	const availableHeight = rect.height - margin * 2;
+	// Preview boyutlarını al
+	const { width, height } = previewDimensions.value;
 
-	// Adjust mouse position relative to the margins
-	const x = ((event.clientX - rect.left - margin) / availableWidth) * 100;
-	const y = ((event.clientY - rect.top - margin) / availableHeight) * 100;
+	// Preview'in başlangıç pozisyonunu hesapla
+	const previewX = (rect.width - width) / 2;
+	const previewY = (rect.height - height) / 2;
 
-	// Clamp values between 0 and 100
-	position.value = {
-		x,
-		y,
-	};
+	// Mouse pozisyonunu preview alanına göre normalize et
+	const relativeX = event.clientX - rect.left - previewX;
+	const relativeY = event.clientY - rect.top - previewY;
 
+	// Yüzde olarak pozisyonu hesapla
+	const x = Math.max(0, Math.min(100, (relativeX / width) * 100));
+	const y = Math.max(0, Math.min(100, (relativeY / height) * 100));
+
+	// Pozisyonu güncelle
+	position.value = { x, y };
 	updateZoomPosition(position.value);
 };
 
@@ -210,39 +312,6 @@ const getPositionClass = (position) => {
 
 // Zoom ayarları aktif mi?
 const isZoomSettingsActive = computed(() => currentZoomRange.value !== null);
-
-// Video aspect ratio hesaplama
-const videoAspectRatio = computed(() => {
-	const video = props.mediaPlayer?.getVideoElement();
-	if (!video) return "16/9";
-	return `${video.videoWidth}/${video.videoHeight}`;
-});
-
-// Preview boyutlarını hesaplama
-const previewDimensions = computed(() => {
-	const video = props.mediaPlayer?.getVideoElement();
-	if (!video) return { width: 160, height: 90 };
-
-	const containerWidth = 160; // max-w-[160px]
-	const containerHeight = containerWidth * (9 / 16); // aspect-video (16:9)
-
-	const videoRatio = video.videoWidth / video.videoHeight;
-	const containerRatio = containerWidth / containerHeight;
-
-	let width, height;
-
-	if (videoRatio > containerRatio) {
-		// Video daha geniş, yüksekliğe göre ölçekle
-		height = containerHeight;
-		width = height * videoRatio;
-	} else {
-		// Video daha dar, genişliğe göre ölçekle
-		width = containerWidth;
-		height = width / videoRatio;
-	}
-
-	return { width, height };
-});
 </script>
 
 <style scoped>
