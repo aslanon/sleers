@@ -1070,22 +1070,6 @@ const drawMousePositions = () => {
 			x: lastCameraX.value + position.value.x,
 			y: lastCameraY.value + position.value.y,
 		};
-	} else if (cameraElement) {
-		// followMouse kapalıysa, kamera sabit bir pozisyonda kalacak
-		if (!cameraPosition.value || !cameraPosition.value.x) {
-			// Eğer daha önce bir pozisyon belirlenmemişse, sağ alt köşeye yerleştir
-			const cameraWidth =
-				(canvasRef.value.width * cameraSettings.value.size) / 100;
-			const cameraHeight = cameraWidth;
-			const targetX = canvasRef.value.width - cameraWidth - 20 * dpr;
-			const targetY = canvasRef.value.height - cameraHeight - 20 * dpr;
-
-			// Kamera pozisyonunu güncelle
-			cameraPosition.value = {
-				x: targetX,
-				y: targetY,
-			};
-		}
 	}
 };
 
