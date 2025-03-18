@@ -88,7 +88,7 @@ export const useMouseCursor = () => {
 	const warpY = ref(1);
 	const targetWarpX = ref(1);
 	const targetWarpY = ref(1);
-	const speed = 0.1; // custom-cursor.js'deki gibi 0.1 değeri
+	const speed = 0.5; // custom-cursor.js'deki gibi 0.1 değeri
 	const animationActive = ref(false);
 	const lastTimestamp = ref(0);
 	const isVisible = ref(true);
