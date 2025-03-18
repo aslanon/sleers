@@ -267,8 +267,13 @@ export const useMouseCursor = () => {
 
 		// İvmelenme durumunda blur efektini artır
 		if (motionEnabled) {
-			const blurAmount = Math.min(moveSpeed * 0.5, 3.0);
-			ctx.filter = `blur(${blurAmount}px)`;
+			// Kısa hareketlerde blur efektini kaldır (moveSpeed < 3 için blur yok)
+			if (moveSpeed > 3) {
+				const blurAmount = Math.min(moveSpeed * 0.5, 3.0);
+				ctx.filter = `blur(${blurAmount}px)`;
+			} else {
+				ctx.filter = "none";
+			}
 		} else {
 			ctx.filter = "none";
 		}
