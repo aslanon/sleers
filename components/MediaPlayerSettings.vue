@@ -120,7 +120,7 @@
 				<div class="player-settings-blur"></div>
 
 				<div
-					class="relative flex-1 pt-[20px] pr-8 rounded-2xl max-h-[550px] px-8 overflow-y-auto"
+					class="relative flex-1 pb-[40px] pt-[20px] pr-8 rounded-2xl max-h-[550px] px-8 overflow-y-auto"
 				>
 					<!-- Video Ayarları Tab -->
 					<VideoSettings
@@ -255,8 +255,8 @@ button {
 	height: 40px;
 
 	background: rgba(255, 255, 255, 0); /* arka planı saydam yapıyoruz */
-	backdrop-filter: blur(3px); /* istediğin blur şiddeti */
-	-webkit-backdrop-filter: blur(3px); /* safari için */
+	backdrop-filter: blur(50px); /* istediğin blur şiddeti */
+	-webkit-backdrop-filter: blur(50px); /* safari için */
 
 	/* Mask ile üst kısımdan alta doğru şeffaflık yaratıyoruz */
 	-webkit-mask-image: linear-gradient(

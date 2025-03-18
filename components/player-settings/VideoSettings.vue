@@ -467,7 +467,7 @@ function updateBorderOpacity() {
 }
 
 .color-grid {
-	@apply grid grid-cols-12 gap-2 w-max mt-4;
+	@apply grid grid-cols-9 gap-2 w-max mt-4;
 }
 
 .color-button {
