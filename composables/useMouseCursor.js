@@ -265,19 +265,6 @@ export const useMouseCursor = () => {
 		const dy = targetY.value - cursorY.value;
 		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
 
-		// İvmelenme durumunda blur efektini artır
-		if (motionEnabled) {
-			// Kısa hareketlerde blur efektini kaldır (moveSpeed < 3 için blur yok)
-			if (moveSpeed > 3) {
-				const blurAmount = Math.min(moveSpeed * 0.5, 3.0);
-				ctx.filter = `blur(${blurAmount}px)`;
-			} else {
-				ctx.filter = "none";
-			}
-		} else {
-			ctx.filter = "none";
-		}
-
 		// Cursor görselini doğrudan çiz
 		const cursorImg = cursorImages.value[currentCursorType.value];
 		if (!cursorImg) return;
@@ -341,8 +328,24 @@ export const useMouseCursor = () => {
 		ctx.rotate(rotation.value);
 		ctx.scale(warpX.value, warpY.value);
 
+		// Blur efektini sadece cursor çizimi için uygula - böylece diğer elementleri etkilemez
+		if (motionEnabled) {
+			// Kısa hareketlerde blur efektini kaldır (moveSpeed < 3 için blur yok)
+			if (moveSpeed > 3) {
+				const blurAmount = Math.min(moveSpeed * 0.5, 3.0);
+				ctx.filter = `blur(${blurAmount}px)`;
+			} else {
+				ctx.filter = "none";
+			}
+		} else {
+			ctx.filter = "none";
+		}
+
 		// Cursor'ı çiz - hotspot pozisyonunu kullanarak cursor'ın uç noktasının tam olarak mouse pozisyonuna gelmesini sağla
 		ctx.drawImage(cursorImg, -hotspot.x, -hotspot.y, cursorWidth, cursorHeight);
+
+		// Blur efektini sıfırla
+		ctx.filter = "none";
 
 		ctx.restore();
 
