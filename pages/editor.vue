@@ -83,7 +83,7 @@
 		<!-- Ana İçerik -->
 		<div class="w-full flex flex-1 h-[600px] min-h-[600px] max-h-[600px]">
 			<div class="flex-shrink-0 w-[500px] h-full flex flex-col">
-				<div class="flex-1 p-4 relative">
+				<div class="flex-1 relative">
 					<MediaPlayerSettings
 						:duration="videoDuration"
 						:width="videoWidth"

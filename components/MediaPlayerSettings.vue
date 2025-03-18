@@ -5,7 +5,7 @@
 		<!-- Tab yapısı -->
 		<div class="flex">
 			<!-- Tab listesi -->
-			<div class="space-y-2 border-r border-white/10 pr-4">
+			<div class="space-y-2 p-4 border-r border-white/10">
 				<button
 					v-for="tab in tabs.filter((tab) => tab.isShowInTab)"
 					:key="tab.id"
@@ -116,28 +116,33 @@
 			</div>
 
 			<!-- Tab içerikleri -->
-			<div
-				class="flex-1 pt-2 pr-8 rounded-2xl max-h-[435px] px-8 overflow-y-auto"
-			>
-				<!-- Video Ayarları Tab -->
-				<VideoSettings
-					v-if="currentTab === 'video'"
-					:duration="duration"
-					:width="width"
-					:height="height"
-				/>
+			<div class="relative">
+				<div class="player-settings-blur"></div>
 
-				<!-- Mouse Ayarları Tab -->
-				<MouseSettings v-if="currentTab === 'mouse'" v-model="mouseSize" />
+				<div
+					class="relative flex-1 pt-[20px] pr-8 rounded-2xl max-h-[550px] px-8 overflow-y-auto"
+				>
+					<!-- Video Ayarları Tab -->
+					<VideoSettings
+						v-if="currentTab === 'video'"
+						:duration="duration"
+						:width="width"
+						:height="height"
+					/>
 
-				<!-- Zoom Ayarları Tab -->
-				<ZoomSettings
-					v-if="currentTab === 'zoom'"
-					:media-player="mediaPlayer"
-				/>
+					<!-- Mouse Ayarları Tab -->
+					<MouseSettings v-if="currentTab === 'mouse'" v-model="mouseSize" />
 
-				<!-- Kamera Ayarları Tab -->
-				<CameraSettings v-if="currentTab === 'camera'" />
+					<!-- Zoom Ayarları Tab -->
+					<ZoomSettings
+						v-if="currentTab === 'zoom'"
+						:media-player="mediaPlayer"
+					/>
+
+					<!-- Kamera Ayarları Tab -->
+					<CameraSettings v-if="currentTab === 'camera'" />
+				</div>
+				<div class="player-settings-blur --bottom"></div>
 			</div>
 		</div>
 	</div>
@@ -239,5 +244,42 @@ watch(
 button {
 	cursor: pointer;
 	user-select: none;
+}
+
+.player-settings-blur {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 40px;
+
+	background: rgba(255, 255, 255, 0); /* arka planı saydam yapıyoruz */
+	backdrop-filter: blur(3px); /* istediğin blur şiddeti */
+	-webkit-backdrop-filter: blur(3px); /* safari için */
+
+	/* Mask ile üst kısımdan alta doğru şeffaflık yaratıyoruz */
+	-webkit-mask-image: linear-gradient(
+		to bottom,
+		rgba(0, 0, 0, 1),
+		rgba(0, 0, 0, 0)
+	);
+	mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0));
+
+	pointer-events: none;
+	z-index: 100;
+
+	&.--bottom {
+		top: auto;
+		bottom: 0;
+
+		/* Mask'ı tersine çeviriyoruz */
+		-webkit-mask-image: linear-gradient(
+			to top,
+			rgba(0, 0, 0, 1),
+			rgba(0, 0, 0, 0)
+		);
+		mask-image: linear-gradient(to top, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0));
+	}
 }
 </style>
