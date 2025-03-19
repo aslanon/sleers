@@ -46,6 +46,7 @@ let dragOffset = { x: 0, y: 0 };
 let isTracking = false;
 let startTime = null;
 let lastCursorType = "default";
+let currentSystemCursor = "default"; // Sistemden alınan cursor tipi
 
 // Delay yönetimi için state
 let recordingDelay = 1000; // Varsayılan 1sn
@@ -1821,6 +1822,8 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
+			// uIOhook dokümentasyonuna göre cursor tipi doğrudan alınamıyor
+			// Yine de mouse hareketi event'inde en son bilinen cursor tipini kullanabiliriz
 			mediaStateManager.addMousePosition({
 				x: event.x,
 				y: event.y,
@@ -1835,18 +1838,22 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
+			// Tıklama anında cursor tipini güncelleme
+			if (lastCursorType === "pointer") {
+				// Eğer zaten pointer ise, tıklama anında basılı tutma etkisi için
+				lastCursorType = "grabbing";
+			}
+
 			mediaStateManager.addMousePosition({
 				x: event.x,
 				y: event.y,
 				timestamp: currentTime,
-				cursorType: "pointer",
+				cursorType: lastCursorType,
 				type: "mousedown",
 				button: event.button,
 				clickCount: 1,
 				scale: 0.8, // Tıklama anında küçülme
 			});
-
-			lastCursorType = "pointer";
 
 			// 100ms sonra normale dön
 			setTimeout(() => {
@@ -1878,16 +1885,20 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
+			// Mouse bırakıldığında cursor tipini güncelle
+			if (lastCursorType === "grabbing") {
+				// Eğer grabbing durumundaysa, bırakıldığında pointer'a geri dön
+				lastCursorType = "pointer";
+			}
+
 			mediaStateManager.addMousePosition({
 				x: event.x,
 				y: event.y,
 				timestamp: currentTime,
-				cursorType: "default",
+				cursorType: lastCursorType,
 				type: "mouseup",
 				button: event.button,
 			});
-
-			lastCursorType = "default";
 		});
 
 		// Mouse tekerleği
@@ -1907,19 +1918,65 @@ function startMouseTracking() {
 		});
 
 		// Mouse sürükleme
-		uIOhook.on("mousedrag", (event) => {
+		uIOhook.on("drag", (event) => {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
+
+			// Sürükleme sırasında cursor'ı grabbing olarak ayarla
+			lastCursorType = "grabbing";
 
 			mediaStateManager.addMousePosition({
 				x: event.x,
 				y: event.y,
 				timestamp: currentTime,
-				cursorType: "grabbing",
+				cursorType: lastCursorType,
 				type: "drag",
 			});
+		});
 
-			lastCursorType = "grabbing";
+		// Mouse tıklama (click) olayı
+		uIOhook.on("click", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			// Click olayı mousedown ve mouseup'tan sonra tetiklenir
+			// Bu olayda cursor tipini pointer olarak ayarlayabiliriz (eğer tıklanabilir bir element üzerindeyse)
+			lastCursorType = "pointer";
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "click",
+				button: event.button,
+				clicks: event.clicks, // Çift tıklama için önemli
+			});
+		});
+
+		// Input olayı - tüm olayları tek bir handler'da yakala
+		uIOhook.on("input", (event) => {
+			if (!isTracking) return;
+
+			// uIOhook-napi dokümantasyonuna göre, input olayı tüm olayları içerir
+			// Burada event.type özelliğinden olay tipini kontrol edebiliriz
+
+			// Cursor tipini belirlemek için mantıksal bazı kurallar uygulayabiliriz
+			if (event.type === "mousemove") {
+				// Mouse hareketi sırasında, alan üzerindeki elementi kontrol etmek zor
+				// Ancak son olaylarla bir tahmin yapabiliriz
+			} else if (event.type === "mousedown") {
+				// Tıklama başlangıcında cursor tipini değiştir
+				if (event.button === 1) {
+					// Sol tıklama
+					lastCursorType = "grabbing";
+				}
+			} else if (event.type === "mouseup") {
+				// Tıklama bitişinde cursor tipini geri değiştir
+				if (lastCursorType === "grabbing") {
+					lastCursorType = "pointer";
+				}
+			}
 		});
 
 		// Event dinlemeyi başlat
@@ -1927,18 +1984,50 @@ function startMouseTracking() {
 	}
 }
 
+// Sistem cursor tipini bizim cursor tipimize eşleştir
+function mapCursorType(systemCursor) {
+	// Farklı sistemlerde farklı cursor tipleri olabilir
+	// Bu yüzden olabildiğince genel bir eşleştirme yapalım
+
+	if (!systemCursor || typeof systemCursor !== "string") {
+		return "default";
+	}
+
+	const cursorLower = systemCursor.toLowerCase();
+
+	if (cursorLower.includes("pointer") || cursorLower.includes("hand")) {
+		return "pointer";
+	} else if (cursorLower.includes("text") || cursorLower.includes("ibeam")) {
+		return "text";
+	} else if (cursorLower.includes("grab")) {
+		return "grab";
+	} else if (
+		cursorLower.includes("grabbing") ||
+		cursorLower.includes("closed")
+	) {
+		return "grabbing";
+	} else if (cursorLower.includes("resize") || cursorLower.includes("split")) {
+		return "resize";
+	}
+
+	return "default";
+}
+
 function stopMouseTracking() {
 	if (isTracking) {
 		isTracking = false;
 		startTime = null;
 		lastCursorType = "default";
+		currentSystemCursor = "default";
 
 		// Event dinleyicileri temizle
 		uIOhook.removeAllListeners("mousemove");
 		uIOhook.removeAllListeners("mousedown");
 		uIOhook.removeAllListeners("mouseup");
 		uIOhook.removeAllListeners("wheel");
-		uIOhook.removeAllListeners("mousedrag");
+		uIOhook.removeAllListeners("drag");
+		uIOhook.removeAllListeners("click");
+		uIOhook.removeAllListeners("input");
 
 		// Event dinlemeyi durdur
 		uIOhook.stop();
