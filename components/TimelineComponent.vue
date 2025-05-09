@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-container h-full">
+	<div class="timeline-container h-full max-h-[400px]">
 		<!-- Timeline Header -->
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
