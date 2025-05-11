@@ -1331,61 +1331,81 @@ function setupIpcHandlers() {
 	ipcMain.handle(
 		IPC_EVENTS.SAVE_VIDEO,
 		async (event, base64Data, outputPath) => {
-		try {
-			console.log("[main] Video kaydediliyor...");
+			try {
+				console.log("[main] Video kaydediliyor...");
 
-				// Ensure directory exists
-				const dirPath = path.dirname(outputPath);
-				if (!fs.existsSync(dirPath)) {
-					console.log(`[main] Dizin oluşturuluyor: ${dirPath}`);
-					fs.mkdirSync(dirPath, { recursive: true });
-				}
-
-			// Base64'ten buffer'a çevir
+				// Base64'ten buffer'a çevir
 				const base64String = base64Data.replace(
 					/^data:video\/webm;base64,/,
 					""
 				);
-			const inputBuffer = Buffer.from(base64String, "base64");
+				const inputBuffer = Buffer.from(base64String, "base64");
 
-			// Geçici webm dosyası oluştur
-			const tempWebmPath = path.join(
-				app.getPath("temp"),
-				`temp_${Date.now()}.webm`
-			);
-			fs.writeFileSync(tempWebmPath, inputBuffer);
+				// Geçici webm dosyası oluştur
+				const tempWebmPath = path.join(
+					app.getPath("temp"),
+					`temp_${Date.now()}.webm`
+				);
+				fs.writeFileSync(tempWebmPath, inputBuffer);
 
-			// FFmpeg ile MP4'e dönüştür ve kaliteyi ayarla
-			return new Promise((resolve, reject) => {
-				ffmpeg(tempWebmPath)
-					.outputOptions([
-						"-c:v libx264", // H.264 codec
-						"-preset fast", // Hızlı encoding
-						"-crf 18", // Yüksek kalite (0-51, düşük değer = yüksek kalite)
-						"-movflags +faststart", // Web playback için optimize
-						"-profile:v high", // Yüksek profil
-						"-level 4.2", // Uyumluluk seviyesi
-						"-pix_fmt yuv420p", // Renk formatı
-						"-r 60", // 60 FPS
-					])
-					.on("end", () => {
-						// Geçici dosyayı temizle
-						fs.unlinkSync(tempWebmPath);
-						console.log("[main] Video başarıyla kaydedildi:", outputPath);
-						resolve({ success: true });
-					})
-					.on("error", (err) => {
-						console.error("[main] Video dönüştürme hatası:", err);
-						reject(new Error("Video dönüştürülemedi: " + err.message));
-					})
-					.save(outputPath);
-			});
-		} catch (error) {
-			console.error("[main] Video kaydetme hatası:", error);
-			throw error;
-		}
+				// FFmpeg ile MP4'e dönüştür ve kaliteyi ayarla
+				return new Promise((resolve, reject) => {
+					ffmpeg(tempWebmPath)
+						.outputOptions([
+							"-c:v libx264", // H.264 codec
+							"-preset fast", // Hızlı encoding
+							"-crf 18", // Yüksek kalite (0-51, düşük değer = yüksek kalite)
+							"-movflags +faststart", // Web playback için optimize
+							"-profile:v high", // Yüksek profil
+							"-level 4.2", // Uyumluluk seviyesi
+							"-pix_fmt yuv420p", // Renk formatı
+							"-r 60", // 60 FPS
+						])
+						.on("end", () => {
+							// Geçici dosyayı temizle
+							fs.unlinkSync(tempWebmPath);
+							console.log("[main] Video başarıyla kaydedildi:", outputPath);
+							resolve({ success: true });
+						})
+						.on("error", (err) => {
+							console.error("[main] Video dönüştürme hatası:", err);
+							reject(new Error("Video dönüştürülemedi: " + err.message));
+						})
+						.save(outputPath);
+				});
+			} catch (error) {
+				console.error("[main] Video kaydetme hatası:", error);
+				throw error;
+			}
 		}
 	);
+
+	// Dosya koruma işlemleri için IPC olayları
+	ipcMain.handle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.protectFile(filePath);
+		}
+		return false;
+	});
+
+	ipcMain.handle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.unprotectFile(filePath);
+		}
+		return false;
+	});
+
+	ipcMain.handle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
+		if (tempFileManager) {
+			return tempFileManager.getProtectedFiles();
+		}
+		return [];
+	});
+
+	// OPEN_EDITOR_MODE
+	ipcMain.on(IPC_EVENTS.OPEN_EDITOR_MODE, (event) => {
+		openEditorMode();
+	});
 
 	// GIF kaydetme işleyicisi
 	ipcMain.handle(IPC_EVENTS.SAVE_GIF, async (event, base64Data, outputPath) => {
@@ -1398,7 +1418,7 @@ function setupIpcHandlers() {
 				console.log(`[main] Dizin oluşturuluyor: ${dirPath}`);
 				fs.mkdirSync(dirPath, { recursive: true });
 			}
-			
+
 			// Base64'ten buffer'a çevir
 			const base64String = base64Data.replace(/^data:video\/webm;base64,/, "");
 			const inputBuffer = Buffer.from(base64String, "base64");
@@ -1406,3 +1426,523 @@ function setupIpcHandlers() {
 			// Geçici webm dosyası oluştur
 			const tempWebmPath = path.join(
 				app.getPath("temp"),
+				`temp_${Date.now()}.webm`
+			);
+			fs.writeFileSync(tempWebmPath, inputBuffer);
+
+			// FFmpeg ile GIF'e dönüştür
+			return new Promise((resolve, reject) => {
+				ffmpeg(tempWebmPath)
+					.outputOptions([
+						"-vf",
+						"fps=15,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", // GIF kalitesi için optimizasyon
+					])
+					.on("end", () => {
+						// Geçici dosyayı temizle
+						fs.unlinkSync(tempWebmPath);
+						console.log("[main] GIF başarıyla kaydedildi:", outputPath);
+						resolve({ success: true });
+					})
+					.on("error", (err) => {
+						console.error("[main] GIF dönüştürme hatası:", err);
+						reject(new Error("GIF dönüştürülemedi: " + err.message));
+					})
+					.save(outputPath);
+			});
+		} catch (error) {
+			console.error("[main] GIF kaydetme hatası:", error);
+			throw error;
+		}
+	});
+}
+
+// Mouse tracking
+function startMouseTracking() {
+	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
+
+	if (!isTracking) {
+		isTracking = true;
+		startTime = Date.now();
+
+		// Mouse hareketi
+		uIOhook.on("mousemove", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			// uIOhook dokümentasyonuna göre cursor tipi doğrudan alınamıyor
+			// Yine de mouse hareketi event'inde en son bilinen cursor tipini kullanabiliriz
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "move",
+			});
+		});
+
+		// Mouse tıklama
+		uIOhook.on("mousedown", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			// Tıklama anında cursor tipini güncelleme
+			if (lastCursorType === "pointer") {
+				// Eğer zaten pointer ise, tıklama anında basılı tutma etkisi için
+				lastCursorType = "grabbing";
+			}
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "mousedown",
+				button: event.button,
+				clickCount: 1,
+				scale: 0.8, // Tıklama anında küçülme
+			});
+
+			// 100ms sonra normale dön
+			setTimeout(() => {
+				mediaStateManager.addMousePosition({
+					x: event.x,
+					y: event.y,
+					timestamp: currentTime + 100,
+					cursorType: lastCursorType,
+					type: "scale",
+					scale: 1.1, // Hafif büyüme
+				});
+
+				// 200ms'de normal boyuta dön
+				setTimeout(() => {
+					mediaStateManager.addMousePosition({
+						x: event.x,
+						y: event.y,
+						timestamp: currentTime + 200,
+						cursorType: lastCursorType,
+						type: "scale",
+						scale: 1,
+					});
+				}, 100);
+			}, 100);
+		});
+
+		// Mouse bırakma
+		uIOhook.on("mouseup", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			// Mouse bırakıldığında cursor tipini güncelle
+			if (lastCursorType === "grabbing") {
+				// Eğer grabbing durumundaysa, bırakıldığında pointer'a geri dön
+				lastCursorType = "pointer";
+			}
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "mouseup",
+				button: event.button,
+			});
+		});
+
+		// Mouse tekerleği
+		uIOhook.on("wheel", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "wheel",
+				rotation: event.rotation,
+				direction: event.direction,
+			});
+		});
+
+		// Mouse sürükleme
+		uIOhook.on("drag", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			// Sürükleme sırasında cursor'ı grabbing olarak ayarla
+			lastCursorType = "grabbing";
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "drag",
+			});
+		});
+
+		// Mouse tıklama (click) olayı
+		uIOhook.on("click", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			// Click olayı mousedown ve mouseup'tan sonra tetiklenir
+			// Bu olayda cursor tipini pointer olarak ayarlayabiliriz (eğer tıklanabilir bir element üzerindeyse)
+			lastCursorType = "pointer";
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "click",
+				button: event.button,
+				clicks: event.clicks, // Çift tıklama için önemli
+			});
+		});
+
+		// Input olayı - tüm olayları tek bir handler'da yakala
+		uIOhook.on("input", (event) => {
+			if (!isTracking) return;
+
+			// uIOhook-napi dokümantasyonuna göre, input olayı tüm olayları içerir
+			// Burada event.type özelliğinden olay tipini kontrol edebiliriz
+
+			// Cursor tipini belirlemek için mantıksal bazı kurallar uygulayabiliriz
+			if (event.type === "mousemove") {
+				// Mouse hareketi sırasında, alan üzerindeki elementi kontrol etmek zor
+				// Ancak son olaylarla bir tahmin yapabiliriz
+			} else if (event.type === "mousedown") {
+				// Tıklama başlangıcında cursor tipini değiştir
+				if (event.button === 1) {
+					// Sol tıklama
+					lastCursorType = "grabbing";
+				}
+			} else if (event.type === "mouseup") {
+				// Tıklama bitişinde cursor tipini geri değiştir
+				if (lastCursorType === "grabbing") {
+					lastCursorType = "pointer";
+				}
+			}
+		});
+
+		// Event dinlemeyi başlat
+		uIOhook.start();
+	}
+}
+
+function stopMouseTracking() {
+	if (isTracking) {
+		isTracking = false;
+		startTime = null;
+		lastCursorType = "default";
+		currentSystemCursor = "default";
+
+		// Event dinleyicileri temizle
+		uIOhook.removeAllListeners("mousemove");
+		uIOhook.removeAllListeners("mousedown");
+		uIOhook.removeAllListeners("mouseup");
+		uIOhook.removeAllListeners("wheel");
+		uIOhook.removeAllListeners("drag");
+		uIOhook.removeAllListeners("click");
+		uIOhook.removeAllListeners("input");
+
+		// Event dinlemeyi durdur
+		uIOhook.stop();
+	}
+}
+
+// Sistem cursor tipini bizim cursor tipimize eşleştir
+function mapCursorType(systemCursor) {
+	// Farklı sistemlerde farklı cursor tipleri olabilir
+	// Bu yüzden olabildiğince genel bir eşleştirme yapalım
+
+	if (!systemCursor || typeof systemCursor !== "string") {
+		return "default";
+	}
+
+	const cursorLower = systemCursor.toLowerCase();
+
+	if (cursorLower.includes("pointer") || cursorLower.includes("hand")) {
+		return "pointer";
+	} else if (cursorLower.includes("text") || cursorLower.includes("ibeam")) {
+		return "text";
+	} else if (cursorLower.includes("grab")) {
+		return "grab";
+	} else if (
+		cursorLower.includes("grabbing") ||
+		cursorLower.includes("closed")
+	) {
+		return "grabbing";
+	} else if (cursorLower.includes("resize") || cursorLower.includes("split")) {
+		return "resize";
+	}
+
+	return "default";
+}
+
+/**
+ * Uygulama başlangıcında gerekli tüm izinleri kontrol eder
+ */
+async function checkAndRequestPermissions() {
+	// macOS'ta izin kontrolü yapılır
+	if (process.platform === "darwin") {
+		try {
+			const { systemPreferences } = require("electron");
+
+			// Sadece izinleri kontrol et, otomatik olarak isteme
+			console.log("[Main] Kamera izinleri kontrol ediliyor...");
+			const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
+			console.log("[Main] Kamera erişim durumu:", cameraStatus);
+
+			console.log("[Main] Mikrofon izinleri kontrol ediliyor...");
+			const microphoneStatus =
+				systemPreferences.getMediaAccessStatus("microphone");
+			console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
+
+			console.log(
+				"[Main] Ekran kaydı için sistem izinleri otomatik olarak istenemez. İlk kayıtta sistem tarafından sorulacaktır."
+			);
+		} catch (error) {
+			console.error("[Main] İzinler kontrol edilirken hata:", error);
+		}
+	} else {
+		console.log("[Main] İzin kontrolü sadece macOS için gereklidir.");
+	}
+}
+
+/**
+ * Mevcut izin durumlarını kontrol eder ve döndürür
+ */
+async function checkPermissionStatus() {
+	// Windows veya Linux'ta izin kontrolü gerekmez
+	if (process.platform !== "darwin") {
+		return {
+			camera: "granted",
+			microphone: "granted",
+			screen: "granted",
+		};
+	}
+
+	try {
+		const { systemPreferences } = require("electron");
+
+		// Kamera ve mikrofon durumlarını doğrudan kontrol et
+		const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
+		const microphoneStatus =
+			systemPreferences.getMediaAccessStatus("microphone");
+
+		// Ekran kaydı için izin durumu kontrol edilemez, sadece ilk kullanımda sistem tarafından sorulur
+		// "unknown" olarak döndür ve UI'da uygun bilgilendirme yap
+		const screenStatus = "unknown";
+
+		return {
+			camera: cameraStatus,
+			microphone: microphoneStatus,
+			screen: screenStatus,
+		};
+	} catch (error) {
+		console.error("[Main] İzin durumları kontrol edilirken hata:", error);
+		return {
+			camera: "unknown",
+			microphone: "unknown",
+			screen: "unknown",
+			error: error.message,
+		};
+	}
+}
+
+// Editör modunu açan fonksiyon
+function openEditorMode() {
+	console.log("[Main] Editör modu doğrudan açılıyor...");
+
+	// Kamera penceresini kapat - kesin olarak kapanmasını sağlayalım
+	if (cameraManager) {
+		console.log("[Main] Kamera penceresi kapatılıyor...");
+		// Önce stopCamera() ile stream'i durdur
+		cameraManager.stopCamera();
+
+		// Kamera penceresinin tam olarak kapandığından emin olmak için
+		try {
+			if (
+				cameraManager.cameraWindow &&
+				!cameraManager.cameraWindow.isDestroyed()
+			) {
+				cameraManager.cameraWindow.hide();
+				console.log("[Main] Kamera penceresi gizlendi");
+			}
+		} catch (err) {
+			console.error("[Main] Kamera penceresi gizlenirken hata:", err);
+		}
+	}
+
+	// Editör penceresini aç
+	if (editorManager) {
+		editorManager.createEditorWindow();
+	}
+
+	// Ana pencereyi gizle
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.hide();
+	}
+}
+
+async function createWindow() {
+	if (isDev) {
+		try {
+			await waitOn({
+				resources: ["http://127.0.0.1:3000"],
+				timeout: 5000,
+			});
+		} catch (err) {
+			console.error("Nuxt sunucusu başlatılamadı:", err);
+			app.quit();
+			return;
+		}
+	}
+
+	mainWindow = new BrowserWindow({
+		width: 920,
+		height: 70,
+		alwaysOnTop: true,
+		resizable: false,
+		skipTaskbar: false,
+		frame: false,
+		transparent: true,
+		hasShadow: true,
+		movable: true,
+		webPreferences: {
+			nodeIntegration: true,
+			contextIsolation: true,
+			preload: path.join(__dirname, "preload.cjs"),
+			webSecurity: false,
+			allowRunningInsecureContent: true,
+			webviewTag: true,
+			additionalArguments: ["--disable-site-isolation-trials"],
+		},
+	});
+
+	setupSecurityPolicies();
+	initializeManagers();
+	setupWindowEvents();
+	loadApplication();
+}
+
+function setupSecurityPolicies() {
+	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		callback({
+			responseHeaders: {
+				...details.responseHeaders,
+				"Content-Security-Policy": [
+					"default-src 'self' 'unsafe-inline' 'unsafe-eval' file: data: blob:; media-src 'self' file: blob: data:;",
+				],
+			},
+		});
+	});
+
+	protocol.registerFileProtocol("file", (request, callback) => {
+		const pathname = decodeURIComponent(request.url.replace("file:///", ""));
+		callback(pathname);
+	});
+}
+
+function initializeManagers() {
+	cameraManager = new CameraManager(mainWindow);
+	selectionManager = new SelectionManager(mainWindow);
+	editorManager = new EditorManager(mainWindow);
+	tempFileManager = new TempFileManager(mainWindow);
+	mediaStateManager = new MediaStateManager(mainWindow, cameraManager);
+	trayManager = new TrayManager(mainWindow, openEditorMode);
+
+	// Tray ekle
+	trayManager.createTray();
+
+	// Kamera penceresini başlat
+	cameraManager.initializeCamera();
+}
+
+function setupWindowEvents() {
+	mainWindow.on("closed", () => {
+		if (cameraManager) {
+			cameraManager.cleanup();
+		}
+		mainWindow = null;
+	});
+
+	mainWindow.on("close", (event) => {
+		if (!app.isQuitting) {
+			event.preventDefault();
+			mainWindow.hide();
+		}
+		return false;
+	});
+}
+
+function loadApplication() {
+	if (isDev) {
+		mainWindow.loadURL("http://127.0.0.1:3000");
+		mainWindow.webContents.openDevTools({ mode: "detach" });
+	} else {
+		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));
+	}
+}
+
+// App lifecycle events
+app.whenReady().then(() => {
+	// İzinleri başlangıçta kontrol et ve iste
+	checkAndRequestPermissions();
+	createWindow();
+	setupIpcHandlers();
+});
+
+app.on("window-all-closed", () => {
+	if (process.platform !== "darwin") {
+		app.quit();
+	}
+});
+
+app.on("activate", () => {
+	if (mainWindow === null) {
+		createWindow();
+	} else {
+		mainWindow.show();
+	}
+});
+
+app.on("before-quit", async (event) => {
+	try {
+		console.log("[Main] Uygulama kapanıyor, tüm kaynaklar temizleniyor...");
+
+		// Fare takibini durdur
+		if (isTracking) {
+			console.log("[Main] Fare takibi durduruluyor...");
+			uIOhook.stop();
+			isTracking = false;
+		}
+
+		// Tüm stream'leri temizle
+		if (tempFileManager) {
+			console.log("[Main] Tüm stream'ler temizleniyor...");
+			event.preventDefault(); // Uygulamanın kapanmasını geçici olarak engelle
+
+			// Stream'leri temizle ve sonra uygulamayı kapat
+			await tempFileManager.cleanupStreams();
+			console.log("[Main] Tüm stream'ler temizlendi");
+
+			// Tüm geçici dosyaları temizle
+			await tempFileManager.cleanupAllFiles();
+			console.log("[Main] Tüm geçici dosyalar temizlendi");
+
+			// Diğer manager'ları temizle
+			if (cameraManager) cameraManager.cleanup();
+			if (trayManager) trayManager.cleanup();
+
+			// Şimdi uygulamayı kapat
+			app.quit();
+		}
+	} catch (error) {
+		console.error("[Main] Uygulama kapanırken hata:", error);
+		// Hata olsa bile uygulamayı kapat
+		app.exit(1);
+	}
+});
