@@ -50,7 +50,7 @@
 				<LayoutManager :media-player="mediaPlayerRef" />
 				<button
 					class="btn-export bg-[#432af4] rounded-lg p-2 py-1 flex flex-row gap-2 items-center"
-					@click="saveVideo()"
+					@click="showExportModal = true"
 				>
 					<svg
 						class="h-5 w-5"
@@ -157,6 +157,13 @@
 			@splitSegment="handleSegmentSplit"
 			ref="timelineRef"
 		/>
+
+		<!-- Export Modal -->
+		<ExportModal
+			:is-open="showExportModal"
+			@close="showExportModal = false"
+			@export="handleExport"
+		/>
 	</div>
 </template>
 
@@ -168,6 +175,8 @@ import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
 import LayoutManager from "~/components/ui/LayoutManager.vue";
 import ProjectManager from "~/components/ui/ProjectManager.vue";
+import ExportModal from "~/components/ui/ExportModal.vue";
+import ExportService from "~/services/ExportService";
 
 const { updateCameraSettings } = usePlayerSettings();
 
@@ -200,6 +209,7 @@ const selectedArea = ref(null);
 const isMuted = ref(false);
 const isSplitMode = ref(false);
 const isCropMode = ref(false);
+const showExportModal = ref(false);
 
 // Video boyutları
 const videoSize = ref({
@@ -386,140 +396,132 @@ const startEditing = (videoData) => {
 };
 
 // Video kaydetme
-const saveVideo = async () => {
+const handleExport = async (settings) => {
 	try {
-		const filePath = await electron?.ipcRenderer.invoke("SHOW_SAVE_DIALOG", {
-			title: "Videoyu Kaydet",
-			defaultPath: `video_${Date.now()}.mp4`,
-			filters: [{ name: "Video", extensions: ["mp4"] }],
-		});
+		console.log("[editor.vue] Export başlatılıyor, ayarlar:", settings);
 
-		if (filePath) {
-			const sourceCanvas = mediaPlayerRef.value?.getCanvas();
-			if (!sourceCanvas) {
-				throw new Error("Canvas bulunamadı");
-			}
+		// Directory ve filename kontrolü
+		if (!settings.directory) {
+			throw new Error("Kayıt dizini belirtilmemiş. Lütfen bir dizin seçin.");
+		}
 
-			// Kaydedilecek canvas'ın çözünürlüğünü artır
-			// sourceCanvas.width = targetWidth;
-			// sourceCanvas.height = targetHeight;
+		// Ensure filename has correct extension and is sanitized for filesystem
+		let filename = settings.filename;
 
-			// Kayıt durumu mesajı göster
-			const loadingMessage = document.createElement("div");
-			loadingMessage.className =
-				"fixed inset-0 flex items-center text-center justify-center bg-black bg-opacity-50 z-50";
-			loadingMessage.innerHTML = `
-                <div class="bg-black/80 p-8 rounded-xl shadow-3xl text-white">
-                    <p class="text-lg font-bold">Video kaydediliyor...</p>
-                    <p class="text-sm mt-2">Lütfen bekleyin...</p>
+		// Sanitize filename - remove characters that could be interpreted as path separators
+		filename = filename.replace(/[/\\:*?"<>|]/g, "-");
+
+		// Make sure it has the correct extension
+		if (!filename.endsWith(`.${settings.format}`)) {
+			filename = `${filename}.${settings.format}`;
+		}
+
+		// Dosya yolunu oluştur
+		const filePath = `${settings.directory}/${filename}`;
+		console.log("[editor.vue] Export dosya yolu:", filePath);
+
+		// Kayıt durumu mesajı göster
+		const loadingMessage = document.createElement("div");
+		loadingMessage.className =
+			"fixed inset-0 flex items-center flex-col text-center justify-center bg-black bg-opacity-70 z-50";
+		loadingMessage.innerHTML = `
+            <div class="bg-[#1a1a1a] p-8 rounded-xl shadow-3xl text-white max-w-md">
+                <p class="text-xl font-bold mb-2">Video Kaydediliyor</p>
+                <p class="text-gray-300 mb-4">Lütfen bekleyin, bu işlem birkaç dakika sürebilir.</p>
+                <div class="w-full bg-gray-700 rounded-full h-3 mb-1">
+                    <div id="export-progress-bar" class="bg-[#432af4] h-3 rounded-full" style="width: 0%"></div>
                 </div>
-            `;
-			document.body.appendChild(loadingMessage);
+                <p id="export-progress-text" class="text-sm text-gray-400">%0</p>
+            </div>
+        `;
+		document.body.appendChild(loadingMessage);
 
-			return new Promise(async (resolve, reject) => {
-				try {
-					const stream = sourceCanvas.captureStream(60); // 60 FPS
+		const progressBar = document.getElementById("export-progress-bar");
+		const progressText = document.getElementById("export-progress-text");
 
-					// Get the audio from the video element directly
-					const videoElement = mediaPlayerRef.value.getVideoElement();
-					const audioContext = new AudioContext();
-					const source = audioContext.createMediaElementSource(videoElement);
-					const destination = audioContext.createMediaStreamDestination();
-					source.connect(destination);
-					source.connect(audioContext.destination); // To continue hearing the audio
+		// Playback'i durdur
+		if (mediaPlayerRef.value) {
+			await mediaPlayerRef.value.pause();
+		}
 
-					// Add the audio track to our stream
-					destination.stream
-						.getAudioTracks()
-						.forEach((track) => stream.addTrack(track));
+		// Progress update handler
+		const onProgress = (progress) => {
+			if (progressBar && progressText) {
+				const percent = Math.round(progress);
+				progressBar.style.width = `${percent}%`;
+				progressText.textContent = `%${percent}`;
+				console.log(`[editor.vue] Export ilerleme: %${percent}`);
+			}
+		};
 
-					const mediaRecorder = new MediaRecorder(stream, {
-						mimeType: "video/webm",
-						videoBitsPerSecond: 5000000, // 5 Mbps
-					});
+		// Completion handler
+		const onComplete = async (exportData) => {
+			try {
+				console.log("[editor.vue] Export tamamlandı, verileri kaydediliyor...");
 
-					const chunks = [];
-					mediaRecorder.ondataavailable = (e) => {
-						if (e.data.size > 0) {
-							chunks.push(e.data);
-						}
-					};
+				// Electron'a gönder ve dosyaya kaydet
+				const saveResult = await electron?.ipcRenderer.invoke(
+					exportData.format === "mp4"
+						? IPC_EVENTS.SAVE_VIDEO
+						: IPC_EVENTS.SAVE_GIF,
+					exportData.data,
+					filePath
+				);
 
-					let startTime = null;
-					let lastFrameTime = 0;
-					const frameInterval = 1000 / 60; // 60 FPS için
-
-					// Frame çizim fonksiyonu
-					const renderFrame = async (currentTime) => {
-						if (!startTime) startTime = currentTime;
-						const elapsed = currentTime - startTime;
-
-						if (currentTime - lastFrameTime >= frameInterval) {
-							lastFrameTime = currentTime;
-
-							const videoTime = elapsed / 1000;
-							if (videoTime >= videoDuration.value) {
-								mediaRecorder.stop();
-								return;
-							}
-
-							await mediaPlayerRef.value.play();
-						}
-
-						requestAnimationFrame(renderFrame);
-					};
-
-					mediaRecorder.onstop = async () => {
-						try {
-							await mediaPlayerRef.value.seek(0);
-							const webmBlob = new Blob(chunks, { type: "video/webm" });
-							const arrayBuffer = await webmBlob.arrayBuffer();
-							const base64Data = btoa(
-								new Uint8Array(arrayBuffer).reduce(
-									(data, byte) => data + String.fromCharCode(byte),
-									""
-								)
-							);
-
-							const result = await electron?.ipcRenderer.invoke(
-								"SAVE_VIDEO",
-								`data:video/webm;base64,${base64Data}`,
-								filePath
-							);
-
-							if (result?.success) {
-								console.log("Video başarıyla kaydedildi");
-							} else {
-								throw new Error(result?.error || "Video kaydedilemedi");
-							}
-
-							if (loadingMessage.parentNode) {
-								document.body.removeChild(loadingMessage);
-							}
-
-							resolve(result);
-						} catch (error) {
-							console.error("Kayıt sonlandırma hatası:", error);
-							reject(error);
-						}
-					};
-
-					mediaRecorder.start();
-
-					await mediaPlayerRef.value.seek(0);
-					requestAnimationFrame(renderFrame);
-				} catch (error) {
-					console.error("Kayıt başlatma hatası:", error);
-					if (loadingMessage.parentNode) {
-						document.body.removeChild(loadingMessage);
-					}
-					reject(error);
+				// Loading mesajını kaldır
+				if (loadingMessage.parentNode) {
+					document.body.removeChild(loadingMessage);
 				}
-			});
+
+				if (saveResult?.success) {
+					alert(`Video başarıyla kaydedildi: ${filePath}`);
+					console.log("[editor.vue] Video başarıyla kaydedildi:", filePath);
+
+					// Dosyayı Finder/Explorer'da göster
+					electron?.ipcRenderer.send(IPC_EVENTS.SHOW_FILE_IN_FOLDER, filePath);
+				} else {
+					throw new Error(saveResult?.error || "Video kaydedilemedi.");
+				}
+			} catch (error) {
+				console.error("[editor.vue] Kayıt tamamlama hatası:", error);
+				alert(`Video kaydedilirken hata oluştu: ${error.message}`);
+
+				// Loading mesajını kaldır
+				if (loadingMessage.parentNode) {
+					document.body.removeChild(loadingMessage);
+				}
+			}
+		};
+
+		// Error handler
+		const onError = (error) => {
+			console.error("[editor.vue] Video kayıt hatası:", error);
+			alert(`Video kaydedilirken hata oluştu: ${error.message}`);
+
+			// Loading mesajını kaldır
+			if (loadingMessage.parentNode) {
+				document.body.removeChild(loadingMessage);
+			}
+		};
+
+		try {
+			console.log("[editor.vue] ExportService ile export başlatılıyor...");
+
+			// Export service'i kullanarak export işlemini başlat
+			ExportService.exportVideo(
+				mediaPlayerRef.value,
+				settings,
+				onProgress,
+				onComplete,
+				onError
+			);
+		} catch (exportError) {
+			console.error("[editor.vue] Export başlatma hatası:", exportError);
+			onError(exportError);
 		}
 	} catch (error) {
-		console.error("Video kaydedilirken hata:", error);
-		alert("Videoyu kaydederken bir hata oluştu: " + error.message);
+		console.error("[editor.vue] Export işlemi hatası:", error);
+		alert(`Export işlemi başlatılırken hata oluştu: ${error.message}`);
 	}
 };
 
