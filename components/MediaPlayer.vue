@@ -16,16 +16,19 @@
 			@mouseleave="handleMouseUp"
 		>
 			<div
-				class="relative crop-area"
+				class="relative crop-area flex items-center justify-center"
 				:style="{
-					width: `${cropArea.width}px`,
-					height: `${cropArea.height}px`,
+					width: '100%',
+					height: '100%',
+					position: 'relative',
+					overflow: 'hidden',
 				}"
 			>
 				<canvas
 					id="canvasID"
 					ref="canvasRef"
-					class="rounded-md inset-0 w-full h-full"
+					class="rounded-md"
+					style="display: block; position: absolute; margin: auto"
 				></canvas>
 			</div>
 
@@ -247,6 +250,7 @@ const dragStart = ref({ x: 0, y: 0 });
 const cropArea = ref({ x: 0, y: 0, width: 0, height: 0 });
 const videoSize = ref({ width: 0, height: 0 });
 const selectedAspectRatio = ref("");
+const lastSourceRatio = ref(null); // Add this line to track aspect ratio changes
 
 // Render ve animasyon state'leri
 let animationFrame = null;
@@ -513,6 +517,10 @@ const handleResize = () => {
 	canvasRef.value.style.width = `${canvasWidth}px`;
 	canvasRef.value.style.height = `${canvasHeight}px`;
 
+	// Canvas'ı daima merkezde tutmak için
+	position.value = { x: 0, y: 0 };
+	videoPosition.value = { x: 0, y: 0 };
+
 	// Canvas transform ayarları
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -577,6 +585,10 @@ const updateCropArea = () => {
 	// Canvas stil boyutlarını ayarla (CSS pixels)
 	canvasRef.value.style.width = `${canvasWidth}px`;
 	canvasRef.value.style.height = `${canvasHeight}px`;
+
+	// Canvas'ı daima merkezde tutmak için
+	position.value = { x: 0, y: 0 };
+	videoPosition.value = { x: 0, y: 0 };
 
 	// Canvas transform ayarları
 	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1226,6 +1238,29 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			y = padding.value * dpr;
 		}
 
+		// In the updateCanvas function, modify the calculation of drawWidth, drawHeight, x, y
+		// First, ensure position is zeroed after aspect ratio changes
+		if (videoScale.value <= 1.001) {
+			// Only reset position to center when not zoomed in
+			// This keeps the position consistent while applying different aspect ratios
+			if (sourceRatio !== lastSourceRatio.value) {
+				position.value = { x: 0, y: 0 };
+				videoPosition.value = { x: 0, y: 0 };
+				lastSourceRatio.value = sourceRatio;
+			}
+		}
+
+		// For a cleaner approach to the drawing code, let's modify the positioning logic
+		// for the drawX and drawY calculation to keep the video centered regardless of position
+
+		// Add position as a fixed offset - this ensures consistency across different window sizes
+		const offsetX = position.value.x * dpr;
+		const offsetY = position.value.y * dpr;
+
+		// Apply the position offset to the calculated coordinates
+		const drawX = x + offsetX;
+		const drawY = y + offsetY;
+
 		// Aktif zoom segmentini bul
 		const currentTime = videoElement.currentTime;
 		const activeZoom = checkZoomSegments(currentTime, zoomRanges.value);
@@ -1267,14 +1302,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			ctx.save();
 
 			// Apply the zoom transformation
-			ctx.translate(
-				transformOriginX + position.value.x,
-				transformOriginY + position.value.y
-			);
+			ctx.translate(transformOriginX + offsetX, transformOriginY + offsetY);
 			ctx.scale(videoScale.value, videoScale.value);
 			ctx.translate(
-				-(transformOriginX + position.value.x),
-				-(transformOriginY + position.value.y)
+				-(transformOriginX + offsetX),
+				-(transformOriginY + offsetY)
 			);
 
 			// Draw shadow if enabled
@@ -1283,8 +1315,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.beginPath();
 				useRoundRect(
 					ctx,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight,
 					radius.value * dpr
@@ -1303,8 +1335,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			ctx.beginPath();
 			useRoundRect(
 				ctx,
-				x + position.value.x,
-				y + position.value.y,
+				drawX,
+				drawY,
 				drawWidth,
 				drawHeight,
 				radius.value * dpr
@@ -1320,8 +1352,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					cropArea.value.y,
 					cropArea.value.width,
 					cropArea.value.height,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight
 				);
@@ -1333,8 +1365,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					0,
 					videoElement.videoWidth,
 					videoElement.videoHeight,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight
 				);
@@ -1347,8 +1379,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.beginPath();
 				useRoundRect(
 					ctx,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight,
 					radius.value * dpr
@@ -1373,8 +1405,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.beginPath();
 				useRoundRect(
 					ctx,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight,
 					radius.value * dpr
@@ -1393,8 +1425,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			ctx.beginPath();
 			useRoundRect(
 				ctx,
-				x + position.value.x,
-				y + position.value.y,
+				drawX,
+				drawY,
 				drawWidth,
 				drawHeight,
 				radius.value * dpr
@@ -1410,8 +1442,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					cropArea.value.y,
 					cropArea.value.width,
 					cropArea.value.height,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight
 				);
@@ -1423,8 +1455,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					0,
 					videoElement.videoWidth,
 					videoElement.videoHeight,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight
 				);
@@ -1437,8 +1469,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.beginPath();
 				useRoundRect(
 					ctx,
-					x + position.value.x,
-					y + position.value.y,
+					drawX,
+					drawY,
 					drawWidth,
 					drawHeight,
 					radius.value * dpr
@@ -1863,16 +1895,20 @@ const onVideoMetadataLoaded = () => {
 		// Canvas stil ayarları
 		Object.assign(canvasRef.value.style, {
 			display: "block",
-			transform: "translateZ(0)",
 			backfaceVisibility: "hidden",
-			perspective: "1000px",
 			willChange: "transform",
 			imageRendering: "high-quality",
 			webkitImageRendering: "high-quality",
-			position: "relative",
-			left: "50%",
-			top: "50%",
-			transform: "translate(-50%, -50%)",
+			position: "absolute",
+			transform: "translateZ(0)",
+			margin: "auto",
+			top: 0,
+			right: 0,
+			bottom: 0,
+			left: 0,
+			maxWidth: "100%",
+			maxHeight: "100%",
+			boxSizing: "border-box",
 		});
 
 		// Video boyutlarını kaydet
@@ -2522,15 +2558,16 @@ defineExpose({
 	},
 
 	setVideoPosition: (newPosition) => {
-		if (
-			newPosition &&
-			typeof newPosition.x === "number" &&
-			typeof newPosition.y === "number"
-		) {
-			console.log("[MediaPlayer] Setting video position to:", newPosition);
-			videoPosition.value = { ...newPosition };
-			position.value = { ...newPosition }; // Update the main position as well
-		}
+		if (!newPosition || typeof newPosition !== "object") return;
+
+		// Ensure both position references are updated consistently
+		videoPosition.value = { ...newPosition };
+		position.value = { ...newPosition }; // Update the main position as well
+
+		// Immediately update the canvas to reflect new position
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
 	},
 
 	setCameraPosition: (newPosition) => {
@@ -2650,6 +2687,10 @@ watch(
 	cropRatio,
 	(newRatio) => {
 		console.log("[MediaPlayer] Aspect ratio changed:", newRatio);
+
+		// Reset position to center when aspect ratio changes
+		position.value = { x: 0, y: 0 };
+		videoPosition.value = { x: 0, y: 0 };
 
 		// Canvas'ı yeniden boyutlandır
 		if (containerRef.value && canvasRef.value) {
