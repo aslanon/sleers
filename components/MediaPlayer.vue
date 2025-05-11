@@ -2334,20 +2334,59 @@ defineExpose({
 		}
 	},
 
+	// Export için fare pozisyonu işleme - bu fonksiyon ekleniyor
+	handleMousePositionForExport: (currentTime) => {
+		if (!props.mousePositions || !props.mousePositions.length) return;
+
+		// Video süresini al
+		const videoDuration = videoElement?.duration || 0;
+		if (!videoDuration) return;
+
+		// Doğrudan fare pozisyonunu güncelle - daha az yumuşak ama export için daha doğru
+		const totalPositions = props.mousePositions.length;
+		const normalizedTime = currentTime / videoDuration;
+
+		// Pozisyon indeksini hesapla
+		const positionIndex = Math.min(
+			Math.floor(normalizedTime * totalPositions),
+			totalPositions - 1
+		);
+
+		// İlgili pozisyonu al
+		if (positionIndex >= 0 && positionIndex < totalPositions) {
+			const position = props.mousePositions[positionIndex];
+			if (position) {
+				// Doğrudan hedef ve mevcut pozisyonları güncelle - animasyon için
+				if (typeof window.mouseCursorExportHelper === "undefined") {
+					window.mouseCursorExportHelper = {};
+				}
+
+				// Global değişkenleri güncelle - daha hızlı erişim için
+				window.mouseCursorExportHelper = {
+					targetX: position.x,
+					targetY: position.y,
+					cursorX: position.x,
+					cursorY: position.y,
+					lastUpdateTime: Date.now(),
+				};
+			}
+		}
+	},
+
 	// Video frame capture with specific size
 	captureFrameWithSize: (width, height) => {
 		if (!canvasRef.value) return null;
 
 		try {
-			// Geçici canvas oluştur belirtilen boyutlarda
+			// Performans için optimizasyon - export sırasında daha verimli çalışma
 			const tempCanvas = document.createElement("canvas");
 			tempCanvas.width = width;
 			tempCanvas.height = height;
 			const tempCtx = tempCanvas.getContext("2d", {
 				alpha: false,
 				antialias: true,
-				desynchronized: false,
-				willReadFrequently: false,
+				desynchronized: true, // Performans için desynchronized modunu etkinleştir
+				willReadFrequently: true, // Sık okuma için optimize et
 			});
 
 			// En iyi kalite için ayarlar
@@ -2390,8 +2429,11 @@ defineExpose({
 				drawHeight
 			);
 
-			// Yüksek kaliteli görüntü döndür (1.0 en yüksek kalite)
-			return tempCanvas.toDataURL("image/png", 1.0);
+			// Performans optimizasyonu - daha düşük kalite kullan (1.0 yerine 0.85)
+			// Export için PNG yerine JPEG kullan (daha hızlı, ama biraz kalite kaybı olur)
+			// PNG: Tam kalite, yavaş
+			// JPEG: Biraz kayıplı, hızlı
+			return tempCanvas.toDataURL("image/jpeg", 0.85);
 		} catch (error) {
 			console.error("[MediaPlayer] Sized screenshot capture error:", error);
 			return null;

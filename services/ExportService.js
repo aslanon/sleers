@@ -98,6 +98,17 @@ const exportVideo = async (
 		// Export stream'i oluştur
 		const stream = exportCanvas.captureStream(params.fps);
 
+		// Audio context için değişken
+		let audioContext = null;
+
+		// Render performansını iyileştirmek için optimizasyonlar
+		const optimizedRender = {
+			lastTimestamp: 0,
+			rafId: null,
+			frameThreshold: 1000 / (params.fps + 5), // FPS'den biraz daha hızlı render için tampon
+			useHighPerformanceMode: true,
+		};
+
 		// Render loop için değişkenler
 		let startTime = null;
 		let lastFrameTime = 0;
@@ -115,10 +126,13 @@ const exportVideo = async (
 
 			// FPS sabitlemesi için zaman kontrolü
 			const timeSinceLastFrame = timestamp - lastFrameTime;
+			const timeSinceLastRender = timestamp - optimizedRender.lastTimestamp;
 
-			// İlerleme durumunu güncelle
-			const progress = Math.min(100, (currentTime / duration) * 100);
-			onProgress(progress);
+			// İlerleme durumunu güncelle - sadece her 30 frame'de bir
+			if (Math.floor(currentTime * 30) % 5 === 0) {
+				const progress = Math.min(95, (currentTime / duration) * 100);
+				onProgress(progress);
+			}
 
 			// Video bittiyse kaydı durdur
 			if (currentTime >= duration) {
@@ -126,38 +140,56 @@ const exportVideo = async (
 				return;
 			}
 
+			// Export sırasında fare pozisyonunu her frame'de güncelle - export için özel fonksiyon
+			// Bu ekleme fare hareketlerini her frame'de direkt günceller
+			if (mediaPlayer.handleMousePositionForExport) {
+				mediaPlayer.handleMousePositionForExport(currentTime);
+			}
+
 			// FPS kontrolü - istenen frame rate'e göre frame'leri sınırla
-			if (timeSinceLastFrame >= frameInterval) {
+			// Yüksek performans modunda daha agresif render et
+			if (
+				timeSinceLastFrame >= frameInterval ||
+				(optimizedRender.useHighPerformanceMode &&
+					timeSinceLastRender >= optimizedRender.frameThreshold)
+			) {
 				lastFrameTime = timestamp;
+				optimizedRender.lastTimestamp = timestamp;
 
-				// Double buffering - Önce temp canvas'a çiz
-				const frameData = mediaPlayer.captureFrameWithSize(
-					params.width,
-					params.height
-				);
-				if (frameData) {
-					const img = new Image();
-					img.onload = () => {
-						// Temp canvas'a çiz
-						tempCtx.clearRect(0, 0, params.width, params.height);
-						tempCtx.drawImage(img, 0, 0, params.width, params.height);
+				// Double buffering - daha verimli implementasyon
+				try {
+					// Video frame'ini yakala
+					const frameData = mediaPlayer.captureFrameWithSize(
+						params.width,
+						params.height
+					);
 
-						// Sonra export canvas'a aktar
-						exportCtx.clearRect(0, 0, params.width, params.height);
-						exportCtx.drawImage(tempCanvas, 0, 0);
-					};
-					img.src = frameData;
+					if (frameData) {
+						// Yeni yaklaşım: Tek bir Image kullan
+						const img = new Image();
+						img.onload = () => {
+							// Temp canvas'a çiz
+							tempCtx.clearRect(0, 0, params.width, params.height);
+							tempCtx.drawImage(img, 0, 0, params.width, params.height);
+
+							// Sonra export canvas'a aktar - tek bir işlemde
+							exportCtx.clearRect(0, 0, params.width, params.height);
+							exportCtx.drawImage(tempCanvas, 0, 0);
+						};
+
+						// İşlem hızını artırmak için async olarak yükle
+						img.src = frameData;
+					}
+				} catch (renderError) {
+					console.warn("Frame render edilirken hata:", renderError);
 				}
 			}
 
-			// Sonraki frame için devam et
+			// Sonraki frame için devam et - requestAnimationFrame'in yüksek öncelikli olmasını sağla
 			if (currentTime < duration) {
-				requestAnimationFrame(renderFrame);
+				optimizedRender.rafId = requestAnimationFrame(renderFrame);
 			}
 		};
-
-		// Audio context için değişken
-		let audioContext = null;
 
 		// Eğer ses varsa ve MP4 formatındaysa, ses akışını ekle
 		if (settings.format === "mp4") {
@@ -224,6 +256,12 @@ const exportVideo = async (
 				await mediaPlayer.pause();
 				await mediaPlayer.seek(0);
 
+				// Animasyon döngüsünü temizle
+				if (optimizedRender.rafId) {
+					cancelAnimationFrame(optimizedRender.rafId);
+					optimizedRender.rafId = null;
+				}
+
 				// AudioContext varsa kapat
 				if (audioContext) {
 					try {
@@ -251,6 +289,9 @@ const exportVideo = async (
 					)
 				);
 
+				// İşlem sona erdiğinde %100 ilerleme göster
+				onProgress(100);
+
 				// Tamamlandı bilgisini ilet
 				onComplete({
 					data: `data:${mimeType};base64,${base64Data}`,
@@ -258,6 +299,12 @@ const exportVideo = async (
 					width: params.width,
 					height: params.height,
 				});
+
+				// Geçici kaynakları temizle
+				tempCanvas.width = 1;
+				tempCanvas.height = 1;
+				exportCanvas.width = 1;
+				exportCanvas.height = 1;
 			} catch (error) {
 				onError(error);
 			}
