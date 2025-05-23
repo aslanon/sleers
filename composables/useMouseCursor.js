@@ -88,7 +88,7 @@ export const useMouseCursor = () => {
 	const warpY = ref(1);
 	const targetWarpX = ref(1);
 	const targetWarpY = ref(1);
-	const speed = 0.5; // custom-cursor.js'deki gibi 0.1 değeri
+	const speed = 0.1; // Decreased for smoother movement
 	const animationActive = ref(false);
 	const lastTimestamp = ref(0);
 	const isVisible = ref(true);
@@ -151,7 +151,7 @@ export const useMouseCursor = () => {
 
 	// Tıklama animasyonu
 	const handleClickAnimation = () => {
-		targetScale.value = 0.9; // Tıklama anında küçült (0.8 yerine 0.9 kullanarak daha az küçültme)
+		targetScale.value = 0.8; // More noticeable click effect
 
 		// Belirli bir süre sonra normal boyuta dön
 		setTimeout(() => {
@@ -217,7 +217,7 @@ export const useMouseCursor = () => {
 			x,
 			y,
 			event,
-			size = 80, // custom-cursor.js'deki gibi 80 değeri
+			size = 80,
 			dpr: devicePixelRatio = 1,
 			motionEnabled = true,
 			visible = true,
@@ -332,7 +332,7 @@ export const useMouseCursor = () => {
 		if (motionEnabled) {
 			// Kısa hareketlerde blur efektini kaldır (moveSpeed < 3 için blur yok)
 			if (moveSpeed > 3) {
-				const blurAmount = Math.min(moveSpeed * 0.5, 3.0);
+				const blurAmount = Math.min(moveSpeed * 0.4, 2.8); // Slightly reduced blur to emphasize warp
 				ctx.filter = `blur(${blurAmount}px)`;
 			} else {
 				ctx.filter = "none";
@@ -370,9 +370,23 @@ export const useMouseCursor = () => {
 		const prevX = cursorX.value;
 		const prevY = cursorY.value;
 
+		// Calculate distance to target for adaptive smoothing
+		const distance = Math.sqrt(
+			Math.pow(targetX.value - cursorX.value, 2) +
+				Math.pow(targetY.value - cursorY.value, 2)
+		);
+
+		// Apply different smoothing based on distance
+		let currentSpeed = speed;
+		if (distance < 5) {
+			currentSpeed = speed * 2; // Faster for small movements (more precise)
+		} else if (distance > 100) {
+			currentSpeed = speed * 0.8; // Slower for large jumps (more fluid)
+		}
+
 		// Hedef pozisyona doğru hareket et
-		cursorX.value += (targetX.value - cursorX.value) * speed;
-		cursorY.value += (targetY.value - cursorY.value) * speed;
+		cursorX.value += (targetX.value - cursorX.value) * currentSpeed;
+		cursorY.value += (targetY.value - cursorY.value) * currentSpeed;
 
 		// Hareket yönünü ve hızını hesapla
 		const dx = cursorX.value - prevX;
@@ -382,14 +396,21 @@ export const useMouseCursor = () => {
 		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
 
 		// Eğimi ve warp değerlerini hız ve yönlere göre ayarla
-		const maxRotation = 0.015;
+		const maxRotation = 0.02;
 		targetRotation.value = dx * maxRotation;
 
-		const maxWarp = 0.02;
-		targetWarpX.value = 1 + Math.min(Math.abs(dx) * maxWarp, 0.03);
-		targetWarpY.value = 1 - Math.min(Math.abs(dy) * maxWarp, 0.03);
+		// Daha belirgin warp efekti
+		const maxWarp = 0.045; // Increased from 0.03 for more visible warp effect
+		const speedFactor = Math.min(moveSpeed / 20, 1); // Speed-based scaling for warp effect
+		const dynamicWarpX =
+			1 + Math.min(Math.abs(dx) * maxWarp * (1 + speedFactor * 0.5), 0.065);
+		const dynamicWarpY =
+			1 - Math.min(Math.abs(dy) * maxWarp * (1 + speedFactor * 0.5), 0.065);
 
-		// Smooth geçişler
+		targetWarpX.value = dynamicWarpX;
+		targetWarpY.value = dynamicWarpY;
+
+		// Smooth geçişler - improved easing factors
 		rotation.value += (targetRotation.value - rotation.value) * 0.1;
 		warpX.value += (targetWarpX.value - warpX.value) * 0.1;
 		warpY.value += (targetWarpY.value - warpY.value) * 0.1;

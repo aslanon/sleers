@@ -116,21 +116,21 @@ export const getTransitionParams = (transitionType) => {
 };
 
 // Hız eşikleri ve katsayıları
-const MIN = 2; // Efekt başlangıç hızı (piksel/saniye)
+const MIN = 1.2; // Efekt başlangıç hızı (piksel/saniye) - lowered for earlier feedback
 const MAX = 150; // Maksimum efekt hızı (piksel/saniye)
-const DEFORM = 200; // Deformasyon başlangıç hızı
+const DEFORM = 180; // Deformasyon başlangıç hızı - lowered for earlier effects
 
 // Hız eşikleri - daha basit ve anlaşılır değerler
 const SPEED_THRESHOLDS = {
-	MIN: 2.5, // Efekt başlangıç hızı (piksel/saniye)
+	MIN: 1.5, // Efekt başlangıç hızı (piksel/saniye) - lowered from 1.8
 	MAX: 150, // Maksimum efekt hızı (piksel/saniye)
-	DEFORM: 200, // Deformasyon başlangıç hızı
+	DEFORM: 180, // Deformasyon başlangıç hızı - lowered from 200
 };
 
 // Pozisyon ve açı geçmişi ayarları
 const positionHistory = [];
-const maxPositionHistory = 5;
-const stabilizationWeights = [0.5, 0.3, 0.15, 0.03, 0.02]; // Ağırlıkların toplamı 1 olmalı
+const maxPositionHistory = 8; // Increased from 7 for smoother tracking
+const stabilizationWeights = [0.35, 0.25, 0.15, 0.1, 0.06, 0.04, 0.03, 0.02]; // Weights sum should be 1
 
 const angleHistory = [];
 const maxAngleHistory = 8;
@@ -147,12 +147,12 @@ let lastAcceleration = 0; // Son ivmelenme değerini takip etmek için
 let speedHistory = []; // Hız geçmişi - ivmelenme hesaplamak için
 
 // Küçük hareketleri filtrelemek için eşik değerleri
-const MOVEMENT_THRESHOLD = 1.2; // Eşik düşürüldü - daha hassas hareket algılaması
-const SPEED_DEAD_ZONE = 0.6; // Bu hızın altındaki hareketleri yok say (düşürüldü)
+const MOVEMENT_THRESHOLD = 0.6; // Lowered from 0.8 - daha hassas hareket algılaması
+const SPEED_DEAD_ZONE = 0.3; // Lowered from 0.4 - Bu hızın altındaki hareketleri yok say
 
 // İvmelenme için eşik değerleri
-const ACCELERATION_THRESHOLD = 18; // Bu değerin üzerindeki ivmelenmelerde ekstra blur (düşürüldü)
-const MAX_ACCELERATION_BOOST = 2.0; // İvmelenme kaynaklı maksimum blur artışı (azaltıldı)
+const ACCELERATION_THRESHOLD = 15; // Lowered from 18 - Bu değerin üzerindeki ivmelenmelerde ekstra blur
+const MAX_ACCELERATION_BOOST = 2.5; // Increased from 2.0 - İvmelenme kaynaklı maksimum blur artışı
 
 /**
  * Pozisyon stabilizasyonu için geliştirilmiş fonksiyon
@@ -391,7 +391,7 @@ export function calculateMotionBlurEffects(speed, distance, intensity) {
 
 	// İvmelenmeyi hesapla ama daha yumuşak bir yaklaşım kullan
 	const acceleration = calculateAcceleration(speed);
-	const smoothedAcceleration = Math.max(0, acceleration) * 0.8; // Pozitif ivme daha etkili
+	const smoothedAcceleration = Math.max(0, acceleration) * 0.85; // Increased from 0.8 - Pozitif ivme daha etkili
 
 	// İvmelenme faktörü - geçmişe bakarak hesapla
 	const accelerationFactor = calculateAccelerationFactor(smoothedAcceleration);
@@ -404,13 +404,13 @@ export function calculateMotionBlurEffects(speed, distance, intensity) {
 			  easedIntensity
 			: 0;
 
-	// Deformasyon ve blur miktarlarını hesapla - daha az deformasyon, daha doğal sonuçlar
-	const deformAmount = easeInFactor * (intensity / 100) * 0.8; // Azaltıldı
-	const blurAmount = easeInFactor * intensity * 0.04; // Blur miktarını azalt
+	// Deformasyon ve blur miktarlarını hesapla - daha güçlü ve görünür efektler
+	const deformAmount = easeInFactor * (intensity / 100) * 0.9; // Increased from 0.8
+	const blurAmount = easeInFactor * intensity * 0.05; // Increased from 0.04 - Blur miktarını artır
 
 	// Etki uygulama kararı - hız ve geçen zamana göre
 	const shouldApplyEffect =
-		(speed > SPEED_THRESHOLDS.MIN || hasRecentEffect) && intensity > 10;
+		(speed > SPEED_THRESHOLDS.MIN || hasRecentEffect) && intensity > 8; // Lowered from 10
 
 	return {
 		speedFactor,
@@ -456,110 +456,131 @@ function calculateAccelerationFactor(acceleration) {
 // Büyük mesafe geçişleri için cubic-bezier fonksiyonunu kullan
 export const calculateLargeDistanceTransition = (
 	distance,
-	threshold = 80,
+	threshold = 70, // Decreased from 80 for more responsive transitions
 	isClick = false
 ) => {
-	// Click eventi için daha hızlı ve agresif geçiş
+	// Cubic bezier parametreleri
+	let x1 = 0.25,
+		y1 = 0.1,
+		x2 = 0.25,
+		y2 = 1.0;
+
+	// Bu bir tıklama ise, farklı bir geçiş tipi kullan
 	if (isClick) {
 		return {
 			shouldApplyCubicBezier: true,
-			cubicBezierParams: { x1: 0.1, y1: 0, x2: 0.45, y2: 1.0 },
-			transitionType: "click_fast",
-			effectStrength: 0.6,
+			cubicBezierParams: { x1: 0.2, y1: 0, x2: 0.5, y2: 1.0 },
+			transitionType: CURSOR_TRANSITION_TYPES.EASE_OUT,
+			effectStrength: 0.7, // Increased from 0.6 for more visible click effect
+			speedFactor: 1.3, // Increased from 1.2 for faster click response
 		};
 	}
 
-	// Eşiğin üzerindeki mesafelerde cubic-bezier efekti uygula
-	if (distance > threshold) {
-		// Normalize edilmiş mesafe (1'den büyük olabilir, maksimum etki için 3 ile sınırla)
-		const normalizedDistance = Math.min(distance / threshold, 5);
+	// Hız faktörünü mesafeye göre ayarla
+	// Uzak mesafelerde daha hızlı hareket et
+	let speedFactor = 1.0;
+	if (distance > threshold * 3) {
+		speedFactor = 1.5; // Increased from 1.4
+	} else if (distance > threshold * 2) {
+		speedFactor = 1.3; // Increased from 1.25
+	} else if (distance > threshold) {
+		speedFactor = 1.2; // Increased from 1.15
+	}
 
-		// Geçerli transition tipine göre bezier parametrelerini al
-		const baseParams = getTransitionParams(currentTransitionType);
+	// Normalize edilmiş mesafe (daha kolay hesaplama için)
+	const normalizedDistance = distance / threshold;
 
-		// Mesafe etkisine göre cubic-bezier parametrelerini ayarla
-		let { x1, y1, x2, y2 } = baseParams;
+	// Mevcut transition tipine göre parametreleri ayarla
+	if (currentTransitionType === CURSOR_TRANSITION_TYPES.LINEAR) {
+		x1 = 0.1;
+		y1 = 0.1;
+		x2 = 0.9;
+		y2 = 0.9;
+	} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+		x1 = 0.25;
+		y1 = 0.1;
+		x2 = 0.25;
+		y2 = 1.0;
+	} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
+		x1 = 0.42;
+		y1 = 0;
+		x2 = 1;
+		y2 = 1;
+	} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
+		x1 = 0;
+		y1 = 0;
+		x2 = 0.58;
+		y2 = 1;
+	}
 
-		// Mesafe çok büyükse daha hızlı ve daha belirgin geçiş sağla
-		const speedFactor = Math.min(normalizedDistance * 0.4, 2);
-
-		// Mesafeye göre kontrol noktalarını ince ayarla
-		if (normalizedDistance > 2.5) {
-			// Çok uzun mesafelerde daha hızlı geçiş
-			if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
-				// Ease için daha agresif hızlanma
-				x1 = 0.15;
-				y1 = 0.05;
-				x2 = 0.45;
-				y2 = 1.0;
-			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
-				// Ease-out için daha hızlı başlangıçlı yavaşlama
-				x1 = 0;
-				y1 = 0;
-				x2 = 0.4;
-				y2 = 1.0;
-			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
-				// Ease-in için daha hızlı başlangıç
-				x1 = 0.35;
-				y1 = 0;
-				x2 = 0.85;
-				y2 = 1.0;
-			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.LINEAR) {
-				// Linear için hafif bir hızlanma ekle
-				x1 = 0.1;
-				y1 = 0.1;
-				x2 = 0.9;
-				y2 = 0.9;
-			}
-		} else if (normalizedDistance > 1.5) {
-			// Orta uzun mesafelerde daha belirgin geçiş
-			if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
-				x1 = 0.2;
-				y1 = 0.1;
-				x2 = 0.4;
-				y2 = 1.0;
-			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
-				x1 = 0;
-				y1 = 0;
-				x2 = 0.55;
-				y2 = 1.0;
-			} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
-				x1 = 0.45;
-				y1 = 0;
-				x2 = 0.9;
-				y2 = 1.0;
-			}
-		} else if (normalizedDistance > 1) {
-			// Kısa mesafelerde daha yumuşak geçiş
-			if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
-				x1 = 0.25;
-				y1 = 0.1;
-				x2 = 0.35;
-				y2 = 1.0;
-			}
+	// Mesafeye göre kontrol noktalarını ince ayarla
+	if (normalizedDistance > 2.5) {
+		// Çok uzun mesafelerde daha hızlı geçiş
+		if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+			// Ease için daha agresif hızlanma
+			x1 = 0.18; // Changed for faster initial movement
+			y1 = 0.08;
+			x2 = 0.35;
+			y2 = 1.0;
+		} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
+			// Ease-out için daha hızlı başlangıçlı yavaşlama
+			x1 = 0.03; // Changed for faster initial movement
+			y1 = 0.05;
+			x2 = 0.3; // Changed for smoother deceleration
+			y2 = 1.0;
+		} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
+			// Ease-in için daha hızlı başlangıç
+			x1 = 0.38; // Changed for more pronounced effect
+			x1 = 0.4; // Changed from 0.35
+			y1 = 0.05; // Changed from 0
+			x2 = 0.8; // Changed from 0.85
+			y2 = 1.0;
+		} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.LINEAR) {
+			// Linear için hafif bir hızlanma ekle
+			x1 = 0.15; // Changed from 0.1
+			y1 = 0.15; // Changed from 0.1
+			x2 = 0.85; // Changed from 0.9
+			y2 = 0.85; // Changed from 0.9
 		}
-
-		// Daha yüksek mesafelerde daha belirgin efekt
-		const effectStrength = Math.min(
-			Math.max(0.3, (normalizedDistance - 0.5) * 0.25),
-			1
-		);
-
-		return {
-			shouldApplyCubicBezier: true,
-			cubicBezierParams: { x1, y1, x2, y2 },
-			transitionType: currentTransitionType,
-			effectStrength: effectStrength,
-			speedFactor: speedFactor,
-		};
+	} else if (normalizedDistance > 1.5) {
+		// Orta uzun mesafelerde daha belirgin geçiş
+		if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+			x1 = 0.22; // Changed from 0.2
+			y1 = 0.12; // Changed from 0.1
+			x2 = 0.35; // Changed from 0.4
+			y2 = 1.0;
+		} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_OUT) {
+			x1 = 0.05; // Changed from 0
+			y1 = 0.05; // Changed from 0
+			x2 = 0.5; // Changed from 0.55
+			y2 = 1.0;
+		} else if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE_IN) {
+			x1 = 0.4; // Changed from 0.45
+			y1 = 0.05; // Changed from 0
+			x2 = 0.85; // Changed from 0.9
+			y2 = 1.0;
+		}
+	} else if (normalizedDistance > 1) {
+		// Kısa mesafelerde daha yumuşak geçiş
+		if (currentTransitionType === CURSOR_TRANSITION_TYPES.EASE) {
+			x1 = 0.28; // Changed from 0.25
+			y1 = 0.15; // Changed from 0.1
+			x2 = 0.32; // Changed from 0.35
+			y2 = 1.0;
+		}
 	}
 
-	// Eşiğin altındaki mesafelerde varsayılan değerler
+	// Daha yüksek mesafelerde daha belirgin efekt
+	const effectStrength = Math.min(
+		Math.max(0.25, (normalizedDistance - 0.5) * 0.3), // Changed from 0.3, 0.25
+		0.9 // Changed from 1
+	);
+
 	return {
-		shouldApplyCubicBezier: false,
-		cubicBezierParams: getTransitionParams(currentTransitionType),
+		shouldApplyCubicBezier: true,
+		cubicBezierParams: { x1, y1, x2, y2 },
 		transitionType: currentTransitionType,
-		effectStrength: 0,
-		speedFactor: 1,
+		effectStrength: effectStrength,
+		speedFactor: speedFactor,
 	};
 };

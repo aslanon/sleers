@@ -115,6 +115,65 @@ ipcMain.on("OPEN_SYSTEM_PREFERENCES", () => {
 	}
 });
 
+// Editör modunu açan fonksiyon
+function openEditorMode() {
+	console.log("[Main] Editör modu doğrudan açılıyor...");
+
+	// Kamera penceresini kapat - kesin olarak kapanmasını sağlayalım
+	if (cameraManager) {
+		console.log("[Main] Kamera penceresi kapatılıyor...");
+		// Önce stopCamera() ile stream'i durdur
+		cameraManager.stopCamera();
+
+		// Kamera penceresinin tam olarak kapandığından emin olmak için
+		try {
+			if (
+				cameraManager.cameraWindow &&
+				!cameraManager.cameraWindow.isDestroyed()
+			) {
+				cameraManager.cameraWindow.hide();
+				console.log("[Main] Kamera penceresi gizlendi");
+			}
+		} catch (err) {
+			console.error("[Main] Kamera penceresi gizlenirken hata:", err);
+		}
+	}
+
+	// Editör penceresini aç
+	if (editorManager) {
+		editorManager.createEditorWindow();
+	}
+
+	// Ana pencereyi gizle
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.hide();
+	}
+}
+
+// Editörden kayıt moduna geçişi yöneten fonksiyon
+function handleEditorToRecordTransition() {
+	console.log("[Main] Editörden kayıt moduna geçiliyor...");
+
+	// State'i sıfırla
+	if (mediaStateManager) {
+		mediaStateManager.resetState();
+	}
+
+	// Kamerayı açma işlemini setTimeout ile geciktirelim (güvenilirlik için)
+	setTimeout(() => {
+		if (cameraManager) {
+			console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
+			cameraManager.resetForNewRecording();
+		}
+
+		// Ana pencereyi göster
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			console.log("[Main] Ana pencere gösteriliyor...");
+			mainWindow.show();
+		}
+	}, 200); // 200ms gecikme
+}
+
 // IPC event handlers
 function setupIpcHandlers() {
 	// Aperture modülü için handler'lar
@@ -824,30 +883,6 @@ function setupIpcHandlers() {
 		// bu event de handleEditorToRecordTransition'ı çağıracak
 	});
 
-	// Editörden kayıt moduna geçişi yöneten fonksiyon
-	function handleEditorToRecordTransition() {
-		console.log("[Main] Editörden kayıt moduna geçiliyor...");
-
-		// State'i sıfırla
-		if (mediaStateManager) {
-			mediaStateManager.resetState();
-		}
-
-		// Kamerayı açma işlemini setTimeout ile geciktirelim (güvenilirlik için)
-		setTimeout(() => {
-			if (cameraManager) {
-				console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
-				cameraManager.resetForNewRecording();
-			}
-
-			// Ana pencereyi göster
-			if (mainWindow && !mainWindow.isDestroyed()) {
-				console.log("[Main] Ana pencere gösteriliyor...");
-				mainWindow.show();
-			}
-		}, 200); // 200ms gecikme
-	}
-
 	// Media state
 	ipcMain.handle(IPC_EVENTS.GET_MEDIA_STATE, () => {
 		return mediaStateManager.getState();
@@ -1454,6 +1489,174 @@ function setupIpcHandlers() {
 			throw error;
 		}
 	});
+
+	// Mouse tracking için yardımcı fonksiyonlar
+	function mapCursorType(systemCursor) {
+		if (!systemCursor || typeof systemCursor !== "string") {
+			return "default";
+		}
+
+		const cursorLower = systemCursor.toLowerCase();
+
+		if (cursorLower.includes("pointer") || cursorLower.includes("hand")) {
+			return "pointer";
+		} else if (cursorLower.includes("text") || cursorLower.includes("ibeam")) {
+			return "text";
+		} else if (cursorLower.includes("grab")) {
+			return "grab";
+		} else if (
+			cursorLower.includes("grabbing") ||
+			cursorLower.includes("closed")
+		) {
+			return "grabbing";
+		} else if (
+			cursorLower.includes("resize") ||
+			cursorLower.includes("split")
+		) {
+			return "resize";
+		}
+
+		return "default";
+	}
+
+	// IPC handlers'a eklenecek yeni handler'lar
+	ipcMain.handle("SHOW_PROMPT", async (event, options) => {
+		if (!mainWindow) return null;
+
+		const { title, message, defaultValue } = options;
+
+		// Create a simple HTML prompt dialog
+		const promptWindow = new BrowserWindow({
+			width: 400,
+			height: 200,
+			parent: mainWindow,
+			modal: true,
+			show: false,
+			resizable: false,
+			minimizable: false,
+			maximizable: false,
+			webPreferences: {
+				nodeIntegration: true,
+				contextIsolation: false,
+			},
+		});
+
+		// Load HTML content
+		promptWindow.loadURL(`data:text/html,
+			<html>
+			<head>
+				<title>${title || "Giriş"}</title>
+				<style>
+					body {
+						font-family: system-ui, -apple-system, sans-serif;
+						background-color: #1f2937;
+						color: white;
+						padding: 20px;
+						margin: 0;
+						display: flex;
+						flex-direction: column;
+						height: 100vh;
+					}
+					h3 {
+						margin-top: 0;
+						margin-bottom: 15px;
+					}
+					input {
+						padding: 8px;
+						margin-bottom: 20px;
+						background-color: #374151;
+						border: 1px solid #4b5563;
+						color: white;
+						border-radius: 4px;
+					}
+					.buttons {
+						display: flex;
+						justify-content: flex-end;
+						gap: 10px;
+					}
+					button {
+						padding: 8px 16px;
+						border: none;
+						border-radius: 4px;
+						cursor: pointer;
+					}
+					.cancel {
+						background-color: #4b5563;
+						color: white;
+					}
+					.ok {
+						background-color: #2563eb;
+						color: white;
+					}
+				</style>
+			</head>
+			<body>
+				<h3>${message || "Lütfen bir değer girin:"}</h3>
+				<input id="prompt-input" type="text" value="${defaultValue || ""}" autofocus />
+				<div class="buttons">
+					<button class="cancel" onclick="cancel()">İptal</button>
+					<button class="ok" onclick="ok()">Tamam</button>
+				</div>
+				<script>
+					const input = document.getElementById('prompt-input');
+					input.select();
+					
+					function cancel() {
+						window.promptResult = null;
+						window.close();
+					}
+					
+					function ok() {
+						window.promptResult = input.value;
+						window.close();
+					}
+					
+					// Handle Enter key
+					input.addEventListener('keyup', (e) => {
+						if (e.key === 'Enter') ok();
+						if (e.key === 'Escape') cancel();
+					});
+				</script>
+			</body>
+			</html>
+		`);
+
+		// Show window
+		promptWindow.once("ready-to-show", () => {
+			promptWindow.show();
+		});
+
+		// Wait for window to close and get result
+		return new Promise((resolve) => {
+			promptWindow.on("closed", () => {
+				resolve(
+					promptWindow.webContents.executeJavaScript("window.promptResult")
+				);
+			});
+		});
+	});
+
+	// Store handlers
+	ipcMain.handle("STORE_GET", async (event, key) => {
+		try {
+			const store = global.store || {};
+			return store[key];
+		} catch (error) {
+			console.error(`[Main] Error getting store value for key ${key}:`, error);
+			return null;
+		}
+	});
+
+	ipcMain.handle("STORE_SET", async (event, key, value) => {
+		try {
+			global.store = global.store || {};
+			global.store[key] = value;
+			return true;
+		} catch (error) {
+			console.error(`[Main] Error setting store value for key ${key}:`, error);
+			return false;
+		}
+	});
 }
 
 // Mouse tracking
@@ -1469,8 +1672,6 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
-			// uIOhook dokümentasyonuna göre cursor tipi doğrudan alınamıyor
-			// Yine de mouse hareketi event'inde en son bilinen cursor tipini kullanabiliriz
 			mediaStateManager.addMousePosition({
 				x: event.x,
 				y: event.y,
@@ -1487,7 +1688,6 @@ function startMouseTracking() {
 
 			// Tıklama anında cursor tipini güncelleme
 			if (lastCursorType === "pointer") {
-				// Eğer zaten pointer ise, tıklama anında basılı tutma etkisi için
 				lastCursorType = "grabbing";
 			}
 
@@ -1532,9 +1732,7 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
-			// Mouse bırakıldığında cursor tipini güncelle
 			if (lastCursorType === "grabbing") {
-				// Eğer grabbing durumundaysa, bırakıldığında pointer'a geri dön
 				lastCursorType = "pointer";
 			}
 
@@ -1569,7 +1767,6 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
-			// Sürükleme sırasında cursor'ı grabbing olarak ayarla
 			lastCursorType = "grabbing";
 
 			mediaStateManager.addMousePosition({
@@ -1586,8 +1783,6 @@ function startMouseTracking() {
 			if (!isTracking) return;
 			const currentTime = Date.now() - startTime;
 
-			// Click olayı mousedown ve mouseup'tan sonra tetiklenir
-			// Bu olayda cursor tipini pointer olarak ayarlayabiliriz (eğer tıklanabilir bir element üzerindeyse)
 			lastCursorType = "pointer";
 
 			mediaStateManager.addMousePosition({
@@ -1597,29 +1792,21 @@ function startMouseTracking() {
 				cursorType: lastCursorType,
 				type: "click",
 				button: event.button,
-				clicks: event.clicks, // Çift tıklama için önemli
+				clicks: event.clicks,
 			});
 		});
 
-		// Input olayı - tüm olayları tek bir handler'da yakala
+		// Input olayı
 		uIOhook.on("input", (event) => {
 			if (!isTracking) return;
 
-			// uIOhook-napi dokümantasyonuna göre, input olayı tüm olayları içerir
-			// Burada event.type özelliğinden olay tipini kontrol edebiliriz
-
-			// Cursor tipini belirlemek için mantıksal bazı kurallar uygulayabiliriz
 			if (event.type === "mousemove") {
-				// Mouse hareketi sırasında, alan üzerindeki elementi kontrol etmek zor
-				// Ancak son olaylarla bir tahmin yapabiliriz
+				// Mouse hareketi sırasında mantıksal kurallar
 			} else if (event.type === "mousedown") {
-				// Tıklama başlangıcında cursor tipini değiştir
 				if (event.button === 1) {
-					// Sol tıklama
 					lastCursorType = "grabbing";
 				}
 			} else if (event.type === "mouseup") {
-				// Tıklama bitişinde cursor tipini geri değiştir
 				if (lastCursorType === "grabbing") {
 					lastCursorType = "pointer";
 				}
@@ -1650,35 +1837,6 @@ function stopMouseTracking() {
 		// Event dinlemeyi durdur
 		uIOhook.stop();
 	}
-}
-
-// Sistem cursor tipini bizim cursor tipimize eşleştir
-function mapCursorType(systemCursor) {
-	// Farklı sistemlerde farklı cursor tipleri olabilir
-	// Bu yüzden olabildiğince genel bir eşleştirme yapalım
-
-	if (!systemCursor || typeof systemCursor !== "string") {
-		return "default";
-	}
-
-	const cursorLower = systemCursor.toLowerCase();
-
-	if (cursorLower.includes("pointer") || cursorLower.includes("hand")) {
-		return "pointer";
-	} else if (cursorLower.includes("text") || cursorLower.includes("ibeam")) {
-		return "text";
-	} else if (cursorLower.includes("grab")) {
-		return "grab";
-	} else if (
-		cursorLower.includes("grabbing") ||
-		cursorLower.includes("closed")
-	) {
-		return "grabbing";
-	} else if (cursorLower.includes("resize") || cursorLower.includes("split")) {
-		return "resize";
-	}
-
-	return "default";
 }
 
 /**
@@ -1749,41 +1907,6 @@ async function checkPermissionStatus() {
 			screen: "unknown",
 			error: error.message,
 		};
-	}
-}
-
-// Editör modunu açan fonksiyon
-function openEditorMode() {
-	console.log("[Main] Editör modu doğrudan açılıyor...");
-
-	// Kamera penceresini kapat - kesin olarak kapanmasını sağlayalım
-	if (cameraManager) {
-		console.log("[Main] Kamera penceresi kapatılıyor...");
-		// Önce stopCamera() ile stream'i durdur
-		cameraManager.stopCamera();
-
-		// Kamera penceresinin tam olarak kapandığından emin olmak için
-		try {
-			if (
-				cameraManager.cameraWindow &&
-				!cameraManager.cameraWindow.isDestroyed()
-			) {
-				cameraManager.cameraWindow.hide();
-				console.log("[Main] Kamera penceresi gizlendi");
-			}
-		} catch (err) {
-			console.error("[Main] Kamera penceresi gizlenirken hata:", err);
-		}
-	}
-
-	// Editör penceresini aç
-	if (editorManager) {
-		editorManager.createEditorWindow();
-	}
-
-	// Ana pencereyi gizle
-	if (mainWindow && !mainWindow.isDestroyed()) {
-		mainWindow.hide();
 	}
 }
 

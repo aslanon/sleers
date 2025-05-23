@@ -54,7 +54,17 @@
 						"arm64"
 					]
 				}
-			]
+			],
+			"entitlements": "build/entitlements.mac.plist",
+			"entitlementsInherit": "build/entitlements.mac.plist",
+			"hardenedRuntime": true,
+			"gatekeeperAssess": false,
+			"extendInfo": {
+				"NSCameraUsageDescription": "Sleer, ekran kayıtlarınıza kamera görüntünüzü eklemek için kameranıza erişim gerektirir.",
+				"NSMicrophoneUsageDescription": "Sleer, sesli anlatım kaydetmek için mikrofonunuza erişim gerektirir.",
+				"NSScreenCaptureDescription": "Sleer, ekranınızı kaydetmek için bu izne ihtiyaç duyar.",
+				"com.apple.security.device.audio-input": "Sleer, sistem seslerini kaydetmek için bu izne ihtiyaç duyar."
+			}
 		},
 		"files": [
 			".output/public/**/*",
