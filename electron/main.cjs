@@ -47,7 +47,6 @@ let isTracking = false;
 let startTime = null;
 let lastCursorType = "default";
 let currentSystemCursor = "default"; // Sistemden alınan cursor tipi
-
 // Delay yönetimi için state
 let recordingDelay = 1000; // Varsayılan 1sn
 
@@ -883,6 +882,30 @@ function setupIpcHandlers() {
 		// bu event de handleEditorToRecordTransition'ı çağıracak
 	});
 
+	// Editörden kayıt moduna geçişi yöneten fonksiyon
+	function handleEditorToRecordTransition() {
+		console.log("[Main] Editörden kayıt moduna geçiliyor...");
+
+		// State'i sıfırla
+		if (mediaStateManager) {
+			mediaStateManager.resetState();
+		}
+
+		// Kamerayı açma işlemini setTimeout ile geciktirelim (güvenilirlik için)
+		setTimeout(() => {
+			if (cameraManager) {
+				console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
+				cameraManager.resetForNewRecording();
+			}
+
+			// Ana pencereyi göster
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				console.log("[Main] Ana pencere gösteriliyor...");
+				mainWindow.show();
+			}
+		}, 200); // 200ms gecikme
+	}
+
 	// Media state
 	ipcMain.handle(IPC_EVENTS.GET_MEDIA_STATE, () => {
 		return mediaStateManager.getState();
@@ -1363,57 +1386,51 @@ function setupIpcHandlers() {
 	});
 
 	// Video kaydetme işleyicisi
-	ipcMain.handle(
-		IPC_EVENTS.SAVE_VIDEO,
-		async (event, base64Data, outputPath) => {
-			try {
-				console.log("[main] Video kaydediliyor...");
+	ipcMain.handle("SAVE_VIDEO", async (event, base64Data, outputPath) => {
+		try {
+			console.log("[main] Video kaydediliyor...");
 
-				// Base64'ten buffer'a çevir
-				const base64String = base64Data.replace(
-					/^data:video\/webm;base64,/,
-					""
-				);
-				const inputBuffer = Buffer.from(base64String, "base64");
+			// Base64'ten buffer'a çevir
+			const base64String = base64Data.replace(/^data:video\/webm;base64,/, "");
+			const inputBuffer = Buffer.from(base64String, "base64");
 
-				// Geçici webm dosyası oluştur
-				const tempWebmPath = path.join(
-					app.getPath("temp"),
-					`temp_${Date.now()}.webm`
-				);
-				fs.writeFileSync(tempWebmPath, inputBuffer);
+			// Geçici webm dosyası oluştur
+			const tempWebmPath = path.join(
+				app.getPath("temp"),
+				`temp_${Date.now()}.webm`
+			);
+			fs.writeFileSync(tempWebmPath, inputBuffer);
 
-				// FFmpeg ile MP4'e dönüştür ve kaliteyi ayarla
-				return new Promise((resolve, reject) => {
-					ffmpeg(tempWebmPath)
-						.outputOptions([
-							"-c:v libx264", // H.264 codec
-							"-preset fast", // Hızlı encoding
-							"-crf 18", // Yüksek kalite (0-51, düşük değer = yüksek kalite)
-							"-movflags +faststart", // Web playback için optimize
-							"-profile:v high", // Yüksek profil
-							"-level 4.2", // Uyumluluk seviyesi
-							"-pix_fmt yuv420p", // Renk formatı
-							"-r 60", // 60 FPS
-						])
-						.on("end", () => {
-							// Geçici dosyayı temizle
-							fs.unlinkSync(tempWebmPath);
-							console.log("[main] Video başarıyla kaydedildi:", outputPath);
-							resolve({ success: true });
-						})
-						.on("error", (err) => {
-							console.error("[main] Video dönüştürme hatası:", err);
-							reject(new Error("Video dönüştürülemedi: " + err.message));
-						})
-						.save(outputPath);
-				});
-			} catch (error) {
-				console.error("[main] Video kaydetme hatası:", error);
-				throw error;
-			}
+			// FFmpeg ile MP4'e dönüştür ve kaliteyi ayarla
+			return new Promise((resolve, reject) => {
+				ffmpeg(tempWebmPath)
+					.outputOptions([
+						"-c:v libx264", // H.264 codec
+						"-preset fast", // Hızlı encoding
+						"-crf 18", // Yüksek kalite (0-51, düşük değer = yüksek kalite)
+						"-movflags +faststart", // Web playback için optimize
+						"-profile:v high", // Yüksek profil
+						"-level 4.2", // Uyumluluk seviyesi
+						"-pix_fmt yuv420p", // Renk formatı
+						"-r 60", // 60 FPS
+					])
+					.on("end", () => {
+						// Geçici dosyayı temizle
+						fs.unlinkSync(tempWebmPath);
+						console.log("[main] Video başarıyla kaydedildi:", outputPath);
+						resolve({ success: true });
+					})
+					.on("error", (err) => {
+						console.error("[main] Video dönüştürme hatası:", err);
+						reject(new Error("Video dönüştürülemedi: " + err.message));
+					})
+					.save(outputPath);
+			});
+		} catch (error) {
+			console.error("[main] Video kaydetme hatası:", error);
+			throw error;
 		}
-	);
+	});
 
 	// Dosya koruma işlemleri için IPC olayları
 	ipcMain.handle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
@@ -1435,6 +1452,122 @@ function setupIpcHandlers() {
 			return tempFileManager.getProtectedFiles();
 		}
 		return [];
+	});
+
+	// Editör penceresini aç
+	ipcMain.handle(IPC_EVENTS.OPEN_EDITOR, async (event, data) => {
+		try {
+			console.log("[Main] Editör açılıyor, tüm stream'ler temizleniyor...");
+
+			// Fare takibini durdur
+			if (isTracking) {
+				console.log("[Main] Fare takibi durduruluyor...");
+				uIOhook.stop();
+				isTracking = false;
+				mainWindow.webContents.send(IPC_EVENTS.MOUSE_TRACKING_STOPPED);
+			}
+
+			// Önce tüm aktif stream'leri temizle
+			await tempFileManager.cleanupStreams();
+
+			// Medya yollarını kaydet
+			mediaStateManager.state.videoPath = data.videoPath;
+			mediaStateManager.state.cameraPath = data.cameraPath;
+			mediaStateManager.state.audioPath = data.audioPath;
+
+			console.log("[Main] Stream'ler temizlendi, editör açılıyor...");
+			console.log("[Main] Editör verileri:", data);
+
+			// Editör penceresini aç
+			createEditorWindow(data);
+			return { success: true };
+		} catch (error) {
+			console.error("[Main] Editör açılırken hata:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
+	// Kamera cihazı değişikliğini dinle
+	ipcMain.on(IPC_EVENTS.CAMERA_DEVICE_CHANGED, (event, deviceId) => {
+		console.log("[main.cjs] Kamera cihazı değişikliği alındı:", deviceId);
+		if (cameraManager) {
+			cameraManager.updateCameraDevice(deviceId);
+		}
+	});
+
+	// Mikrofon cihazı değişikliğini dinle
+	ipcMain.on(IPC_EVENTS.AUDIO_DEVICE_CHANGED, (event, deviceId) => {
+		console.log("[main.cjs] Mikrofon cihazı değişikliği alındı:", deviceId);
+		if (mediaStateManager) {
+			mediaStateManager.updateAudioDevice(deviceId);
+		}
+	});
+
+	// UPDATE_RECORDING_SOURCE
+	ipcMain.on("UPDATE_RECORDING_SOURCE", (event, source) => {
+		console.log("[Main] Kayıt kaynağı güncellendi:", source);
+		recordingSource = {
+			...recordingSource,
+			...source,
+		};
+
+		// Media state manager üzerinden aktif kaynak ayarını güncelle
+		if (mediaStateManager) {
+			mediaStateManager.updateRecordingSource(recordingSource);
+		}
+	});
+
+	// Aperture ekran listesi fonksiyonu
+	ipcMain.handle("GET_APERTURE_SCREENS", async (event) => {
+		try {
+			console.log("[Main] Aperture ekran listesi alınıyor...");
+
+			// Aperture modülünü yükle
+			const aperturePath = path.join(__dirname, "aperture.cjs");
+			const apertureModule = await import(`file://${aperturePath}`);
+
+			// Ekran listesini al
+			const screens = await apertureModule.getScreens();
+			console.log("[Main] Aperture ekran listesi alındı:", screens);
+
+			return screens;
+		} catch (error) {
+			console.error("[Main] Aperture ekran listesi alınamadı:", error);
+			return [];
+		}
+	});
+
+	// Aperture ekran ID doğrulama fonksiyonu
+	ipcMain.handle("VALIDATE_APERTURE_SCREEN_ID", async (event, screenId) => {
+		try {
+			console.log("[Main] Aperture ekran ID doğrulanıyor:", screenId);
+
+			// Aperture modülünü yükle
+			const aperturePath = path.join(__dirname, "aperture.cjs");
+			const apertureModule = await import(`file://${aperturePath}`);
+
+			// ID'yi doğrula
+			const isValid = await apertureModule.isValidScreenId(screenId);
+			console.log("[Main] Aperture ekran ID doğrulama sonucu:", isValid);
+
+			return isValid;
+		} catch (error) {
+			console.error("[Main] Aperture ekran ID doğrulanamadı:", error);
+			return false;
+		}
+	});
+
+	// Seçim penceresini kapatma olayı
+	ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
+		console.log("[Main] CLOSE_SELECTION_WINDOW olayı alındı");
+		if (selectionManager) {
+			try {
+				console.log("[Main] Seçim penceresi kapatılıyor (ESC tuşu)");
+				selectionManager.closeSelectionWindow();
+			} catch (error) {
+				console.error("[Main] Pencere kapatma hatası (ESC):", error);
+			}
+		}
 	});
 
 	// OPEN_EDITOR_MODE
@@ -1520,6 +1653,8 @@ function setupIpcHandlers() {
 	}
 
 	// IPC handlers'a eklenecek yeni handler'lar
+
+	// Dialog handlers for layout management
 	ipcMain.handle("SHOW_PROMPT", async (event, options) => {
 		if (!mainWindow) return null;
 
@@ -1636,9 +1771,27 @@ function setupIpcHandlers() {
 		});
 	});
 
+	ipcMain.handle("SHOW_CONFIRM", async (event, options) => {
+		if (!mainWindow) return 0;
+
+		const { title, message, buttons } = options;
+		const result = await dialog.showMessageBox(mainWindow, {
+			type: "question",
+			buttons: buttons || ["İptal", "Tamam"],
+			defaultId: 1,
+			cancelId: 0,
+			title: title || "Onay",
+			message: message || "Bu işlemi yapmak istediğinize emin misiniz?",
+		});
+
+		return result.response;
+	});
+
 	// Store handlers
 	ipcMain.handle("STORE_GET", async (event, key) => {
 		try {
+			// You can implement your own storage solution here
+			// For now, we'll use a simple in-memory store
 			const store = global.store || {};
 			return store[key];
 		} catch (error) {
@@ -1649,6 +1802,8 @@ function setupIpcHandlers() {
 
 	ipcMain.handle("STORE_SET", async (event, key, value) => {
 		try {
+			// You can implement your own storage solution here
+			// For now, we'll use a simple in-memory store
 			global.store = global.store || {};
 			global.store[key] = value;
 			return true;
@@ -1657,256 +1812,67 @@ function setupIpcHandlers() {
 			return false;
 		}
 	});
-}
 
-// Mouse tracking
-function startMouseTracking() {
-	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
-
-	if (!isTracking) {
-		isTracking = true;
-		startTime = Date.now();
-
-		// Mouse hareketi
-		uIOhook.on("mousemove", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "move",
-			});
-		});
-
-		// Mouse tıklama
-		uIOhook.on("mousedown", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			// Tıklama anında cursor tipini güncelleme
-			if (lastCursorType === "pointer") {
-				lastCursorType = "grabbing";
-			}
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "mousedown",
-				button: event.button,
-				clickCount: 1,
-				scale: 0.8, // Tıklama anında küçülme
-			});
-
-			// 100ms sonra normale dön
-			setTimeout(() => {
-				mediaStateManager.addMousePosition({
-					x: event.x,
-					y: event.y,
-					timestamp: currentTime + 100,
-					cursorType: lastCursorType,
-					type: "scale",
-					scale: 1.1, // Hafif büyüme
-				});
-
-				// 200ms'de normal boyuta dön
-				setTimeout(() => {
-					mediaStateManager.addMousePosition({
-						x: event.x,
-						y: event.y,
-						timestamp: currentTime + 200,
-						cursorType: lastCursorType,
-						type: "scale",
-						scale: 1,
-					});
-				}, 100);
-			}, 100);
-		});
-
-		// Mouse bırakma
-		uIOhook.on("mouseup", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			if (lastCursorType === "grabbing") {
-				lastCursorType = "pointer";
-			}
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "mouseup",
-				button: event.button,
-			});
-		});
-
-		// Mouse tekerleği
-		uIOhook.on("wheel", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "wheel",
-				rotation: event.rotation,
-				direction: event.direction,
-			});
-		});
-
-		// Mouse sürükleme
-		uIOhook.on("drag", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			lastCursorType = "grabbing";
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "drag",
-			});
-		});
-
-		// Mouse tıklama (click) olayı
-		uIOhook.on("click", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			lastCursorType = "pointer";
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "click",
-				button: event.button,
-				clicks: event.clicks,
-			});
-		});
-
-		// Input olayı
-		uIOhook.on("input", (event) => {
-			if (!isTracking) return;
-
-			if (event.type === "mousemove") {
-				// Mouse hareketi sırasında mantıksal kurallar
-			} else if (event.type === "mousedown") {
-				if (event.button === 1) {
-					lastCursorType = "grabbing";
-				}
-			} else if (event.type === "mouseup") {
-				if (lastCursorType === "grabbing") {
-					lastCursorType = "pointer";
-				}
-			}
-		});
-
-		// Event dinlemeyi başlat
-		uIOhook.start();
-	}
-}
-
-function stopMouseTracking() {
-	if (isTracking) {
-		isTracking = false;
-		startTime = null;
-		lastCursorType = "default";
-		currentSystemCursor = "default";
-
-		// Event dinleyicileri temizle
-		uIOhook.removeAllListeners("mousemove");
-		uIOhook.removeAllListeners("mousedown");
-		uIOhook.removeAllListeners("mouseup");
-		uIOhook.removeAllListeners("wheel");
-		uIOhook.removeAllListeners("drag");
-		uIOhook.removeAllListeners("click");
-		uIOhook.removeAllListeners("input");
-
-		// Event dinlemeyi durdur
-		uIOhook.stop();
-	}
-}
-
-/**
- * Uygulama başlangıcında gerekli tüm izinleri kontrol eder
- */
-async function checkAndRequestPermissions() {
-	// macOS'ta izin kontrolü yapılır
-	if (process.platform === "darwin") {
-		try {
-			const { systemPreferences } = require("electron");
-
-			// Sadece izinleri kontrol et, otomatik olarak isteme
-			console.log("[Main] Kamera izinleri kontrol ediliyor...");
-			const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
-			console.log("[Main] Kamera erişim durumu:", cameraStatus);
-
-			console.log("[Main] Mikrofon izinleri kontrol ediliyor...");
-			const microphoneStatus =
-				systemPreferences.getMediaAccessStatus("microphone");
-			console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
-
-			console.log(
-				"[Main] Ekran kaydı için sistem izinleri otomatik olarak istenemez. İlk kayıtta sistem tarafından sorulacaktır."
-			);
-		} catch (error) {
-			console.error("[Main] İzinler kontrol edilirken hata:", error);
+	// Dosya koruma işlemleri için IPC olayları
+	ipcMain.handle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.protectFile(filePath);
 		}
-	} else {
-		console.log("[Main] İzin kontrolü sadece macOS için gereklidir.");
-	}
+		return false;
+	});
+
+	ipcMain.handle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.unprotectFile(filePath);
+		}
+		return false;
+	});
+
+	ipcMain.handle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
+		if (tempFileManager) {
+			return tempFileManager.getProtectedFiles();
+		}
+		return [];
+	});
+
+	// OPEN_EDITOR_MODE
+	ipcMain.on(IPC_EVENTS.OPEN_EDITOR_MODE, (event) => {
+		openEditorMode();
+	});
 }
 
-/**
- * Mevcut izin durumlarını kontrol eder ve döndürür
- */
-async function checkPermissionStatus() {
-	// Windows veya Linux'ta izin kontrolü gerekmez
-	if (process.platform !== "darwin") {
-		return {
-			camera: "granted",
-			microphone: "granted",
-			screen: "granted",
-		};
+// Editör modunu açan fonksiyon
+function openEditorMode() {
+	console.log("[Main] Editör modu doğrudan açılıyor...");
+
+	// Kamera penceresini kapat - kesin olarak kapanmasını sağlayalım
+	if (cameraManager) {
+		console.log("[Main] Kamera penceresi kapatılıyor...");
+		// Önce stopCamera() ile stream'i durdur
+		cameraManager.stopCamera();
+
+		// Kamera penceresinin tam olarak kapandığından emin olmak için
+		try {
+			if (
+				cameraManager.cameraWindow &&
+				!cameraManager.cameraWindow.isDestroyed()
+			) {
+				cameraManager.cameraWindow.hide();
+				console.log("[Main] Kamera penceresi gizlendi");
+			}
+		} catch (err) {
+			console.error("[Main] Kamera penceresi gizlenirken hata:", err);
+		}
 	}
 
-	try {
-		const { systemPreferences } = require("electron");
+	// Editör penceresini aç
+	if (editorManager) {
+		editorManager.createEditorWindow();
+	}
 
-		// Kamera ve mikrofon durumlarını doğrudan kontrol et
-		const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
-		const microphoneStatus =
-			systemPreferences.getMediaAccessStatus("microphone");
-
-		// Ekran kaydı için izin durumu kontrol edilemez, sadece ilk kullanımda sistem tarafından sorulur
-		// "unknown" olarak döndür ve UI'da uygun bilgilendirme yap
-		const screenStatus = "unknown";
-
-		return {
-			camera: cameraStatus,
-			microphone: microphoneStatus,
-			screen: screenStatus,
-		};
-	} catch (error) {
-		console.error("[Main] İzin durumları kontrol edilirken hata:", error);
-		return {
-			camera: "unknown",
-			microphone: "unknown",
-			screen: "unknown",
-			error: error.message,
-		};
+	// Ana pencereyi gizle
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.hide();
 	}
 }
 
@@ -2069,3 +2035,210 @@ app.on("before-quit", async (event) => {
 		app.exit(1);
 	}
 });
+
+function startMouseTracking() {
+	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
+
+	if (!isTracking) {
+		isTracking = true;
+		startTime = Date.now();
+
+		// Mouse hareketi
+		uIOhook.on("mousemove", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "move",
+			});
+		});
+
+		// Mouse tıklama
+		uIOhook.on("mousedown", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: "pointer",
+				type: "mousedown",
+				button: event.button,
+				clickCount: 1,
+				scale: 0.8, // Tıklama anında küçülme
+			});
+
+			lastCursorType = "pointer";
+
+			// 100ms sonra normale dön
+			setTimeout(() => {
+				mediaStateManager.addMousePosition({
+					x: event.x,
+					y: event.y,
+					timestamp: currentTime + 100,
+					cursorType: lastCursorType,
+					type: "scale",
+					scale: 1.1, // Hafif büyüme
+				});
+
+				// 200ms'de normal boyuta dön
+				setTimeout(() => {
+					mediaStateManager.addMousePosition({
+						x: event.x,
+						y: event.y,
+						timestamp: currentTime + 200,
+						cursorType: lastCursorType,
+						type: "scale",
+						scale: 1,
+					});
+				}, 100);
+			}, 100);
+		});
+
+		// Mouse bırakma
+		uIOhook.on("mouseup", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: "default",
+				type: "mouseup",
+				button: event.button,
+			});
+
+			lastCursorType = "default";
+		});
+
+		// Mouse tekerleği
+		uIOhook.on("wheel", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: lastCursorType,
+				type: "wheel",
+				rotation: event.rotation,
+				direction: event.direction,
+			});
+		});
+
+		// Mouse sürükleme
+		uIOhook.on("mousedrag", (event) => {
+			if (!isTracking) return;
+			const currentTime = Date.now() - startTime;
+
+			mediaStateManager.addMousePosition({
+				x: event.x,
+				y: event.y,
+				timestamp: currentTime,
+				cursorType: "grabbing",
+				type: "drag",
+			});
+
+			lastCursorType = "grabbing";
+		});
+
+		// Event dinlemeyi başlat
+		uIOhook.start();
+	}
+}
+
+function stopMouseTracking() {
+	if (isTracking) {
+		isTracking = false;
+		startTime = null;
+		lastCursorType = "default";
+
+		// Event dinleyicileri temizle
+		uIOhook.removeAllListeners("mousemove");
+		uIOhook.removeAllListeners("mousedown");
+		uIOhook.removeAllListeners("mouseup");
+		uIOhook.removeAllListeners("wheel");
+		uIOhook.removeAllListeners("mousedrag");
+
+		// Event dinlemeyi durdur
+		uIOhook.stop();
+	}
+}
+
+/**
+ * Uygulama başlangıcında gerekli tüm izinleri kontrol eder
+ */
+async function checkAndRequestPermissions() {
+	// macOS'ta izin kontrolü yapılır
+	if (process.platform === "darwin") {
+		try {
+			const { systemPreferences } = require("electron");
+
+			// Sadece izinleri kontrol et, otomatik olarak isteme
+			console.log("[Main] Kamera izinleri kontrol ediliyor...");
+			const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
+			console.log("[Main] Kamera erişim durumu:", cameraStatus);
+
+			console.log("[Main] Mikrofon izinleri kontrol ediliyor...");
+			const microphoneStatus =
+				systemPreferences.getMediaAccessStatus("microphone");
+			console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
+
+			console.log(
+				"[Main] Ekran kaydı için sistem izinleri otomatik olarak istenemez. İlk kayıtta sistem tarafından sorulacaktır."
+			);
+		} catch (error) {
+			console.error("[Main] İzinler kontrol edilirken hata:", error);
+		}
+	} else {
+		console.log("[Main] İzin kontrolü sadece macOS için gereklidir.");
+	}
+}
+
+/**
+ * Mevcut izin durumlarını kontrol eder ve döndürür
+ */
+async function checkPermissionStatus() {
+	// Windows veya Linux'ta izin kontrolü gerekmez
+	if (process.platform !== "darwin") {
+		return {
+			camera: "granted",
+			microphone: "granted",
+			screen: "granted",
+		};
+	}
+
+	try {
+		const { systemPreferences } = require("electron");
+
+		// Kamera ve mikrofon durumlarını doğrudan kontrol et
+		const cameraStatus = systemPreferences.getMediaAccessStatus("camera");
+		const microphoneStatus =
+			systemPreferences.getMediaAccessStatus("microphone");
+
+		// Ekran kaydı için izin durumu kontrol edilemez, sadece ilk kullanımda sistem tarafından sorulur
+		// "unknown" olarak döndür ve UI'da uygun bilgilendirme yap
+		const screenStatus = "unknown";
+
+		return {
+			camera: cameraStatus,
+			microphone: microphoneStatus,
+			screen: screenStatus,
+		};
+	} catch (error) {
+		console.error("[Main] İzin durumları kontrol edilirken hata:", error);
+		return {
+			camera: "unknown",
+			microphone: "unknown",
+			screen: "unknown",
+			error: error.message,
+		};
+	}
+}
