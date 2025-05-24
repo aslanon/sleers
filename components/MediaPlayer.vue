@@ -2921,25 +2921,28 @@ const drawMacOSDock = (ctx, dpr) => {
 		const canvasWidth = canvasRef.value.width;
 		const canvasHeight = canvasRef.value.height;
 
-		// Dock ayarları
-		const scale = 2;
-		const dockHeight = 65 * dpr * scale;
-		const dockWidth = Math.min(canvasWidth * 0.8, 800 * dpr * scale);
-		const dockX = (canvasWidth - dockWidth) / 2;
-		const dockY = canvasHeight - dockHeight - 20 * dpr * scale; // Ekranın altından 20px yukarıda
-		const dockRadius = 12 * dpr * scale;
-		const iconSize = 48 * dpr * scale;
-		const iconSpacing = 10 * dpr * scale;
-
-		// Dock arkaplanı çiz
-		ctx.save();
-		ctx.beginPath();
-		roundedRect(ctx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-		ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
-		ctx.fill();
-
 		// Dock öğelerini çiz
 		if (visibleDockItems.value && visibleDockItems.value.length > 0) {
+			// Dock ayarları
+			const scale = 4;
+			const dockHeight = 55 * dpr * scale;
+			const dockRadius = 18 * dpr * scale;
+			const iconSize = 48 * dpr * scale;
+			const iconSpacing = 4 * dpr * scale;
+			const dockWidth =
+				iconSize * visibleDockItems.value.length +
+				iconSpacing * (visibleDockItems.value.length - 1) +
+				iconSpacing * 2;
+			const dockX = (canvasWidth - dockWidth) / 2;
+			const dockY = canvasHeight - dockHeight - 5 * dpr * scale; // Ekranın altından 20px yukarıda
+
+			// Dock arkaplanı çiz
+			ctx.save();
+			ctx.beginPath();
+			roundedRect(ctx, dockX, dockY, dockWidth, dockHeight, dockRadius);
+			ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+			ctx.fill();
+
 			const totalIcons = visibleDockItems.value.length;
 			const totalIconWidth =
 				(iconSize + iconSpacing) * totalIcons - iconSpacing;

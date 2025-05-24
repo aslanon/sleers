@@ -4,6 +4,8 @@ const fs = require("fs");
 const os = require("os");
 const { execSync } = require("child_process");
 
+// file:///Applications/Finder.app/Contents/Resources/icon.icns
+
 /**
  * macOS Dock içeriğini yöneten sınıf
  */
