@@ -1107,7 +1107,7 @@ watch(backgroundColor, () => {
 	}
 });
 
-watch(dockSize, () => {
+watch([dockSize, showDock], () => {
 	if (!ctx || !canvasRef.value) return;
 	drawMacOSDock(ctx, window.devicePixelRatio || 1);
 	if (videoElement && !videoState.value.isPlaying) {
@@ -2934,15 +2934,28 @@ const drawMacOSDock = (ctx, dpr) => {
 		if (visibleDockItems.value && visibleDockItems.value.length > 0) {
 			// Dock ayarları
 			const scale = dockSize.value;
-			const dockHeight = 55 * dpr * scale;
+			const dockHeight = 52 * dpr * scale;
 			const dockRadius = 18 * dpr * scale;
 			const iconSize = 48 * dpr * scale;
-			const iconSpacing = 4 * dpr * scale;
+			const iconSpacing = 2 * dpr * scale; // İkonlar arası boşluğu daha da artır
+
+			// Dock içinde ayırıcı olup olmadığını kontrol et ve varsa ayırıcı sayısını bul
+			let dividerCount = 0;
+			visibleDockItems.value.forEach((item) => {
+				if (item.isDivider) dividerCount++;
+			});
+
+			// Ayırıcı için gerekli boşluk miktarı
+			const dividerSpacing = 16 * dpr * scale; // Her ayırıcı için 16 birim ekstra boşluk (8+8)
+
+			// Dock toplam genişliğini hesapla
 			const dockWidth =
-				iconSize * visibleDockItems.value.length +
-				iconSpacing * (visibleDockItems.value.length - 1) +
-				iconSpacing * 2;
-			const dockX = (canvasWidth - dockWidth) / 2;
+				iconSize * visibleDockItems.value.length + // İkonların toplam genişliği
+				iconSpacing * (visibleDockItems.value.length + 1) + // İkonlar arası boşluk + kenar boşlukları
+				dividerSpacing * dividerCount; // Ayırıcılar için ekstra boşluk
+
+			// Dock'u yatayda ortala
+			const dockX = Math.floor((canvasWidth - dockWidth) / 2);
 			const dockY = canvasHeight - dockHeight - 5 * dpr * scale;
 
 			// 1. ADIM: Mevcut canvas içeriğini bir kopyasını al (arkaplanı blurlayacağız)
@@ -2969,8 +2982,8 @@ const drawMacOSDock = (ctx, dpr) => {
 			roundedRect(backdropCtx, dockX, dockY, dockWidth, dockHeight, dockRadius);
 			backdropCtx.clip();
 
-			// Blur filtresi uygula
-			backdropCtx.filter = `blur(${20 * dpr}px)`;
+			// Blur filtresi uygula - Daha güçlü blur efekti
+			backdropCtx.filter = `blur(${30 * dpr}px)`;
 			backdropCtx.drawImage(contentCanvas, 0, 0);
 			backdropCtx.filter = "none";
 			backdropCtx.restore();
@@ -2981,17 +2994,17 @@ const drawMacOSDock = (ctx, dpr) => {
 			shadowCanvas.height = canvasHeight;
 			const shadowCtx = shadowCanvas.getContext("2d");
 
-			// Shadow çiz
+			// Shadow çiz - daha belirgin gölge
 			shadowCtx.save();
-			shadowCtx.shadowColor = "rgba(0, 0, 0, 0.75)";
-			shadowCtx.shadowBlur = 15 * dpr;
+			shadowCtx.shadowColor = "rgba(0, 0, 0, 0.8)";
+			shadowCtx.shadowBlur = 25 * dpr;
 			shadowCtx.shadowOffsetX = 0;
-			shadowCtx.shadowOffsetY = 0;
+			shadowCtx.shadowOffsetY = 2 * dpr;
 
 			// Shadow için şekil çiz
 			shadowCtx.beginPath();
 			roundedRect(shadowCtx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-			shadowCtx.fillStyle = "rgba(255, 255, 255, 0.1)";
+			shadowCtx.fillStyle = "rgba(255, 255, 255, 0.005)";
 			shadowCtx.fill();
 			shadowCtx.restore();
 
@@ -3005,17 +3018,17 @@ const drawMacOSDock = (ctx, dpr) => {
 			ctx.globalCompositeOperation = "source-over";
 			ctx.beginPath();
 			roundedRect(ctx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-			ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+			ctx.fillStyle = "rgba(255, 255, 255, 0.15)"; // Daha belirgin arka plan
 			ctx.fill();
 
 			// Shadow'u çiz
 			ctx.drawImage(shadowCanvas, 0, 0);
 
-			// Border çiz
+			// Border çiz - daha belirgin kenarlar
 			ctx.beginPath();
 			roundedRect(ctx, dockX, dockY, dockWidth + 2, dockHeight + 2, dockRadius);
-			ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
-			ctx.lineWidth = 3 * dpr;
+			ctx.strokeStyle = "rgba(255, 255, 255, 0.23)";
+			ctx.lineWidth = 4 * dpr;
 			ctx.stroke();
 
 			// İkonları çizmeye hazırlan
@@ -3023,13 +3036,38 @@ const drawMacOSDock = (ctx, dpr) => {
 
 			// 5. ADIM: İkonları çiz (blursuz ve net olarak)
 			const totalIcons = visibleDockItems.value.length;
-			const totalIconWidth =
-				(iconSize + iconSpacing) * totalIcons - iconSpacing;
-			let startX = dockX + (dockWidth - totalIconWidth) / 2;
+
+			// İlk ikon konumu (dock'un sol kenarından iconSpacing kadar içeride)
+			let currentX = dockX + iconSpacing;
 
 			// Her dock öğesi için icon çiz
 			visibleDockItems.value.forEach((item, index) => {
-				const iconX = startX + (iconSize + iconSpacing) * index;
+				// Eğer bu öğe divider özelliğine sahipse, ayırıcı çiz
+				if (item.isDivider) {
+					// Divider'dan önce 8 birim boşluk bırak
+					currentX += 8 * dpr * scale;
+
+					// Ayırıcı çizgisi için koordinatları hesapla
+					const dividerX = currentX;
+					const dividerY = dockY + dockHeight * 0.1; // Dock'un üst kısmından başla
+					const dividerHeight = dockHeight * 0.8; // Dock'un %80'i kadar uzunlukta
+
+					// Ayırıcı çizgisini çiz
+					ctx.save();
+					ctx.beginPath();
+					ctx.moveTo(dividerX, dividerY);
+					ctx.lineTo(dividerX, dividerY + dividerHeight);
+					ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; // Hafif beyaz, yarı saydam
+					ctx.lineWidth = 1 * dpr * scale;
+					ctx.stroke();
+					ctx.restore();
+
+					// Divider'dan sonra 8 birim boşluk bırak
+					currentX += 8 * dpr * scale;
+				}
+
+				// İkon için X ve Y pozisyonlarını hesapla
+				const iconX = currentX;
 				const iconY = dockY + (dockHeight - iconSize) / 2;
 				const cacheKey = item.name || `icon-${index}`;
 
@@ -3085,6 +3123,9 @@ const drawMacOSDock = (ctx, dpr) => {
 						img.src = item.iconDataUrl;
 					}
 				}
+
+				// Sonraki ikon için X pozisyonunu güncelle (ikon genişliği + boşluk)
+				currentX += iconSize + iconSpacing;
 			});
 		}
 
