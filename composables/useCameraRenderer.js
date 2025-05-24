@@ -246,19 +246,31 @@ export const useCameraRenderer = () => {
 			cameraY = dragPosition.y;
 		} else if (cameraSettings.value.followMouse) {
 			// For mouse following, consider the zoom scale when applying offsets
-			const minOffset = 200; // Minimum distance
-			const offsetX = minOffset * dpr; // Fixed distance on right
-			const offsetY = minOffset * dpr; // Fixed distance below
+			const minOffset = 80; // Daha küçük minimum mesafe
+			const offsetX = minOffset * dpr; // Sağ tarafta sabit mesafe
+			const offsetY = minOffset * dpr; // Alt tarafta sabit mesafe
 
 			if (dragPosition) {
-				// If camera is being dragged while following mouse, use drag position with video position
+				// Sürükleme sırasında video pozisyonunu ekleyerek kamera pozisyonunu güncelle
 				cameraX = dragPosition.x + videoPosition.x;
 				cameraY = dragPosition.y + videoPosition.y;
 			} else {
-				// Position camera to the right and below cursor, accounting for zoom
-				// When zoomed, we need to position the camera correctly relative to the zoomed content
-				cameraX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
-				cameraY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
+				// İmleç pozisyonuna göre kamera pozisyonunu hesapla
+				const targetX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
+				const targetY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
+
+				// Daha hızlı takip için lerp faktörünü artır
+				const lerpFactor = 0.3; // Daha hızlı takip için lerp faktörünü artırdık
+
+				// Mevcut pozisyonu yumuşak geçiş ile güncelle
+				cameraX = lastCameraPosition.value?.x
+					? lastCameraPosition.value.x +
+					  (targetX - lastCameraPosition.value.x) * lerpFactor
+					: targetX;
+				cameraY = lastCameraPosition.value?.y
+					? lastCameraPosition.value.y +
+					  (targetY - lastCameraPosition.value.y) * lerpFactor
+					: targetY;
 			}
 		} else {
 			// When not following mouse or being dragged, maintain fixed position
