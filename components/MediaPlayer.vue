@@ -76,6 +76,7 @@ import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useCameraRenderer } from "~/composables/useCameraRenderer";
 import { useCameraDrag } from "~/composables/useCameraDrag";
 import { useVideoDrag } from "~/composables/useVideoDrag";
+import useDockSettings from "~/composables/useDockSettings";
 import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
 import VideoCropModal from "~/components/player-settings/VideoCropModal.vue";
 
@@ -196,7 +197,11 @@ const {
 	cameraSettings,
 	videoBorderSettings,
 	mouseVisible,
+	showDock, // Dock görünürlük ayarı
 } = usePlayerSettings();
+
+// Dock ayarlarını al
+const { isSupported: isDockSupported, visibleDockItems } = useDockSettings();
 
 // Kamera renderer'ı al
 const { drawCamera, isMouseOverCamera, lastCameraPosition } =
@@ -1552,6 +1557,29 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 		}
 
+		// Mouse pozisyonlarını çiz
+		drawMousePositions();
+
+		// Kamera çizimi
+		if (cameraElement) {
+			let cameraPos;
+			if (isCameraDragging.value) {
+				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
+				cameraPos = cameraPosition.value;
+				console.log("[MediaPlayer] Using dragged camera position:", cameraPos);
+			}
+		}
+
+		// macOS Dock çiz (eğer aktifse ve destekleniyorsa)
+		if (
+			showDock.value === true &&
+			isDockSupported.value === true &&
+			visibleDockItems.value &&
+			visibleDockItems.value.length > 0
+		) {
+			drawMacOSDock(ctx, dpr);
+		}
+
 		// Animasyon frame'ini sadece gerektiğinde talep et
 		if (
 			videoState.value.isPlaying ||
@@ -2878,6 +2906,126 @@ watch(
 );
 
 // İlk frame'e seek etmek için yardımcı fonksiyon
+
+// macOS Dock çizme fonksiyonu
+const drawMacOSDock = (ctx, dpr) => {
+	if (!canvasRef.value || !ctx) return;
+
+	// Dock ikonları için önbellek oluştur - component scope'unda tutulur
+	if (!window.dockIconCache) {
+		window.dockIconCache = {};
+	}
+
+	try {
+		// Canvas boyutlarını al
+		const canvasWidth = canvasRef.value.width;
+		const canvasHeight = canvasRef.value.height;
+
+		// Dock ayarları
+		const scale = 2;
+		const dockHeight = 65 * dpr * scale;
+		const dockWidth = Math.min(canvasWidth * 0.8, 800 * dpr * scale);
+		const dockX = (canvasWidth - dockWidth) / 2;
+		const dockY = canvasHeight - dockHeight - 20 * dpr * scale; // Ekranın altından 20px yukarıda
+		const dockRadius = 12 * dpr * scale;
+		const iconSize = 48 * dpr * scale;
+		const iconSpacing = 10 * dpr * scale;
+
+		// Dock arkaplanı çiz
+		ctx.save();
+		ctx.beginPath();
+		roundedRect(ctx, dockX, dockY, dockWidth, dockHeight, dockRadius);
+		ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+		ctx.fill();
+
+		// Dock öğelerini çiz
+		if (visibleDockItems.value && visibleDockItems.value.length > 0) {
+			const totalIcons = visibleDockItems.value.length;
+			const totalIconWidth =
+				(iconSize + iconSpacing) * totalIcons - iconSpacing;
+			let startX = dockX + (dockWidth - totalIconWidth) / 2;
+
+			// Her dock öğesi için icon çiz
+			visibleDockItems.value.forEach((item, index) => {
+				const iconX = startX + (iconSize + iconSpacing) * index;
+				const iconY = dockY + (dockHeight - iconSize) / 2;
+				const cacheKey = item.name || `icon-${index}`;
+
+				// Icon varsa çiz
+				if (item.iconDataUrl) {
+					// Cache'de var mı kontrol et
+					if (window.dockIconCache[cacheKey]) {
+						// Cache'den çiz
+						ctx.save();
+						ctx.beginPath();
+						ctx.arc(
+							iconX + iconSize / 2,
+							iconY + iconSize / 2,
+							iconSize / 2,
+							0,
+							2 * Math.PI
+						);
+						ctx.clip();
+						ctx.drawImage(
+							window.dockIconCache[cacheKey],
+							iconX,
+							iconY,
+							iconSize,
+							iconSize
+						);
+						ctx.restore();
+					} else {
+						// Yeni image yükle
+						const img = new Image();
+						img.onload = () => {
+							// Cache'e ekle
+							window.dockIconCache[cacheKey] = img;
+
+							// Yuvarlak kırpma maskesi oluştur
+							ctx.save();
+							ctx.beginPath();
+							ctx.arc(
+								iconX + iconSize / 2,
+								iconY + iconSize / 2,
+								iconSize / 2,
+								0,
+								2 * Math.PI
+							);
+							ctx.clip();
+
+							// İkonu çiz
+							ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
+							ctx.restore();
+
+							// Canvas'ı güncelle
+							requestAnimationFrame(updateCanvas);
+						};
+						img.src = item.iconDataUrl;
+					}
+				}
+			});
+		}
+
+		ctx.restore();
+	} catch (error) {
+		console.error("[MediaPlayer] Error drawing macOS dock:", error);
+	}
+};
+
+// Yuvarlak köşeli dikdörtgen çizme yardımcı fonksiyonu
+const roundedRect = (ctx, x, y, width, height, radius) => {
+	ctx.beginPath();
+	ctx.moveTo(x + radius, y);
+	ctx.lineTo(x + width - radius, y);
+	ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+	ctx.lineTo(x + width, y + height - radius);
+	ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+	ctx.lineTo(x + radius, y + height);
+	ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+	ctx.lineTo(x, y + radius);
+	ctx.quadraticCurveTo(x, y, x + radius, y);
+	ctx.closePath();
+};
 </script>
 
 <style scoped>

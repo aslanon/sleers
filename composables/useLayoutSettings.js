@@ -47,6 +47,7 @@ export const useLayoutSettings = () => {
 					radius: playerSettings.radius.value,
 					shadowSize: playerSettings.shadowSize.value,
 					cropRatio: playerSettings.cropRatio.value,
+					showDock: playerSettings.showDock.value,
 
 					// Canvas size settings - use provided values or defaults
 					canvasSize: additionalSettings.canvasSize ||

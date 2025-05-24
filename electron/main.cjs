@@ -56,6 +56,7 @@ const EditorManager = require("./editorManager.cjs");
 const SelectionManager = require("./selectionManager.cjs");
 const TempFileManager = require("./tempFileManager.cjs");
 const MediaStateManager = require("./mediaStateManager.cjs");
+const DockManager = require("./dockManager.cjs");
 
 // Express ve HTTP server değişkenleri
 let expressApp = null;
@@ -69,6 +70,7 @@ let selectionManager = null;
 let editorManager = null;
 let tempFileManager = null;
 let mediaStateManager = null;
+let dockManager = null;
 let editorSettings = {
 	camera: {
 		followMouse: true,
@@ -178,6 +180,25 @@ ipcMain.on(IPC_EVENTS.UPDATE_RECORDING_DELAY, (event, delay) => {
 
 safeHandle(IPC_EVENTS.GET_RECORDING_DELAY, () => {
 	return recordingDelay;
+});
+
+// Dock ikonları artık doğrudan dockManager.cjs içinde işleniyor
+// PROCESS_DOCK_ICONS handler'ı kaldırıldı
+
+safeHandle(IPC_EVENTS.GET_DOCK_ITEMS, async () => {
+	try {
+		console.log("[Main] Getting dock items...");
+		if (dockManager) {
+			const items = await dockManager.getDockItems();
+			console.log(`[Main] Found ${items.length} dock items`);
+			return items;
+		}
+		console.log("[Main] DockManager not initialized");
+		return [];
+	} catch (error) {
+		console.error("[Main] Error getting dock items:", error);
+		return [];
+	}
 });
 
 // İzin durumlarını kontrol eden handler ekle
@@ -2444,6 +2465,10 @@ function getPreloadPath() {
 app.whenReady().then(() => {
 	// Uygulama kapanma değişkenini false olarak ayarla
 	app.isQuitting = false;
+
+	// Initialize DockManager early
+	console.log("[Main] Initializing DockManager...");
+	dockManager = new DockManager();
 
 	// İzinleri başlangıçta kontrol et ve iste
 	checkAndRequestPermissions();

@@ -170,12 +170,38 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- macOS Dock Ayarı -->
+		<div class="space-y-4 pt-6 border-t border-zinc-700">
+			<div class="flex items-center justify-between">
+				<div>
+					<h4 class="text-base font-semibold text-white">macOS Dock</h4>
+					<p class="text-sm text-gray-400">
+						Video'nun altında macOS Dock'u göster
+						<span v-if="!isDockSupported" class="text-yellow-500"
+							>(Not supported on this platform)</span
+						>
+					</p>
+				</div>
+				<div class="flex items-center">
+					<label class="switch">
+						<input
+							type="checkbox"
+							v-model="showDockValue"
+							@change="updateShowDock"
+						/>
+						<span class="slider round"></span>
+					</label>
+				</div>
+			</div>
+		</div>
 	</div>
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import useDockSettings from "~/composables/useDockSettings";
 import SliderInput from "~/components/ui/SliderInput.vue";
 
 const props = defineProps({
@@ -210,7 +236,17 @@ const {
 	updateBackgroundImage,
 	updateBackgroundBlur,
 	updateVideoBorderSettings,
+	showDock,
+	updateShowDock: updateDockVisibility,
 } = usePlayerSettings();
+
+// Dock ayarları
+const {
+	isSupported: isDockSupported,
+	showDockItems,
+	toggleDockVisibility,
+} = useDockSettings();
+const showDockValue = ref(showDock.value);
 
 // Renk paleti
 const colors = [
@@ -451,6 +487,24 @@ function updateBorderOpacity() {
 		opacity: borderOpacityValue.value,
 	});
 }
+
+// Update dock visibility
+function updateShowDock() {
+	console.log("[VideoSettings] Updating dock visibility:", {
+		oldValue: showDock.value,
+		newValue: showDockValue.value,
+	});
+	toggleDockVisibility(showDockValue.value);
+	updateDockVisibility(showDockValue.value);
+}
+
+// Store'dan gelen dock ayarlarını izle
+watch(
+	() => showDockItems.value,
+	(newValue) => {
+		showDockValue.value = newValue;
+	}
+);
 </script>
 
 <style scoped>
@@ -505,5 +559,61 @@ function updateBorderOpacity() {
 
 .wallpaper-button-selected {
 	border-color: #ffffff;
+}
+
+/* Switch toggle styles */
+.switch {
+	position: relative;
+	display: inline-block;
+	width: 50px;
+	height: 24px;
+}
+
+.switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: #3a3a3a;
+	transition: 0.4s;
+}
+
+.slider:before {
+	position: absolute;
+	content: "";
+	height: 18px;
+	width: 18px;
+	left: 3px;
+	bottom: 3px;
+	background-color: white;
+	transition: 0.4s;
+}
+
+input:checked + .slider {
+	background-color: #2196f3;
+}
+
+input:focus + .slider {
+	box-shadow: 0 0 1px #2196f3;
+}
+
+input:checked + .slider:before {
+	transform: translateX(26px);
+}
+
+.slider.round {
+	border-radius: 24px;
+}
+
+.slider.round:before {
+	border-radius: 50%;
 }
 </style>

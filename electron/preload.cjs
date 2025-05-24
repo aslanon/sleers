@@ -37,6 +37,7 @@ const IPC_EVENTS = {
 	PROTECT_FILE: "PROTECT_FILE",
 	UNPROTECT_FILE: "UNPROTECT_FILE",
 	GET_PROTECTED_FILES: "GET_PROTECTED_FILES",
+	GET_DOCK_ITEMS: "GET_DOCK_ITEMS",
 
 	RECORDING_STATUS_CHANGED: "RECORDING_STATUS_CHANGED",
 	RECORDING_STATUS_UPDATE: "RECORDING_STATUS_UPDATE",
@@ -163,6 +164,94 @@ const IPC_EVENTS = {
 	DEBUG_CHECK_STATIC_FILES: "DEBUG_CHECK_STATIC_FILES",
 };
 
+// Allowed IPC channels to invoke
+const validChannels = [
+	"RECORDING_STATUS_CHANGED",
+	"RECORDING_STATUS_UPDATE",
+	"START_RECORDING",
+	"STOP_RECORDING",
+	"RECORDING_ERROR",
+	"RECORDING_PROGRESS",
+	"UPDATE_RECORDING_SOURCE",
+	"UPDATE_RECORDING_DELAY",
+	"START_APERTURE_RECORDING",
+	"STOP_APERTURE_RECORDING",
+	"START_MEDIA_STREAM",
+	"WRITE_MEDIA_CHUNK",
+	"END_MEDIA_STREAM",
+	"EDITOR_CLOSED",
+	"CLOSE_EDITOR_WINDOW",
+	"EDITOR_LOAD_ERROR",
+	"START_EDITING",
+	"PROCESSING_COMPLETE",
+	"OPEN_EDITOR_MODE",
+	"GET_MEDIA_STATE",
+	"MEDIA_STATE_UPDATE",
+	"MEDIA_READY",
+	"MEDIA_ERROR",
+	"GET_MEDIA_PATHS",
+	"MEDIA_PATHS",
+	"CAMERA_DEVICE_CHANGED",
+	"CAMERA_STATUS_CHANGED",
+	"START_CAMERA",
+	"STOP_CAMERA",
+	"GET_CAMERA_STATUS",
+	"SHOW_CAMERA_WINDOW",
+	"HIDE_CAMERA_WINDOW",
+	"AUDIO_DEVICE_CHANGED",
+	"AUDIO_STATUS_CHANGED",
+	"START_AREA_SELECTION",
+	"AREA_SELECTED",
+	"UPDATE_SELECTED_AREA",
+	"GET_CROP_INFO",
+	"WINDOW_CLOSE",
+	"START_WINDOW_DRAG",
+	"WINDOW_DRAGGING",
+	"END_WINDOW_DRAG",
+	"GET_WINDOW_POSITION",
+	"UPDATE_WINDOW_SIZE",
+	"SAVE_TEMP_VIDEO",
+	"GET_TEMP_VIDEO_PATH",
+	"SHOW_SAVE_DIALOG",
+	"READ_VIDEO_FILE",
+	"SAVE_VIDEO_FILE",
+	"SAVE_CANVAS_RECORDING",
+	"GET_DOCUMENTS_PATH",
+	"SAVE_VIDEO",
+	"SAVE_GIF",
+	"GET_HOME_DIR",
+	"SHOW_FILE_IN_FOLDER",
+	"GET_PATH",
+	"SHOW_DIRECTORY_DIALOG",
+	"DESKTOP_CAPTURER_GET_SOURCES",
+	"RESET_FOR_NEW_RECORDING",
+	"UPDATE_AUDIO_SETTINGS",
+	"AUDIO_SETTINGS_UPDATED",
+	"GET_AUDIO_SETTINGS",
+	"MOUSE_POSITION_UPDATED",
+	"GET_RECORDING_DELAY",
+	"LOAD_CURSOR_DATA",
+	"UPDATE_EDITOR_SETTINGS",
+	"GET_EDITOR_SETTINGS",
+	"SAVE_SCREENSHOT",
+	"CHECK_PERMISSIONS",
+	"REQUEST_PERMISSION",
+	"OPEN_SYSTEM_PREFERENCES",
+	"PROTECT_FILE",
+	"UNPROTECT_FILE",
+	"GET_PROTECTED_FILES",
+	"GET_FILE_SIZE",
+	"LOAD_APERTURE_MODULE",
+	"GET_APERTURE_SCREENS",
+	"VALIDATE_APERTURE_SCREEN_ID",
+	"SHOW_PROMPT",
+	"SHOW_CONFIRM",
+	"STORE_GET",
+	"STORE_SET",
+	"DEBUG_CHECK_STATIC_FILES",
+	"GET_DOCK_ITEMS",
+];
+
 // Electron API güvenli wrapper fonksiyonu
 function createSafeElectronAPI() {
 	// Temel köprü fonksiyonları
@@ -262,9 +351,39 @@ function createSafeElectronAPI() {
 
 // Güvenli köprü oluştur
 try {
+	// Create a safe API object to expose to the renderer
+	const safeElectronAPI = createSafeElectronAPI();
+
 	// Electron API'yi güvenli şekilde exposeInMainWorld ile uygulama dünyasına aç
-	contextBridge.exposeInMainWorld("electron", createSafeElectronAPI());
-	console.log("Preload script başarıyla yüklendi!");
+	contextBridge.exposeInMainWorld("electron", safeElectronAPI);
+
+	// For backward compatibility, also expose as electronAPI
+	contextBridge.exposeInMainWorld("electronAPI", {
+		invoke: safeElectronAPI.ipcRenderer.invoke,
+		send: safeElectronAPI.ipcRenderer.send,
+		on: safeElectronAPI.ipcRenderer.on,
+		once: safeElectronAPI.ipcRenderer.once,
+		removeAllListeners: safeElectronAPI.ipcRenderer.removeAllListeners,
+	});
+
+	// Dock API'sini expose et - Ana süreçle iletişim kuran sürüm
+	contextBridge.exposeInMainWorld("dockAPI", {
+		getDockIcons: async () => {
+			try {
+				// Doğrudan GET_DOCK_ITEMS eventini kullan
+				return await ipcRenderer.invoke(IPC_EVENTS.GET_DOCK_ITEMS);
+			} catch (error) {
+				console.error("[Preload] Error getting dock icons:", error);
+				return [];
+			}
+		},
+	});
+
+	console.log("Preload script başarıyla yüklendi! Exposed APIs:", {
+		electron: Object.keys(safeElectronAPI),
+		electronAPI: ["invoke", "send", "on", "once", "removeAllListeners"],
+		dockAPI: ["getDockIcons"],
+	});
 } catch (error) {
 	console.error("Preload script yüklenirken hata:", error);
 }
