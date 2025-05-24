@@ -172,10 +172,10 @@
 		</div>
 
 		<!-- macOS Dock Ayarı -->
-		<div class="space-y-4 pt-6 border-t border-zinc-700">
+		<div class="space-y-4 border-zinc-700">
 			<div class="flex items-center justify-between">
 				<div>
-					<h4 class="text-base font-semibold text-white">macOS Dock</h4>
+					<h4 class="text-base font-semibold text-white">MacOS Dock</h4>
 					<p class="text-sm text-gray-400">
 						Video'nun altında macOS Dock'u göster
 						<span v-if="!isDockSupported" class="text-yellow-500"

@@ -73,8 +73,9 @@ export default function useDockSettings() {
 
 	/**
 	 * Dock öğelerini ana süreçten al
+	 * @param {boolean} forceRefresh - Cache'i yoksay ve zorla yenile
 	 */
-	const fetchDockItems = async () => {
+	const fetchDockItems = async (forceRefresh = false) => {
 		if (!window.dockAPI) {
 			console.error("[useDockSettings] Dock API not available");
 			return;
@@ -83,13 +84,20 @@ export default function useDockSettings() {
 		isLoading.value = true;
 		error.value = null;
 
+		// Eğer forceRefresh true ise, önbelleği temizle
+		if (forceRefresh) {
+			console.log("[useDockSettings] Force refresh requested, clearing cache");
+			this.cachedItems = null;
+			this.cacheTime = null;
+		}
+
 		try {
 			// Finder ve Trash ikonlarını yükle
 			await Promise.all([loadFinderIcon(), loadTrashIcon()]);
 
 			// Dock öğelerini doğrudan al
 			console.log("[useDockSettings] Fetching dock items");
-			const items = await window.dockAPI.getDockIcons();
+			const items = await window.dockAPI.getDockIcons(forceRefresh);
 			console.log(`[useDockSettings] Got ${items?.length || 0} dock items`);
 
 			// Icon durumlarını kontrol et
