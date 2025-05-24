@@ -1063,6 +1063,68 @@ class MediaStateManager {
 			});
 		}
 	}
+
+	setSelectedArea(selectedArea) {
+		this.state.selectedArea = selectedArea;
+	}
+
+	getSelectedArea() {
+		return this.state.selectedArea;
+	}
+
+	// Cursor verisi metodları
+	getCursorData() {
+		return this.mousePositions || [];
+	}
+
+	// Crop bilgisi metodu
+	getCropInfo() {
+		// Seçili alan mevcutsa crop bilgisi döndür
+		if (this.state.selectedArea) {
+			return {
+				x: this.state.selectedArea.x,
+				y: this.state.selectedArea.y,
+				width: this.state.selectedArea.width,
+				height: this.state.selectedArea.height,
+				enabled: true,
+			};
+		} else {
+			// Varsayılan olarak crop devre dışı
+			return {
+				x: 0,
+				y: 0,
+				width: 0,
+				height: 0,
+				enabled: false,
+			};
+		}
+	}
+
+	// Aperture için ek metod
+	getApertureStatus() {
+		return {
+			isAvailable: true, // Simüle edilmiş Aperture modülü her zaman mevcut
+			selectedScreen: this.state.recordingSource.apertureId,
+			isRecording: this.state.isRecording,
+		};
+	}
+
+	// Aperture kaydı ayarla
+	setApertureRecording(screenId) {
+		console.log(
+			"[MediaStateManager] Aperture kayıt ekranı ayarlanıyor:",
+			screenId
+		);
+		this.updateState({
+			recordingSource: {
+				...this.state.recordingSource,
+				sourceType: "screen", // Aperture her zaman screen tipi kayıtlar yapar
+				apertureId: screenId,
+			},
+		});
+
+		return true;
+	}
 }
 
 module.exports = MediaStateManager;

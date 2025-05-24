@@ -8,13 +8,14 @@
 @layer base {
 	html {
 		@apply text-gray-200;
-		@apply bg-gray-900;
+		@apply bg-transparent;
 		@apply font-inter;
 	}
 
 	body {
 		@apply font-inter;
 		@apply antialiased;
+		@apply bg-transparent;
 	}
 }
 
@@ -39,5 +40,9 @@
 
 	.text-shadow-lg {
 		text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+	}
+
+	.bg-transparent {
+		background-color: transparent !important;
 	}
 }

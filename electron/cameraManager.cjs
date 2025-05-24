@@ -268,7 +268,7 @@ class CameraManager {
 		}
 
 		const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-		const size = this.LARGE_SIZE;
+		const size = this.SMALL_SIZE; // Başlangıçta küçük boyutla başla
 
 		try {
 			this.cameraWindow = new BrowserWindow({
@@ -280,39 +280,46 @@ class CameraManager {
 				frame: false,
 				alwaysOnTop: true,
 				webPreferences: {
-					nodeIntegration: true,
+					nodeIntegration: false,
 					contextIsolation: true,
 					backgroundThrottling: false,
 					preload: path.join(__dirname, "preload.cjs"),
+					webSecurity: false,
+					allowRunningInsecureContent: true,
 				},
 				backgroundColor: "#00000000",
 				hasShadow: false,
 				roundedCorners: true,
-				titleBarOverlay: false,
-				fullscreenable: false,
 				type: "panel",
-				show: false,
-				focusable: false,
-				vibrancy: "ultra-dark",
+				show: false, // Başlangıçta gizle, içerik yüklendikten sonra göster
 				maximizable: false,
 				minimizable: false,
 				skipTaskbar: true,
-				excludedFromCapture: true,
-				paintWhenInitiallyHidden: true,
-				hiddenInMissionControl: true,
-				visualEffectState: "active",
 				movable: true,
-				title: "Sleer Camera",
 			});
 
-			this.cameraWindow.setContentProtection(true);
+			// Kamera penceresini yapılandır
+			this.cameraWindow.removeMenu();
+			this.cameraWindow.setAlwaysOnTop(true, "floating");
+			this.cameraWindow.setVisibleOnAllWorkspaces(true);
 			this.cameraWindow.setBackgroundColor("#00000000");
+
+			// Log kamera penceresi oluşturma bilgisi
+			console.log("[CameraManager] Kamera penceresi oluşturuldu, boyut:", size);
 
 			// Set up window event handlers
 			this.setupWindowEventHandlers();
 
 			// Load camera content
-			await this.loadCameraContent(); // Start mouse tracking after successful initialization
+			await this.loadCameraContent();
+
+			// Kamera penceresini göster
+			if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+				this.cameraWindow.show();
+				console.log("[CameraManager] Kamera penceresi gösteriliyor");
+			}
+
+			// Start mouse tracking after successful initialization
 			this.startMouseTracking();
 			return true;
 		} catch (error) {
@@ -343,6 +350,35 @@ class CameraManager {
 				this.handleLoadError(errorCode, errorDescription);
 			}
 		);
+
+		// IPC olaylarını dinle
+		const { ipcMain } = require("electron");
+
+		// Kamera penceresi sürükleme olayları
+		ipcMain.on("CAMERA_WINDOW_DRAG_START", (event, mousePos) => {
+			if (event.sender === this.cameraWindow?.webContents) {
+				this.handleWindowDragStart(mousePos);
+			}
+		});
+
+		ipcMain.on("CAMERA_WINDOW_DRAGGING", (event, mousePos) => {
+			if (event.sender === this.cameraWindow?.webContents) {
+				this.handleWindowDragging(mousePos);
+			}
+		});
+
+		ipcMain.on("CAMERA_WINDOW_DRAG_END", (event) => {
+			if (event.sender === this.cameraWindow?.webContents) {
+				this.handleWindowDragEnd();
+			}
+		});
+
+		// Kamera durumu değişikliği
+		ipcMain.on("CAMERA_STATUS_CHANGE", (event, statusData) => {
+			if (event.sender === this.cameraWindow?.webContents) {
+				this.handleCameraStatusUpdate(statusData);
+			}
+		});
 	}
 
 	// Handle unresponsive window
@@ -368,22 +404,224 @@ class CameraManager {
 	async loadCameraContent() {
 		if (!this.cameraWindow) return;
 
-		const cameraHtmlPath = path.join(
-			__dirname,
-			"../.output/public/camera/index.html"
-		);
-
 		try {
 			if (isDev) {
-				console.log("Loading camera window in development mode...");
+				console.log(
+					"[CameraManager] Geliştirme modunda kamera penceresi yükleniyor..."
+				);
 				await this.cameraWindow.loadURL("http://127.0.0.1:3000/camera");
 				this.cameraWindow.webContents.openDevTools({ mode: "detach" });
 			} else {
-				console.log("Loading camera window in production mode...");
-				await this.cameraWindow.loadFile(cameraHtmlPath);
+				// Express sunucusu kullanıyorsa
+				const serverPort = global.serverPort || 3030; // Global değişkenden port bilgisini al
+				const serverUrl = `http://localhost:${serverPort}/camera`;
+
+				console.log(
+					`[CameraManager] Üretim modunda kamera penceresi yükleniyor... URL: ${serverUrl}`
+				);
+
+				// Görünürlüğü hemen garantile
+				setTimeout(() => {
+					if (
+						this.cameraWindow &&
+						!this.cameraWindow.isDestroyed() &&
+						!this.cameraWindow.isVisible()
+					) {
+						this.cameraWindow.show();
+						console.log("[CameraManager] Erken görünürlük garantisi (timeout)");
+					}
+				}, 500);
+
+				try {
+					await this.cameraWindow.loadURL(serverUrl);
+					console.log(
+						"[CameraManager] Kamera penceresi başarıyla yüklendi (Express)"
+					);
+				} catch (expressError) {
+					console.error(
+						"[CameraManager] Express'ten yükleme başarısız:",
+						expressError
+					);
+
+					// Alternatif 1: hash ile dene
+					try {
+						await this.cameraWindow.loadURL(
+							`http://localhost:${serverPort}/#/camera`
+						);
+						console.log("[CameraManager] Hash ile yüklendi");
+					} catch (hashError) {
+						console.error("[CameraManager] Hash yükleme hatası:", hashError);
+
+						try {
+							// Alternatif 2: doğrudan yüklemeyi dene
+							const cameraHtmlPath = path.join(
+								process.resourcesPath,
+								"public/camera.html"
+							);
+							console.log(
+								`[CameraManager] Alternatif yükleme deneniyor: ${cameraHtmlPath}`
+							);
+							await this.cameraWindow.loadFile(cameraHtmlPath);
+						} catch (fileError) {
+							console.error("Dosyadan yükleme hatası:", fileError);
+
+							// Son çare olarak doğrudan HTML oluştur
+							console.log("[CameraManager] Inline HTML içeriği oluşturuluyor");
+							const htmlContent = `
+							<!DOCTYPE html>
+							<html>
+							<head>
+								<meta charset="utf-8">
+								<meta name="viewport" content="width=device-width, initial-scale=1">
+								<title>Camera</title>
+								<style>
+									body {
+										margin: 0;
+										padding: 0;
+										overflow: hidden;
+										background: transparent;
+									}
+									.camera-container {
+										width: 100vw;
+										height: 100vh;
+										display: flex;
+										justify-content: center;
+										align-items: center;
+										border-radius: 50%;
+										overflow: hidden;
+									}
+									video {
+										width: 100%;
+										height: 100%;
+										object-fit: cover;
+										transform: scaleX(-1);
+										border-radius: 50%;
+									}
+									.loading {
+										position: absolute;
+										top: 0;
+										left: 0;
+										width: 100%;
+										height: 100%;
+										display: flex;
+										justify-content: center;
+										align-items: center;
+										background: rgba(0,0,0,0.3);
+										color: white;
+										font-family: sans-serif;
+										font-size: 12px;
+										border-radius: 50%;
+									}
+								</style>
+							</head>
+							<body>
+								<div class="camera-container">
+									<div class="loading">Camera loading...</div>
+									<video id="camera" autoplay muted playsinline></video>
+								</div>
+								<script>
+									const startCamera = async () => {
+										try {
+											const stream = await navigator.mediaDevices.getUserMedia({
+												video: {
+													width: { ideal: 1280 },
+													height: { ideal: 720 }
+												},
+												audio: false
+											});
+											
+											const video = document.getElementById('camera');
+											video.srcObject = stream;
+											
+											// Loading mesajını kaldır
+											video.onloadeddata = () => {
+												const loading = document.querySelector('.loading');
+												if (loading) loading.style.display = 'none';
+												
+												// Electron API'ye erişim varsa durumu bildir
+												if (window.electronAPI) {
+													window.electronAPI.sendToMain('CAMERA_STATUS_CHANGE', {
+														type: 'camera',
+														isActive: true,
+														status: 'ready'
+													});
+												}
+											};
+										} catch (err) {
+											console.error('Kamera başlatma hatası:', err);
+											const loading = document.querySelector('.loading');
+											if (loading) loading.textContent = 'Camera error: ' + err.message;
+										}
+									};
+									
+									document.addEventListener('DOMContentLoaded', () => {
+										startCamera();
+										
+										// Electron API'ye erişim varsa pencere yüklendi bilgisi gönder
+										if (window.electronAPI) {
+											window.electronAPI.sendToMain('CAMERA_STATUS_CHANGE', {
+												type: 'camera',
+												isActive: false,
+												status: 'loading'
+											});
+										}
+									});
+								</script>
+							</body>
+							</html>
+							`;
+
+							await this.cameraWindow.loadURL(
+								"data:text/html;charset=utf-8," +
+									encodeURIComponent(htmlContent)
+							);
+						}
+					}
+				}
 			}
+
+			// Pencereyi göster ve camera feed başlat
+			this.cameraWindow.once("ready-to-show", () => {
+				if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {
+					this.cameraWindow.show();
+					console.log(
+						"[CameraManager] ready-to-show ile kamera penceresi gösteriliyor"
+					);
+				}
+			});
+
+			// Güvenlik önlemi olarak ek bir zamanlayıcı da ekleyelim
+			setTimeout(() => {
+				if (
+					this.cameraWindow &&
+					!this.cameraWindow.isDestroyed() &&
+					!this.cameraWindow.isVisible()
+				) {
+					this.cameraWindow.show();
+					console.log(
+						"[CameraManager] Zamanlayıcı ile kamera penceresi gösteriliyor"
+					);
+				}
+			}, 1000);
+
+			// Ek güvenlik: 3 saniye sonra kontrol et (uzun zamanlayıcı)
+			setTimeout(() => {
+				if (
+					this.cameraWindow &&
+					!this.cameraWindow.isDestroyed() &&
+					!this.cameraWindow.isVisible()
+				) {
+					this.cameraWindow.show();
+					this.cameraWindow.setAlwaysOnTop(true, "floating");
+					console.log(
+						"[CameraManager] Uzun zamanlayıcı ile kamera penceresi gösteriliyor (3s)"
+					);
+				}
+			}, 3000);
+
+			return true;
 		} catch (error) {
-			console.error("Error loading camera content:", error);
+			console.error("[CameraManager] Kamera içeriği yüklenirken hata:", error);
 			throw error;
 		}
 	}

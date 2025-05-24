@@ -1,5 +1,5 @@
 <template>
-	<div>
+	<div class="transparent-root">
 		<NuxtPage />
 	</div>
 </template>
@@ -14,3 +14,16 @@ if (process.client) {
 	}
 }
 </script>
+
+<style>
+html,
+body {
+	background: transparent !important;
+	margin: 0;
+	padding: 0;
+}
+
+.transparent-root {
+	background: transparent !important;
+}
+</style>

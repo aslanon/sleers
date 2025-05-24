@@ -5,6 +5,7 @@
 	"description": "MacOS ekran, kamera ve ses kayıt uygulaması",
 	"private": true,
 	"main": "electron/main.cjs",
+	"type": "commonjs",
 	"scripts": {
 		"build": "nuxt build",
 		"dev": "nuxt dev",
@@ -12,7 +13,10 @@
 		"preview": "nuxt preview",
 		"postinstall": "nuxt prepare",
 		"electron:dev": "concurrently -k \"BROWSER=none npm run dev\" \"wait-on -t 30000 http://127.0.0.1:3000 && cross-env NODE_ENV=development electron electron/main.cjs\"",
-		"electron:build": "nuxt build && electron-builder"
+		"electron:build": "nuxt generate && electron-builder --dir",
+		"electron:build:mac": "nuxt generate && electron-builder -m --arm64 --dir",
+		"electron:build:quick": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --dir --config.removePackageScripts=false",
+		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false --config.mac.icon=null"
 	},
 	"dependencies": {
 		"@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -22,6 +26,8 @@
 		"@vueuse/components": "^12.3.0",
 		"@vueuse/core": "^12.3.0",
 		"aperture": "^7.0.0",
+		"electron-store": "^10.0.1",
+		"express": "^4.18.2",
 		"fluent-ffmpeg": "^2.1.3",
 		"mousetrap": "^1.6.5",
 		"uiohook-napi": "^1.5.4",
@@ -32,46 +38,58 @@
 		"concurrently": "^8.2.2",
 		"cross-env": "^7.0.3",
 		"electron": "^35.1.4",
-		"electron-builder": "^25.1.8",
+		"electron-builder": "^26.0.12",
 		"nuxt": "^3.9.1"
 	},
 	"build": {
 		"appId": "com.sleer.app",
 		"productName": "Sleer",
 		"asar": true,
+		"asarUnpack": [
+			"node_modules/electron-store/**",
+			"node_modules/conf/**"
+		],
 		"directories": {
-			"output": "dist",
-			"buildResources": "build"
+			"output": "dist"
+		},
+		"files": [
+			"electron/**",
+			".output/public/**",
+			"package.json",
+			"node_modules/electron-store/**"
+		],
+		"extraResources": [
+			{
+				"from": ".output/public",
+				"to": "public"
+			}
+		],
+		"extraMetadata": {
+			"main": "electron/main.cjs"
 		},
 		"mac": {
+			"icon": null,
 			"category": "public.app-category.video",
-			"icon": "build/icon.icns",
 			"target": [
 				{
 					"target": "dmg",
 					"arch": [
-						"x64",
 						"arm64"
 					]
 				}
 			],
-			"entitlements": "build/entitlements.mac.plist",
-			"entitlementsInherit": "build/entitlements.mac.plist",
 			"hardenedRuntime": true,
 			"gatekeeperAssess": false,
+			"artifactName": "${productName}-${version}-arm64.${ext}",
 			"extendInfo": {
 				"NSCameraUsageDescription": "Sleer, ekran kayıtlarınıza kamera görüntünüzü eklemek için kameranıza erişim gerektirir.",
 				"NSMicrophoneUsageDescription": "Sleer, sesli anlatım kaydetmek için mikrofonunuza erişim gerektirir.",
-				"NSScreenCaptureDescription": "Sleer, ekranınızı kaydetmek için bu izne ihtiyaç duyar.",
-				"com.apple.security.device.audio-input": "Sleer, sistem seslerini kaydetmek için bu izne ihtiyaç duyar."
+				"NSScreenCaptureUsageDescription": "Sleer, ekranınızı kaydetmek için bu izne ihtiyaç duyar."
 			}
 		},
-		"files": [
-			".output/public/**/*",
-			"electron/**/*"
-		],
-		"extraMetadata": {
-			"main": "electron/main.cjs"
-		}
+		"nodeGypRebuild": false,
+		"npmRebuild": false,
+		"forceCodeSigning": false,
+		"electronCompile": false
 	}
 }

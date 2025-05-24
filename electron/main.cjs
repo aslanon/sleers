@@ -9,6 +9,7 @@ const {
 	protocol,
 	screen,
 	dialog,
+	net,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -16,6 +17,37 @@ const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
 const ffmpeg = require("fluent-ffmpeg");
 const { uIOhook } = require("uiohook-napi");
+const express = require("express");
+const http = require("http");
+const os = require("os");
+
+// Top level olarak protokolleri kaydet (app.whenReady() önce çağrılmalı)
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: "electron",
+		privileges: {
+			secure: true,
+			standard: true,
+			bypassCSP: true,
+			allowServiceWorkers: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+			stream: true,
+		},
+	},
+	{
+		scheme: "file",
+		privileges: {
+			secure: true,
+			standard: true,
+			bypassCSP: true,
+			allowServiceWorkers: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+			stream: true,
+		},
+	},
+]);
 
 const { IPC_EVENTS } = require("./constants.cjs");
 const TrayManager = require("./trayManager.cjs");
@@ -24,6 +56,11 @@ const EditorManager = require("./editorManager.cjs");
 const SelectionManager = require("./selectionManager.cjs");
 const TempFileManager = require("./tempFileManager.cjs");
 const MediaStateManager = require("./mediaStateManager.cjs");
+
+// Express ve HTTP server değişkenleri
+let expressApp = null;
+let httpServer = null;
+let serverPort = 3000;
 
 let mainWindow = null;
 let trayManager = null;
@@ -41,6 +78,7 @@ let editorSettings = {
 // Pencere sürükleme için değişkenler
 let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
+let mousePosition = { x: 0, y: 0 };
 
 // Mouse tracking için değişkenler
 let isTracking = false;
@@ -57,6 +95,51 @@ let recordingSource = {
 	sourceName: null,
 };
 
+// Aperture modülü için temel işlevler
+let aperture = null;
+try {
+	// Gerçek aperture modülü mevcut değilse, simüle edelim
+	aperture = {
+		screens: async () => {
+			const displays = screen.getAllDisplays();
+			return displays.map((display) => ({
+				id: `screen_${display.id}`,
+				name: `Screen ${display.id}`,
+				width: display.size.width,
+				height: display.size.height,
+			}));
+		},
+		windows: async () => {
+			// Pencere listesini desktopCapturer'dan alalım
+			const sources = await desktopCapturer.getSources({ types: ["window"] });
+			return sources.map((source) => ({
+				id: source.id,
+				name: source.name,
+				bounds: source.thumbnail.getBounds(),
+			}));
+		},
+		startRecording: async (options) => {
+			console.log("[Aperture] Kayıt başlatılıyor:", options);
+			return {
+				filePath: path.join(os.tmpdir(), `aperture_record_${Date.now()}.mp4`),
+				stop: async () => {
+					console.log("[Aperture] Kayıt durduruluyor");
+					return {
+						filePath: path.join(
+							os.tmpdir(),
+							`aperture_record_${Date.now()}.mp4`
+						),
+					};
+				},
+			};
+		},
+	};
+	console.log("[Main] Aperture modülü başarıyla simüle edildi");
+} catch (error) {
+	console.error("[Main] Aperture modülü simülasyonu başarısız:", error);
+	aperture = null;
+}
+
 // UPDATE_EDITOR_SETTINGS
 ipcMain.on(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, (event, settings) => {
 	editorSettings = {
@@ -65,7 +148,26 @@ ipcMain.on(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, (event, settings) => {
 	};
 });
 
-ipcMain.handle(IPC_EVENTS.GET_EDITOR_SETTINGS, () => {
+// Kaydedilen handler'ları takip etmek için bir set oluşturalım
+const registeredHandlers = new Set();
+
+// Safe handle fonksiyonu, her handler için bir kez register etmemizi sağlar
+function safeHandle(channel, handler) {
+	if (registeredHandlers.has(channel)) {
+		console.log(`[Main] Handler zaten kayıtlı, atlanıyor: ${channel}`);
+		return;
+	}
+
+	try {
+		ipcMain.handle(channel, handler);
+		registeredHandlers.add(channel);
+		console.log(`[Main] Handler başarıyla kaydedildi: ${channel}`);
+	} catch (error) {
+		console.error(`[Main] Handler kaydedilirken hata: ${channel}`, error);
+	}
+}
+
+safeHandle(IPC_EVENTS.GET_EDITOR_SETTINGS, () => {
 	return editorSettings;
 });
 
@@ -74,17 +176,17 @@ ipcMain.on(IPC_EVENTS.UPDATE_RECORDING_DELAY, (event, delay) => {
 	recordingDelay = delay;
 });
 
-ipcMain.handle(IPC_EVENTS.GET_RECORDING_DELAY, () => {
+safeHandle(IPC_EVENTS.GET_RECORDING_DELAY, () => {
 	return recordingDelay;
 });
 
 // İzin durumlarını kontrol eden handler ekle
-ipcMain.handle(IPC_EVENTS.CHECK_PERMISSIONS, async () => {
+safeHandle(IPC_EVENTS.CHECK_PERMISSIONS, async () => {
 	return await checkPermissionStatus();
 });
 
 // İzin isteme handler'ı ekle
-ipcMain.handle("REQUEST_PERMISSION", async (event, permissionType) => {
+safeHandle(IPC_EVENTS.REQUEST_PERMISSION, async (event, permissionType) => {
 	if (process.platform !== "darwin") {
 		return true; // macOS dışındaki platformlarda izin zaten var kabul ediyoruz
 	}
@@ -104,7 +206,7 @@ ipcMain.handle("REQUEST_PERMISSION", async (event, permissionType) => {
 });
 
 // Sistem ayarlarını açma handler'ı
-ipcMain.on("OPEN_SYSTEM_PREFERENCES", () => {
+ipcMain.on(IPC_EVENTS.OPEN_SYSTEM_PREFERENCES, () => {
 	if (process.platform === "darwin") {
 		// macOS için Gizlilik ve Güvenlik ayarlarını aç
 		const { shell } = require("electron");
@@ -173,471 +275,463 @@ function handleEditorToRecordTransition() {
 	}, 200); // 200ms gecikme
 }
 
-// IPC event handlers
-function setupIpcHandlers() {
-	// Aperture modülü için handler'lar
-	ipcMain.handle("LOAD_APERTURE_MODULE", async (event) => {
-		try {
-			console.log("[Main] Aperture modülü yükleniyor (ESM)...");
+// Aperture modülü için handler'lar
+safeHandle(IPC_EVENTS.LOAD_APERTURE_MODULE, async (event) => {
+	try {
+		console.log("[Main] Aperture modülü yükleniyor (ESM)...");
 
-			// Timeout kontrolü ve işletim sistemi kontrolü
-			if (process.platform !== "darwin") {
-				console.error("[Main] Aperture sadece macOS'ta desteklenir");
-				return false;
-			}
-
-			// Timeout ile yüklemeyi kontrol et
-			const apertureModule = await Promise.race([
-				import("aperture"),
-				new Promise((_, reject) =>
-					setTimeout(
-						() => reject(new Error("Aperture modülü yükleme zaman aşımı")),
-						10000
-					)
-				),
-			]);
-
-			if (!apertureModule) {
-				console.error("[Main] Aperture modülü yüklenemedi");
-				return false;
-			}
-
-			console.log(
-				"[Main] Aperture modülü başarıyla yüklendi:",
-				Object.keys(apertureModule)
-			);
-
-			// API yapısını kontrol et
-			let apiFound = false;
-
-			if (apertureModule.default) {
-				console.log(
-					"[Main] Default export bulundu:",
-					Object.keys(apertureModule.default)
-				);
-
-				if (apertureModule.default.recorder) {
-					console.log("[Main] Modern API (default.recorder) bulundu");
-					apiFound = true;
-				}
-
-				if (typeof apertureModule.default.startRecording === "function") {
-					console.log("[Main] Modern API (default.startRecording) bulundu");
-					apiFound = true;
-				}
-			}
-
-			if (apertureModule.recorder) {
-				console.log("[Main] Modern API (recorder) bulundu");
-				apiFound = true;
-			}
-
-			if (typeof apertureModule.startRecording === "function") {
-				console.log("[Main] Modern API (startRecording) bulundu");
-				apiFound = true;
-			}
-
-			if (!apiFound) {
-				console.error("[Main] Desteklenen API bulunamadı");
-				return false;
-			}
-
-			// Önemli fonksiyonları test et
-			try {
-				console.log("[Main] Ekranlar kontrol ediliyor...");
-
-				if (typeof apertureModule.screens === "function") {
-					const screens = await apertureModule.screens();
-					console.log(
-						"[Main] Ekranlar:",
-						screens && screens.length ? "Bulundu" : "Bulunamadı"
-					);
-				} else if (
-					apertureModule.default &&
-					typeof apertureModule.default.screens === "function"
-				) {
-					const screens = await apertureModule.default.screens();
-					console.log(
-						"[Main] Ekranlar:",
-						screens && screens.length ? "Bulundu" : "Bulunamadı"
-					);
-				}
-
-				console.log("[Main] Ses cihazları kontrol ediliyor...");
-
-				if (typeof apertureModule.audioDevices === "function") {
-					const audioDevices = await apertureModule.audioDevices();
-					console.log(
-						"[Main] Ses cihazları:",
-						audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
-					);
-				} else if (
-					apertureModule.default &&
-					typeof apertureModule.default.audioDevices === "function"
-				) {
-					const audioDevices = await apertureModule.default.audioDevices();
-					console.log(
-						"[Main] Ses cihazları:",
-						audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
-					);
-				}
-
-				console.log("[Main] Aperture modülü başarıyla hazır");
-				return true;
-			} catch (testError) {
-				console.warn("[Main] API testi sırasında hata:", testError);
-				// Test hataları kritik değil, API bulunduğu sürece devam et
-				return apiFound;
-			}
-		} catch (error) {
-			console.error("[Main] Aperture import hatası:", error);
+		// Timeout kontrolü ve işletim sistemi kontrolü
+		if (process.platform !== "darwin") {
+			console.error("[Main] Aperture sadece macOS'ta desteklenir");
 			return false;
 		}
-	});
 
-	ipcMain.handle(
-		"START_APERTURE_RECORDING",
-		async (event, outputPath, options) => {
-			try {
-				console.log("[Main] Aperture kaydı başlatılıyor...", {
-					outputPath,
-					options: JSON.stringify(options, null, 2),
-					recordingSource: JSON.stringify(recordingSource, null, 2),
-				});
+		// Timeout ile yüklemeyi kontrol et
+		const apertureModule = await Promise.race([
+			import("aperture"),
+			new Promise((_, reject) =>
+				setTimeout(
+					() => reject(new Error("Aperture modülü yükleme zaman aşımı")),
+					10000
+				)
+			),
+		]);
 
-				if (!outputPath) {
-					console.error("[Main] Çıktı dosya yolu belirtilmedi");
-					return false;
-				}
+		if (!apertureModule) {
+			console.error("[Main] Aperture modülü yüklenemedi");
+			return false;
+		}
 
-				// Aperture'ın sadece macOS'ta çalıştığını kontrol et
-				if (process.platform !== "darwin") {
-					console.error("[Main] Aperture sadece macOS'ta çalışır");
-					return false;
-				}
+		console.log(
+			"[Main] Aperture modülü başarıyla yüklendi:",
+			Object.keys(apertureModule)
+		);
 
-				// kaynak bilgisini options'a ekle, eğer recordingSource.sourceId varsa
-				if (recordingSource && recordingSource.sourceId) {
-					// Pencere kaynağı seçilmişse uyarı verelim
-					if (recordingSource.sourceType === "window") {
-						console.log(
-							"[Main] Pencere kaynağı seçildi, Aperture sadece ekranları destekler. Varsayılan ekran kullanılacak."
-						);
-						// Pencere kaynağını da options'a ekleyelim, aperture.cjs'de işlenecek
-					}
+		// API yapısını kontrol et
+		let apiFound = false;
 
-					options.sourceId = recordingSource.sourceId;
-					options.sourceType = recordingSource.sourceType; // sourceType bilgisini de ekle
+		if (apertureModule.default) {
+			console.log(
+				"[Main] Default export bulundu:",
+				Object.keys(apertureModule.default)
+			);
 
-					console.log("[Main] RecordingSource'dan bilgiler eklendi:", {
-						sourceId: recordingSource.sourceId,
-						sourceType: recordingSource.sourceType,
-					});
-				}
+			if (apertureModule.default.recorder) {
+				console.log("[Main] Modern API (default.recorder) bulundu");
+				apiFound = true;
+			}
 
-				// Aperture ID varsa doğrudan kullan (daha öncelikli)
-				if (recordingSource && recordingSource.apertureId) {
-					const apertureId = parseInt(recordingSource.apertureId, 10);
-					if (!isNaN(apertureId)) {
-						options.sourceId = apertureId; // Doğrudan sayısal ID kullan
-						console.log(
-							"[Main] RecordingSource'dan apertureId eklendi:",
-							apertureId,
-							"(önceden dönüştürülmüş)"
-						);
-					}
-				}
-
-				// Kırpma alanı bilgisini kontrol et
-				if (mediaStateManager && mediaStateManager.state.selectedArea) {
-					const selectedArea = mediaStateManager.state.selectedArea;
-
-					// Geçerli bir kırpma alanı varsa ekle
-					if (
-						selectedArea &&
-						typeof selectedArea.x === "number" &&
-						typeof selectedArea.y === "number" &&
-						typeof selectedArea.width === "number" &&
-						typeof selectedArea.height === "number" &&
-						selectedArea.width > 0 &&
-						selectedArea.height > 0
-					) {
-						console.log("[Main] Kırpma alanı bilgisi ekleniyor:", selectedArea);
-
-						// Aperture kayıt seçeneklerine cropArea bilgisini ekle
-						options.cropArea = {
-							x: Math.round(selectedArea.x),
-							y: Math.round(selectedArea.y),
-							width: Math.round(selectedArea.width),
-							height: Math.round(selectedArea.height),
-						};
-
-						// Aspect ratio bilgisi varsa dönüşüm için ekle
-						if (
-							selectedArea.aspectRatio &&
-							selectedArea.aspectRatio !== "free"
-						) {
-							options.cropArea.aspectRatio = selectedArea.aspectRatio;
-
-							if (selectedArea.aspectRatioValue) {
-								options.cropArea.aspectRatioValue =
-									selectedArea.aspectRatioValue;
-							}
-						}
-					}
-				}
-
-				// macOS'ta ses izinlerini kontrol et
-				if (process.platform === "darwin") {
-					console.log(
-						"[Main] macOS için ses kaydı izinleri kontrol ediliyor..."
-					);
-					try {
-						// SystemPreferences modülünü yükle
-						const { systemPreferences } = require("electron");
-
-						// Mikrofon izni kontrolü
-						const microphoneStatus =
-							systemPreferences.getMediaAccessStatus("microphone");
-						console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
-
-						// Mikrofon izni yoksa, kullanıcıya bilgi mesajı göster
-						if (
-							microphoneStatus !== "granted" &&
-							options.audio?.captureDeviceAudio
-						) {
-							console.warn(
-								"[Main] Mikrofon erişim izni verilmemiş. Ses kaydı yapılamayabilir."
-							);
-							// İzin istemeyi dene
-							systemPreferences
-								.askForMediaAccess("microphone")
-								.then((granted) => {
-									console.log(
-										"[Main] Mikrofon erişimi istendi, sonuç:",
-										granted
-									);
-								})
-								.catch((err) => {
-									console.error("[Main] Mikrofon erişimi isterken hata:", err);
-								});
-						}
-
-						// Sistem sesi için ekran yakalama izinlerini kontrol et
-						if (options.audio?.captureSystemAudio) {
-							console.log(
-								"[Main] Sistem sesi için ekran yakalama izinleri gerekli olabilir"
-							);
-						}
-					} catch (permissionError) {
-						console.warn(
-							"[Main] Ses izinleri kontrol edilirken hata:",
-							permissionError
-						);
-					}
-				}
-
-				// Aperture modülünü yükle
-				const aperturePath = path.join(__dirname, "aperture.cjs");
-				console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
-
-				// Yüklenen modülün fonksiyonlarını kullan
-				let apertureModule;
-				try {
-					apertureModule = await import(`file://${aperturePath}`);
-				} catch (importError) {
-					console.error("[Main] Aperture modülü import hatası:", importError);
-					return false;
-				}
-
-				// Aperture fonksiyonlarını kontrol et
-				const {
-					start,
-					stop,
-					killApertureProcesses,
-					getScreens,
-					getAudioDevices,
-				} = apertureModule;
-
-				if (typeof start !== "function" || typeof stop !== "function") {
-					console.error("[Main] Aperture API'si bulunamadı");
-					return false;
-				}
-
-				// Önce çalışan süreçleri temizle
-				await killApertureProcesses();
-
-				// Ekranları ve ses cihazlarını kontrol et
-				try {
-					console.log("[Main] Kullanılabilir ekranlar kontrol ediliyor");
-					const screens = await getScreens();
-					console.log(
-						"[Main] Kullanılabilir ekranlar:",
-						screens ? screens.length : 0
-					);
-
-					console.log("[Main] Ses cihazları kontrol ediliyor");
-					const audioDevices = await getAudioDevices();
-					console.log(
-						"[Main] Ses cihazları:",
-						audioDevices ? audioDevices.length : 0
-					);
-				} catch (deviceError) {
-					console.warn(
-						"[Main] Cihaz bilgileri alınamadı (kritik değil):",
-						deviceError.message
-					);
-				}
-
-				// Seçenekleri kopyala ve modifiye et
-				const recordingOptions = { ...options };
-
-				// audioDeviceId'yi düzelt - "system" yerine null kullan
-				if (recordingOptions.audioDeviceId === "system") {
-					console.log("[Main] audioDeviceId 'system'den null'a çevriliyor");
-					recordingOptions.audioDeviceId = null;
-				}
-
-				// MediaStateManager'dan mikrofon ayarlarını al
-				if (mediaStateManager) {
-					const audioSettings = mediaStateManager.state.audioSettings;
-					console.log("[Main] MediaStateManager ses ayarları:", audioSettings);
-
-					// Sadece mikrofonun etkin olması durumunda seçili mikrofon cihazını ayarla
-					if (
-						audioSettings.microphoneEnabled &&
-						audioSettings.selectedAudioDevice
-					) {
-						// Ses cihazı ID'sini doğrudan recordingOptions.audioDeviceId'ye atayalım
-						recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
-						console.log(
-							"[Main] Mikrofon cihazı ayarlandı:",
-							audioSettings.selectedAudioDevice
-						);
-					} else {
-						console.log("[Main] Mikrofon devre dışı veya cihaz seçilmemiş");
-						if (!audioSettings.microphoneEnabled) {
-							recordingOptions.includeDeviceAudio = false;
-						}
-					}
-
-					// Ses ayarlarını güncelle
-					recordingOptions.audio = {
-						// Önceki ayarlar
-						...(recordingOptions.audio || {}),
-						// Yeni ayarlar
-						captureDeviceAudio: audioSettings.microphoneEnabled,
-						captureSystemAudio: audioSettings.systemAudioEnabled,
-					};
-
-					// Ses captureDeviceAudio false olsa bile includeDeviceAudio'yu direkt etkilemeli
-					recordingOptions.includeDeviceAudio = audioSettings.microphoneEnabled;
-					recordingOptions.includeSystemAudio =
-						audioSettings.systemAudioEnabled;
-
-					// Açık bir şekilde "audio" parametresini true yap - aperture kütüphanesi bunu gerektirir
-					if (
-						audioSettings.systemAudioEnabled ||
-						audioSettings.microphoneEnabled
-					) {
-						recordingOptions.audio = true;
-					}
-
-					console.log("[Main] Aperture ses ayarları güncellendi:", {
-						audio: recordingOptions.audio, // Açık audio parametresi
-						includeDeviceAudio: recordingOptions.includeDeviceAudio,
-						includeSystemAudio: recordingOptions.includeSystemAudio,
-						captureDeviceAudio: recordingOptions.audio.captureDeviceAudio,
-						captureSystemAudio: recordingOptions.audio.captureSystemAudio,
-						audioDeviceId: recordingOptions.audioDeviceId,
-					});
-				}
-
-				// FPS ayarla
-				recordingOptions.fps = recordingOptions.fps || 30;
-
-				console.log("[Main] Kayıt başlatılıyor...", recordingOptions);
-
-				// Başlatma işlemi
-				try {
-					const success = await start(outputPath, recordingOptions);
-					if (success) {
-						console.log("[Main] Aperture kaydı başarıyla başlatıldı");
-						return true;
-					} else {
-						console.error("[Main] Aperture kaydı başlatılamadı");
-						return false;
-					}
-				} catch (error) {
-					console.error("[Main] Aperture kaydı başlatılırken hata:", error);
-
-					// Hataya özel mesaj
-					if (
-						error.message.includes("timeout") ||
-						error.code === "RECORDER_TIMEOUT"
-					) {
-						console.error(
-							"[Main] Kayıt zaman aşımı hatası. Sistem yükü yüksek olabilir veya başka bir kayıt uygulaması çalışıyor olabilir."
-						);
-					}
-
-					return false;
-				}
-			} catch (error) {
-				console.error("[Main] Aperture kaydı başlatılırken genel hata:", error);
-				return false;
+			if (typeof apertureModule.default.startRecording === "function") {
+				console.log("[Main] Modern API (default.startRecording) bulundu");
+				apiFound = true;
 			}
 		}
-	);
 
-	ipcMain.handle("STOP_APERTURE_RECORDING", async (event, outputPath) => {
+		if (apertureModule.recorder) {
+			console.log("[Main] Modern API (recorder) bulundu");
+			apiFound = true;
+		}
+
+		if (typeof apertureModule.startRecording === "function") {
+			console.log("[Main] Modern API (startRecording) bulundu");
+			apiFound = true;
+		}
+
+		if (!apiFound) {
+			console.error("[Main] Desteklenen API bulunamadı");
+			return false;
+		}
+
+		// Önemli fonksiyonları test et
 		try {
-			console.log("[Main] Aperture kaydı durduruluyor...");
+			console.log("[Main] Ekranlar kontrol ediliyor...");
+
+			if (typeof apertureModule.screens === "function") {
+				const screens = await apertureModule.screens();
+				console.log(
+					"[Main] Ekranlar:",
+					screens && screens.length ? "Bulundu" : "Bulunamadı"
+				);
+			} else if (
+				apertureModule.default &&
+				typeof apertureModule.default.screens === "function"
+			) {
+				const screens = await apertureModule.default.screens();
+				console.log(
+					"[Main] Ekranlar:",
+					screens && screens.length ? "Bulundu" : "Bulunamadı"
+				);
+			}
+
+			console.log("[Main] Ses cihazları kontrol ediliyor...");
+
+			if (typeof apertureModule.audioDevices === "function") {
+				const audioDevices = await apertureModule.audioDevices();
+				console.log(
+					"[Main] Ses cihazları:",
+					audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
+				);
+			} else if (
+				apertureModule.default &&
+				typeof apertureModule.default.audioDevices === "function"
+			) {
+				const audioDevices = await apertureModule.default.audioDevices();
+				console.log(
+					"[Main] Ses cihazları:",
+					audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
+				);
+			}
+
+			console.log("[Main] Aperture modülü başarıyla hazır");
+			return true;
+		} catch (testError) {
+			console.warn("[Main] API testi sırasında hata:", testError);
+			// Test hataları kritik değil, API bulunduğu sürece devam et
+			return apiFound;
+		}
+	} catch (error) {
+		console.error("[Main] Aperture import hatası:", error);
+		return false;
+	}
+});
+
+safeHandle(
+	IPC_EVENTS.START_APERTURE_RECORDING,
+	async (event, outputPath, options) => {
+		try {
+			console.log("[Main] Aperture kaydı başlatılıyor...", {
+				outputPath,
+				options: JSON.stringify(options, null, 2),
+				recordingSource: JSON.stringify(recordingSource, null, 2),
+			});
+
+			if (!outputPath) {
+				console.error("[Main] Çıktı dosya yolu belirtilmedi");
+				return false;
+			}
+
+			// Aperture'ın sadece macOS'ta çalıştığını kontrol et
+			if (process.platform !== "darwin") {
+				console.error("[Main] Aperture sadece macOS'ta çalışır");
+				return false;
+			}
+
+			// kaynak bilgisini options'a ekle, eğer recordingSource.sourceId varsa
+			if (recordingSource && recordingSource.sourceId) {
+				// Pencere kaynağı seçilmişse uyarı verelim
+				if (recordingSource.sourceType === "window") {
+					console.log(
+						"[Main] Pencere kaynağı seçildi, Aperture sadece ekranları destekler. Varsayılan ekran kullanılacak."
+					);
+					// Pencere kaynağını da options'a ekleyelim, aperture.cjs'de işlenecek
+				}
+
+				options.sourceId = recordingSource.sourceId;
+				options.sourceType = recordingSource.sourceType; // sourceType bilgisini de ekle
+
+				console.log("[Main] RecordingSource'dan bilgiler eklendi:", {
+					sourceId: recordingSource.sourceId,
+					sourceType: recordingSource.sourceType,
+				});
+			}
+
+			// Aperture ID varsa doğrudan kullan (daha öncelikli)
+			if (recordingSource && recordingSource.apertureId) {
+				const apertureId = parseInt(recordingSource.apertureId, 10);
+				if (!isNaN(apertureId)) {
+					options.sourceId = apertureId; // Doğrudan sayısal ID kullan
+					console.log(
+						"[Main] RecordingSource'dan apertureId eklendi:",
+						apertureId,
+						"(önceden dönüştürülmüş)"
+					);
+				}
+			}
+
+			// Kırpma alanı bilgisini kontrol et
+			if (mediaStateManager && mediaStateManager.state.selectedArea) {
+				const selectedArea = mediaStateManager.state.selectedArea;
+
+				// Geçerli bir kırpma alanı varsa ekle
+				if (
+					selectedArea &&
+					typeof selectedArea.x === "number" &&
+					typeof selectedArea.y === "number" &&
+					typeof selectedArea.width === "number" &&
+					typeof selectedArea.height === "number" &&
+					selectedArea.width > 0 &&
+					selectedArea.height > 0
+				) {
+					console.log("[Main] Kırpma alanı bilgisi ekleniyor:", selectedArea);
+
+					// Aperture kayıt seçeneklerine cropArea bilgisini ekle
+					options.cropArea = {
+						x: Math.round(selectedArea.x),
+						y: Math.round(selectedArea.y),
+						width: Math.round(selectedArea.width),
+						height: Math.round(selectedArea.height),
+					};
+
+					// Aspect ratio bilgisi varsa dönüşüm için ekle
+					if (selectedArea.aspectRatio && selectedArea.aspectRatio !== "free") {
+						options.cropArea.aspectRatio = selectedArea.aspectRatio;
+
+						if (selectedArea.aspectRatioValue) {
+							options.cropArea.aspectRatioValue = selectedArea.aspectRatioValue;
+						}
+					}
+				}
+			}
+
+			// macOS'ta ses izinlerini kontrol et
+			if (process.platform === "darwin") {
+				console.log("[Main] macOS için ses kaydı izinleri kontrol ediliyor...");
+				try {
+					// SystemPreferences modülünü yükle
+					const { systemPreferences } = require("electron");
+
+					// Mikrofon izni kontrolü
+					const microphoneStatus =
+						systemPreferences.getMediaAccessStatus("microphone");
+					console.log("[Main] Mikrofon erişim durumu:", microphoneStatus);
+
+					// Mikrofon izni yoksa, kullanıcıya bilgi mesajı göster
+					if (
+						microphoneStatus !== "granted" &&
+						options.audio?.captureDeviceAudio
+					) {
+						console.warn(
+							"[Main] Mikrofon erişim izni verilmemiş. Ses kaydı yapılamayabilir."
+						);
+						// İzin istemeyi dene
+						systemPreferences
+							.askForMediaAccess("microphone")
+							.then((granted) => {
+								console.log("[Main] Mikrofon erişimi istendi, sonuç:", granted);
+							})
+							.catch((err) => {
+								console.error("[Main] Mikrofon erişimi isterken hata:", err);
+							});
+					}
+
+					// Sistem sesi için ekran yakalama izinlerini kontrol et
+					if (options.audio?.captureSystemAudio) {
+						console.log(
+							"[Main] Sistem sesi için ekran yakalama izinleri gerekli olabilir"
+						);
+					}
+				} catch (permissionError) {
+					console.warn(
+						"[Main] Ses izinleri kontrol edilirken hata:",
+						permissionError
+					);
+				}
+			}
 
 			// Aperture modülünü yükle
 			const aperturePath = path.join(__dirname, "aperture.cjs");
 			console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
 
-			// CommonJS modülünü dynamic import ile yükle
-			const apertureModule = await import(`file://${aperturePath}`);
-			const { stop } = apertureModule;
-
-			// Durdurma işlemi
+			// Yüklenen modülün fonksiyonlarını kullan
+			let apertureModule;
 			try {
-				const success = await stop(outputPath);
-				if (success) {
-					console.log("[Main] Aperture kaydı başarıyla durduruldu");
+				apertureModule = await import(`file://${aperturePath}`);
+			} catch (importError) {
+				console.error("[Main] Aperture modülü import hatası:", importError);
+				return false;
+			}
 
-					// Dosya boyutunu kontrol et
-					if (outputPath && fs.existsSync(outputPath)) {
-						const stats = fs.statSync(outputPath);
-						const fileSizeMB = stats.size / (1024 * 1024);
-						console.log(
-							`[Main] Kayıt dosyası boyutu: ${fileSizeMB.toFixed(2)} MB`
-						);
+			// Aperture fonksiyonlarını kontrol et
+			const {
+				start,
+				stop,
+				killApertureProcesses,
+				getScreens,
+				getAudioDevices,
+			} = apertureModule;
 
-						if (stats.size === 0) {
-							console.error("[Main] Kayıt dosyası boş (0 byte)");
-							return false;
-						}
+			if (typeof start !== "function" || typeof stop !== "function") {
+				console.error("[Main] Aperture API'si bulunamadı");
+				return false;
+			}
+
+			// Önce çalışan süreçleri temizle
+			await killApertureProcesses();
+
+			// Ekranları ve ses cihazlarını kontrol et
+			try {
+				console.log("[Main] Kullanılabilir ekranlar kontrol ediliyor");
+				const screens = await getScreens();
+				console.log(
+					"[Main] Kullanılabilir ekranlar:",
+					screens ? screens.length : 0
+				);
+
+				console.log("[Main] Ses cihazları kontrol ediliyor");
+				const audioDevices = await getAudioDevices();
+				console.log(
+					"[Main] Ses cihazları:",
+					audioDevices ? audioDevices.length : 0
+				);
+			} catch (deviceError) {
+				console.warn(
+					"[Main] Cihaz bilgileri alınamadı (kritik değil):",
+					deviceError.message
+				);
+			}
+
+			// Seçenekleri kopyala ve modifiye et
+			const recordingOptions = { ...options };
+
+			// audioDeviceId'yi düzelt - "system" yerine null kullan
+			if (recordingOptions.audioDeviceId === "system") {
+				console.log("[Main] audioDeviceId 'system'den null'a çevriliyor");
+				recordingOptions.audioDeviceId = null;
+			}
+
+			// MediaStateManager'dan mikrofon ayarlarını al
+			if (mediaStateManager) {
+				const audioSettings = mediaStateManager.state.audioSettings;
+				console.log("[Main] MediaStateManager ses ayarları:", audioSettings);
+
+				// Sadece mikrofonun etkin olması durumunda seçili mikrofon cihazını ayarla
+				if (
+					audioSettings.microphoneEnabled &&
+					audioSettings.selectedAudioDevice
+				) {
+					// Ses cihazı ID'sini doğrudan recordingOptions.audioDeviceId'ye atayalım
+					recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
+					console.log(
+						"[Main] Mikrofon cihazı ayarlandı:",
+						audioSettings.selectedAudioDevice
+					);
+				} else {
+					console.log("[Main] Mikrofon devre dışı veya cihaz seçilmemiş");
+					if (!audioSettings.microphoneEnabled) {
+						recordingOptions.includeDeviceAudio = false;
 					}
+				}
 
+				// Ses ayarlarını güncelle
+				recordingOptions.audio = {
+					// Önceki ayarlar
+					...(recordingOptions.audio || {}),
+					// Yeni ayarlar
+					captureDeviceAudio: audioSettings.microphoneEnabled,
+					captureSystemAudio: audioSettings.systemAudioEnabled,
+				};
+
+				// Ses captureDeviceAudio false olsa bile includeDeviceAudio'yu direkt etkilemeli
+				recordingOptions.includeDeviceAudio = audioSettings.microphoneEnabled;
+				recordingOptions.includeSystemAudio = audioSettings.systemAudioEnabled;
+
+				// Açık bir şekilde "audio" parametresini true yap - aperture kütüphanesi bunu gerektirir
+				if (
+					audioSettings.systemAudioEnabled ||
+					audioSettings.microphoneEnabled
+				) {
+					recordingOptions.audio = true;
+				}
+
+				console.log("[Main] Aperture ses ayarları güncellendi:", {
+					audio: recordingOptions.audio, // Açık audio parametresi
+					includeDeviceAudio: recordingOptions.includeDeviceAudio,
+					includeSystemAudio: recordingOptions.includeSystemAudio,
+					captureDeviceAudio: recordingOptions.audio.captureDeviceAudio,
+					captureSystemAudio: recordingOptions.audio.captureSystemAudio,
+					audioDeviceId: recordingOptions.audioDeviceId,
+				});
+			}
+
+			// FPS ayarla
+			recordingOptions.fps = recordingOptions.fps || 30;
+
+			console.log("[Main] Kayıt başlatılıyor...", recordingOptions);
+
+			// Başlatma işlemi
+			try {
+				const success = await start(outputPath, recordingOptions);
+				if (success) {
+					console.log("[Main] Aperture kaydı başarıyla başlatıldı");
 					return true;
 				} else {
-					console.error("[Main] Aperture kaydı durdurulamadı");
+					console.error("[Main] Aperture kaydı başlatılamadı");
 					return false;
 				}
 			} catch (error) {
-				console.error("[Main] Aperture kaydı durdurulurken hata:", error);
+				console.error("[Main] Aperture kaydı başlatılırken hata:", error);
+
+				// Hataya özel mesaj
+				if (
+					error.message.includes("timeout") ||
+					error.code === "RECORDER_TIMEOUT"
+				) {
+					console.error(
+						"[Main] Kayıt zaman aşımı hatası. Sistem yükü yüksek olabilir veya başka bir kayıt uygulaması çalışıyor olabilir."
+					);
+				}
+
 				return false;
 			}
 		} catch (error) {
-			console.error("[Main] Aperture kaydı durdurulurken genel hata:", error);
+			console.error("[Main] Aperture kaydı başlatılırken genel hata:", error);
 			return false;
 		}
-	});
+	}
+);
 
-	ipcMain.handle("GET_FILE_SIZE", async (event, filePath) => {
+safeHandle(IPC_EVENTS.STOP_APERTURE_RECORDING, async (event, outputPath) => {
+	try {
+		console.log("[Main] Aperture kaydı durduruluyor...");
+
+		// Aperture modülünü yükle
+		const aperturePath = path.join(__dirname, "aperture.cjs");
+		console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
+
+		// CommonJS modülünü dynamic import ile yükle
+		const apertureModule = await import(`file://${aperturePath}`);
+		const { stop } = apertureModule;
+
+		// Durdurma işlemi
+		try {
+			const success = await stop(outputPath);
+			if (success) {
+				console.log("[Main] Aperture kaydı başarıyla durduruldu");
+
+				// Dosya boyutunu kontrol et
+				if (outputPath && fs.existsSync(outputPath)) {
+					const stats = fs.statSync(outputPath);
+					const fileSizeMB = stats.size / (1024 * 1024);
+					console.log(
+						`[Main] Kayıt dosyası boyutu: ${fileSizeMB.toFixed(2)} MB`
+					);
+
+					if (stats.size === 0) {
+						console.error("[Main] Kayıt dosyası boş (0 byte)");
+						return false;
+					}
+				}
+
+				return true;
+			} else {
+				console.error("[Main] Aperture kaydı durdurulamadı");
+				return false;
+			}
+		} catch (error) {
+			console.error("[Main] Aperture kaydı durdurulurken hata:", error);
+			return false;
+		}
+	} catch (error) {
+		console.error("[Main] Aperture kaydı durdurulurken genel hata:", error);
+		return false;
+	}
+});
+
+// IPC event handlers
+function setupIpcHandlers() {
+	// Kayıtlı handler'ları takip etmek için bir set
+
+	safeHandle(IPC_EVENTS.GET_FILE_SIZE, async (event, filePath) => {
 		try {
 			if (!filePath || !fs.existsSync(filePath)) {
 				return 0;
@@ -647,6 +741,162 @@ function setupIpcHandlers() {
 		} catch (error) {
 			console.error("[Main] Dosya boyutu alınırken hata:", error);
 			return 0;
+		}
+	});
+
+	// GET_MEDIA_STATE handler'ı ekle
+	safeHandle(IPC_EVENTS.GET_MEDIA_STATE, async () => {
+		if (mediaStateManager) {
+			return mediaStateManager.getState();
+		}
+		return null;
+	});
+
+	// SET_MEDIA_STATE handler'ı ekle
+	safeHandle(IPC_EVENTS.SET_MEDIA_STATE, async (event, newState) => {
+		if (mediaStateManager) {
+			mediaStateManager.updateState(newState);
+			return true;
+		}
+		return false;
+	});
+
+	// GET_TEMP_VIDEO_PATH handler'ı eksik olabilir, ekleyelim
+	safeHandle(IPC_EVENTS.GET_TEMP_VIDEO_PATH, async () => {
+		if (tempFileManager) {
+			return await tempFileManager.getTempFilePath();
+		}
+		return null;
+	});
+
+	// Processing complete handler
+	ipcMain.on(IPC_EVENTS.PROCESSING_COMPLETE, async (event, mediaData) => {
+		console.log("[Main] İşleme tamamlandı bildirimi alındı:", mediaData);
+
+		try {
+			// MediaStateManager'ı güncelle
+			if (mediaStateManager) {
+				mediaStateManager.updateState({
+					videoPath: mediaData.videoPath || null,
+					audioPath: mediaData.audioPath || null,
+					cameraPath: mediaData.cameraPath || null,
+					isEditing: true,
+					processingStatus: {
+						isProcessing: false,
+						progress: 100,
+						error: null,
+					},
+				});
+			}
+
+			// Dosyalar gerçekten var mı kontrol et
+			const mediaReady = mediaStateManager.isMediaReady();
+			console.log("[Main] Medya hazır durumu:", mediaReady);
+
+			// Editor'ü aç
+			if (mediaReady && editorManager) {
+				console.log("[Main] Editor penceresi açılıyor...");
+				editorManager.createEditorWindow();
+			} else {
+				console.warn("[Main] Medya dosyaları hazır değil veya editor yok:", {
+					mediaReady,
+					hasEditorManager: !!editorManager,
+				});
+			}
+		} catch (error) {
+			console.error("[Main] İşleme tamamlandı handler'ında hata:", error);
+		}
+	});
+
+	// Recording status updates
+	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_UPDATE, (event, statusData) => {
+		console.log("[Main] Kayıt durumu güncellendi:", statusData);
+
+		// Tray manager'a bildir
+		if (trayManager && typeof statusData.isActive === "boolean") {
+			trayManager.setRecordingStatus(statusData.isActive);
+		}
+
+		// MediaStateManager'a bildir
+		if (mediaStateManager) {
+			mediaStateManager.updateRecordingStatus(statusData);
+		}
+
+		// Ana pencereye bildir
+		if (mainWindow && mainWindow.webContents) {
+			mainWindow.webContents.send(
+				IPC_EVENTS.RECORDING_STATUS_UPDATE,
+				statusData
+			);
+		}
+	});
+
+	// Desktop Capturer Sources
+	safeHandle(
+		IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES,
+		async (event, options) => {
+			try {
+				console.log("[Main] Desktop Capturer Sources isteniyor:", options);
+				const sources = await desktopCapturer.getSources(options);
+
+				// Ekstra bilgi ekle
+				if (sources && sources.length) {
+					try {
+						// Aperture modülünden ekran listesini al
+						const aperturePath = path.join(__dirname, "aperture.cjs");
+						const apertureModule = await import(`file://${aperturePath}`);
+						const apertureScreens = await apertureModule.getScreens();
+
+						// Her kaynağa aperture ID'si ekle
+						sources.forEach((source) => {
+							// Ekran kaynağı ise
+							if (source.id.startsWith("screen:")) {
+								const matchingScreen = apertureScreens.find(
+									(screen) =>
+										screen.name &&
+										source.name &&
+										screen.name.includes(source.name)
+								);
+
+								if (matchingScreen) {
+									source.apertureId = matchingScreen.id;
+									source.apertureInfo = matchingScreen;
+								}
+							}
+						});
+					} catch (error) {
+						console.warn("[Main] Aperture ID bilgisi eklenirken hata:", error);
+					}
+				}
+
+				return sources;
+			} catch (error) {
+				console.error("[Main] Desktop Capturer Sources hatası:", error);
+				throw error;
+			}
+		}
+	);
+
+	// Recording status updates
+	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_UPDATE, (event, statusData) => {
+		console.log("[Main] Kayıt durumu güncellendi:", statusData);
+
+		// Tray manager'a bildir
+		if (trayManager && typeof statusData.isActive === "boolean") {
+			trayManager.setRecordingStatus(statusData.isActive);
+		}
+
+		// MediaStateManager'a bildir
+		if (mediaStateManager) {
+			mediaStateManager.updateRecordingStatus(statusData);
+		}
+
+		// Ana pencereye bildir
+		if (mainWindow && mainWindow.webContents) {
+			mainWindow.webContents.send(
+				IPC_EVENTS.RECORDING_STATUS_UPDATE,
+				statusData
+			);
 		}
 	});
 
@@ -788,70 +1038,8 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Processing complete handler
-	ipcMain.on(IPC_EVENTS.PROCESSING_COMPLETE, async (event, mediaData) => {
-		console.log("[Main] İşleme tamamlandı bildirimi alındı:", mediaData);
-
-		try {
-			// MediaStateManager'ı güncelle
-			if (mediaStateManager) {
-				mediaStateManager.updateState({
-					videoPath: mediaData.videoPath || null,
-					audioPath: mediaData.audioPath || null,
-					cameraPath: mediaData.cameraPath || null,
-					isEditing: true,
-					processingStatus: {
-						isProcessing: false,
-						progress: 100,
-						error: null,
-					},
-				});
-			}
-
-			// Dosyalar gerçekten var mı kontrol et
-			const mediaReady = mediaStateManager.isMediaReady();
-			console.log("[Main] Medya hazır durumu:", mediaReady);
-
-			// Editor'ü aç
-			if (mediaReady && editorManager) {
-				console.log("[Main] Editor penceresi açılıyor...");
-				editorManager.createEditorWindow();
-			} else {
-				console.warn("[Main] Medya dosyaları hazır değil veya editor yok:", {
-					mediaReady,
-					hasEditorManager: !!editorManager,
-				});
-			}
-		} catch (error) {
-			console.error("[Main] İşleme tamamlandı handler'ında hata:", error);
-		}
-	});
-
-	// Recording status updates
-	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_UPDATE, (event, statusData) => {
-		console.log("[Main] Kayıt durumu güncellendi:", statusData);
-
-		// Tray manager'a bildir
-		if (trayManager && typeof statusData.isActive === "boolean") {
-			trayManager.setRecordingStatus(statusData.isActive);
-		}
-
-		// MediaStateManager'a bildir
-		if (mediaStateManager) {
-			mediaStateManager.updateRecordingStatus(statusData);
-		}
-
-		// Ana pencereye bildir
-		if (mainWindow && mainWindow.webContents) {
-			mainWindow.webContents.send(
-				IPC_EVENTS.RECORDING_STATUS_UPDATE,
-				statusData
-			);
-		}
-	});
-
 	// Cursor data handler
-	ipcMain.handle(IPC_EVENTS.LOAD_CURSOR_DATA, async () => {
+	safeHandle(IPC_EVENTS.LOAD_CURSOR_DATA, async () => {
 		try {
 			console.log("[main.cjs] Cursor verisi yükleniyor...");
 			if (mediaStateManager) {
@@ -880,35 +1068,6 @@ function setupIpcHandlers() {
 		}
 		// closeEditorWindow zaten EDITOR_CLOSED eventini gönderiyor,
 		// bu event de handleEditorToRecordTransition'ı çağıracak
-	});
-
-	// Editörden kayıt moduna geçişi yöneten fonksiyon
-	function handleEditorToRecordTransition() {
-		console.log("[Main] Editörden kayıt moduna geçiliyor...");
-
-		// State'i sıfırla
-		if (mediaStateManager) {
-			mediaStateManager.resetState();
-		}
-
-		// Kamerayı açma işlemini setTimeout ile geciktirelim (güvenilirlik için)
-		setTimeout(() => {
-			if (cameraManager) {
-				console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
-				cameraManager.resetForNewRecording();
-			}
-
-			// Ana pencereyi göster
-			if (mainWindow && !mainWindow.isDestroyed()) {
-				console.log("[Main] Ana pencere gösteriliyor...");
-				mainWindow.show();
-			}
-		}, 200); // 200ms gecikme
-	}
-
-	// Media state
-	ipcMain.handle(IPC_EVENTS.GET_MEDIA_STATE, () => {
-		return mediaStateManager.getState();
 	});
 
 	// Area selection
@@ -964,7 +1123,7 @@ function setupIpcHandlers() {
 		}
 	});
 
-	ipcMain.handle(IPC_EVENTS.GET_CROP_INFO, async () => {
+	safeHandle(IPC_EVENTS.GET_CROP_INFO, async () => {
 		if (selectionManager) {
 			const selectedArea = selectionManager.getSelectedArea();
 			if (
@@ -984,6 +1143,35 @@ function setupIpcHandlers() {
 		return null;
 	});
 
+	// Editörden kayıt moduna geçişi yöneten fonksiyon
+	function handleEditorToRecordTransition() {
+		console.log("[Main] Editörden kayıt moduna geçiliyor...");
+
+		// State'i sıfırla
+		if (mediaStateManager) {
+			mediaStateManager.resetState();
+		}
+
+		// Kamerayı açma işlemini setTimeout ile geciktirelim (güvenilirlik için)
+		setTimeout(() => {
+			if (cameraManager) {
+				console.log("[Main] Kamera penceresi açılıyor... (200ms gecikme ile)");
+				cameraManager.resetForNewRecording();
+			}
+
+			// Ana pencereyi göster
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				console.log("[Main] Ana pencere gösteriliyor...");
+				mainWindow.show();
+			}
+		}, 200); // 200ms gecikme
+	}
+
+	// Media state
+	safeHandle(IPC_EVENTS.GET_MEDIA_STATE, () => {
+		return mediaStateManager.getState();
+	});
+
 	// Window management
 	ipcMain.on(IPC_EVENTS.WINDOW_CLOSE, () => {
 		if (mainWindow) {
@@ -993,36 +1181,55 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Window dragging
-	ipcMain.on(IPC_EVENTS.START_WINDOW_DRAG, (event, mousePos) => {
-		isDragging = true;
-		const winPos = BrowserWindow.fromWebContents(event.sender).getPosition();
-		dragOffset = {
-			x: mousePos.x - winPos[0],
-			y: mousePos.y - winPos[1],
-		};
-	});
+	// Processing complete handler
+	ipcMain.on(IPC_EVENTS.PROCESSING_COMPLETE, async (event, mediaData) => {
+		console.log("[Main] İşleme tamamlandı bildirimi alındı:", mediaData);
 
-	ipcMain.on(IPC_EVENTS.WINDOW_DRAGGING, (event, mousePos) => {
-		if (!isDragging) return;
-		const win = BrowserWindow.fromWebContents(event.sender);
-		win.setPosition(mousePos.x - dragOffset.x, mousePos.y - dragOffset.y);
-	});
+		try {
+			// MediaStateManager'ı güncelle
+			if (mediaStateManager) {
+				mediaStateManager.updateState({
+					videoPath: mediaData.videoPath || null,
+					audioPath: mediaData.audioPath || null,
+					cameraPath: mediaData.cameraPath || null,
+					isEditing: true,
+					processingStatus: {
+						isProcessing: false,
+						progress: 100,
+						error: null,
+					},
+				});
+			}
 
-	ipcMain.on(IPC_EVENTS.END_WINDOW_DRAG, () => {
-		isDragging = false;
+			// Dosyalar gerçekten var mı kontrol et
+			const mediaReady = mediaStateManager.isMediaReady();
+			console.log("[Main] Medya hazır durumu:", mediaReady);
+
+			// Editor'ü aç
+			if (mediaReady && editorManager) {
+				console.log("[Main] Editor penceresi açılıyor...");
+				editorManager.createEditorWindow();
+			} else {
+				console.warn("[Main] Medya dosyaları hazır değil veya editor yok:", {
+					mediaReady,
+					hasEditorManager: !!editorManager,
+				});
+			}
+		} catch (error) {
+			console.error("[Main] İşleme tamamlandı handler'ında hata:", error);
+		}
 	});
 
 	// File operations
-	ipcMain.handle(IPC_EVENTS.START_MEDIA_STREAM, async (event, type) => {
+	safeHandle(IPC_EVENTS.START_MEDIA_STREAM, async (event, type) => {
 		return await tempFileManager.startMediaStream(type);
 	});
 
-	ipcMain.handle(IPC_EVENTS.WRITE_MEDIA_CHUNK, async (event, type, chunk) => {
+	safeHandle(IPC_EVENTS.WRITE_MEDIA_CHUNK, async (event, type, chunk) => {
 		return tempFileManager.writeChunkToStream(type, chunk);
 	});
 
-	ipcMain.handle(IPC_EVENTS.END_MEDIA_STREAM, async (event, type) => {
+	safeHandle(IPC_EVENTS.END_MEDIA_STREAM, async (event, type) => {
 		try {
 			console.log(`[Main] ${type} medya stream'i sonlandırılıyor...`);
 			const result = await tempFileManager.endMediaStream(type);
@@ -1039,7 +1246,7 @@ function setupIpcHandlers() {
 		}
 	});
 
-	ipcMain.handle(IPC_EVENTS.SAVE_TEMP_VIDEO, async (event, data, type) => {
+	safeHandle(IPC_EVENTS.SAVE_TEMP_VIDEO, async (event, data, type) => {
 		if (data.startsWith("data:")) {
 			// Eski yöntem - base64'ten dosyaya
 			return await tempFileManager.saveTempVideo(data, type);
@@ -1049,7 +1256,7 @@ function setupIpcHandlers() {
 		}
 	});
 
-	ipcMain.handle(IPC_EVENTS.READ_VIDEO_FILE, async (event, filePath) => {
+	safeHandle(IPC_EVENTS.READ_VIDEO_FILE, async (event, filePath) => {
 		try {
 			if (!filePath || !fs.existsSync(filePath)) {
 				console.error("[main.cjs] Dosya bulunamadı:", filePath);
@@ -1076,7 +1283,7 @@ function setupIpcHandlers() {
 		}
 	});
 
-	ipcMain.handle(IPC_EVENTS.GET_MEDIA_PATHS, () => {
+	safeHandle(IPC_EVENTS.GET_MEDIA_PATHS, () => {
 		return {
 			videoPath:
 				tempFileManager.getFilePath("screen") ||
@@ -1086,7 +1293,7 @@ function setupIpcHandlers() {
 		};
 	});
 
-	ipcMain.handle(IPC_EVENTS.SHOW_SAVE_DIALOG, async (event, options) => {
+	safeHandle(IPC_EVENTS.SHOW_SAVE_DIALOG, async (event, options) => {
 		const { dialog } = require("electron");
 		const result = await dialog.showSaveDialog({
 			...options,
@@ -1096,7 +1303,7 @@ function setupIpcHandlers() {
 	});
 
 	// Get Documents directory path
-	ipcMain.handle(IPC_EVENTS.GET_DOCUMENTS_PATH, async () => {
+	safeHandle(IPC_EVENTS.GET_DOCUMENTS_PATH, async () => {
 		try {
 			return app.getPath("documents");
 		} catch (error) {
@@ -1106,7 +1313,7 @@ function setupIpcHandlers() {
 	});
 
 	// Get any system path
-	ipcMain.handle(IPC_EVENTS.GET_PATH, async (event, pathName) => {
+	safeHandle(IPC_EVENTS.GET_PATH, async (event, pathName) => {
 		try {
 			return app.getPath(pathName);
 		} catch (error) {
@@ -1116,7 +1323,7 @@ function setupIpcHandlers() {
 	});
 
 	// Show directory selection dialog
-	ipcMain.handle("SHOW_DIRECTORY_DIALOG", async (event, options) => {
+	safeHandle(IPC_EVENTS.SHOW_DIRECTORY_DIALOG, async (event, options) => {
 		try {
 			console.log("[main] Dizin seçme diyaloğu gösteriliyor:", options);
 			const result = await dialog.showOpenDialog({
@@ -1132,7 +1339,7 @@ function setupIpcHandlers() {
 	});
 
 	// Get Home directory path
-	ipcMain.handle(IPC_EVENTS.GET_HOME_DIR, async () => {
+	safeHandle(IPC_EVENTS.GET_HOME_DIR, async () => {
 		try {
 			return app.getPath("home");
 		} catch (error) {
@@ -1157,100 +1364,8 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Handle screenshot saving
-	ipcMain.handle(
-		IPC_EVENTS.SAVE_SCREENSHOT,
-		async (event, imageData, filePath) => {
-			try {
-				if (!imageData || !filePath) {
-					return { success: false, error: "Invalid image data or file path" };
-				}
-
-				// Remove data:image/png;base64, prefix if it exists
-				const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
-
-				// Write the file
-				const fs = require("fs");
-				fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
-
-				return { success: true };
-			} catch (error) {
-				console.error("Error saving screenshot:", error);
-				return { success: false, error: error.message };
-			}
-		}
-	);
-
-	// Desktop capturer
-	ipcMain.handle(
-		IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES,
-		async (event, opts) => {
-			try {
-				const sources = await desktopCapturer.getSources(opts);
-
-				// Ekstra bilgi ekle
-				if (sources && sources.length) {
-					try {
-						// Aperture modülünden ekran listesini al
-						const aperturePath = path.join(__dirname, "aperture.cjs");
-						const apertureModule = await import(`file://${aperturePath}`);
-						const apertureScreens = await apertureModule.getScreens();
-
-						// Her kaynağa aperture ID'si ekle
-						sources.forEach((source) => {
-							// Ekran kaynağı ise
-							if (source.id.startsWith("screen:")) {
-								const matchingScreen = apertureScreens.find(
-									(screen) =>
-										screen.name &&
-										source.name &&
-										screen.name.includes(source.name)
-								);
-
-								if (matchingScreen) {
-									source.apertureId = matchingScreen.id;
-									source.apertureInfo = matchingScreen;
-								}
-							}
-						});
-					} catch (error) {
-						console.warn("[Main] Aperture ID bilgisi eklenirken hata:", error);
-					}
-				}
-
-				return sources;
-			} catch (error) {
-				console.error("Ekran kaynakları alınırken hata:", error);
-				throw error;
-			}
-		}
-	);
-
-	// Reset
-	ipcMain.on(IPC_EVENTS.RESET_FOR_NEW_RECORDING, () => {
-		if (selectionManager) selectionManager.resetSelection();
-		if (editorManager) editorManager.hideEditorWindow();
-		if (mainWindow) mainWindow.show();
-		if (cameraManager) cameraManager.showCameraWindow();
-		tempFileManager.cleanupAllFiles();
-	});
-
-	// Audio Settings
-	ipcMain.on(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, (event, settings) => {
-		if (mediaStateManager) {
-			mediaStateManager.updateAudioSettings(settings);
-		}
-	});
-
-	ipcMain.handle(IPC_EVENTS.GET_AUDIO_SETTINGS, () => {
-		if (mediaStateManager) {
-			return mediaStateManager.state.audioSettings;
-		}
-		return null;
-	});
-
 	// Video kaydetme işlemi
-	ipcMain.handle(
+	safeHandle(
 		IPC_EVENTS.SAVE_VIDEO_FILE,
 		async (event, arrayBuffer, filePath, cropInfo, audioArrayBuffer) => {
 			try {
@@ -1310,7 +1425,7 @@ function setupIpcHandlers() {
 	);
 
 	// Video kaydetme işlemi
-	ipcMain.handle(
+	safeHandle(
 		IPC_EVENTS.SAVE_CANVAS_RECORDING,
 		async (event, videoArrayBuffer, filePath, audioArrayBuffer) => {
 			try {
@@ -1386,7 +1501,7 @@ function setupIpcHandlers() {
 	});
 
 	// Video kaydetme işleyicisi
-	ipcMain.handle("SAVE_VIDEO", async (event, base64Data, outputPath) => {
+	safeHandle(IPC_EVENTS.SAVE_VIDEO, async (event, base64Data, outputPath) => {
 		try {
 			console.log("[main] Video kaydediliyor...");
 
@@ -1432,30 +1547,8 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Dosya koruma işlemleri için IPC olayları
-	ipcMain.handle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
-		if (tempFileManager) {
-			return tempFileManager.protectFile(filePath);
-		}
-		return false;
-	});
-
-	ipcMain.handle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
-		if (tempFileManager) {
-			return tempFileManager.unprotectFile(filePath);
-		}
-		return false;
-	});
-
-	ipcMain.handle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
-		if (tempFileManager) {
-			return tempFileManager.getProtectedFiles();
-		}
-		return [];
-	});
-
 	// Editör penceresini aç
-	ipcMain.handle(IPC_EVENTS.OPEN_EDITOR, async (event, data) => {
+	safeHandle(IPC_EVENTS.OPEN_EDITOR, async (event, data) => {
 		try {
 			console.log("[Main] Editör açılıyor, tüm stream'ler temizleniyor...");
 
@@ -1487,14 +1580,6 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Kamera cihazı değişikliğini dinle
-	ipcMain.on(IPC_EVENTS.CAMERA_DEVICE_CHANGED, (event, deviceId) => {
-		console.log("[main.cjs] Kamera cihazı değişikliği alındı:", deviceId);
-		if (cameraManager) {
-			cameraManager.updateCameraDevice(deviceId);
-		}
-	});
-
 	// Mikrofon cihazı değişikliğini dinle
 	ipcMain.on(IPC_EVENTS.AUDIO_DEVICE_CHANGED, (event, deviceId) => {
 		console.log("[main.cjs] Mikrofon cihazı değişikliği alındı:", deviceId);
@@ -1518,7 +1603,7 @@ function setupIpcHandlers() {
 	});
 
 	// Aperture ekran listesi fonksiyonu
-	ipcMain.handle("GET_APERTURE_SCREENS", async (event) => {
+	safeHandle(IPC_EVENTS.GET_APERTURE_SCREENS, async (event) => {
 		try {
 			console.log("[Main] Aperture ekran listesi alınıyor...");
 
@@ -1538,45 +1623,44 @@ function setupIpcHandlers() {
 	});
 
 	// Aperture ekran ID doğrulama fonksiyonu
-	ipcMain.handle("VALIDATE_APERTURE_SCREEN_ID", async (event, screenId) => {
-		try {
-			console.log("[Main] Aperture ekran ID doğrulanıyor:", screenId);
-
-			// Aperture modülünü yükle
-			const aperturePath = path.join(__dirname, "aperture.cjs");
-			const apertureModule = await import(`file://${aperturePath}`);
-
-			// ID'yi doğrula
-			const isValid = await apertureModule.isValidScreenId(screenId);
-			console.log("[Main] Aperture ekran ID doğrulama sonucu:", isValid);
-
-			return isValid;
-		} catch (error) {
-			console.error("[Main] Aperture ekran ID doğrulanamadı:", error);
-			return false;
-		}
-	});
-
-	// Seçim penceresini kapatma olayı
-	ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
-		console.log("[Main] CLOSE_SELECTION_WINDOW olayı alındı");
-		if (selectionManager) {
+	safeHandle(
+		IPC_EVENTS.VALIDATE_APERTURE_SCREEN_ID,
+		async (event, screenId) => {
 			try {
-				console.log("[Main] Seçim penceresi kapatılıyor (ESC tuşu)");
-				selectionManager.closeSelectionWindow();
+				console.log("[Main] Aperture ekran ID doğrulanıyor:", screenId);
+
+				// Aperture modülünü yükle
+				const aperturePath = path.join(__dirname, "aperture.cjs");
+				const apertureModule = await import(`file://${aperturePath}`);
+
+				// ID'yi doğrula
+				const isValid = await apertureModule.isValidScreenId(screenId);
+				console.log("[Main] Aperture ekran ID doğrulama sonucu:", isValid);
+
+				return isValid;
 			} catch (error) {
-				console.error("[Main] Pencere kapatma hatası (ESC):", error);
+				console.error("[Main] Aperture ekran ID doğrulanamadı:", error);
+				return false;
 			}
 		}
+	);
+
+	// Audio Settings
+	ipcMain.on(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, (event, settings) => {
+		if (mediaStateManager) {
+			mediaStateManager.updateAudioSettings(settings);
+		}
 	});
 
-	// OPEN_EDITOR_MODE
-	ipcMain.on(IPC_EVENTS.OPEN_EDITOR_MODE, (event) => {
-		openEditorMode();
+	safeHandle(IPC_EVENTS.GET_AUDIO_SETTINGS, () => {
+		if (mediaStateManager) {
+			return mediaStateManager.state.audioSettings;
+		}
+		return null;
 	});
 
 	// GIF kaydetme işleyicisi
-	ipcMain.handle(IPC_EVENTS.SAVE_GIF, async (event, base64Data, outputPath) => {
+	safeHandle(IPC_EVENTS.SAVE_GIF, async (event, base64Data, outputPath) => {
 		try {
 			console.log("[main] GIF kaydediliyor...");
 
@@ -1623,39 +1707,29 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Mouse tracking için yardımcı fonksiyonlar
-	function mapCursorType(systemCursor) {
-		if (!systemCursor || typeof systemCursor !== "string") {
-			return "default";
+	// Handle screenshot saving
+	safeHandle(IPC_EVENTS.SAVE_SCREENSHOT, async (event, imageData, filePath) => {
+		try {
+			if (!imageData || !filePath) {
+				return { success: false, error: "Invalid image data or file path" };
+			}
+
+			// Remove data:image/png;base64, prefix if it exists
+			const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+
+			// Write the file
+			const fs = require("fs");
+			fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+
+			return { success: true };
+		} catch (error) {
+			console.error("Error saving screenshot:", error);
+			return { success: false, error: error.message };
 		}
-
-		const cursorLower = systemCursor.toLowerCase();
-
-		if (cursorLower.includes("pointer") || cursorLower.includes("hand")) {
-			return "pointer";
-		} else if (cursorLower.includes("text") || cursorLower.includes("ibeam")) {
-			return "text";
-		} else if (cursorLower.includes("grab")) {
-			return "grab";
-		} else if (
-			cursorLower.includes("grabbing") ||
-			cursorLower.includes("closed")
-		) {
-			return "grabbing";
-		} else if (
-			cursorLower.includes("resize") ||
-			cursorLower.includes("split")
-		) {
-			return "resize";
-		}
-
-		return "default";
-	}
-
-	// IPC handlers'a eklenecek yeni handler'lar
+	});
 
 	// Dialog handlers for layout management
-	ipcMain.handle("SHOW_PROMPT", async (event, options) => {
+	safeHandle(IPC_EVENTS.SHOW_PROMPT, async (event, options) => {
 		if (!mainWindow) return null;
 
 		const { title, message, defaultValue } = options;
@@ -1771,7 +1845,7 @@ function setupIpcHandlers() {
 		});
 	});
 
-	ipcMain.handle("SHOW_CONFIRM", async (event, options) => {
+	safeHandle(IPC_EVENTS.SHOW_CONFIRM, async (event, options) => {
 		if (!mainWindow) return 0;
 
 		const { title, message, buttons } = options;
@@ -1788,7 +1862,7 @@ function setupIpcHandlers() {
 	});
 
 	// Store handlers
-	ipcMain.handle("STORE_GET", async (event, key) => {
+	safeHandle(IPC_EVENTS.STORE_GET, async (event, key) => {
 		try {
 			// You can implement your own storage solution here
 			// For now, we'll use a simple in-memory store
@@ -1800,7 +1874,7 @@ function setupIpcHandlers() {
 		}
 	});
 
-	ipcMain.handle("STORE_SET", async (event, key, value) => {
+	safeHandle(IPC_EVENTS.STORE_SET, async (event, key, value) => {
 		try {
 			// You can implement your own storage solution here
 			// For now, we'll use a simple in-memory store
@@ -1814,66 +1888,300 @@ function setupIpcHandlers() {
 	});
 
 	// Dosya koruma işlemleri için IPC olayları
-	ipcMain.handle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
+	safeHandle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
 		if (tempFileManager) {
 			return tempFileManager.protectFile(filePath);
 		}
 		return false;
 	});
 
-	ipcMain.handle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
+	safeHandle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
 		if (tempFileManager) {
 			return tempFileManager.unprotectFile(filePath);
 		}
 		return false;
 	});
 
-	ipcMain.handle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
+	safeHandle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
 		if (tempFileManager) {
 			return tempFileManager.getProtectedFiles();
 		}
 		return [];
 	});
 
+	// Event handlers (not using safeHandle as these are .on not .handle)
+
+	// ... existing code ...
+
+	// Debug helper to check static files location
+	safeHandle(IPC_EVENTS.DEBUG_CHECK_STATIC_FILES, async () => {
+		try {
+			console.log("[Debug] Checking static files locations");
+
+			const possiblePaths = [
+				path.join(process.resourcesPath, "public"),
+				path.join(process.resourcesPath, "app.asar/.output/public"),
+				path.join(process.resourcesPath, "app/.output/public"),
+				path.join(app.getAppPath(), ".output/public"),
+				path.join(__dirname, "../.output/public"),
+				path.join(__dirname, "../../.output/public"),
+			];
+
+			const results = {};
+
+			for (const testPath of possiblePaths) {
+				console.log(`[Debug] Checking path: ${testPath}`);
+				try {
+					const exists = fs.existsSync(testPath);
+					let contents = [];
+
+					if (exists) {
+						try {
+							contents = fs.readdirSync(testPath);
+						} catch (err) {
+							contents = [`Error reading directory: ${err.message}`];
+						}
+					}
+
+					results[testPath] = {
+						exists,
+						contents,
+						isDirectory: exists ? fs.statSync(testPath).isDirectory() : false,
+						hasIndexHtml: exists
+							? fs.existsSync(path.join(testPath, "index.html"))
+							: false,
+					};
+
+					if (exists && fs.existsSync(path.join(testPath, "index.html"))) {
+						try {
+							const indexSize = fs.statSync(
+								path.join(testPath, "index.html")
+							).size;
+							results[testPath].indexHtmlSize = indexSize;
+						} catch (err) {
+							results[testPath].indexHtmlError = err.message;
+						}
+					}
+				} catch (err) {
+					results[testPath] = {
+						error: err.message,
+					};
+				}
+			}
+
+			// Check app paths
+			results.appPaths = {
+				appPath: app.getAppPath(),
+				resourcesPath: process.resourcesPath,
+				dirname: __dirname,
+				cwd: process.cwd(),
+				execPath: process.execPath,
+			};
+
+			return results;
+		} catch (error) {
+			console.error("[Debug] Error checking static files:", error);
+			return { error: error.message, stack: error.stack };
+		}
+	});
+
+	// Dosya koruma işlemleri için IPC olayları
+	safeHandle(IPC_EVENTS.PROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.protectFile(filePath);
+		}
+		return false;
+	});
+
+	safeHandle(IPC_EVENTS.UNPROTECT_FILE, (event, filePath) => {
+		if (tempFileManager) {
+			return tempFileManager.unprotectFile(filePath);
+		}
+		return false;
+	});
+
+	// Seçim penceresini kapatma olayı
+	ipcMain.on("CLOSE_SELECTION_WINDOW", () => {
+		console.log("[Main] CLOSE_SELECTION_WINDOW olayı alındı");
+		if (selectionManager) {
+			try {
+				console.log("[Main] Seçim penceresi kapatılıyor (ESC tuşu)");
+				selectionManager.closeSelectionWindow();
+			} catch (error) {
+				console.error("[Main] Pencere kapatma hatası (ESC):", error);
+			}
+		}
+	});
+
 	// OPEN_EDITOR_MODE
 	ipcMain.on(IPC_EVENTS.OPEN_EDITOR_MODE, (event) => {
 		openEditorMode();
 	});
-}
 
-// Editör modunu açan fonksiyon
-function openEditorMode() {
-	console.log("[Main] Editör modu doğrudan açılıyor...");
-
-	// Kamera penceresini kapat - kesin olarak kapanmasını sağlayalım
-	if (cameraManager) {
-		console.log("[Main] Kamera penceresi kapatılıyor...");
-		// Önce stopCamera() ile stream'i durdur
-		cameraManager.stopCamera();
-
-		// Kamera penceresinin tam olarak kapandığından emin olmak için
-		try {
-			if (
-				cameraManager.cameraWindow &&
-				!cameraManager.cameraWindow.isDestroyed()
-			) {
-				cameraManager.cameraWindow.hide();
-				console.log("[Main] Kamera penceresi gizlendi");
-			}
-		} catch (err) {
-			console.error("[Main] Kamera penceresi gizlenirken hata:", err);
+	// Mouse tracking için yardımcı fonksiyonlar
+	function mapCursorType(systemCursor) {
+		if (!systemCursor || typeof systemCursor !== "string") {
+			return "default";
 		}
+
+		const cursorLower = systemCursor.toLowerCase();
+
+		if (cursorLower.includes("pointer") || cursorLower.includes("hand")) {
+			return "pointer";
+		} else if (cursorLower.includes("text") || cursorLower.includes("ibeam")) {
+			return "text";
+		} else if (cursorLower.includes("grab")) {
+			return "grab";
+		} else if (
+			cursorLower.includes("grabbing") ||
+			cursorLower.includes("closed")
+		) {
+			return "grabbing";
+		} else if (
+			cursorLower.includes("resize") ||
+			cursorLower.includes("split")
+		) {
+			return "resize";
+		}
+
+		return "default";
 	}
 
-	// Editör penceresini aç
-	if (editorManager) {
-		editorManager.createEditorWindow();
-	}
+	safeHandle(IPC_EVENTS.GET_PROTECTED_FILES, () => {
+		if (tempFileManager) {
+			return tempFileManager.getProtectedFiles();
+		}
+		return [];
+	});
 
-	// Ana pencereyi gizle
-	if (mainWindow && !mainWindow.isDestroyed()) {
-		mainWindow.hide();
-	}
+	// Kamera cihazı değişikliğini dinle
+	ipcMain.on(IPC_EVENTS.CAMERA_DEVICE_CHANGED, (event, deviceId) => {
+		console.log("[main.cjs] Kamera cihazı değişikliği alındı:", deviceId);
+		if (cameraManager) {
+			cameraManager.updateCameraDevice(deviceId);
+		}
+	});
+
+	// Handle screenshot saving
+	safeHandle(IPC_EVENTS.SAVE_SCREENSHOT, async (event, imageData, filePath) => {
+		try {
+			if (!imageData || !filePath) {
+				return { success: false, error: "Invalid image data or file path" };
+			}
+
+			// Remove data:image/png;base64, prefix if it exists
+			const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
+
+			// Write the file
+			const fs = require("fs");
+			fs.writeFileSync(filePath, Buffer.from(base64Data, "base64"));
+
+			return { success: true };
+		} catch (error) {
+			console.error("Error saving screenshot:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
+	// Desktop capturer
+	safeHandle(IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES, async (event, opts) => {
+		try {
+			const sources = await desktopCapturer.getSources(opts);
+
+			// Ekstra bilgi ekle
+			if (sources && sources.length) {
+				try {
+					// Aperture modülünden ekran listesini al
+					const aperturePath = path.join(__dirname, "aperture.cjs");
+					const apertureModule = await import(`file://${aperturePath}`);
+					const apertureScreens = await apertureModule.getScreens();
+
+					// Her kaynağa aperture ID'si ekle
+					sources.forEach((source) => {
+						// Ekran kaynağı ise
+						if (source.id.startsWith("screen:")) {
+							const matchingScreen = apertureScreens.find(
+								(screen) =>
+									screen.name &&
+									source.name &&
+									screen.name.includes(source.name)
+							);
+
+							if (matchingScreen) {
+								source.apertureId = matchingScreen.id;
+								source.apertureInfo = matchingScreen;
+							}
+						}
+					});
+				} catch (error) {
+					console.warn("[Main] Aperture ID bilgisi eklenirken hata:", error);
+				}
+			}
+
+			return sources;
+		} catch (error) {
+			console.error("Ekran kaynakları alınırken hata:", error);
+			throw error;
+		}
+	});
+
+	// Reset
+	ipcMain.on(IPC_EVENTS.RESET_FOR_NEW_RECORDING, () => {
+		if (selectionManager) selectionManager.resetSelection();
+		if (editorManager) editorManager.hideEditorWindow();
+		if (mainWindow) mainWindow.show();
+		if (cameraManager) cameraManager.showCameraWindow();
+		tempFileManager.cleanupAllFiles();
+	});
+
+	// Audio Settings
+	ipcMain.on(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, (event, settings) => {
+		if (mediaStateManager) {
+			mediaStateManager.updateAudioSettings(settings);
+		}
+	});
+
+	safeHandle(IPC_EVENTS.GET_AUDIO_SETTINGS, () => {
+		if (mediaStateManager) {
+			return mediaStateManager.state.audioSettings;
+		}
+		return null;
+	});
+
+	// Window dragging
+	ipcMain.on(IPC_EVENTS.START_WINDOW_DRAG, (event, mousePos) => {
+		isDragging = true;
+		const win = BrowserWindow.fromWebContents(event.sender);
+		const winPos = win.getPosition();
+		dragOffset = {
+			x: mousePos.x - winPos[0],
+			y: mousePos.y - winPos[1],
+		};
+
+		// Mouse pozisyonunu kaydet
+		mousePosition = mousePos;
+
+		console.log("[Main] Pencere sürükleme başladı:", {
+			mousePos,
+			winPos,
+			dragOffset,
+		});
+	});
+
+	ipcMain.on(IPC_EVENTS.WINDOW_DRAGGING, (event, mousePos) => {
+		if (!isDragging) return;
+		const win = BrowserWindow.fromWebContents(event.sender);
+		if (!win) return;
+
+		// Mouse pozisyonunu güncelle
+		mousePosition = mousePos;
+
+		win.setPosition(mousePos.x - dragOffset.x, mousePos.y - dragOffset.y);
+	});
+
+	ipcMain.on(IPC_EVENTS.END_WINDOW_DRAG, () => {
+		isDragging = false;
+	});
 }
 
 async function createWindow() {
@@ -1888,6 +2196,15 @@ async function createWindow() {
 			app.quit();
 			return;
 		}
+	} else {
+		// Üretim modunda Express sunucusunu başlat
+		try {
+			await startExpressServer();
+		} catch (err) {
+			console.error("Express sunucusu başlatılamadı:", err);
+			app.quit();
+			return;
+		}
 	}
 
 	mainWindow = new BrowserWindow({
@@ -1897,13 +2214,14 @@ async function createWindow() {
 		resizable: false,
 		skipTaskbar: false,
 		frame: false,
+
 		transparent: true,
 		hasShadow: true,
 		movable: true,
 		webPreferences: {
-			nodeIntegration: true,
+			nodeIntegration: false,
 			contextIsolation: true,
-			preload: path.join(__dirname, "preload.cjs"),
+			preload: getPreloadPath(),
 			webSecurity: false,
 			allowRunningInsecureContent: true,
 			webviewTag: true,
@@ -1923,15 +2241,34 @@ function setupSecurityPolicies() {
 			responseHeaders: {
 				...details.responseHeaders,
 				"Content-Security-Policy": [
-					"default-src 'self' 'unsafe-inline' 'unsafe-eval' file: data: blob:; media-src 'self' file: blob: data:;",
+					"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval'; " +
+						"script-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval'; " +
+						"style-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline'; " +
+						"img-src 'self' http://localhost:* file: data: electron: blob:; " +
+						"font-src 'self' http://localhost:* file: data: electron: blob:; " +
+						"media-src 'self' http://localhost:* file: data: electron: blob:;",
 				],
 			},
 		});
 	});
 
+	// Protokolleri kaydet
 	protocol.registerFileProtocol("file", (request, callback) => {
-		const pathname = decodeURIComponent(request.url.replace("file:///", ""));
-		callback(pathname);
+		const fileUrl = new URL(request.url);
+		const filePath = decodeURIComponent(fileUrl.pathname);
+		const normalizedPath =
+			process.platform === "win32" ? filePath.substr(1) : filePath;
+
+		console.log(`[Main] Dosya protokolü isteği: ${normalizedPath}`);
+		callback({ path: normalizedPath });
+	});
+
+	// Electron protokolü için handler ekle
+	protocol.registerFileProtocol("electron", (request, callback) => {
+		const url = new URL(request.url);
+		const filePath = url.pathname;
+		console.log(`[Main] Electron protokolü isteği: ${filePath}`);
+		callback({ path: filePath });
 	});
 }
 
@@ -1940,7 +2277,7 @@ function initializeManagers() {
 	selectionManager = new SelectionManager(mainWindow);
 	editorManager = new EditorManager(mainWindow);
 	tempFileManager = new TempFileManager(mainWindow);
-	mediaStateManager = new MediaStateManager(mainWindow, cameraManager);
+	mediaStateManager = new MediaStateManager(mainWindow);
 	trayManager = new TrayManager(mainWindow, openEditorMode);
 
 	// Tray ekle
@@ -1959,11 +2296,17 @@ function setupWindowEvents() {
 	});
 
 	mainWindow.on("close", (event) => {
+		console.log("[Main] Pencere kapatılıyor, isQuitting:", app.isQuitting);
+
 		if (!app.isQuitting) {
+			// Sadece uygulama gerçekten kapanmıyorsa engelle
 			event.preventDefault();
 			mainWindow.hide();
+			return false;
 		}
-		return false;
+
+		// Uygulama kapanıyorsa, burada bir şey yapmıyoruz
+		// before-quit event handler'ında temizlik zaten yapılıyor
 	});
 }
 
@@ -1972,12 +2315,136 @@ function loadApplication() {
 		mainWindow.loadURL("http://127.0.0.1:3000");
 		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
-		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));
+		try {
+			// Express sunucusunu kullan - bu daha stabil
+			const serverUrl = `http://localhost:${serverPort}`;
+			console.log(`[Main] Express ile yükleniyor: ${serverUrl}`);
+			mainWindow.loadURL(serverUrl);
+
+			// Hata ayıklama için DevTools aç (gerekirse)
+			// mainWindow.webContents.openDevTools({ mode: "detach" });
+		} catch (error) {
+			console.error("[Main] Uygulama yüklenirken hata:", error);
+
+			// Fallback - doğrudan dosyadan yüklemeyi dene
+			try {
+				// Olası dosya yollarını dene
+				const possiblePaths = [
+					path.join(process.resourcesPath, "public/index.html"),
+					path.join(
+						process.resourcesPath,
+						"app.asar/.output/public/index.html"
+					),
+					path.join(process.resourcesPath, "app/.output/public/index.html"),
+					path.join(app.getAppPath(), ".output/public/index.html"),
+					path.join(__dirname, "../.output/public/index.html"),
+				];
+
+				let indexPath = null;
+				for (const testPath of possiblePaths) {
+					console.log(`[Main] Test ediliyor: ${testPath}`);
+					if (fs.existsSync(testPath)) {
+						indexPath = testPath;
+						console.log(`[Main] Geçerli index.html bulundu: ${indexPath}`);
+						break;
+					}
+				}
+
+				if (indexPath) {
+					console.log(`[Main] Doğrudan dosyadan yükleniyor: ${indexPath}`);
+					mainWindow.loadFile(indexPath);
+				} else {
+					throw new Error("Hiçbir geçerli index.html bulunamadı");
+				}
+			} catch (fallbackError) {
+				console.error("[Main] Fallback yükleme hatası:", fallbackError);
+
+				// Hata sayfası göster
+				mainWindow.loadURL(`data:text/html,
+					<html>
+						<head>
+							<meta charset="utf-8">
+							<title>Sleer - Hata</title>
+							<style>
+								body {
+									font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+									background-color: #1E293B;
+									color: white;
+									display: flex;
+									flex-direction: column;
+									align-items: center;
+									justify-content: center;
+									height: 100vh;
+									margin: 0;
+									padding: 20px;
+									text-align: center;
+								}
+								h1 { color: #ff5555; margin-bottom: 10px; }
+								pre { 
+									background: #2c3e50; 
+									padding: 15px; 
+									border-radius: 4px; 
+									max-width: 600px; 
+									white-space: pre-wrap;
+									text-align: left;
+									overflow-x: auto;
+								}
+							</style>
+						</head>
+						<body>
+							<h1>Uygulama Yüklenirken Hata Oluştu</h1>
+							<p>Lütfen uygulamayı yeniden başlatın veya geliştirici ile iletişime geçin.</p>
+							<pre>${error.stack || error.message || "Bilinmeyen hata"}</pre>
+							<pre>
+Fallback hatası: ${fallbackError.message}
+
+Aranılan yollar:
+${possiblePaths.join("\n")}
+							</pre>
+						</body>
+					</html>
+				`);
+			}
+		}
 	}
+}
+
+// Preload script yolunu doğru şekilde belirleyen yardımcı fonksiyon
+function getPreloadPath() {
+	console.log("[Main] Preload yolu belirleniyor...");
+
+	// Olası preload yolları
+	const possiblePaths = [
+		path.join(__dirname, "preload.cjs"),
+		path.join(process.resourcesPath, "app.asar/electron/preload.cjs"),
+		path.join(process.resourcesPath, "app/electron/preload.cjs"),
+		path.join(app.getAppPath(), "electron/preload.cjs"),
+	];
+
+	// Her yolu kontrol et
+	for (const preloadPath of possiblePaths) {
+		const exists = fs.existsSync(preloadPath);
+		console.log(
+			`[Main] Preload yolu kontrol: ${preloadPath}, Mevcut: ${exists}`
+		);
+		if (exists) {
+			console.log(`[Main] Preload yolu belirlendi: ${preloadPath}`);
+			return preloadPath;
+		}
+	}
+
+	// Varsayılan yol
+	console.error(
+		"[Main] Hiçbir preload yolu bulunamadı! Varsayılan kullanılıyor."
+	);
+	return path.join(__dirname, "preload.cjs");
 }
 
 // App lifecycle events
 app.whenReady().then(() => {
+	// Uygulama kapanma değişkenini false olarak ayarla
+	app.isQuitting = false;
+
 	// İzinleri başlangıçta kontrol et ve iste
 	checkAndRequestPermissions();
 	createWindow();
@@ -1998,10 +2465,13 @@ app.on("activate", () => {
 	}
 });
 
-app.on("before-quit", async (event) => {
-	try {
-		console.log("[Main] Uygulama kapanıyor, tüm kaynaklar temizleniyor...");
+app.on("before-quit", () => {
+	console.log("[Main] Uygulama kapanıyor, isQuitting = true");
+	app.isQuitting = true;
 
+	// Temizlik işlemleri burada yapılıyor, ancak uygulamayı bloklamaması için
+	// direkt olarak kapanmaya izin veriyoruz
+	try {
 		// Fare takibini durdur
 		if (isTracking) {
 			console.log("[Main] Fare takibi durduruluyor...");
@@ -2009,30 +2479,20 @@ app.on("before-quit", async (event) => {
 			isTracking = false;
 		}
 
-		// Tüm stream'leri temizle
-		if (tempFileManager) {
-			console.log("[Main] Tüm stream'ler temizleniyor...");
-			event.preventDefault(); // Uygulamanın kapanmasını geçici olarak engelle
-
-			// Stream'leri temizle ve sonra uygulamayı kapat
-			await tempFileManager.cleanupStreams();
-			console.log("[Main] Tüm stream'ler temizlendi");
-
-			// Tüm geçici dosyaları temizle
-			await tempFileManager.cleanupAllFiles();
-			console.log("[Main] Tüm geçici dosyalar temizlendi");
-
-			// Diğer manager'ları temizle
-			if (cameraManager) cameraManager.cleanup();
-			if (trayManager) trayManager.cleanup();
-
-			// Şimdi uygulamayı kapat
-			app.quit();
+		// HTTP sunucusunu kapat
+		if (httpServer) {
+			console.log("[Main] HTTP sunucusu kapatılıyor...");
+			httpServer.close();
 		}
+
+		// Diğer manager'ları temizle
+		if (cameraManager) cameraManager.cleanup();
+		if (trayManager) trayManager.cleanup();
+		if (tempFileManager) tempFileManager.cleanupAllFiles();
+
+		console.log("[Main] Tüm kaynaklar temizlendi");
 	} catch (error) {
-		console.error("[Main] Uygulama kapanırken hata:", error);
-		// Hata olsa bile uygulamayı kapat
-		app.exit(1);
+		console.error("[Main] Temizleme işlemi sırasında hata:", error);
 	}
 });
 
@@ -2241,4 +2701,215 @@ async function checkPermissionStatus() {
 			error: error.message,
 		};
 	}
+}
+
+// Express sunucusunu başlatma fonksiyonu
+function startExpressServer() {
+	return new Promise((resolve, reject) => {
+		try {
+			// Eğer daha önce başlatılmışsa sunucuyu kapat
+			if (httpServer) {
+				httpServer.close();
+			}
+
+			console.log("[Main] Express sunucusu başlatılıyor...");
+			// Express uygulamasını oluştur
+			expressApp = express();
+
+			// Mevcut yol bilgilerini yazdır
+			console.log("[Main] process.resourcesPath:", process.resourcesPath);
+			console.log("[Main] app.getAppPath():", app.getAppPath());
+			console.log("[Main] __dirname:", __dirname);
+
+			// Statik dosya yollarını kontrol et ve ilk bulunanı kullan
+			let staticFound = false;
+			let staticPath = null;
+
+			// Olası statik dosya yolları
+			const possiblePaths = [
+				path.join(process.resourcesPath, "public"), // package.json extraResources ile kopyalanan
+				path.join(process.resourcesPath, "app.asar/.output/public"),
+				path.join(process.resourcesPath, "app/.output/public"),
+				path.join(app.getAppPath(), ".output/public"),
+				path.join(__dirname, "../.output/public"),
+				path.join(__dirname, "../../.output/public"),
+			];
+
+			// Her birini dene ve ilk bulunanı kullan
+			for (const testPath of possiblePaths) {
+				console.log(`[Main] Statik yol test ediliyor: ${testPath}`);
+
+				try {
+					if (
+						fs.existsSync(testPath) &&
+						fs.existsSync(path.join(testPath, "index.html"))
+					) {
+						staticPath = testPath;
+						staticFound = true;
+						console.log(`[Main] Geçerli statik yol bulundu: ${staticPath}`);
+						break;
+					} else {
+						console.log(
+							`[Main] Yol mevcut değil veya index.html yok: ${testPath}`
+						);
+
+						// Eğer dizin varsa ama index.html yoksa, içeriği göster
+						if (fs.existsSync(testPath)) {
+							try {
+								const files = fs.readdirSync(testPath);
+								console.log(`[Main] Dizin içeriği: ${files.join(", ")}`);
+							} catch (err) {
+								console.error(`[Main] Dizin içeriği okunamadı: ${err.message}`);
+							}
+						}
+					}
+				} catch (err) {
+					console.error(`[Main] Yol test edilirken hata: ${testPath}`, err);
+				}
+			}
+
+			// CORS ayarları
+			expressApp.use((req, res, next) => {
+				res.header("Access-Control-Allow-Origin", "*");
+				res.header("Access-Control-Allow-Methods", "GET");
+				res.header(
+					"Access-Control-Allow-Headers",
+					"Content-Type, Authorization"
+				);
+				// Cache kontrolü ekle
+				res.header(
+					"Cache-Control",
+					"no-store, no-cache, must-revalidate, private"
+				);
+				res.header("Pragma", "no-cache");
+				res.header("Expires", "0");
+				next();
+			});
+
+			// Her isteği logla
+			expressApp.use((req, res, next) => {
+				console.log(`[Express] ${req.method} ${req.url}`);
+				next();
+			});
+
+			if (staticPath) {
+				// Statik dosyaları serve et
+				console.log(`[Main] Statik dosyalar sunuluyor: ${staticPath}`);
+
+				expressApp.use(
+					express.static(staticPath, {
+						etag: false, // ETag'leri devre dışı bırak
+						lastModified: false, // Last-Modified başlıklarını devre dışı bırak
+						setHeaders: (res) => {
+							// Her statik dosya için cache kontrolü
+							res.setHeader(
+								"Cache-Control",
+								"no-store, no-cache, must-revalidate, private"
+							);
+							res.setHeader("Pragma", "no-cache");
+							res.setHeader("Expires", "0");
+						},
+					})
+				);
+
+				// Özel rotalar - sayfa yolları için catch-all route
+				expressApp.get("*", (req, res) => {
+					console.log(`[Express] Catch-all route: ${req.url}`);
+					const indexPath = path.join(staticPath, "index.html");
+
+					if (fs.existsSync(indexPath)) {
+						// response header'larını ayarlayalım
+						res.set(
+							"Cache-Control",
+							"no-store, no-cache, must-revalidate, private"
+						);
+						res.set("Pragma", "no-cache");
+						res.set("Expires", "0");
+						res.sendFile(indexPath);
+					} else {
+						console.error(`[Express] index.html bulunamadı: ${indexPath}`);
+						res.status(404).send("index.html bulunamadı");
+					}
+				});
+			} else {
+				console.warn("[Main] Statik yol bulunamadı, fallback içerik sunuluyor");
+
+				// Express middleware'ler
+				expressApp.use(express.json());
+
+				// Ana sayfayı oluştur
+				expressApp.get("*", (req, res) => {
+					console.log(`[Express] GET isteği: ${req.url}`);
+					res.send(`
+						<!DOCTYPE html>
+						<html>
+						<head>
+							<meta charset="utf-8">
+							<title>Sleer</title>
+							<meta name="viewport" content="width=device-width, initial-scale=1">
+							<style>
+								body { 
+									font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+									background-color: #1E293B; 
+									color: white;
+									display: flex;
+									flex-direction: column;
+									align-items: center;
+									justify-content: center;
+									height: 100vh;
+									margin: 0;
+									padding: 20px;
+									text-align: center;
+								}
+								h1 { font-size: 24px; margin-bottom: 10px; }
+								p { font-size: 16px; max-width: 600px; line-height: 1.5; }
+							</style>
+						</head>
+						<body>
+							<h1>Sleer Başlatılıyor</h1>
+							<p>Uygulama kaynak dosyaları bulunamadı. Lütfen uygulamayı yeniden yükleyin veya geliştirici ile iletişime geçin.</p>
+							<pre>
+Aranılan yollar:
+${possiblePaths.join("\n")}
+							</pre>
+						</body>
+						</html>
+					`);
+				});
+			}
+
+			// HTTP sunucusu oluştur ve başlat
+			httpServer = http.createServer(expressApp);
+
+			// İlk port ile başla ve port boşalana kadar dene
+			function tryBindPort(port) {
+				httpServer.once("error", (err) => {
+					if (err.code === "EADDRINUSE") {
+						console.log(
+							`[Main] Port ${port} kullanımda, ${port + 1} deneniyor...`
+						);
+						tryBindPort(port + 1);
+					} else {
+						console.error(`[Main] HTTP sunucusu başlatılırken hata:`, err);
+						reject(err);
+					}
+				});
+
+				httpServer.listen(port, () => {
+					serverPort = port;
+					// Port numarasını global değişkene ekle
+					global.serverPort = port;
+					console.log(
+						`[Main] Express sunucusu http://localhost:${port} adresinde başlatıldı`
+					);
+					resolve(port);
+				});
+			}
+
+			tryBindPort(serverPort);
+		} catch (error) {
+			console.error("[Main] Express sunucu başlatma hatası:", error);
+			reject(error);
+		}
+	});
 }

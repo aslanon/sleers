@@ -42,6 +42,20 @@ export default defineNuxtConfig({
 		},
 		build: {
 			target: "esnext",
+			rollupOptions: {
+				external: ["electron"],
+				output: {
+					format: "es",
+				},
+			},
+		},
+		optimizeDeps: {
+			exclude: ["electron"],
+		},
+		resolve: {
+			alias: {
+				electron: "./electron/electron-shim.js",
+			},
 		},
 	},
 
