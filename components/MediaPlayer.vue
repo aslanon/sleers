@@ -198,6 +198,7 @@ const {
 	videoBorderSettings,
 	mouseVisible,
 	showDock, // Dock görünürlük ayarı
+	dockSize,
 } = usePlayerSettings();
 
 // Dock ayarlarını al
@@ -1101,6 +1102,14 @@ watch(backgroundColor, () => {
 	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 	bgImageLoaded.value = false;
 	bgImageElement.value = null;
+	if (videoElement && !videoState.value.isPlaying) {
+		requestAnimationFrame(updateCanvas);
+	}
+});
+
+watch(dockSize, () => {
+	if (!ctx || !canvasRef.value) return;
+	drawMacOSDock(ctx, window.devicePixelRatio || 1);
 	if (videoElement && !videoState.value.isPlaying) {
 		requestAnimationFrame(updateCanvas);
 	}
@@ -2924,7 +2933,7 @@ const drawMacOSDock = (ctx, dpr) => {
 		// Dock öğelerini çiz
 		if (visibleDockItems.value && visibleDockItems.value.length > 0) {
 			// Dock ayarları
-			const scale = 4;
+			const scale = dockSize.value;
 			const dockHeight = 55 * dpr * scale;
 			const dockRadius = 18 * dpr * scale;
 			const iconSize = 48 * dpr * scale;
@@ -2934,15 +2943,85 @@ const drawMacOSDock = (ctx, dpr) => {
 				iconSpacing * (visibleDockItems.value.length - 1) +
 				iconSpacing * 2;
 			const dockX = (canvasWidth - dockWidth) / 2;
-			const dockY = canvasHeight - dockHeight - 5 * dpr * scale; // Ekranın altından 20px yukarıda
+			const dockY = canvasHeight - dockHeight - 5 * dpr * scale;
 
-			// Dock arkaplanı çiz
+			// 1. ADIM: Mevcut canvas içeriğini bir kopyasını al (arkaplanı blurlayacağız)
+			const contentCanvas = document.createElement("canvas");
+			contentCanvas.width = canvasWidth;
+			contentCanvas.height = canvasHeight;
+			const contentCtx = contentCanvas.getContext("2d");
+
+			// Mevcut canvas içeriğini kopyala
+			contentCtx.drawImage(canvasRef.value, 0, 0);
+
+			// 2. ADIM: Dock alanı için maskeleme yaparak blur uygula
+			const backdropCanvas = document.createElement("canvas");
+			backdropCanvas.width = canvasWidth;
+			backdropCanvas.height = canvasHeight;
+			const backdropCtx = backdropCanvas.getContext("2d");
+
+			// Önce mevcut içeriği kopyala
+			backdropCtx.drawImage(contentCanvas, 0, 0);
+
+			// Dock alanına blur uygula
+			backdropCtx.save();
+			backdropCtx.beginPath();
+			roundedRect(backdropCtx, dockX, dockY, dockWidth, dockHeight, dockRadius);
+			backdropCtx.clip();
+
+			// Blur filtresi uygula
+			backdropCtx.filter = `blur(${20 * dpr}px)`;
+			backdropCtx.drawImage(contentCanvas, 0, 0);
+			backdropCtx.filter = "none";
+			backdropCtx.restore();
+
+			// 3. ADIM: Shadow çizimi için geçici canvas oluştur
+			const shadowCanvas = document.createElement("canvas");
+			shadowCanvas.width = canvasWidth;
+			shadowCanvas.height = canvasHeight;
+			const shadowCtx = shadowCanvas.getContext("2d");
+
+			// Shadow çiz
+			shadowCtx.save();
+			shadowCtx.shadowColor = "rgba(0, 0, 0, 0.75)";
+			shadowCtx.shadowBlur = 15 * dpr;
+			shadowCtx.shadowOffsetX = 0;
+			shadowCtx.shadowOffsetY = 0;
+
+			// Shadow için şekil çiz
+			shadowCtx.beginPath();
+			roundedRect(shadowCtx, dockX, dockY, dockWidth, dockHeight, dockRadius);
+			shadowCtx.fillStyle = "rgba(255, 255, 255, 0.1)";
+			shadowCtx.fill();
+			shadowCtx.restore();
+
+			// 4. ADIM: Ana canvas'a tüm efektleri çiz
 			ctx.save();
+
+			// Önce blurlu arkaplanı çiz
+			ctx.drawImage(backdropCanvas, 0, 0);
+
+			// Sonra üzerine buzlu cam efekti ekle
+			ctx.globalCompositeOperation = "source-over";
 			ctx.beginPath();
 			roundedRect(ctx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-			ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+			ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
 			ctx.fill();
 
+			// Shadow'u çiz
+			ctx.drawImage(shadowCanvas, 0, 0);
+
+			// Border çiz
+			ctx.beginPath();
+			roundedRect(ctx, dockX, dockY, dockWidth + 2, dockHeight + 2, dockRadius);
+			ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+			ctx.lineWidth = 3 * dpr;
+			ctx.stroke();
+
+			// İkonları çizmeye hazırlan
+			ctx.restore();
+
+			// 5. ADIM: İkonları çiz (blursuz ve net olarak)
 			const totalIcons = visibleDockItems.value.length;
 			const totalIconWidth =
 				(iconSize + iconSpacing) * totalIcons - iconSpacing;

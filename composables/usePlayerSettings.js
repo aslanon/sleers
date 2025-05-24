@@ -18,6 +18,7 @@ const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
 const showDock = ref(true);
+const dockSize = ref(4);
 const cameraSettings = ref({
 	size: 15,
 	radius: 50,
@@ -215,6 +216,10 @@ export const usePlayerSettings = () => {
 		showDock.value = value;
 	};
 
+	const updateDockSize = (value) => {
+		dockSize.value = value;
+	};
+
 	return {
 		mouseSize,
 		motionBlurValue,
@@ -236,6 +241,7 @@ export const usePlayerSettings = () => {
 		activeZoomPosition,
 		MOTION_BLUR_CONSTANTS,
 		showDock,
+		dockSize,
 		updateMouseSize,
 		updateMotionBlur,
 		updateMouseVisible,
@@ -254,6 +260,7 @@ export const usePlayerSettings = () => {
 		updateCameraSettings,
 		updateVideoBorderSettings,
 		updateShowDock,
+		updateDockSize,
 		CURSOR_TRANSITION_TYPES,
 	};
 };

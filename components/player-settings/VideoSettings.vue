@@ -194,6 +194,20 @@
 					</label>
 				</div>
 			</div>
+
+			<!-- Dock Size Slider - Only shown when dock is enabled -->
+			<div v-if="showDockValue" class="mt-4">
+				<SliderInput
+					v-model="dockSizeValue"
+					label="Dock Boyutu"
+					desc="Dock'un boyutunu ayarlar"
+					:min="1"
+					:max="6"
+					:step="0.5"
+					unit="x"
+					@change="updateDockSize"
+				/>
+			</div>
 		</div>
 	</div>
 </template>
@@ -238,6 +252,8 @@ const {
 	updateVideoBorderSettings,
 	showDock,
 	updateShowDock: updateDockVisibility,
+	dockSize,
+	updateDockSize: updateDockSizeValue,
 } = usePlayerSettings();
 
 // Dock ayarları
@@ -247,6 +263,7 @@ const {
 	toggleDockVisibility,
 } = useDockSettings();
 const showDockValue = ref(showDock.value);
+const dockSizeValue = ref(dockSize.value);
 
 // Renk paleti
 const colors = [
@@ -498,11 +515,28 @@ function updateShowDock() {
 	updateDockVisibility(showDockValue.value);
 }
 
+// Update dock size
+function updateDockSize() {
+	console.log("[VideoSettings] Updating dock size:", {
+		oldValue: dockSize.value,
+		newValue: dockSizeValue.value,
+	});
+	updateDockSizeValue(dockSizeValue.value);
+}
+
 // Store'dan gelen dock ayarlarını izle
 watch(
 	() => showDockItems.value,
 	(newValue) => {
 		showDockValue.value = newValue;
+	}
+);
+
+// Store'dan gelen dock size ayarını izle
+watch(
+	() => dockSize.value,
+	(newValue) => {
+		dockSizeValue.value = newValue;
 	}
 );
 </script>
