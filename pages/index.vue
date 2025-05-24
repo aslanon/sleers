@@ -211,8 +211,8 @@ import { useMediaDevices } from "~/composables/useMediaDevices";
 import RecordSettings from "~/components/record-settings/index.vue";
 import PermissionChecker from "~/components/ui/PermissionChecker.vue";
 
-// IPC event isimlerini al
-const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
+const electron = window.electron;
+const IPC_EVENTS = electron?.ipcRenderer?.IPC_EVENTS || {};
 
 const {
 	videoDevices,
@@ -236,8 +236,6 @@ const {
 	toggleSystemAudio,
 	throttle,
 } = useMediaDevices();
-
-const electron = window.electron;
 
 const closeWindow = () => {
 	electron?.windowControls.close();
