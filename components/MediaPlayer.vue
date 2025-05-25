@@ -1508,28 +1508,18 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			if (isCameraDragging.value) {
 				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
 				cameraPos = cameraPosition.value;
-				console.log("[MediaPlayer] Using dragged camera position:", cameraPos);
 			} else if (cameraSettings.value.followMouse && lastCameraPosition.value) {
 				// Mouse takibi aktifse video pozisyonunu ekle
 				cameraPos = {
 					x: lastCameraPosition.value.x,
 					y: lastCameraPosition.value.y,
 				};
-				console.log(
-					"[MediaPlayer] Using mouse-following camera position:",
-					cameraPos
-				);
 			} else if (cameraPosition.value) {
 				// Kamera pozisyonu varsa onu kullan (düzen uygulandıktan sonra veya manuel ayarlandıktan sonra)
 				cameraPos = { ...cameraPosition.value };
-				console.log("[MediaPlayer] Using stored camera position:", cameraPos);
 			} else if (cameraSettings.value.position) {
 				// Kamera ayarlarında pozisyon varsa onu kullan (son çare olarak)
 				cameraPos = { ...cameraSettings.value.position };
-				console.log(
-					"[MediaPlayer] Using camera position from settings:",
-					cameraPos
-				);
 			}
 
 			try {
@@ -2937,7 +2927,8 @@ const drawMacOSDock = (ctx, dpr) => {
 			const dockHeight = 52 * dpr * scale;
 			const dockRadius = 18 * dpr * scale;
 			const iconSize = 48 * dpr * scale;
-			const iconSpacing = 2 * dpr * scale; // İkonlar arası boşluğu daha da artır
+			const iconSpacing = 4 * dpr * scale; // İkonlar arası boşluğu artır
+			const dividerSpacing = 8 * dpr * scale; // Ayırıcı için boşluk miktarını azalt
 
 			// Dock içinde ayırıcı olup olmadığını kontrol et ve varsa ayırıcı sayısını bul
 			let dividerCount = 0;
@@ -2945,14 +2936,11 @@ const drawMacOSDock = (ctx, dpr) => {
 				if (item.isDivider) dividerCount++;
 			});
 
-			// Ayırıcı için gerekli boşluk miktarı
-			const dividerSpacing = 16 * dpr * scale; // Her ayırıcı için 16 birim ekstra boşluk (8+8)
-
 			// Dock toplam genişliğini hesapla
 			const dockWidth =
 				iconSize * visibleDockItems.value.length + // İkonların toplam genişliği
-				iconSpacing * (visibleDockItems.value.length + 1) + // İkonlar arası boşluk + kenar boşlukları
-				dividerSpacing * dividerCount; // Ayırıcılar için ekstra boşluk
+				iconSpacing * (visibleDockItems.value.length - 1) + // İkonlar arası boşluk (son ikon için boşluk yok)
+				dividerSpacing * dividerCount * 2; // Ayırıcılar için ekstra boşluk (her iki tarafta)
 
 			// Dock'u yatayda ortala
 			const dockX = Math.floor((canvasWidth - dockWidth) / 2);
@@ -3044,26 +3032,26 @@ const drawMacOSDock = (ctx, dpr) => {
 			visibleDockItems.value.forEach((item, index) => {
 				// Eğer bu öğe divider özelliğine sahipse, ayırıcı çiz
 				if (item.isDivider) {
-					// Divider'dan önce 8 birim boşluk bırak
-					currentX += 8 * dpr * scale;
+					// Divider'dan önce boşluk bırak
+					currentX += dividerSpacing;
 
 					// Ayırıcı çizgisi için koordinatları hesapla
 					const dividerX = currentX;
-					const dividerY = dockY + dockHeight * 0.1; // Dock'un üst kısmından başla
-					const dividerHeight = dockHeight * 0.8; // Dock'un %80'i kadar uzunlukta
+					const dividerY = dockY + dockHeight * 0.2; // Dock'un üst kısmından başla
+					const dividerHeight = dockHeight * 0.6; // Dock'un %60'ı kadar uzunlukta
 
 					// Ayırıcı çizgisini çiz
 					ctx.save();
 					ctx.beginPath();
 					ctx.moveTo(dividerX, dividerY);
 					ctx.lineTo(dividerX, dividerY + dividerHeight);
-					ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; // Hafif beyaz, yarı saydam
-					ctx.lineWidth = 1 * dpr * scale;
+					ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; // Biraz daha belirgin beyaz
+					ctx.lineWidth = 2 * dpr * scale; // Çizgi kalınlığını artır
 					ctx.stroke();
 					ctx.restore();
 
-					// Divider'dan sonra 8 birim boşluk bırak
-					currentX += 8 * dpr * scale;
+					// Divider'dan sonra boşluk bırak
+					currentX += dividerSpacing;
 				}
 
 				// İkon için X ve Y pozisyonlarını hesapla

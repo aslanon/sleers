@@ -26,29 +26,29 @@
 
 		<!-- Left Edge Handle -->
 		<div
-			class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
+			class="absolute left-1 top-0 bottom-0 w-1 z-50 flex items-center justify-start opacity-0 transition-opacity duration-200"
 			:class="{
 				'opacity-80': isActive,
 				'group-hover:opacity-80': !isResizing,
 			}"
+			@mousedown.stop="handleResizeStart($event, 'start')"
 		>
 			<div
-				class="w-[3px] h-[24px] bg-white rounded-full cursor-w-resize"
-				@mousedown.stop="handleResizeStart($event, 'start')"
+				class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 			></div>
 		</div>
 
 		<!-- Right Edge Handle -->
 		<div
-			class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
+			class="absolute right-1 top-0 bottom-0 w-1 z-50 flex items-center justify-end opacity-0 transition-opacity duration-200"
 			:class="{
 				'opacity-80': isActive,
 				'group-hover:opacity-80': !isResizing,
 			}"
+			@mousedown.stop="handleResizeStart($event, 'end')"
 		>
 			<div
-				class="w-[3px] h-[24px] bg-white rounded-full cursor-e-resize"
-				@mousedown.stop="handleResizeStart($event, 'end')"
+				class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 			></div>
 		</div>
 
@@ -119,6 +119,13 @@ const emit = defineEmits([
 // Mouse position for split mode
 const mousePosition = ref({ x: 0 });
 
+// Resize state'leri
+const isResizing = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
+const resizeStartLeft = ref(0);
+const resizeStartTime = ref(0);
+
 // Computed styles for the segment
 const segmentStyle = computed(() => {
 	const start = props.segment.start || props.segment.startTime || 0;
@@ -174,7 +181,82 @@ const handleMouseLeave = () => {
 };
 
 const handleResizeStart = (event, edge) => {
+	event.stopPropagation();
+	const segmentEl = event.currentTarget.closest(".h-full");
+	const rect = segmentEl.getBoundingClientRect();
+
+	resizeStartX.value = event.clientX;
+	resizeStartWidth.value = rect.width;
+	resizeStartLeft.value = rect.left;
+	resizeStartTime.value =
+		edge === "start" ? props.segment.start : props.segment.end;
+
+	// Resize durumunu güncelle
 	emit("resizeStart", event, props.index, edge);
+
+	// Global event listener'ları ekle
+	window.addEventListener("mousemove", handleResize);
+	window.addEventListener("mouseup", handleResizeEnd);
+
+	// Performance için style güncellemesi
+	if (segmentEl) {
+		segmentEl.style.willChange = "width, left";
+		segmentEl.style.transition = "none";
+	}
+};
+
+const handleResize = (event) => {
+	if (!isResizing.value) return;
+
+	const timeline = event.currentTarget.closest(".timeline-layer-bar");
+	if (!timeline) return;
+
+	const timelineRect = timeline.getBoundingClientRect();
+	const dx = event.clientX - resizeStartX.value;
+	const pixelsPerSecond = timelineRect.width / props.duration;
+
+	// Zaman değişimini hesapla
+	const timeChange = dx / pixelsPerSecond;
+
+	// Yeni segment zamanlarını hesapla
+	let newStart = props.segment.start;
+	let newEnd = props.segment.end;
+
+	if (edge.value === "start") {
+		newStart = Math.max(
+			0,
+			Math.min(props.segment.end - 0.1, resizeStartTime.value + timeChange)
+		);
+	} else {
+		newEnd = Math.max(
+			props.segment.start + 0.1,
+			Math.min(props.duration, resizeStartTime.value + timeChange)
+		);
+	}
+
+	// Segment güncellemesini emit et
+	emit("update", {
+		...props.segment,
+		start: newStart,
+		end: newEnd,
+	});
+};
+
+const handleResizeEnd = () => {
+	// Global event listener'ları kaldır
+	window.removeEventListener("mousemove", handleResize);
+	window.removeEventListener("mouseup", handleResizeEnd);
+
+	// Segment elementinin stilini resetle
+	const segmentEl = event.currentTarget.closest(".h-full");
+	if (segmentEl) {
+		segmentEl.style.willChange = "auto";
+		segmentEl.style.transition = "all 0.2s ease";
+	}
+
+	// Resize durumunu resetle
+	isResizing.value = false;
+	edge.value = null;
 };
 
 const handleSplit = (event) => {

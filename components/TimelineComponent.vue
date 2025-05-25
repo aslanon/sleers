@@ -98,7 +98,7 @@
 									:segment="segment"
 									:index="index"
 									:is-active="activeSegmentIndex === index"
-									:is-resizing="isResizing"
+									:is-resizing="isResizing && resizingSegmentIndex === index"
 									:is-hovered="isHovered"
 									:is-split-mode="isSplitMode"
 									:duration="maxDuration"
@@ -106,6 +106,7 @@
 									@mouse-move="handleSegmentMouseMove"
 									@mouse-leave="handleSegmentMouseLeave"
 									@resize-start="handleResizeStart"
+									@update="handleSegmentUpdate"
 									@split="handleSegmentSplit"
 								/>
 							</div>
@@ -623,7 +624,18 @@ const handleSegmentSplit = (event, index, ratio) => {
 	if (!segment) return;
 
 	// Bölme noktasındaki zamanı hesapla
-	const splitTime = segment.start + (segment.end - segment.start) * ratio;
+	const duration = segment.end - segment.start;
+	const splitTime = segment.start + duration * ratio;
+
+	// Minimum segment süresi kontrolü (örneğin 0.1 saniye)
+	const minDuration = 0.1;
+	if (
+		splitTime - segment.start < minDuration ||
+		segment.end - splitTime < minDuration
+	) {
+		console.warn("Segment too small to split");
+		return;
+	}
 
 	// İlk segment (sol taraf)
 	const leftSegment = {
@@ -634,6 +646,9 @@ const handleSegmentSplit = (event, index, ratio) => {
 		endTime: splitTime,
 		type: segment.type,
 		layer: segment.layer,
+		duration: splitTime - segment.start,
+		width: `${((splitTime - segment.start) / maxDuration.value) * 100}%`,
+		startPosition: `${(segment.start / maxDuration.value) * 100}%`,
 	};
 
 	// İkinci segment (sağ taraf)
@@ -645,6 +660,9 @@ const handleSegmentSplit = (event, index, ratio) => {
 		endTime: segment.end,
 		type: segment.type,
 		layer: segment.layer,
+		duration: segment.end - splitTime,
+		width: `${((segment.end - splitTime) / maxDuration.value) * 100}%`,
+		startPosition: `${(splitTime / maxDuration.value) * 100}%`,
 	};
 
 	// Bölünmüş segmentleri emit et
@@ -652,6 +670,7 @@ const handleSegmentSplit = (event, index, ratio) => {
 		index,
 		segments: [leftSegment, rightSegment],
 		splitTime,
+		totalDuration: maxDuration.value,
 	});
 };
 
@@ -1245,6 +1264,23 @@ const isZoomDragging = ref(false);
 const draggedZoomIndex = ref(null);
 const dragStartX = ref(0);
 const dragStartRange = ref(null);
+
+// Segment güncelleme
+const handleSegmentUpdate = (updatedSegment, index) => {
+	const newSegments = [...props.segments];
+	newSegments[index] = {
+		...updatedSegment,
+		startTime: updatedSegment.start,
+		endTime: updatedSegment.end,
+		duration: updatedSegment.end - updatedSegment.start,
+		width: `${
+			((updatedSegment.end - updatedSegment.start) / props.duration) * 100
+		}%`,
+		startPosition: `${(updatedSegment.start / props.duration) * 100}%`,
+	};
+
+	emit("segmentUpdate", newSegments);
+};
 </script>
 
 <style scoped>

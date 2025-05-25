@@ -20,85 +20,107 @@
 		<div v-if="removeBackground" class="space-y-4">
 			<div
 				v-if="isBackgroundRemovalLoading"
-				class="flex items-center justify-center p-4"
+				class="flex items-center justify-center p-4 bg-blue-50 rounded-md"
 			>
 				<div
 					class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"
 				></div>
-				<span class="ml-2 text-sm text-gray-600">Model yükleniyor...</span>
+				<span class="ml-2 text-sm text-blue-600">Model yükleniyor...</span>
 			</div>
 
-			<div class="space-y-2">
-				<label class="block text-sm font-medium text-gray-700">
-					Segmentasyon Eşiği
-					<span class="text-xs text-gray-500 ml-1"
-						>({{ segmentationThreshold }})</span
+			<div v-if="!isBackgroundRemovalLoading" class="space-y-4">
+				<div class="space-y-2">
+					<label class="block text-sm font-medium text-gray-700">
+						Segmentasyon Eşiği
+						<span class="text-xs text-gray-500 ml-1"
+							>({{ segmentationThreshold }})</span
+						>
+					</label>
+					<input
+						type="range"
+						v-model="segmentationThreshold"
+						min="0.1"
+						max="0.9"
+						step="0.05"
+						class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+						@change="updateSettings"
+					/>
+					<div class="flex justify-between text-xs text-gray-500">
+						<span>0.1</span>
+						<span>0.9</span>
+					</div>
+					<p class="text-xs text-gray-500 mt-1">
+						Düşük değerler daha fazla alanı korur, yüksek değerler daha kesin
+						sonuçlar verir
+					</p>
+				</div>
+
+				<div class="space-y-2">
+					<label class="block text-sm font-medium text-gray-700"
+						>Çözünürlük</label
 					>
-				</label>
-				<input
-					type="range"
-					v-model="segmentationThreshold"
-					min="0.1"
-					max="0.9"
-					step="0.05"
-					class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-					@change="updateSettings"
-				/>
-				<div class="flex justify-between text-xs text-gray-500">
-					<span>0.1</span>
-					<span>0.9</span>
+					<select
+						v-model="internalResolution"
+						class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						@change="updateSettings"
+					>
+						<option value="low">Düşük (Hızlı)</option>
+						<option value="medium">Orta</option>
+						<option value="high">Yüksek (Yavaş)</option>
+					</select>
+					<p class="text-xs text-gray-500 mt-1">
+						Düşük çözünürlük daha hızlı işlem, yüksek çözünürlük daha iyi kalite
+						sağlar
+					</p>
 				</div>
-			</div>
 
-			<div class="space-y-2">
-				<label class="block text-sm font-medium text-gray-700"
-					>Çözünürlük</label
-				>
-				<select
-					v-model="internalResolution"
-					class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-					@change="updateSettings"
-				>
-					<option value="low">Düşük (Hızlı)</option>
-					<option value="medium">Orta</option>
-					<option value="high">Yüksek (Yavaş)</option>
-				</select>
-			</div>
-
-			<div class="space-y-2">
-				<label class="block text-sm font-medium text-gray-700">
-					Hedef FPS
-					<span class="text-xs text-gray-500 ml-1">({{ targetFps }})</span>
-				</label>
-				<input
-					type="range"
-					v-model="targetFps"
-					min="15"
-					max="60"
-					step="5"
-					class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-					@change="updateSettings"
-				/>
-				<div class="flex justify-between text-xs text-gray-500">
-					<span>15</span>
-					<span>60</span>
+				<div class="space-y-2">
+					<label class="block text-sm font-medium text-gray-700">
+						Hedef FPS
+						<span class="text-xs text-gray-500 ml-1">({{ targetFps }})</span>
+					</label>
+					<input
+						type="range"
+						v-model="targetFps"
+						min="15"
+						max="60"
+						step="5"
+						class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+						@change="updateSettings"
+					/>
+					<div class="flex justify-between text-xs text-gray-500">
+						<span>15</span>
+						<span>60</span>
+					</div>
+					<p class="text-xs text-gray-500 mt-1">
+						Düşük FPS daha az CPU kullanır, yüksek FPS daha akıcı görüntü sağlar
+					</p>
 				</div>
-			</div>
 
-			<div class="flex items-center mt-2">
-				<input
-					id="flip-horizontal"
-					type="checkbox"
-					v-model="flipHorizontal"
-					class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-					@change="updateSettings"
-				/>
-				<label
-					for="flip-horizontal"
-					class="ml-2 text-sm font-medium text-gray-700"
-				>
-					Yatay Çevir
-				</label>
+				<div class="flex items-center mt-2">
+					<input
+						id="flip-horizontal"
+						type="checkbox"
+						v-model="flipHorizontal"
+						class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+						@change="updateSettings"
+					/>
+					<label
+						for="flip-horizontal"
+						class="ml-2 text-sm font-medium text-gray-700"
+					>
+						Yatay Çevir
+					</label>
+					<span class="text-xs text-gray-500 ml-2">(Selfie kamerası için)</span>
+				</div>
+
+				<div class="mt-4 p-3 bg-yellow-50 rounded-md">
+					<p class="text-sm text-yellow-700">
+						<strong>İpucu:</strong> En iyi performans için orta çözünürlük ve 30
+						FPS kullanın. Düşük performanslı cihazlarda düşük çözünürlük ve
+						15-20 FPS tercih edin.
+					</p>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -116,7 +138,7 @@ const {
 	isBackgroundRemovalActive,
 } = useCameraRenderer();
 
-// Local state
+// Local state with optimized default values
 const removeBackground = ref(cameraSettings.value.removeBackground);
 const segmentationThreshold = ref(
 	cameraSettings.value.backgroundRemovalSettings?.segmentationThreshold || 0.6
@@ -147,22 +169,28 @@ watch(
 	{ deep: true }
 );
 
-// Toggle background removal
+// Toggle background removal with error handling
 const handleBackgroundRemovalToggle = async () => {
-	// Update camera settings
-	updateCameraSettings({
-		removeBackground: removeBackground.value,
-	});
+	try {
+		// Update camera settings
+		updateCameraSettings({
+			removeBackground: removeBackground.value,
+		});
 
-	// Toggle background removal processing if enabled
-	if (removeBackground.value) {
-		await toggleBackgroundRemoval();
-	} else if (isBackgroundRemovalActive.value) {
-		await toggleBackgroundRemoval();
+		// Toggle background removal processing if enabled
+		if (removeBackground.value) {
+			await toggleBackgroundRemoval();
+		} else if (isBackgroundRemovalActive.value) {
+			await toggleBackgroundRemoval();
+		}
+	} catch (error) {
+		console.error("[BackgroundRemoval] Toggle failed:", error);
+		// Reset the toggle if there was an error
+		removeBackground.value = !removeBackground.value;
 	}
 };
 
-// Update background removal settings
+// Update background removal settings with validation
 const updateSettings = () => {
 	updateCameraSettings({
 		backgroundRemovalSettings: {

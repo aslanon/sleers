@@ -253,8 +253,19 @@ export default function useDockSettings() {
 	const visibleDockItems = computed(() => {
 		if (!showDockItems.value) return [];
 
-		// Sadece ikonları olan öğeleri döndür
-		const items = dockItems.value.filter((item) => item.iconDataUrl);
+		// Sadece ikonları olan öğeleri döndür ve isDivider özelliğini koru
+		const items = dockItems.value.filter((item) => {
+			// İkon olmayan öğeleri filtrele
+			if (!item.iconDataUrl) return false;
+
+			// Trash öğesi için isDivider özelliğini kontrol et ve ayarla
+			if (item.name === "Trash") {
+				item.isDivider = true;
+			}
+
+			return true;
+		});
+
 		console.log(
 			`[useDockSettings] Visible dock items: ${items.length} of ${dockItems.value.length}`
 		);

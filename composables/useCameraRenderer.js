@@ -46,7 +46,7 @@ export const useCameraRenderer = () => {
 		return isBackgroundRemovalActive.value;
 	};
 
-	const drawCamera = (
+	const drawCamera = async (
 		ctx,
 		cameraElement,
 		canvasWidth,
@@ -387,113 +387,142 @@ export const useCameraRenderer = () => {
 			}
 
 			// Draw camera with error handling
-			if (hasVideo) {
+			if (
+				isBackgroundRemovalActive.value &&
+				cameraSettings.value?.removeBackground
+			) {
 				try {
-					// Process background removal if active
-					if (
-						isBackgroundRemovalActive.value &&
-						cameraSettings.value?.removeBackground
-					) {
-						// Process the current frame for background removal
-						const processedCanvas =
-							processBackgroundRemovalFrame(cameraElement);
+					// Process the current frame for background removal
+					const processedCanvas = await processBackgroundRemovalFrame(
+						cameraElement
+					);
 
-						if (processedCanvas) {
-							// Orijinal görüntü oranını korumak için hesaplamalar
-							const sourceRatio = sourceWidth / sourceHeight;
-							const targetRatio = cameraWidth / cameraHeight;
-
-							let drawWidth = cameraWidth + 2;
-							let drawHeight = cameraHeight + 2;
-							let drawX = cameraX - 1;
-							let drawY = cameraY - 1;
-
-							// Görüntünün oranını korumak için hedef boyutları ayarla
-							if (sourceRatio > targetRatio) {
-								// Kaynak görüntü daha geniş, yüksekliği ayarla
-								const scaledHeight = drawWidth / sourceRatio;
-								drawY += (drawHeight - scaledHeight) / 2;
-								drawHeight = scaledHeight;
-							} else if (sourceRatio < targetRatio) {
-								// Kaynak görüntü daha uzun, genişliği ayarla
-								const scaledWidth = drawHeight * sourceRatio;
-								drawX += (drawWidth - scaledWidth) / 2;
-								drawWidth = scaledWidth;
+					if (processedCanvas) {
+						// Draw checkerboard pattern for transparency
+						const patternSize = 20;
+						for (let x = cameraX; x < cameraX + cameraWidth; x += patternSize) {
+							for (
+								let y = cameraY;
+								y < cameraY + cameraHeight;
+								y += patternSize
+							) {
+								ctx.fillStyle =
+									((x + y) / patternSize) % 2 === 0 ? "#333333" : "#666666";
+								ctx.fillRect(x, y, patternSize, patternSize);
 							}
-
-							// Draw the processed canvas with background removed
-							ctx.drawImage(
-								processedCanvas,
-								sourceX,
-								sourceY,
-								sourceWidth,
-								sourceHeight,
-								drawX,
-								drawY,
-								drawWidth,
-								drawHeight
-							);
-						} else {
-							// Fallback to normal rendering if processing failed
-							ctx.drawImage(
-								cameraElement,
-								sourceX,
-								sourceY,
-								sourceWidth,
-								sourceHeight,
-								cameraX,
-								cameraY,
-								cameraWidth,
-								cameraHeight
-							);
 						}
-					} else {
-						// Normal rendering without background removal
-						// Orijinal görüntü oranını korumak için hesaplamalar
-						const sourceRatio = sourceWidth / sourceHeight;
+
+						// Draw the processed frame with transparency
+						ctx.save();
+						ctx.globalCompositeOperation = "source-over";
+
+						// Calculate aspect ratio preserving dimensions
+						const sourceRatio = processedCanvas.width / processedCanvas.height;
 						const targetRatio = cameraWidth / cameraHeight;
 
-						let drawWidth = cameraWidth + 2;
-						let drawHeight = cameraHeight + 2;
-						let drawX = cameraX - 1;
-						let drawY = cameraY - 1;
+						let drawWidth = cameraWidth;
+						let drawHeight = cameraHeight;
+						let drawX = cameraX;
+						let drawY = cameraY;
 
-						// Görüntünün oranını korumak için hedef boyutları ayarla
 						if (sourceRatio > targetRatio) {
-							// Kaynak görüntü daha geniş, yüksekliği ayarla
-							const scaledHeight = drawWidth / sourceRatio;
-							drawY += (drawHeight - scaledHeight) / 2;
-							drawHeight = scaledHeight;
-						} else if (sourceRatio < targetRatio) {
-							// Kaynak görüntü daha uzun, genişliği ayarla
-							const scaledWidth = drawHeight * sourceRatio;
-							drawX += (drawWidth - scaledWidth) / 2;
-							drawWidth = scaledWidth;
+							drawHeight = drawWidth / sourceRatio;
+							drawY += (cameraHeight - drawHeight) / 2;
+						} else {
+							drawWidth = drawHeight * sourceRatio;
+							drawX += (cameraWidth - drawWidth) / 2;
 						}
 
-						// Görüntüyü çiz
+						// Draw the processed frame
+						ctx.drawImage(
+							processedCanvas,
+							0,
+							0,
+							processedCanvas.width,
+							processedCanvas.height,
+							drawX,
+							drawY,
+							drawWidth,
+							drawHeight
+						);
+						ctx.restore();
+
+						// Draw indicator border
+						ctx.save();
+						ctx.strokeStyle = "#00ff00";
+						ctx.lineWidth = 2;
+						ctx.setLineDash([5, 5]);
+						useRoundRect(
+							ctx,
+							cameraX - 2,
+							cameraY - 2,
+							cameraWidth + 4,
+							cameraHeight + 4,
+							safeRadius
+						);
+						ctx.stroke();
+						ctx.restore();
+
+						// Request next frame update
+						requestAnimationFrame(() => {
+							drawCamera(
+								ctx,
+								cameraElement,
+								canvasWidth,
+								canvasHeight,
+								dpr,
+								mouseX,
+								mouseY,
+								dragPosition,
+								zoomScale,
+								videoPosition
+							);
+						});
+					} else {
+						// Fallback to normal rendering if processing failed
 						ctx.drawImage(
 							cameraElement,
 							sourceX,
 							sourceY,
 							sourceWidth,
 							sourceHeight,
-							drawX,
-							drawY,
-							drawWidth,
-							drawHeight
+							cameraX,
+							cameraY,
+							cameraWidth,
+							cameraHeight
 						);
 					}
 				} catch (error) {
-					console.warn("[CameraRenderer] Failed to draw camera:", error);
-					// Draw fallback if camera draw fails
-					ctx.fillStyle = "#000000";
-					ctx.fillRect(cameraX, cameraY, cameraWidth, cameraHeight);
+					console.error(
+						"[CameraRenderer] Error in background removal rendering:",
+						error
+					);
+					// Fallback to normal rendering
+					ctx.drawImage(
+						cameraElement,
+						sourceX,
+						sourceY,
+						sourceWidth,
+						sourceHeight,
+						cameraX,
+						cameraY,
+						cameraWidth,
+						cameraHeight
+					);
 				}
 			} else {
-				// Draw fallback if no video
-				ctx.fillStyle = "#000000";
-				ctx.fillRect(cameraX, cameraY, cameraWidth, cameraHeight);
+				// Normal rendering without background removal
+				ctx.drawImage(
+					cameraElement,
+					sourceX,
+					sourceY,
+					sourceWidth,
+					sourceHeight,
+					cameraX,
+					cameraY,
+					cameraWidth,
+					cameraHeight
+				);
 			}
 
 			ctx.restore();

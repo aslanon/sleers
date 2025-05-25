@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="w-full !select-none flex flex-col bg-black text-white h-screen overflow-hidden"
+		class="w-full !select-none grid grid-cols-1 grid-rows-[auto_1fr_400px] bg-black text-white h-screen overflow-hidden"
 	>
 		<div
 			class="editor-header w-full p-3 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
@@ -81,7 +81,7 @@
 			</div>
 		</div>
 		<!-- Ana İçerik -->
-		<div class="w-full flex flex-1 h-[600px] min-h-[600px]">
+		<div class="w-full flex flex-1 h-full">
 			<div class="flex-shrink-0 w-[500px] max-w-[500px] h-full flex flex-col">
 				<div class="flex-1 relative">
 					<MediaPlayerSettings
@@ -657,21 +657,45 @@ const onAspectRatioChange = (ratio) => {
 const updateSegments = () => {
 	if (!segments.value?.length) return;
 
-	segments.value = segments.value.map((segment) => {
-		const start = segment.start || segment.startTime || 0;
-		const end = segment.end || segment.endTime || videoDuration.value;
-		const duration = videoDuration.value || 1;
+	let currentTime = 0;
+	segments.value = segments.value.map((segment, index) => {
+		// Her segmentin başlangıç ve bitiş zamanlarını hesapla
+		const start = segment.start || segment.startTime || currentTime;
+		const duration = segment.duration || segment.end - segment.start;
+		const end = start + duration;
+
+		// Segment pozisyonlarını hesapla
+		const startPosition = `${(start / videoDuration.value) * 100}%`;
+		const width = `${(duration / videoDuration.value) * 100}%`;
+
+		// Bir sonraki segment için başlangıç zamanını güncelle
+		currentTime = end;
 
 		return {
 			...segment,
+			id: segment.id || generateId(),
 			start,
 			end,
 			startTime: start,
 			endTime: end,
-			startPosition: `${(start / duration) * 100}%`,
-			width: `${((end - start) / duration) * 100}%`,
+			duration,
+			startPosition,
+			width,
+			type: segment.type || "video",
+			layer: segment.layer || 0,
 		};
 	});
+
+	// MediaPlayer'ı güncelle
+	if (mediaPlayerRef.value) {
+		const currentSegment = segments.value.find(
+			(segment) =>
+				currentTime.value >= segment.start && currentTime.value <= segment.end
+		);
+		if (currentSegment && isPlaying.value) {
+			mediaPlayerRef.value.seek(currentTime.value);
+		}
+	}
 };
 
 // Ses kontrolü
@@ -680,14 +704,60 @@ const toggleMute = () => {
 };
 
 // Segment bölme işlemi
-const handleSegmentSplit = ({ index, segments: newSegments, splitTime }) => {
-	// Orijinal segmenti kaldır ve yerine yeni segmentleri ekle
+const handleSegmentSplit = ({
+	index,
+	segments: newSegments,
+	splitTime,
+	totalDuration,
+}) => {
+	// Orijinal segmentleri kopyala
 	const updatedSegments = [...segments.value];
-	updatedSegments.splice(index, 1, ...newSegments);
-	segments.value = updatedSegments;
+
+	// Bölünen segmentin öncesindeki segmentleri koru
+	const beforeSegments = updatedSegments.slice(0, index);
+
+	// Bölünen segmentin sonrasındaki segmentleri al
+	const afterSegments = updatedSegments.slice(index + 1);
+
+	// Yeni segmentleri ekle
+	const splitSegments = newSegments.map((segment) => ({
+		...segment,
+		id: generateId(), // Yeni ID oluştur
+		startTime: segment.start,
+		endTime: segment.end,
+		duration: segment.end - segment.start,
+		startPosition: `${(segment.start / totalDuration) * 100}%`,
+		width: `${((segment.end - segment.start) / totalDuration) * 100}%`,
+	}));
+
+	// Tüm segmentleri birleştir
+	segments.value = [...beforeSegments, ...splitSegments, ...afterSegments];
+
+	// Aktif segmenti güncelle
+	if (currentTime.value >= splitTime) {
+		// Eğer playhead ikinci segmentteyse, onu seçili yap
+		activeSegmentIndex.value = index + 1;
+	} else {
+		// Eğer playhead ilk segmentteyse, onu seçili yap
+		activeSegmentIndex.value = index;
+	}
+
+	// MediaPlayer'ı güncelle
+	if (mediaPlayerRef.value) {
+		// Mevcut zamana en yakın segment'e git
+		const currentSegment = segments.value.find(
+			(segment) =>
+				currentTime.value >= segment.start && currentTime.value <= segment.end
+		);
+		if (currentSegment) {
+			mediaPlayerRef.value.seek(currentTime.value);
+		}
+	}
 
 	// Timeline'ı güncelle
-	updateSegments();
+	nextTick(() => {
+		updateSegments();
+	});
 };
 
 // Toggle split mode

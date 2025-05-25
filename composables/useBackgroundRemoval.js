@@ -1,4 +1,4 @@
-import { ref, shallowRef, onMounted, onUnmounted } from "vue";
+import { ref, shallowRef, onMounted, onUnmounted, computed } from "vue";
 import * as bodyPix from "@tensorflow-models/body-pix";
 import "@tensorflow/tfjs";
 
@@ -9,56 +9,78 @@ export const useBackgroundRemoval = () => {
 	const model = shallowRef(null);
 	const lastFrameTime = ref(0);
 	const animationFrameId = ref(null);
-	const targetFpsInterval = 1000 / 30; // Target 30 FPS
 	const processingCanvas = shallowRef(null);
 	const processingCtx = shallowRef(null);
 	const segmentationThreshold = ref(0.6);
 	const internalResolution = ref("medium");
 	const flipHorizontal = ref(false);
-
-	// Initialize the processing canvas
-	const initProcessingCanvas = () => {
-		if (!processingCanvas.value) {
-			processingCanvas.value = document.createElement("canvas");
-			processingCtx.value = processingCanvas.value.getContext("2d");
-		}
+	const targetFps = ref(30);
+	const frameInterval = computed(() => 1000 / targetFps.value);
+	const modelConfig = {
+		architecture: "MobileNetV1",
+		outputStride: 16,
+		multiplier: 0.5,
+		quantBytes: 4,
 	};
 
-	// Load the BodyPix model
-	const loadModel = async () => {
+	// Initialize the processing canvas with proper size
+	const initProcessingCanvas = (width = 640, height = 480) => {
+		if (!processingCanvas.value) {
+			processingCanvas.value = document.createElement("canvas");
+		}
+		processingCanvas.value.width = width;
+		processingCanvas.value.height = height;
+		processingCtx.value = processingCanvas.value.getContext("2d", {
+			willReadFrequently: true,
+		});
+	};
+
+	// Load the BodyPix model with retry mechanism and better error handling
+	const loadModel = async (retryCount = 0) => {
 		if (model.value) return model.value;
 
 		isLoading.value = true;
 		try {
-			const loadedModel = await bodyPix.load({
-				architecture: "MobileNetV1",
-				outputStride: 16,
-				multiplier: 0.75,
-				quantBytes: 2,
-			});
+			// Try loading from CDN first
+			const loadedModel = await bodyPix.load(modelConfig);
 			model.value = loadedModel;
 			console.log("[BackgroundRemoval] Model loaded successfully");
+			return model.value;
 		} catch (error) {
 			console.error("[BackgroundRemoval] Error loading model:", error);
+			if (retryCount < 3) {
+				console.log(
+					`[BackgroundRemoval] Retrying model load (${retryCount + 1}/3)...`
+				);
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				return loadModel(retryCount + 1);
+			}
+			throw new Error("Failed to load BodyPix model after multiple attempts");
 		} finally {
 			isLoading.value = false;
 		}
-		return model.value;
 	};
 
 	// Start background removal processing
 	const startBackgroundRemoval = async () => {
 		if (isProcessing.value) return;
 
-		await loadModel();
-		if (!model.value) {
-			console.error("[BackgroundRemoval] Model not loaded");
-			return;
-		}
+		try {
+			await loadModel();
+			if (!model.value) {
+				throw new Error("Model not loaded");
+			}
 
-		initProcessingCanvas();
-		isProcessing.value = true;
-		console.log("[BackgroundRemoval] Background removal started");
+			initProcessingCanvas();
+			isProcessing.value = true;
+			console.log("[BackgroundRemoval] Background removal started");
+		} catch (error) {
+			console.error(
+				"[BackgroundRemoval] Failed to start background removal:",
+				error
+			);
+			isProcessing.value = false;
+		}
 	};
 
 	// Stop background removal processing
@@ -71,7 +93,7 @@ export const useBackgroundRemoval = () => {
 		console.log("[BackgroundRemoval] Background removal stopped");
 	};
 
-	// Process a single video frame
+	// Process a single video frame with optimized performance
 	const processFrame = async (videoElement) => {
 		if (
 			!model.value ||
@@ -83,22 +105,34 @@ export const useBackgroundRemoval = () => {
 		}
 
 		try {
-			// Resize processing canvas to match video dimensions
 			const { videoWidth, videoHeight } = videoElement;
-			processingCanvas.value.width = videoWidth;
-			processingCanvas.value.height = videoHeight;
 
-			// Draw the original video frame to the processing canvas
+			// Update canvas size if needed
+			if (
+				processingCanvas.value.width !== videoWidth ||
+				processingCanvas.value.height !== videoHeight
+			) {
+				initProcessingCanvas(videoWidth, videoHeight);
+			}
+
+			// Clear the canvas and draw the current frame
+			processingCtx.value.clearRect(0, 0, videoWidth, videoHeight);
 			processingCtx.value.drawImage(videoElement, 0, 0);
 
-			// Get person segmentation from the model
+			// Get person segmentation
 			const segmentation = await model.value.segmentPerson(videoElement, {
 				flipHorizontal: flipHorizontal.value,
 				internalResolution: internalResolution.value,
 				segmentationThreshold: segmentationThreshold.value,
+				maxDetections: 1,
+				scoreThreshold: 0.4,
 			});
 
-			// Get image data from the canvas
+			if (!segmentation || !segmentation.data) {
+				return null;
+			}
+
+			// Get image data
 			const imageData = processingCtx.value.getImageData(
 				0,
 				0,
@@ -106,20 +140,22 @@ export const useBackgroundRemoval = () => {
 				videoHeight
 			);
 			const pixels = imageData.data;
+			const segmentationMask = segmentation.data;
 
-			// Apply transparency to non-person pixels
-			for (let i = 0; i < segmentation.data.length; i++) {
-				const isPersonPixel = segmentation.data[i];
-				const pixelIndex = i * 4;
-				if (!isPersonPixel) {
-					pixels[pixelIndex + 3] = 0; // Set alpha to 0 (transparent)
+			// Apply the mask to the image data
+			for (let i = 0; i < segmentationMask.length; i++) {
+				const offset = i * 4;
+				if (!segmentationMask[i]) {
+					// Make background transparent
+					pixels[offset + 3] = 0;
+				} else {
+					// Keep person pixels fully opaque
+					pixels[offset + 3] = 255;
 				}
 			}
 
 			// Put the modified image data back to the canvas
 			processingCtx.value.putImageData(imageData, 0, 0);
-
-			// Return the processed canvas for rendering
 			return processingCanvas.value;
 		} catch (error) {
 			console.error("[BackgroundRemoval] Error processing frame:", error);
@@ -127,9 +163,13 @@ export const useBackgroundRemoval = () => {
 		}
 	};
 
-	// Process frames continuously with FPS limiting
+	// Process frames continuously with optimized FPS control
 	const processFrameLoop = (videoElement, callback) => {
 		if (!isProcessing.value || !videoElement) {
+			console.log("[BackgroundRemoval] Stopping frame loop:", {
+				isProcessing: isProcessing.value,
+				hasVideo: !!videoElement,
+			});
 			if (animationFrameId.value) {
 				cancelAnimationFrame(animationFrameId.value);
 				animationFrameId.value = null;
@@ -140,12 +180,12 @@ export const useBackgroundRemoval = () => {
 		const currentTime = performance.now();
 		const elapsed = currentTime - lastFrameTime.value;
 
-		if (elapsed >= targetFpsInterval) {
+		if (elapsed >= frameInterval.value) {
 			processFrame(videoElement).then((processedCanvas) => {
 				if (processedCanvas && callback) {
 					callback(processedCanvas);
 				}
-				lastFrameTime.value = currentTime - (elapsed % targetFpsInterval);
+				lastFrameTime.value = currentTime - (elapsed % frameInterval.value);
 			});
 		}
 
@@ -154,25 +194,42 @@ export const useBackgroundRemoval = () => {
 		);
 	};
 
-	// Update settings
+	// Update settings with validation
 	const updateSettings = (settings) => {
-		if (settings.segmentationThreshold !== undefined) {
+		if (
+			typeof settings.segmentationThreshold === "number" &&
+			settings.segmentationThreshold >= 0 &&
+			settings.segmentationThreshold <= 1
+		) {
 			segmentationThreshold.value = settings.segmentationThreshold;
 		}
-		if (settings.internalResolution !== undefined) {
+		if (
+			settings.internalResolution &&
+			["low", "medium", "high"].includes(settings.internalResolution)
+		) {
 			internalResolution.value = settings.internalResolution;
 		}
-		if (settings.flipHorizontal !== undefined) {
+		if (typeof settings.flipHorizontal === "boolean") {
 			flipHorizontal.value = settings.flipHorizontal;
 		}
-		if (settings.targetFps !== undefined) {
-			targetFpsInterval.value = 1000 / settings.targetFps;
+		if (
+			typeof settings.targetFps === "number" &&
+			settings.targetFps >= 15 &&
+			settings.targetFps <= 60
+		) {
+			targetFps.value = settings.targetFps;
 		}
 	};
 
-	// Cleanup resources
+	// Cleanup resources properly
 	const cleanup = () => {
 		stopBackgroundRemoval();
+		if (processingCanvas.value) {
+			processingCanvas.value.width = 0;
+			processingCanvas.value.height = 0;
+		}
+		processingCanvas.value = null;
+		processingCtx.value = null;
 		model.value = null;
 	};
 

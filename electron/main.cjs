@@ -2242,8 +2242,8 @@ async function createWindow() {
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
-			preload: getPreloadPath(),
-			webSecurity: false,
+			preload: path.join(__dirname, "preload.cjs"),
+			webSecurity: true,
 			allowRunningInsecureContent: true,
 			webviewTag: true,
 			additionalArguments: ["--disable-site-isolation-trials"],
@@ -2254,6 +2254,20 @@ async function createWindow() {
 	initializeManagers();
 	setupWindowEvents();
 	loadApplication();
+
+	// Add CSP headers
+	mainWindow.webContents.session.webRequest.onHeadersReceived(
+		(details, callback) => {
+			callback({
+				responseHeaders: {
+					...details.responseHeaders,
+					"Content-Security-Policy": [
+						"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org;",
+					],
+				},
+			});
+		}
+	);
 }
 
 function setupSecurityPolicies() {
@@ -2262,10 +2276,11 @@ function setupSecurityPolicies() {
 			responseHeaders: {
 				...details.responseHeaders,
 				"Content-Security-Policy": [
-					"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval'; " +
-						"script-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval'; " +
-						"style-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline'; " +
+					"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org; " +
+						"script-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org; " +
+						"connect-src 'self' http://localhost:* file: data: electron: blob: https://storage.googleapis.com https://*.tensorflow.org; " +
 						"img-src 'self' http://localhost:* file: data: electron: blob:; " +
+						"style-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline'; " +
 						"font-src 'self' http://localhost:* file: data: electron: blob:; " +
 						"media-src 'self' http://localhost:* file: data: electron: blob:;",
 				],
