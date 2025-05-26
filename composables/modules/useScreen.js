@@ -73,6 +73,16 @@ export const useScreen = () => {
 		}
 	};
 
+	const loadApertureModule = async () => {
+		const apertureLoaded = await window.electron.ipcRenderer.invoke(
+			"LOAD_APERTURE_MODULE"
+		);
+		console.log("Aperture modülü yüklendi:", apertureLoaded);
+		if (!apertureLoaded) {
+			throw new Error("Aperture modülü yüklenemedi");
+		}
+	};
+
 	const startScreenRecording = async () => {
 		// Tüm blokların erişebileceği değişkenleri burada tanımlıyoruz
 		const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
@@ -141,16 +151,6 @@ export const useScreen = () => {
 				}
 			} catch (mediaStateError) {
 				console.warn("MediaState bilgileri alınamadı:", mediaStateError);
-			}
-
-			// 1. Aperture modülünü yükle
-			console.log("Aperture modülü yükleniyor...");
-			const apertureLoaded = await window.electron.ipcRenderer.invoke(
-				"LOAD_APERTURE_MODULE"
-			);
-
-			if (!apertureLoaded) {
-				throw new Error("Aperture modülü yüklenemedi");
 			}
 
 			console.log("Aperture modülü başarıyla yüklendi");
@@ -523,5 +523,6 @@ export const useScreen = () => {
 		startScreenStream,
 		startScreenRecording,
 		stopScreenRecording,
+		loadApertureModule,
 	};
 };

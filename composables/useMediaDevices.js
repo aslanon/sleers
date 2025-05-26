@@ -46,8 +46,10 @@ export const useMediaDevices = () => {
 				await new Promise((resolve) => setTimeout(resolve, 100));
 			}
 
-			// Geri sayım başlat
 			await recordingUtils.startCountdown();
+			document.body.classList.add("recording");
+
+			// Geri sayım başlat
 
 			// Hangi kayıtların başlatılacağını belirle
 			const startScreen = options.startScreen ?? true;
@@ -59,8 +61,6 @@ export const useMediaDevices = () => {
 				return;
 			}
 
-			document.body.classList.add("recording");
-
 			// Seçilen kayıtları başlat
 			let screenResult = null;
 			let cameraResult = null;
@@ -69,6 +69,7 @@ export const useMediaDevices = () => {
 			if (startScreen) {
 				// Ekran kaydını başlat - her modül kendi konfigürasyonunu kullanır
 				screenResult = await screenModule.startScreenRecording();
+				mouseModule.startMouseTracking();
 			}
 
 			if (startCamera) {
@@ -80,11 +81,6 @@ export const useMediaDevices = () => {
 				// Ses kaydını başlat - her modül kendi konfigürasyonunu kullanır
 				// Ekran kaydında ses yoksa ayrı ses kaydı başlat
 				audioResult = await audioModule.startAudioRecording();
-			}
-
-			// Start mouse tracking if needed
-			if (startScreen) {
-				mouseModule.startMouseTracking();
 			}
 
 			return {

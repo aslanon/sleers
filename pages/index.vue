@@ -208,6 +208,8 @@
 <script setup>
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
+import { useScreen } from "~/composables/modules/useScreen";
+
 import RecordSettings from "~/components/record-settings/index.vue";
 import PermissionChecker from "~/components/ui/PermissionChecker.vue";
 
@@ -456,8 +458,12 @@ const handleGlobalMouseUp = () => {
 };
 
 onMounted(async () => {
+	const screenModule = useScreen();
+
 	// Cihazları yükle
 	await getDevices();
+
+	await screenModule.loadApertureModule();
 
 	// Electron API'si yüklendiyse event listener'ları ekle
 	if (electron) {

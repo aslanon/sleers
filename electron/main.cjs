@@ -1004,7 +1004,12 @@ function setupIpcHandlers() {
 
 						// Editor penceresini aç
 						console.log("[Main] Editor penceresi açılıyor...");
-						editorManager.createEditorWindow();
+						editorManager.showEditorWindow();
+
+						// Ana pencereyi gizle
+						if (mainWindow && !mainWindow.isDestroyed()) {
+							mainWindow.hide();
+						}
 					} catch (error) {
 						console.error("[main.cjs] Editor penceresi açılırken hata:", error);
 

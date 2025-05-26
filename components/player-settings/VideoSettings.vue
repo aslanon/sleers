@@ -203,9 +203,9 @@
 					desc="Dock'un boyutunu ayarlar"
 					:min="1"
 					:max="6"
-					:step="0.5"
+					:step="0.1"
 					unit="x"
-					@change="updateDockSize"
+					@input="updateDockSize"
 				/>
 			</div>
 		</div>

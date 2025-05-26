@@ -16,7 +16,7 @@
 		"electron:build": "nuxt generate && electron-builder --dir",
 		"electron:build:mac": "nuxt generate && electron-builder -m --arm64 --dir",
 		"electron:build:quick": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --dir --config.removePackageScripts=false",
-		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false --config.mac.icon=null"
+		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false"
 	},
 	"dependencies": {
 		"@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -68,7 +68,7 @@
 			"main": "electron/main.cjs"
 		},
 		"mac": {
-			"icon": null,
+			"icon": "build/icon.icns",
 			"category": "public.app-category.video",
 			"target": [
 				{
