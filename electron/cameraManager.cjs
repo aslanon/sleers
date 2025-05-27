@@ -409,7 +409,9 @@ class CameraManager {
 				console.log(
 					"[CameraManager] Geliştirme modunda kamera penceresi yükleniyor..."
 				);
-				await this.cameraWindow.loadURL("http://127.0.0.1:3000/camera");
+				await this.cameraWindow.loadURL(
+					`http://127.0.0.1:${global.serverPort}/camera`
+				);
 				this.cameraWindow.webContents.openDevTools({ mode: "detach" });
 			} else {
 				// Express sunucusu kullanıyorsa
@@ -617,7 +619,7 @@ class CameraManager {
 						"[CameraManager] Uzun zamanlayıcı ile kamera penceresi gösteriliyor (3s)"
 					);
 				}
-			}, 3000);
+			}, 3002);
 
 			return true;
 		} catch (error) {

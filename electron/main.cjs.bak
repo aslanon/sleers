@@ -30,7 +30,7 @@ const MediaStateManager = require("./mediaStateManager.cjs");
 // Express ve HTTP server değişkenleri
 let expressApp = null;
 let httpServer = null;
-let serverPort = 3000;
+let serverPort = 3002;
 
 let mainWindow = null;
 let trayManager = null;
@@ -224,7 +224,7 @@ async function createWindow() {
 	if (isDev) {
 		try {
 			await waitOn({
-				resources: ["http://127.0.0.1:3000"],
+				resources: ["http://127.0.0.1:3002"],
 				timeout: 5000,
 			});
 		} catch (err) {
@@ -323,7 +323,7 @@ function setupWindowEvents() {
 
 function loadApplication() {
 	if (isDev) {
-		mainWindow.loadURL("http://127.0.0.1:3000");
+		mainWindow.loadURL("http://127.0.0.1:3002");
 		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		// Üretim modunda Express sunucusunun adresini kullan

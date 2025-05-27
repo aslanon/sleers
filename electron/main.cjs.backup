@@ -1880,7 +1880,7 @@ async function createWindow() {
 	if (isDev) {
 		try {
 			await waitOn({
-				resources: ["http://127.0.0.1:3000"],
+				resources: ["http://127.0.0.1:3002"],
 				timeout: 5000,
 			});
 		} catch (err) {
@@ -1979,7 +1979,7 @@ function setupWindowEvents() {
 
 function loadApplication() {
 	if (isDev) {
-		mainWindow.loadURL("http://127.0.0.1:3000");
+		mainWindow.loadURL("http://127.0.0.1:3002");
 		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		mainWindow.loadFile(path.join(__dirname, "../.output/public/index.html"));

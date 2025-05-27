@@ -53,7 +53,9 @@ class SelectionManager {
 		this.selectionWindow.setAlwaysOnTop(true, "screen-saver");
 
 		if (isDev) {
-			this.selectionWindow.loadURL("http://127.0.0.1:3000/selection");
+			this.selectionWindow.loadURL(
+				`http://127.0.0.1:${global.serverPort}/selection`
+			);
 		} else {
 			this.selectionWindow.loadFile(
 				path.join(__dirname, "../.output/public/selection/index.html")

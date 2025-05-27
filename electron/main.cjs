@@ -57,11 +57,12 @@ const SelectionManager = require("./selectionManager.cjs");
 const TempFileManager = require("./tempFileManager.cjs");
 const MediaStateManager = require("./mediaStateManager.cjs");
 const DockManager = require("./dockManager.cjs");
+const PortManager = require("./portManager.cjs");
 
 // Express ve HTTP server değişkenleri
 let expressApp = null;
 let httpServer = null;
-let serverPort = 3000;
+let portManager = new PortManager();
 
 let mainWindow = null;
 let trayManager = null;
@@ -2430,10 +2431,36 @@ function setupIpcHandlers() {
 async function createWindow() {
 	if (isDev) {
 		try {
-			await waitOn({
-				resources: ["http://127.0.0.1:3000"],
-				timeout: 5000,
-			});
+			// Development modunda Nuxt server'ın çalıştığı portu tespit et
+			// Script tarafından başlatılan Nuxt server'ı bekle
+			let detectedPort = null;
+			console.log("[Main] Nuxt server'ın hazır olması bekleniyor...");
+
+			for (let port = 3002; port <= 3010; port++) {
+				console.log(`[Main] Port ${port} kontrol ediliyor...`);
+				try {
+					await waitOn({
+						resources: [`http://127.0.0.1:${port}`],
+						timeout: 3000, // Timeout'u artırdık
+					});
+					detectedPort = port;
+					console.log(`[Main] ✅ Nuxt server port ${port}'da bulundu!`);
+					break;
+				} catch (e) {
+					console.log(`[Main] ❌ Port ${port}'da server bulunamadı`);
+				}
+			}
+
+			if (!detectedPort) {
+				console.error("[Main] ❌ Hiçbir portta Nuxt server bulunamadı!");
+				throw new Error("Çalışan Nuxt server bulunamadı");
+			}
+
+			global.serverPort = detectedPort;
+			portManager.currentPort = detectedPort;
+			console.log(
+				`[Main] 🎉 Nuxt server port ${detectedPort}'da tespit edildi`
+			);
 		} catch (err) {
 			console.error("Nuxt sunucusu başlatılamadı:", err);
 			app.quit();
@@ -2570,12 +2597,12 @@ function setupWindowEvents() {
 
 function loadApplication() {
 	if (isDev) {
-		mainWindow.loadURL("http://127.0.0.1:3000");
+		mainWindow.loadURL(portManager.getUrl());
 		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		try {
 			// Express sunucusunu kullan - bu daha stabil
-			const serverUrl = `http://localhost:${serverPort}`;
+			const serverUrl = `http://localhost:${global.serverPort}`;
 			console.log(`[Main] Express ile yükleniyor: ${serverUrl}`);
 			mainWindow.loadURL(serverUrl);
 
@@ -2966,8 +2993,8 @@ async function checkPermissionStatus() {
 }
 
 // Express sunucusunu başlatma fonksiyonu
-function startExpressServer() {
-	return new Promise((resolve, reject) => {
+async function startExpressServer() {
+	return new Promise(async (resolve, reject) => {
 		try {
 			// Eğer daha önce başlatılmışsa sunucuyu kapat
 			if (httpServer) {
@@ -3143,32 +3170,27 @@ ${possiblePaths.join("\n")}
 			// HTTP sunucusu oluştur ve başlat
 			httpServer = http.createServer(expressApp);
 
-			// İlk port ile başla ve port boşalana kadar dene
-			function tryBindPort(port) {
-				httpServer.once("error", (err) => {
-					if (err.code === "EADDRINUSE") {
-						console.log(
-							`[Main] Port ${port} kullanımda, ${port + 1} deneniyor...`
-						);
-						tryBindPort(port + 1);
-					} else {
-						console.error(`[Main] HTTP sunucusu başlatılırken hata:`, err);
-						reject(err);
-					}
-				});
+			// PortManager ile kullanılabilir port bul
+			try {
+				const availablePort = await portManager.findAvailablePort();
 
-				httpServer.listen(port, () => {
-					serverPort = port;
+				httpServer.listen(availablePort, "127.0.0.1", () => {
 					// Port numarasını global değişkene ekle
-					global.serverPort = port;
+					global.serverPort = availablePort;
 					console.log(
-						`[Main] Express sunucusu http://localhost:${port} adresinde başlatıldı`
+						`[Main] Express sunucusu ${portManager.getUrl()} adresinde başlatıldı`
 					);
-					resolve(port);
+					resolve(availablePort);
 				});
-			}
 
-			tryBindPort(serverPort);
+				httpServer.on("error", (err) => {
+					console.error(`[Main] HTTP sunucusu başlatılırken hata:`, err);
+					reject(err);
+				});
+			} catch (error) {
+				console.error(`[Main] Kullanılabilir port bulunamadı:`, error);
+				reject(error);
+			}
 		} catch (error) {
 			console.error("[Main] Express sunucu başlatma hatası:", error);
 			reject(error);

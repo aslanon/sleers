@@ -57,7 +57,9 @@ class EditorManager {
 			try {
 				if (isDev) {
 					// Geliştirme modunda Nuxt sunucusundan yükle
-					await this.editorWindow.loadURL("http://localhost:3000/editor");
+					await this.editorWindow.loadURL(
+						`http://127.0.0.1:${global.serverPort}/editor`
+					);
 					this.editorWindow.webContents.openDevTools({ mode: "detach" });
 				} else {
 					// Express sunucusu kullanıldığında
@@ -300,7 +302,7 @@ class EditorManager {
 			this.editorWindow.hide();
 			if (this.mainWindow && !this.mainWindow.isDestroyed()) {
 				if (isDev) {
-					this.mainWindow.loadURL("http://127.0.0.1:3000");
+					this.mainWindow.loadURL(`http://127.0.0.1:${global.serverPort}`);
 				} else {
 					this.mainWindow.loadFile(
 						path.join(__dirname, "../.output/public/index.html")

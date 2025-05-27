@@ -145,7 +145,7 @@ const window = new BrowserWindow(options);
 
 // Pencere yükleme
 if (isDev) {
-	window.loadURL("http://localhost:3000/sayfa");
+	window.loadURL("http://localhost:3002/sayfa");
 } else {
 	window.loadFile(path.join(__dirname, "../.output/public/sayfa/index.html"));
 }
