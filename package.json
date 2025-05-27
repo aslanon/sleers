@@ -16,7 +16,10 @@
 		"electron:build": "nuxt generate && electron-builder --dir",
 		"electron:build:mac": "nuxt generate && electron-builder -m --arm64 --dir",
 		"electron:build:quick": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --dir --config.removePackageScripts=false",
-		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false"
+		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false",
+		"electron:build:dmg:signed": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false",
+		"sign:app": "scripts/sign-app.sh",
+		"build:signed": "scripts/build-and-sign.sh"
 	},
 	"dependencies": {
 		"@ffmpeg-installer/ffmpeg": "^1.1.0",
@@ -93,6 +96,10 @@
 			"hardenedRuntime": true,
 			"gatekeeperAssess": false,
 			"artifactName": "${productName}-${version}-arm64.${ext}",
+			"identity": null,
+			"type": "distribution",
+			"entitlements": "build/entitlements.mac.plist",
+			"entitlementsInherit": "build/entitlements.mac.plist",
 			"extendInfo": {
 				"NSCameraUsageDescription": "Sleer, ekran kayıtlarınıza kamera görüntünüzü eklemek için kameranıza erişim gerektirir.",
 				"NSMicrophoneUsageDescription": "Sleer, sesli anlatım kaydetmek için mikrofonunuza erişim gerektirir.",

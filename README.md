@@ -28,6 +28,9 @@ npm run electron:dev
 
 # Üretim için build
 npm run electron:build
+
+# İmzalanmış DMG oluştur (macOS için önerilen)
+npm run build:signed
 ```
 
 ## Kullanım
@@ -66,6 +69,49 @@ Sleer, aşağıdaki teknolojileri kullanır:
 - Vue.js / Nuxt.js
 - FFmpeg
 - TailwindCSS
+
+## Sorun Giderme
+
+### macOS "Damaged" Hatası
+
+Eğer macOS'ta "Sleer is damaged and can't be opened" hatası alıyorsanız:
+
+#### Yöntem 1: Terminal ile Çözüm (En Kolay)
+
+```bash
+# DMG dosyası için
+sudo xattr -rd com.apple.quarantine /path/to/Sleer-1.0.0-arm64.dmg
+
+# Veya kurulu uygulama için
+sudo xattr -rd com.apple.quarantine /Applications/Sleer.app
+```
+
+#### Yöntem 2: Sistem Ayarları
+
+1. **Sistem Ayarları** > **Gizlilik ve Güvenlik** bölümüne gidin
+2. **Güvenlik** sekmesinde "Her yerden" uygulamalara izin verin
+3. Uygulamayı tekrar açmayı deneyin
+
+#### Yöntem 3: Geliştirici İçin İmzalama
+
+```bash
+# İmzalanmış sürüm oluştur (önerilen)
+npm run build:signed
+
+# Veya manuel imzalama
+npm run electron:build:dmg
+./scripts/sign-app.sh dist/mac-arm64/Sleer.app
+```
+
+**Not:** `build:signed` komutu uygulamayı ad-hoc imzalar, bu da çoğu "damaged" hatasını çözer. Ancak tam güvenlik için Apple Developer sertifikası gereklidir.
+
+### İzin Sorunları
+
+Uygulama kamera, mikrofon veya ekran kaydı izni istiyorsa:
+
+1. **Sistem Ayarları** > **Gizlilik ve Güvenlik** > **Kamera/Mikrofon/Ekran Kaydı**
+2. Sleer uygulamasını listede bulun ve etkinleştirin
+3. Uygulamayı yeniden başlatın
 
 ## Lisans
 
