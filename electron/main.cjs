@@ -169,6 +169,53 @@ function safeHandle(channel, handler) {
 	}
 }
 
+// Aperture modülü yükleme yardımcı fonksiyonu
+async function loadApertureModule() {
+	// Olası aperture.cjs yolları - unpacked öncelikli
+	const possibleAperturePaths = [
+		path.join(
+			process.resourcesPath,
+			"app.asar.unpacked",
+			"electron",
+			"aperture.cjs"
+		), // Build mode ASAR unpacked (öncelikli)
+		path.join(__dirname, "aperture.cjs"), // Dev mode
+		path.join(process.resourcesPath, "app", "electron", "aperture.cjs"), // Build mode unpackaged
+		path.join(app.getAppPath(), "electron", "aperture.cjs"), // Alternative build path
+		path.join(process.resourcesPath, "app.asar", "electron", "aperture.cjs"), // Build mode ASAR (son çare)
+	];
+
+	console.log("[Main] Aperture modülü aranıyor...");
+
+	for (const testPath of possibleAperturePaths) {
+		console.log(`[Main] Aperture yolu test ediliyor: ${testPath}`);
+
+		try {
+			if (fs.existsSync(testPath)) {
+				console.log(`[Main] Aperture modülü bulundu: ${testPath}`);
+
+				try {
+					const apertureModule = await import(`file://${testPath}`);
+					return apertureModule;
+				} catch (importError) {
+					console.error(
+						`[Main] Aperture modülü import hatası: ${testPath}`,
+						importError
+					);
+					continue;
+				}
+			}
+		} catch (err) {
+			console.warn(
+				`[Main] Aperture yolu test edilirken hata: ${testPath}`,
+				err.message
+			);
+		}
+	}
+
+	throw new Error("Aperture modülü hiçbir yolda bulunamadı");
+}
+
 safeHandle(IPC_EVENTS.GET_EDITOR_SETTINGS, () => {
 	return editorSettings;
 });
@@ -309,7 +356,7 @@ safeHandle(IPC_EVENTS.LOAD_APERTURE_MODULE, async (event) => {
 
 		// Timeout ile yüklemeyi kontrol et
 		const apertureModule = await Promise.race([
-			import("aperture"),
+			loadApertureModule(),
 			new Promise((_, reject) =>
 				setTimeout(
 					() => reject(new Error("Aperture modülü yükleme zaman aşımı")),
@@ -549,17 +596,75 @@ safeHandle(
 				}
 			}
 
-			// Aperture modülünü yükle
-			const aperturePath = path.join(__dirname, "aperture.cjs");
-			console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
+			// Aperture modülünü yükle - build modunda farklı yolları dene
+			let aperturePath;
+			let apertureModule;
+
+			// Olası aperture.cjs yolları
+			const possibleAperturePaths = [
+				path.join(__dirname, "aperture.cjs"), // Dev mode
+				path.join(
+					process.resourcesPath,
+					"app.asar",
+					"electron",
+					"aperture.cjs"
+				), // Build mode ASAR
+				path.join(process.resourcesPath, "app", "electron", "aperture.cjs"), // Build mode unpackaged
+				path.join(app.getAppPath(), "electron", "aperture.cjs"), // Alternative build path
+			];
+
+			console.log("[Main] Aperture modülü aranıyor...");
+
+			for (const testPath of possibleAperturePaths) {
+				console.log(`[Main] Aperture yolu test ediliyor: ${testPath}`);
+
+				try {
+					if (fs.existsSync(testPath)) {
+						aperturePath = testPath;
+						console.log(`[Main] Aperture modülü bulundu: ${aperturePath}`);
+						break;
+					}
+				} catch (err) {
+					console.warn(
+						`[Main] Aperture yolu test edilirken hata: ${testPath}`,
+						err.message
+					);
+				}
+			}
+
+			if (!aperturePath) {
+				console.error("[Main] Aperture modülü hiçbir yolda bulunamadı");
+				return false;
+			}
 
 			// Yüklenen modülün fonksiyonlarını kullan
-			let apertureModule;
 			try {
 				apertureModule = await import(`file://${aperturePath}`);
 			} catch (importError) {
 				console.error("[Main] Aperture modülü import hatası:", importError);
-				return false;
+
+				// ASAR içindeyse unpack edilmiş yolu dene
+				if (aperturePath.includes("app.asar")) {
+					const unpackedPath = aperturePath.replace(
+						"app.asar",
+						"app.asar.unpacked"
+					);
+					console.log(`[Main] ASAR unpacked yolu deneniyor: ${unpackedPath}`);
+
+					try {
+						if (fs.existsSync(unpackedPath)) {
+							apertureModule = await import(`file://${unpackedPath}`);
+						} else {
+							console.error("[Main] ASAR unpacked yolu da bulunamadı");
+							return false;
+						}
+					} catch (unpackedError) {
+						console.error("[Main] ASAR unpacked import hatası:", unpackedError);
+						return false;
+					}
+				} else {
+					return false;
+				}
 			}
 
 			// Aperture fonksiyonlarını kontrol et
@@ -705,12 +810,69 @@ safeHandle(IPC_EVENTS.STOP_APERTURE_RECORDING, async (event, outputPath) => {
 	try {
 		console.log("[Main] Aperture kaydı durduruluyor...");
 
-		// Aperture modülünü yükle
-		const aperturePath = path.join(__dirname, "aperture.cjs");
-		console.log("[Main] Aperture modülü yükleniyor:", aperturePath);
+		// Aperture modülünü yükle - build modunda farklı yolları dene
+		let aperturePath;
+
+		// Olası aperture.cjs yolları
+		const possibleAperturePaths = [
+			path.join(__dirname, "aperture.cjs"), // Dev mode
+			path.join(process.resourcesPath, "app.asar", "electron", "aperture.cjs"), // Build mode ASAR
+			path.join(process.resourcesPath, "app", "electron", "aperture.cjs"), // Build mode unpackaged
+			path.join(app.getAppPath(), "electron", "aperture.cjs"), // Alternative build path
+		];
+
+		console.log("[Main] Aperture modülü aranıyor (stop)...");
+
+		for (const testPath of possibleAperturePaths) {
+			try {
+				if (fs.existsSync(testPath)) {
+					aperturePath = testPath;
+					console.log(`[Main] Aperture modülü bulundu: ${aperturePath}`);
+					break;
+				}
+			} catch (err) {
+				console.warn(
+					`[Main] Aperture yolu test edilirken hata: ${testPath}`,
+					err.message
+				);
+			}
+		}
+
+		if (!aperturePath) {
+			console.error("[Main] Aperture modülü hiçbir yolda bulunamadı");
+			return false;
+		}
 
 		// CommonJS modülünü dynamic import ile yükle
-		const apertureModule = await import(`file://${aperturePath}`);
+		let apertureModule;
+		try {
+			apertureModule = await import(`file://${aperturePath}`);
+		} catch (importError) {
+			console.error("[Main] Aperture modülü import hatası:", importError);
+
+			// ASAR içindeyse unpack edilmiş yolu dene
+			if (aperturePath.includes("app.asar")) {
+				const unpackedPath = aperturePath.replace(
+					"app.asar",
+					"app.asar.unpacked"
+				);
+				console.log(`[Main] ASAR unpacked yolu deneniyor: ${unpackedPath}`);
+
+				try {
+					if (fs.existsSync(unpackedPath)) {
+						apertureModule = await import(`file://${unpackedPath}`);
+					} else {
+						console.error("[Main] ASAR unpacked yolu da bulunamadı");
+						return false;
+					}
+				} catch (unpackedError) {
+					console.error("[Main] ASAR unpacked import hatası:", unpackedError);
+					return false;
+				}
+			} else {
+				return false;
+			}
+		}
 		const { stop } = apertureModule;
 
 		// Durdurma işlemi
@@ -864,8 +1026,7 @@ function setupIpcHandlers() {
 				if (sources && sources.length) {
 					try {
 						// Aperture modülünden ekran listesini al
-						const aperturePath = path.join(__dirname, "aperture.cjs");
-						const apertureModule = await import(`file://${aperturePath}`);
+						const apertureModule = await loadApertureModule();
 						const apertureScreens = await apertureModule.getScreens();
 
 						// Her kaynağa aperture ID'si ekle
@@ -1634,8 +1795,7 @@ function setupIpcHandlers() {
 			console.log("[Main] Aperture ekran listesi alınıyor...");
 
 			// Aperture modülünü yükle
-			const aperturePath = path.join(__dirname, "aperture.cjs");
-			const apertureModule = await import(`file://${aperturePath}`);
+			const apertureModule = await loadApertureModule();
 
 			// Ekran listesini al
 			const screens = await apertureModule.getScreens();
@@ -1656,8 +1816,7 @@ function setupIpcHandlers() {
 				console.log("[Main] Aperture ekran ID doğrulanıyor:", screenId);
 
 				// Aperture modülünü yükle
-				const aperturePath = path.join(__dirname, "aperture.cjs");
-				const apertureModule = await import(`file://${aperturePath}`);
+				const apertureModule = await loadApertureModule();
 
 				// ID'yi doğrula
 				const isValid = await apertureModule.isValidScreenId(screenId);
@@ -1939,6 +2098,65 @@ function setupIpcHandlers() {
 
 	// ... existing code ...
 
+	// Debug helper to check aperture files location
+	safeHandle("DEBUG_CHECK_APERTURE_FILES", async () => {
+		try {
+			console.log("[Debug] Checking aperture files locations");
+
+			const possiblePaths = [
+				path.join(__dirname, "aperture.cjs"),
+				path.join(
+					process.resourcesPath,
+					"app.asar.unpacked",
+					"electron",
+					"aperture.cjs"
+				),
+				path.join(
+					process.resourcesPath,
+					"app.asar",
+					"electron",
+					"aperture.cjs"
+				),
+				path.join(process.resourcesPath, "app", "electron", "aperture.cjs"),
+				path.join(app.getAppPath(), "electron", "aperture.cjs"),
+			];
+
+			const results = {};
+
+			for (const testPath of possiblePaths) {
+				console.log(`[Debug] Checking aperture path: ${testPath}`);
+				try {
+					const exists = fs.existsSync(testPath);
+					results[testPath] = {
+						exists,
+						isFile: exists ? fs.statSync(testPath).isFile() : false,
+						size: exists ? fs.statSync(testPath).size : 0,
+					};
+				} catch (err) {
+					results[testPath] = {
+						error: err.message,
+					};
+				}
+			}
+
+			// Check app paths
+			results.appPaths = {
+				appPath: app.getAppPath(),
+				resourcesPath: process.resourcesPath,
+				dirname: __dirname,
+				cwd: process.cwd(),
+				execPath: process.execPath,
+				isDev: isDev,
+				platform: process.platform,
+			};
+
+			return results;
+		} catch (error) {
+			console.error("[Debug] Error checking aperture files:", error);
+			return { error: error.message, stack: error.stack };
+		}
+	});
+
 	// Debug helper to check static files location
 	safeHandle(IPC_EVENTS.DEBUG_CHECK_STATIC_FILES, async () => {
 		try {
@@ -2118,8 +2336,7 @@ function setupIpcHandlers() {
 			if (sources && sources.length) {
 				try {
 					// Aperture modülünden ekran listesini al
-					const aperturePath = path.join(__dirname, "aperture.cjs");
-					const apertureModule = await import(`file://${aperturePath}`);
+					const apertureModule = await loadApertureModule();
 					const apertureScreens = await apertureModule.getScreens();
 
 					// Her kaynağa aperture ID'si ekle

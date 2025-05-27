@@ -93,7 +93,7 @@
 							>
 								<!-- Video Segments -->
 								<TimelineSegment
-									v-for="(segment, index) in props.segments"
+									v-for="(segment, index) in compactedSegments"
 									:key="segment.id || index"
 									:segment="segment"
 									:index="index"
@@ -106,7 +106,8 @@
 									@mouse-move="handleSegmentMouseMove"
 									@mouse-leave="handleSegmentMouseLeave"
 									@resize-start="handleResizeStart"
-									@update="handleSegmentUpdate"
+									@resize-update="handleResizeUpdate"
+									@resize-end="handleResizeEnd"
 									@split="handleSegmentSplit"
 								/>
 							</div>
@@ -283,9 +284,12 @@ const emit = defineEmits([
 	"timeUpdate",
 	"segmentUpdate",
 	"segmentSelect",
+	"segmentTrimmed",
 	"splitSegment",
 	"segmentsReordered",
 	"previewTimeUpdate",
+	"deleteSegment",
+	"videoEnded",
 ]);
 
 const {
@@ -316,22 +320,177 @@ const maxZoom = 10;
 const zoomStep = 0.2;
 
 // Timeline sabitleri
-const maxDuration = computed(() => props.duration);
+// Segment'leri sıkıştırılmış timeline pozisyonlarıyla hesapla
+const compactedSegments = computed(() => {
+	if (!props.segments || props.segments.length === 0) {
+		return [];
+	}
+
+	let cumulativeTime = 0;
+	return props.segments.map((segment, index) => {
+		const segmentDuration =
+			(segment.end || segment.endTime || 0) -
+			(segment.start || segment.startTime || 0);
+
+		const compactedSegment = {
+			...segment,
+			timelineStart: cumulativeTime, // Timeline'daki başlangıç pozisyonu
+			timelineEnd: cumulativeTime + segmentDuration, // Timeline'daki bitiş pozisyonu
+			originalStart: segment.start || segment.startTime || 0, // Orijinal video'daki başlangıç
+			originalEnd: segment.end || segment.endTime || 0, // Orijinal video'daki bitiş
+			duration: segmentDuration,
+		};
+
+		cumulativeTime += segmentDuration;
+		return compactedSegment;
+	});
+});
+
+// Timeline uzunluğu sıkıştırılmış segment'lerin toplam süresine göre hesaplanır
+const maxDuration = computed(() => {
+	if (compactedSegments.value.length === 0) {
+		return props.duration;
+	}
+
+	// Sıkıştırılmış segment'lerin toplam süresini hesapla
+	const totalCompactedDuration = compactedSegments.value.reduce(
+		(total, segment) => {
+			return total + segment.duration;
+		},
+		0
+	);
+
+	return totalCompactedDuration > 0 ? totalCompactedDuration : props.duration;
+});
 
 // Timeline genişliği
 const timelineWidth = computed(() => {
 	return maxDuration.value * 25 * currentZoom.value;
 });
 
-// Playhead pozisyonu
+// Playhead pozisyonu - orijinal video zamanını sıkıştırılmış timeline zamanına çevir
 const playheadPosition = computed(() => {
-	return (props.currentTime / maxDuration.value) * 100;
+	if (compactedSegments.value.length === 0) {
+		return (props.currentTime / maxDuration.value) * 100;
+	}
+
+	// Orijinal video zamanını sıkıştırılmış timeline zamanına çevir
+	const compactedTime = convertOriginalTimeToCompactedTime(props.currentTime);
+	return (compactedTime / maxDuration.value) * 100;
 });
 
-// Playhead'i takip et
+// Orijinal video zamanını sıkıştırılmış timeline zamanına çevir
+const convertOriginalTimeToCompactedTime = (originalTime) => {
+	if (compactedSegments.value.length === 0) {
+		return originalTime;
+	}
+
+	// Hangi segment içinde olduğumuzu bul
+	for (const segment of compactedSegments.value) {
+		if (
+			originalTime >= segment.originalStart &&
+			originalTime <= segment.originalEnd
+		) {
+			// Bu segment içindeyiz, timeline pozisyonunu hesapla
+			const segmentProgress = originalTime - segment.originalStart;
+			return segment.timelineStart + segmentProgress;
+		}
+	}
+
+	// Hiçbir segment içinde değilsek, en yakın segment'e snap et
+	const firstSegment = compactedSegments.value[0];
+	const lastSegment =
+		compactedSegments.value[compactedSegments.value.length - 1];
+
+	if (originalTime < firstSegment.originalStart) {
+		return 0; // İlk segment'in başına
+	} else if (originalTime > lastSegment.originalEnd) {
+		return maxDuration.value; // Son segment'in sonuna
+	}
+
+	return 0; // Fallback
+};
+
+// Sıkıştırılmış timeline zamanını orijinal video zamanına çevir
+const convertCompactedTimeToOriginalTime = (compactedTime) => {
+	if (compactedSegments.value.length === 0) {
+		return compactedTime;
+	}
+
+	// Hangi segment içinde olduğumuzu bul
+	for (const segment of compactedSegments.value) {
+		if (
+			compactedTime >= segment.timelineStart &&
+			compactedTime <= segment.timelineEnd
+		) {
+			// Bu segment içindeyiz, orijinal pozisyonu hesapla
+			const segmentProgress = compactedTime - segment.timelineStart;
+			return segment.originalStart + segmentProgress;
+		}
+	}
+
+	// Hiçbir segment içinde değilsek, en yakın segment'e snap et
+	const firstSegment = compactedSegments.value[0];
+	const lastSegment =
+		compactedSegments.value[compactedSegments.value.length - 1];
+
+	if (compactedTime < firstSegment.timelineStart) {
+		return firstSegment.originalStart; // İlk segment'in başına
+	} else if (compactedTime > lastSegment.timelineEnd) {
+		return lastSegment.originalEnd; // Son segment'in sonuna
+	}
+
+	return 0; // Fallback
+};
+
+// Playhead'i takip et ve segment kontrolü yap
 watch(
 	() => props.currentTime,
 	(newTime) => {
+		// SEGMENT SINIR KONTROLÜ - Video oynatılırken segment sınırlarını kontrol et
+		if (compactedSegments.value.length > 0) {
+			// Hangi segment içinde olduğumuzu bul
+			const currentSegment = compactedSegments.value.find(
+				(segment) =>
+					newTime >= segment.originalStart && newTime <= segment.originalEnd
+			);
+
+			if (!currentSegment) {
+				// Hiçbir segment içinde değilsek, sonraki segment'e atla
+				const nextSegment = compactedSegments.value.find(
+					(segment) => segment.originalStart > newTime
+				);
+
+				if (nextSegment) {
+					// Sonraki segment'e atla
+					emit("timeUpdate", nextSegment.originalStart);
+					return;
+				} else {
+					// Son segment'i de geçtik, durdur
+					// Bu durumu parent component'e bildir
+					emit("videoEnded");
+					return;
+				}
+			}
+
+			// Segment sonuna geldiysek sonraki segment'e geç
+			if (currentSegment && newTime >= currentSegment.originalEnd) {
+				const currentIndex = compactedSegments.value.indexOf(currentSegment);
+				const nextSegment = compactedSegments.value[currentIndex + 1];
+
+				if (nextSegment) {
+					// Sonraki segment'e geç
+					emit("timeUpdate", nextSegment.originalStart);
+					return;
+				} else {
+					// Son segment bitti, durdur
+					emit("videoEnded");
+					return;
+				}
+			}
+		}
+
+		// Scroll takibi
 		const container = scrollContainerRef.value;
 		if (!container) return;
 
@@ -416,191 +575,11 @@ const shouldShowTime = (time) => {
 	return true; // Her saniye
 };
 
-// Aktif segment state'i
-const activeSegmentIndex = ref(null);
-
-// Segment seçme
-const handleSegmentClick = (index, event) => {
-	event.stopPropagation();
-	activeSegmentIndex.value = index;
-	emit("segmentSelect", index);
-};
-
-// Segment sürükleme
-const handleSegmentDragStart = (event, index) => {
-	if (props.isSplitMode) {
-		event.preventDefault();
-		return;
-	}
-	draggedSegmentIndex.value = index;
-	event.dataTransfer.effectAllowed = "move";
-};
-
-// Segment üzerinde sürükleme
-const handleSegmentDragOver = (event, index) => {
-	event.preventDefault();
-	if (draggedSegmentIndex.value === null || draggedSegmentIndex.value === index)
-		return;
-
-	const segment = event.currentTarget;
-	const rect = segment.getBoundingClientRect();
-	const mouseX = event.clientX - rect.left;
-	const isFirstHalf = mouseX < rect.width / 2;
-
-	dropTargetInfo.value = {
-		segmentIndex: index,
-		position: isFirstHalf ? "start" : "end",
-	};
-};
-
-// Segment dışına sürükleme
-const handleSegmentDragLeave = (event) => {
-	event.preventDefault();
-	dropTargetInfo.value = {
-		segmentIndex: null,
-		position: null,
-	};
-};
-
-// Segment bırakıldığında
-const handleSegmentDrop = (event) => {
-	event.preventDefault();
-	if (
-		draggedSegmentIndex.value === null ||
-		dropTargetInfo.value.segmentIndex === null
-	)
-		return;
-
-	const newSegments = [...props.segments];
-	const [draggedSegment] = newSegments.splice(draggedSegmentIndex.value, 1);
-	let targetIndex = dropTargetInfo.value.segmentIndex;
-
-	if (dropTargetInfo.value.position === "end") {
-		targetIndex++;
-	}
-	if (draggedSegmentIndex.value < targetIndex) {
-		targetIndex--;
-	}
-
-	// Yeni segmentleri oluştur ve zamanları güncelle
-	newSegments.splice(targetIndex, 0, draggedSegment);
-
-	// Segmentlerin zamanlarını sırayla güncelle
-	let currentTime = 0;
-	const updatedSegments = newSegments.map((segment) => {
-		const duration = segment.end - segment.start;
-		const updatedSegment = {
-			...segment,
-			start: currentTime,
-			end: currentTime + duration,
-			startTime: currentTime,
-			endTime: currentTime + duration,
-		};
-		currentTime += duration;
-		return updatedSegment;
-	});
-
-	emit("segmentsReordered", updatedSegments);
-
-	// State'leri temizle
-	draggedSegmentIndex.value = null;
-	dropTargetInfo.value = {
-		segmentIndex: null,
-		position: null,
-	};
-};
-
-// Sürükleme bittiğinde
-const handleSegmentDragEnd = () => {
-	draggedSegmentIndex.value = null;
-	dropTargetInfo.value = {
-		segmentIndex: null,
-		position: null,
-	};
-};
-
-// Timeline tıklama
-const handleTimelineClick = (e) => {
-	if (isDragging.value || isResizing.value) return;
-
-	// Seçili zoom segmentini temizle
-	selectedZoomIndex.value = null;
-
-	const container = timelineRef.value;
-	const rect = container.getBoundingClientRect();
-	const x = e.clientX - rect.left + container.scrollLeft;
-	const time = (x / timelineWidth.value) * maxDuration.value;
-
-	// Geçerli zaman aralığında olmasını kontrol et
-	const validTime = Math.max(0, Math.min(props.duration, time));
-	emit("timeUpdate", validTime);
-	previewPlayheadPosition.value = null; // Tıklandığında preview'i gizle
-	emit("previewTimeUpdate", null); // Preview'i temizle
-};
-
-const startDragging = (e) => {
-	isDragging.value = true;
-	startDragX.value = e.clientX;
-	startScrollLeft.value = timelineRef.value.scrollLeft;
-};
-
-const stopDragging = () => {
-	isDragging.value = false;
-};
-
-const handleDrag = (e) => {
-	if (!isDragging.value) return;
-
-	const dx = e.clientX - startDragX.value;
-	timelineRef.value.scrollLeft = startScrollLeft.value - dx;
-};
-
-// Zoom işlemi
-const handleZoom = (e) => {
-	// Sadece Cmd/Ctrl basılıyken zoom işlemi yap
-	if (e.ctrlKey || e.metaKey) {
-		e.preventDefault();
-		// Zoom işlemi - daha yumuşak bir zoom için deltaY'yi normalize et
-		const normalizedDelta =
-			-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY * 0.01), 1);
-		const delta = normalizedDelta * zoomStep;
-		const newZoom = Math.max(
-			minZoom,
-			Math.min(maxZoom, currentZoom.value * (1 + delta))
-		);
-
-		if (newZoom !== currentZoom.value) {
-			// Zoom yaparken mouse pozisyonunu merkez al
-			const container = scrollContainerRef.value;
-			const mouseX = e.clientX - container.getBoundingClientRect().left;
-			const scrollLeftBeforeZoom = container.scrollLeft;
-			const containerWidthBeforeZoom = container.scrollWidth;
-
-			currentZoom.value = newZoom;
-
-			// Zoom sonrası scroll pozisyonunu güncelle
-			nextTick(() => {
-				const scale = container.scrollWidth / containerWidthBeforeZoom;
-				container.scrollLeft =
-					mouseX * (scale - 1) + scrollLeftBeforeZoom * scale;
-			});
-		}
-	}
-};
-
-// Zaman formatı
-const formatTime = (seconds) => {
-	const minutes = Math.floor(seconds / 60);
-	const secs = Math.floor(seconds % 60);
-	const centiseconds = Math.floor((seconds % 1) * 100);
-
-	return `${minutes.toString().padStart(2, "0")}:${secs
-		.toString()
-		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
-};
-
 // Segment üzerinde mouse pozisyonu
 const mousePosition = ref({ x: 0, segmentIndex: null });
+
+// Aktif segment index'i
+const activeSegmentIndex = ref(0);
 
 // Segment üzerinde mouse hareketi
 const handleSegmentMouseMove = (event, index) => {
@@ -674,35 +653,135 @@ const handleSegmentSplit = (event, index, ratio) => {
 	});
 };
 
-// Sürükle-bırak state'leri
-const draggedSegmentIndex = ref(null);
-const dropTargetInfo = ref({
-	segmentIndex: null,
-	position: null, // 'start' veya 'end'
-});
-
-// Süre formatı güncellendi
-const formatDuration = (seconds) => {
-	const s = Math.floor(seconds);
-	return `${s}s`;
+// Sürükleme bittiğinde
+const handleSegmentDragEnd = () => {
+	draggedSegmentIndex.value = null;
+	dropTargetInfo.value = {
+		segmentIndex: null,
+		position: null,
+	};
 };
 
-// Component mount/unmount
-onMounted(() => {
-	window.addEventListener("mouseup", stopDragging);
-	window.addEventListener("mousemove", handleDrag);
-	window.addEventListener("keydown", handleKeyDown);
-});
+// Timeline tıklama
+const handleTimelineClick = (e) => {
+	if (isDragging.value || isResizing.value) return;
 
-onUnmounted(() => {
-	window.removeEventListener("mouseup", stopDragging);
-	window.removeEventListener("mousemove", handleDrag);
-	window.removeEventListener("mousemove", handlePlayheadDrag);
-	window.removeEventListener("mouseup", handlePlayheadDragEnd);
-	window.removeEventListener("keydown", handleKeyDown);
-});
+	// Seçili zoom segmentini temizle
+	selectedZoomIndex.value = null;
 
-// Resize state'leri
+	const container = timelineRef.value;
+	const rect = container.getBoundingClientRect();
+	const x = e.clientX - rect.left + container.scrollLeft;
+	const compactedTime = (x / timelineWidth.value) * maxDuration.value;
+
+	// Sıkıştırılmış timeline zamanını orijinal video zamanına çevir
+	const originalTime = convertCompactedTimeToOriginalTime(compactedTime);
+
+	// SEGMENT SINIR KONTROLÜ - Sadece segment içine tıklanabilir
+	if (compactedSegments.value.length > 0) {
+		// Hangi segment içinde tıklandığını bul
+		const clickedSegment = compactedSegments.value.find(
+			(segment) =>
+				compactedTime >= segment.timelineStart &&
+				compactedTime <= segment.timelineEnd
+		);
+
+		if (!clickedSegment) {
+			// Segment dışına tıklandı, en yakın segment'e git
+			const nearestSegment = compactedSegments.value.reduce(
+				(nearest, segment) => {
+					const distanceToStart = Math.abs(
+						compactedTime - segment.timelineStart
+					);
+					const distanceToEnd = Math.abs(compactedTime - segment.timelineEnd);
+					const minDistance = Math.min(distanceToStart, distanceToEnd);
+
+					const nearestDistance = Math.min(
+						Math.abs(compactedTime - nearest.timelineStart),
+						Math.abs(compactedTime - nearest.timelineEnd)
+					);
+
+					return minDistance < nearestDistance ? segment : nearest;
+				}
+			);
+
+			// En yakın segment'in başına git
+			emit("timeUpdate", nearestSegment.originalStart);
+			previewPlayheadPosition.value = null;
+			emit("previewTimeUpdate", null);
+			return;
+		}
+	}
+
+	// Geçerli zaman aralığında olmasını kontrol et
+	const validTime = Math.max(0, Math.min(props.duration, originalTime));
+	emit("timeUpdate", validTime);
+	previewPlayheadPosition.value = null; // Tıklandığında preview'i gizle
+	emit("previewTimeUpdate", null); // Preview'i temizle
+};
+
+const startDragging = (e) => {
+	isDragging.value = true;
+	startDragX.value = e.clientX;
+	startScrollLeft.value = timelineRef.value.scrollLeft;
+};
+
+const stopDragging = () => {
+	isDragging.value = false;
+};
+
+const handleDrag = (e) => {
+	if (!isDragging.value) return;
+
+	const dx = e.clientX - startDragX.value;
+	timelineRef.value.scrollLeft = startScrollLeft.value - dx;
+};
+
+// Zoom işlemi
+const handleZoom = (e) => {
+	// Sadece Cmd/Ctrl basılıyken zoom işlemi yap
+	if (e.ctrlKey || e.metaKey) {
+		e.preventDefault();
+		// Zoom işlemi - daha yumuşak bir zoom için deltaY'yi normalize et
+		const normalizedDelta =
+			-Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY * 0.01), 1);
+		const delta = normalizedDelta * zoomStep;
+		const newZoom = Math.max(
+			minZoom,
+			Math.min(maxZoom, currentZoom.value * (1 + delta))
+		);
+
+		if (newZoom !== currentZoom.value) {
+			// Zoom yaparken mouse pozisyonunu merkez al
+			const container = scrollContainerRef.value;
+			const mouseX = e.clientX - container.getBoundingClientRect().left;
+			const scrollLeftBeforeZoom = container.scrollLeft;
+			const containerWidthBeforeZoom = container.scrollWidth;
+
+			currentZoom.value = newZoom;
+
+			// Zoom sonrası scroll pozisyonunu güncelle
+			nextTick(() => {
+				const scale = container.scrollWidth / containerWidthBeforeZoom;
+				container.scrollLeft =
+					mouseX * (scale - 1) + scrollLeftBeforeZoom * scale;
+			});
+		}
+	}
+};
+
+// Zaman formatı
+const formatTime = (seconds) => {
+	const minutes = Math.floor(seconds / 60);
+	const secs = Math.floor(seconds % 60);
+	const centiseconds = Math.floor((seconds % 1) * 100);
+
+	return `${minutes.toString().padStart(2, "0")}:${secs
+		.toString()
+		.padStart(2, "0")}:${centiseconds.toString().padStart(2, "0")}`;
+};
+
+// Sürükleme state'leri
 const isResizing = ref(false);
 const resizingSegmentIndex = ref(null);
 const resizingEdge = ref(null); // 'start' veya 'end'
@@ -712,63 +791,63 @@ const startResizeX = ref(0);
 // Resize başlatma
 const handleResizeStart = (event, index, edge) => {
 	event.stopPropagation();
+	console.log("[TimelineComponent] Resize start:", { index, edge });
+
 	isResizing.value = true;
 	resizingSegmentIndex.value = index;
 	resizingEdge.value = edge;
 	originalSegment.value = { ...props.segments[index] };
 	startResizeX.value = event.clientX;
 
-	window.addEventListener("mousemove", handleResize);
-	window.addEventListener("mouseup", handleResizeEnd);
+	// Aktif segment'i güncelle
+	activeSegmentIndex.value = index;
+	emit("segmentSelect", index);
 };
 
-// Resize işlemi
-const handleResize = (event) => {
-	if (!isResizing.value || resizingSegmentIndex.value === null) return;
+// Resize güncelleme
+const handleResizeUpdate = (updatedSegment, index) => {
+	if (!isResizing.value || resizingSegmentIndex.value !== index) return;
 
-	const segment = props.segments[resizingSegmentIndex.value];
-	const timeline = timelineRef.value;
-	const timelineRect = timeline.getBoundingClientRect();
-
-	const dx = event.clientX - startResizeX.value;
-	const timeChange = (dx / timelineRect.width) * maxDuration.value;
+	console.log("[TimelineComponent] Resize update:", {
+		index,
+		updatedSegment,
+		oldStart: props.segments[index]?.start,
+		oldEnd: props.segments[index]?.end,
+		newStart: updatedSegment.start,
+		newEnd: updatedSegment.end,
+	});
 
 	const newSegments = [...props.segments];
-	const updatedSegment = { ...segment };
+	newSegments[index] = {
+		...newSegments[index], // Mevcut segment özelliklerini koru
+		...updatedSegment, // Güncellenen değerleri uygula
+		id: newSegments[index].id || generateId(), // ID'yi koru
+		start: updatedSegment.start, // Bu önemli!
+		end: updatedSegment.end, // Bu önemli!
+		startTime: updatedSegment.start,
+		endTime: updatedSegment.end,
+		duration: updatedSegment.end - updatedSegment.start,
+		width: `${
+			((updatedSegment.end - updatedSegment.start) / maxDuration.value) * 100
+		}%`,
+		startPosition: `${(updatedSegment.start / maxDuration.value) * 100}%`,
+	};
 
-	if (resizingEdge.value === "start") {
-		const newStart = Math.max(
-			originalSegment.value.start - maxDuration.value,
-			Math.min(
-				originalSegment.value.start + timeChange,
-				segment.end - 1 // En az 1 saniyelik segment
-			)
-		);
-		updatedSegment.start = newStart;
-	} else {
-		const newEnd = Math.max(
-			segment.start + 1, // En az 1 saniyelik segment
-			Math.min(
-				originalSegment.value.end + timeChange,
-				originalSegment.value.end + maxDuration.value
-			)
-		);
-		updatedSegment.end = newEnd;
-	}
-
-	newSegments[resizingSegmentIndex.value] = updatedSegment;
+	console.log("[TimelineComponent] Updated segment:", newSegments[index]);
 	emit("segmentUpdate", newSegments);
 };
 
 // Resize bitirme
-const handleResizeEnd = () => {
+const handleResizeEnd = (index) => {
+	console.log("[TimelineComponent] Resize end:", { index });
+
 	isResizing.value = false;
 	resizingSegmentIndex.value = null;
 	resizingEdge.value = null;
 	originalSegment.value = null;
 
-	window.removeEventListener("mousemove", handleResize);
-	window.removeEventListener("mouseup", handleResizeEnd);
+	// Final segment güncellemesini emit et
+	emit("segmentTrimmed", index);
 };
 
 // Preview playhead state'i
@@ -785,11 +864,18 @@ const handleTimelineMouseMove = (e) => {
 	const container = timelineRef.value;
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
-	const time = (x / timelineWidth.value) * maxDuration.value;
+	const compactedTime = (x / timelineWidth.value) * maxDuration.value;
+
+	// Sıkıştırılmış timeline zamanını orijinal video zamanına çevir
+	const originalTime = convertCompactedTimeToOriginalTime(compactedTime);
 
 	// Geçerli zaman aralığında olmasını kontrol et
-	const validTime = Math.max(0, Math.min(props.duration, time));
-	previewPlayheadPosition.value = (validTime / maxDuration.value) * 100;
+	const validTime = Math.max(0, Math.min(props.duration, originalTime));
+
+	// Preview pozisyonunu sıkıştırılmış timeline'a göre hesapla
+	const compactedPreviewTime = convertOriginalTimeToCompactedTime(validTime);
+	previewPlayheadPosition.value =
+		(compactedPreviewTime / maxDuration.value) * 100;
 	emit("previewTimeUpdate", validTime);
 };
 
@@ -1239,12 +1325,24 @@ const handleZoomSegmentClick = (event, index) => {
 
 // Klavye olaylarını dinle
 const handleKeyDown = (event) => {
+	// Zoom segment silme
 	if (
 		selectedZoomIndex.value !== null &&
 		(event.key === "Delete" || event.key === "Backspace")
 	) {
 		removeZoomRange(selectedZoomIndex.value);
 		selectedZoomIndex.value = null;
+		return;
+	}
+
+	// Video segment silme
+	if (
+		activeSegmentIndex.value !== null &&
+		(event.key === "Delete" || event.key === "Backspace")
+	) {
+		event.preventDefault();
+		emit("deleteSegment", activeSegmentIndex.value);
+		return;
 	}
 };
 
@@ -1281,6 +1379,24 @@ const handleSegmentUpdate = (updatedSegment, index) => {
 
 	emit("segmentUpdate", newSegments);
 };
+
+// Segment seçme
+const handleSegmentClick = (index, event) => {
+	event.stopPropagation();
+	activeSegmentIndex.value = index;
+	emit("segmentSelect", index);
+};
+
+// Lifecycle hooks
+onMounted(() => {
+	// Klavye event listener'ını ekle
+	window.addEventListener("keydown", handleKeyDown);
+});
+
+onUnmounted(() => {
+	// Klavye event listener'ını kaldır
+	window.removeEventListener("keydown", handleKeyDown);
+});
 </script>
 
 <style scoped>

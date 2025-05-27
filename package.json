@@ -47,7 +47,19 @@
 		"asar": true,
 		"asarUnpack": [
 			"node_modules/electron-store/**",
-			"node_modules/conf/**"
+			"node_modules/conf/**",
+			"electron/aperture.cjs",
+			"node_modules/aperture/**",
+			"node_modules/execa/**",
+			"node_modules/uiohook-napi/**",
+			"node_modules/get-stream/**",
+			"node_modules/human-signals/**",
+			"node_modules/is-stream/**",
+			"node_modules/merge-stream/**",
+			"node_modules/npm-run-path/**",
+			"node_modules/onetime/**",
+			"node_modules/signal-exit/**",
+			"node_modules/strip-final-newline/**"
 		],
 		"directories": {
 			"output": "dist"

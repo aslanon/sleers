@@ -27,7 +27,22 @@ module.exports = {
 		main: "electron/main.cjs",
 	},
 	// Harici bağımlılıkları asar içine dahil etme
-	asarUnpack: ["node_modules/electron-store/**", "node_modules/conf/**"],
+	asarUnpack: [
+		"node_modules/electron-store/**",
+		"node_modules/conf/**",
+		"electron/aperture.cjs", // Aperture modülünü ASAR dışında tut
+		"node_modules/aperture/**", // Aperture npm modülünü de ASAR dışında tut
+		"node_modules/execa/**", // Execa modülünü de ASAR dışında tut (aperture dependency)
+		"node_modules/uiohook-napi/**", // UIohook binary'lerini ASAR dışında tut
+		"node_modules/get-stream/**", // get-stream modülünü de ASAR dışında tut
+		"node_modules/human-signals/**", // human-signals modülünü de ASAR dışında tut
+		"node_modules/is-stream/**", // is-stream modülünü de ASAR dışında tut
+		"node_modules/merge-stream/**", // merge-stream modülünü de ASAR dışında tut
+		"node_modules/npm-run-path/**", // npm-run-path modülünü de ASAR dışında tut
+		"node_modules/onetime/**", // onetime modülünü de ASAR dışında tut
+		"node_modules/signal-exit/**", // signal-exit modülünü de ASAR dışında tut
+		"node_modules/strip-final-newline/**", // strip-final-newline modülünü de ASAR dışında tut
+	],
 	mac: {
 		category: "public.app-category.video",
 		icon: "build/icon.icns",

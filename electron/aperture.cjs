@@ -33,10 +33,62 @@ async function loadAperture() {
 
 	try {
 		console.log("[Aperture] Modül yükleniyor...");
-		// ESM modülünü dinamik olarak yükle
-		apertureModule = await import("aperture");
-		console.log("[Aperture] Modül yüklendi:", Object.keys(apertureModule));
-		return apertureModule;
+
+		// Build modunda farklı yolları dene
+		const { app } = require("electron");
+		const path = require("path");
+
+		// Olası aperture modül yolları - unpacked yolu öncelikli
+		const possiblePaths = [
+			path.join(
+				process.resourcesPath,
+				"app.asar.unpacked",
+				"node_modules",
+				"aperture"
+			), // Build mode unpacked (öncelikli)
+			path.join(process.resourcesPath, "app", "node_modules", "aperture"), // Build mode unpackaged
+			path.join(app.getAppPath(), "node_modules", "aperture"), // Alternative build path
+			"aperture", // Normal npm modülü (son çare)
+		];
+
+		let loadError = null;
+
+		for (const modulePath of possiblePaths) {
+			try {
+				console.log(`[Aperture] Modül yolu deneniyor: ${modulePath}`);
+
+				// ESM modülünü dinamik olarak yükle
+				if (modulePath === "aperture") {
+					apertureModule = await import("aperture");
+				} else {
+					// Tam yol ile yükleme - önce dosyanın var olup olmadığını kontrol et
+					const indexPath = path.join(modulePath, "index.js");
+					if (fs.existsSync(indexPath)) {
+						apertureModule = await import(`file://${indexPath}`);
+					} else {
+						throw new Error(`Index dosyası bulunamadı: ${indexPath}`);
+					}
+				}
+
+				console.log(
+					"[Aperture] Modül başarıyla yüklendi:",
+					Object.keys(apertureModule)
+				);
+				return apertureModule;
+			} catch (error) {
+				console.warn(
+					`[Aperture] Modül yolu başarısız: ${modulePath}`,
+					error.message
+				);
+				loadError = error;
+				continue;
+			}
+		}
+
+		// Hiçbir yol çalışmadıysa hata fırlat
+		throw new Error(
+			`Aperture modülü hiçbir yolda bulunamadı. Son hata: ${loadError?.message}`
+		);
 	} catch (error) {
 		console.error("[Aperture] Modül yükleme hatası:", error);
 		throw error;

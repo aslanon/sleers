@@ -48,6 +48,7 @@
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
 				<LayoutManager :media-player="mediaPlayerRef" />
+
 				<button
 					class="btn-export bg-[#432af4] rounded-lg p-2 py-1 flex flex-row gap-2 items-center"
 					@click="showExportModal = true"
@@ -121,6 +122,7 @@
 						@timeUpdate="onTimeUpdate"
 						@mute-change="isMuted = $event"
 						@update:isCropMode="isCropMode = $event"
+						@duration-changed="onDurationChanged"
 						class="inset-0 h-full"
 					/>
 				</div>
@@ -141,11 +143,13 @@
 					@toggle-split-mode="toggleSplitMode"
 					@update:isCropMode="isCropMode = $event"
 					@captureScreenshot="handleCaptureScreenshot"
+					@splitCurrentSegment="handleSplitCurrentSegment"
 					class="mt-4"
 				/>
 			</div>
 		</div>
 
+		<!-- Timeline Component -->
 		<TimelineComponent
 			:duration="videoDuration"
 			:current-time="currentTime"
@@ -153,8 +157,13 @@
 			:is-split-mode="isSplitMode"
 			@timeUpdate="handleTimeUpdate"
 			@previewTimeUpdate="handlePreviewTimeUpdate"
+			@segmentUpdate="handleSegmentUpdate"
+			@segmentSelect="handleSegmentSelect"
+			@segmentTrimmed="handleSegmentTrimmed"
 			@segmentsReordered="handleSegmentsReordered"
 			@splitSegment="handleSegmentSplit"
+			@deleteSegment="handleSegmentDelete"
+			@videoEnded="handleVideoEnded"
 			ref="timelineRef"
 		/>
 
@@ -209,7 +218,9 @@ const selectedArea = ref(null);
 const isMuted = ref(false);
 const isSplitMode = ref(false);
 const isCropMode = ref(false);
+const activeSegmentIndex = ref(0);
 const showExportModal = ref(false);
+const mouseSize = ref(20);
 
 // Video boyutları
 const videoSize = ref({
@@ -373,14 +384,28 @@ const onVideoLoaded = (data) => {
 				duration: videoDuration.value,
 				segment: segments.value[0],
 			});
-
-			// Segment pozisyonlarını güncelle
-			updateSegments();
 		} else {
 			console.warn("[editor.vue] Video süresi geçersiz:", data);
 		}
 	} catch (error) {
 		console.error("[editor.vue] Video yükleme hatası:", error);
+	}
+};
+
+// Duration değiştiğinde (virtual trim için)
+const onDurationChanged = (newDuration) => {
+	try {
+		console.log("[editor.vue] Duration değişti (virtual trim):", newDuration);
+
+		// Video duration'ını güncelle ama segment'leri değiştirme
+		videoDuration.value = Math.max(0, newDuration);
+
+		console.log(
+			"[editor.vue] Virtual duration güncellendi:",
+			videoDuration.value
+		);
+	} catch (error) {
+		console.error("[editor.vue] Duration değişikliği hatası:", error);
 	}
 };
 
@@ -563,15 +588,181 @@ const handleTimeUpdate = (time) => {
 	}
 };
 
+// Timeline'dan video bittiği sinyali geldiğinde
+const handleVideoEnded = () => {
+	console.log("[editor.vue] Video segment'leri bitti, oynatmayı durdur");
+	isPlaying.value = false;
+	if (mediaPlayerRef.value) {
+		mediaPlayerRef.value.pause();
+	}
+};
+
 // Kesme modunu aç/kapa
 const toggleTrimMode = () => {
 	isTrimMode.value = !isTrimMode.value;
 };
 
 // Segment güncellemelerini işle
-const onSegmentUpdate = ({ type, segments }) => {
-	console.log(`[editor.vue] ${type} segmentleri güncellendi:`, segments);
-	// Burada segmentleri işleyebilir ve videoyu/sesi buna göre düzenleyebilirsiniz
+const handleSegmentUpdate = async (newSegments) => {
+	console.log("[editor.vue] Segmentler güncellendi:", newSegments);
+
+	// Segment'leri normalize et - start/end ve startTime/endTime tutarlılığını sağla
+	const normalizedSegments = newSegments.map((segment, index) => {
+		const start = segment.start || segment.startTime || 0;
+		const end = segment.end || segment.endTime || 0;
+
+		return {
+			...segment,
+			id: segment.id || generateId(),
+			start,
+			end,
+			startTime: start,
+			endTime: end,
+			duration: end - start,
+		};
+	});
+
+	// Segment'leri güncelle - MediaPlayer otomatik olarak clipping uygulayacak
+	segments.value = normalizedSegments;
+
+	console.log(
+		"[editor.vue] Segments updated, MediaPlayer will handle clipping automatically"
+	);
+};
+
+// Segment seçimi
+const handleSegmentSelect = async (index) => {
+	console.log("[editor.vue] Segment seçildi:", index);
+	activeSegmentIndex.value = index;
+
+	// Seçilen segment'in clipped time'daki başlangıç pozisyonunu hesapla
+	if (segments.value[index] && mediaPlayerRef.value) {
+		// Segment'leri sırala
+		const sortedSegments = [...segments.value].sort((a, b) => {
+			const startA = a.start || a.startTime || 0;
+			const startB = b.start || b.startTime || 0;
+			return startA - startB;
+		});
+
+		// Seçilen segment'in clipped timeline'daki pozisyonunu hesapla
+		let clippedTimePosition = 0;
+		for (let i = 0; i < sortedSegments.length; i++) {
+			if (sortedSegments[i].id === segments.value[index].id) {
+				break;
+			}
+			const segStart =
+				sortedSegments[i].start || sortedSegments[i].startTime || 0;
+			const segEnd = sortedSegments[i].end || sortedSegments[i].endTime || 0;
+			clippedTimePosition += segEnd - segStart;
+		}
+
+		console.log(
+			"[editor.vue] Seeking to segment at clipped position:",
+			clippedTimePosition
+		);
+
+		// Oynatmayı durdur
+		if (isPlaying.value) {
+			await mediaPlayerRef.value.pause();
+			isPlaying.value = false;
+		}
+
+		// Clipped time pozisyonuna git
+		currentTime.value = clippedTimePosition;
+		mediaPlayerRef.value.seek(clippedTimePosition);
+	}
+};
+
+// Segment trim işlemi tamamlandığında
+const handleSegmentTrimmed = async (index) => {
+	console.log("[editor.vue] Segment trim tamamlandı:", index);
+
+	// MediaPlayer otomatik olarak segment clipping uygulayacak
+	// Sadece oynatmayı durduralım
+	if (isPlaying.value && mediaPlayerRef.value) {
+		await mediaPlayerRef.value.pause();
+		isPlaying.value = false;
+	}
+
+	console.log(
+		"[editor.vue] Segment trimmed, MediaPlayer will handle clipping automatically"
+	);
+};
+
+// Segmentleri sıkıştır ve boşlukları kaldır
+const compactSegments = () => {
+	if (!segments.value?.length) return;
+
+	console.log("[editor.vue] Compacting segments, before:", segments.value);
+
+	// Segment'leri sadece filtrele, start/end değerlerini değiştirme
+	segments.value = segments.value
+		.filter((segment) => {
+			const duration = segment.end - segment.start;
+			return duration > 0.01; // Minimum 0.01 saniye süreli segmentleri koru
+		})
+		.map((segment, index) => {
+			// Orijinal start/end değerlerini koru - sadece UI pozisyonlarını güncelle
+			const originalStart = segment.start;
+			const originalEnd = segment.end;
+			const originalDuration = originalEnd - originalStart;
+
+			// Timeline pozisyonları için hesaplama (görsel amaçlı)
+			const startPosition = `${(originalStart / videoDuration.value) * 100}%`;
+			const width = `${(originalDuration / videoDuration.value) * 100}%`;
+
+			const updatedSegment = {
+				...segment,
+				id: segment.id || generateId(),
+				start: originalStart, // Orijinal değeri koru
+				end: originalEnd, // Orijinal değeri koru
+				startTime: originalStart,
+				endTime: originalEnd,
+				duration: originalDuration,
+				startPosition,
+				width,
+				type: segment.type || "video",
+				layer: segment.layer || 0,
+			};
+
+			console.log(`[editor.vue] Segment ${index} preserved:`, {
+				start: originalStart,
+				end: originalEnd,
+				duration: originalDuration,
+				position: startPosition,
+				width,
+			});
+
+			return updatedSegment;
+		});
+
+	console.log("[editor.vue] Segmentler korundu, after:", segments.value);
+
+	// Toplam süreyi güncelle
+	const totalCompactedDuration = segments.value.reduce((total, segment) => {
+		return total + (segment.end - segment.start);
+	}, 0);
+
+	console.log("[editor.vue] Total compacted duration:", totalCompactedDuration);
+};
+
+// Timeline segment'lerini güncelle
+const updateSegments = () => {
+	if (!segments.value?.length) return;
+
+	// Segmentleri sadece filtrele (start/end değerlerini koruyarak)
+	compactSegments();
+
+	// MediaPlayer'ı güncelle
+	if (mediaPlayerRef.value) {
+		const currentSegment = segments.value.find(
+			(segment) =>
+				currentTime.value >= segment.start && currentTime.value <= segment.end
+		);
+		if (currentSegment && isPlaying.value) {
+			mediaPlayerRef.value.seek(currentTime.value);
+		}
+	}
 };
 
 // Kırpma değişikliklerini işle
@@ -653,51 +844,6 @@ const onAspectRatioChange = (ratio) => {
 	}
 };
 
-// Timeline segment'lerini güncelle
-const updateSegments = () => {
-	if (!segments.value?.length) return;
-
-	let currentTime = 0;
-	segments.value = segments.value.map((segment, index) => {
-		// Her segmentin başlangıç ve bitiş zamanlarını hesapla
-		const start = segment.start || segment.startTime || currentTime;
-		const duration = segment.duration || segment.end - segment.start;
-		const end = start + duration;
-
-		// Segment pozisyonlarını hesapla
-		const startPosition = `${(start / videoDuration.value) * 100}%`;
-		const width = `${(duration / videoDuration.value) * 100}%`;
-
-		// Bir sonraki segment için başlangıç zamanını güncelle
-		currentTime = end;
-
-		return {
-			...segment,
-			id: segment.id || generateId(),
-			start,
-			end,
-			startTime: start,
-			endTime: end,
-			duration,
-			startPosition,
-			width,
-			type: segment.type || "video",
-			layer: segment.layer || 0,
-		};
-	});
-
-	// MediaPlayer'ı güncelle
-	if (mediaPlayerRef.value) {
-		const currentSegment = segments.value.find(
-			(segment) =>
-				currentTime.value >= segment.start && currentTime.value <= segment.end
-		);
-		if (currentSegment && isPlaying.value) {
-			mediaPlayerRef.value.seek(currentTime.value);
-		}
-	}
-};
-
 // Ses kontrolü
 const toggleMute = () => {
 	isMuted.value = !isMuted.value;
@@ -753,11 +899,6 @@ const handleSegmentSplit = ({
 			mediaPlayerRef.value.seek(currentTime.value);
 		}
 	}
-
-	// Timeline'ı güncelle
-	nextTick(() => {
-		updateSegments();
-	});
 };
 
 // Toggle split mode
@@ -798,6 +939,33 @@ const handlePreviewTimeUpdate = (time) => {
 
 let mousePositions = ref([]);
 
+// Klavye event handler'ı
+const handleKeyDown = async (event) => {
+	// Delete veya Backspace tuşu basıldığında
+	if (event.key === "Delete" || event.key === "Backspace") {
+		// Mevcut zamanda hangi segment'te olduğumuzu bul
+		const currentSegment = segments.value.find((segment) => {
+			const start = segment.start || segment.startTime || 0;
+			const end = segment.end || segment.endTime || 0;
+			return currentTime.value >= start && currentTime.value <= end;
+		});
+
+		if (!currentSegment || segments.value.length <= 1) {
+			console.warn(
+				"[editor.vue] Delete için aktif segment bulunamadı veya son segment"
+			);
+			return;
+		}
+
+		const segmentIndex = segments.value.indexOf(currentSegment);
+		await handleSegmentDelete(segmentIndex);
+
+		// Event'i durdur
+		event.preventDefault();
+		event.stopPropagation();
+	}
+};
+
 onMounted(async () => {
 	// Cursor verilerini yükle
 	if (electron.mediaStateManager) {
@@ -829,6 +997,9 @@ onMounted(async () => {
 			screenHeight.value = displaySize.bounds.height;
 		}
 	}
+
+	// Klavye event listener'ı ekle
+	window.addEventListener("keydown", handleKeyDown);
 
 	// Medya dosyalarını yenileştirilmiş loadMediaFromState() fonksiyonu ile yükle
 	await loadMediaFromState();
@@ -924,24 +1095,15 @@ onUnmounted(() => {
 	if (cameraBlob.value) URL.revokeObjectURL(cameraBlob.value);
 	if (audioBlob.value) URL.revokeObjectURL(audioBlob.value);
 
+	// Klavye event listener'ını temizle
+	window.removeEventListener("keydown", handleKeyDown);
+
 	if (window.electron) {
 		window.electron.ipcRenderer.removeAllListeners("MEDIA_PATHS");
 		window.electron.ipcRenderer.removeAllListeners("START_EDITING");
 		window.electron.ipcRenderer.removeAllListeners("PROCESSING_COMPLETE");
 	}
 });
-
-// Mouse ayarları
-const mouseSize = ref(42);
-
-// Mouse size değişikliğini izle
-watch(
-	mouseSize,
-	(newSize) => {
-		console.log("[editor.vue] Mouse size güncellendi:", newSize);
-	},
-	{ immediate: true }
-);
 
 // Sürükleme durumu için ref
 const isDragging = ref(false);
@@ -1104,6 +1266,107 @@ const onProjectLoaded = (project) => {
 
 		// Kullanıcıya bilgi ver
 		alert(`"${project.name}" projesi başarıyla yüklendi.`);
+	});
+};
+
+// Segment silme işlemi
+const handleSegmentDelete = async (index) => {
+	console.log("[editor.vue] Segment siliniyor:", index);
+
+	if (segments.value.length <= 1) {
+		console.warn("[editor.vue] Son segment silinemez");
+		return;
+	}
+
+	// Oynatmayı durdur
+	if (isPlaying.value && mediaPlayerRef.value) {
+		await mediaPlayerRef.value.pause();
+		isPlaying.value = false;
+	}
+
+	// Segment'i sil
+	segments.value.splice(index, 1);
+
+	// Aktif segment index'ini güncelle
+	if (activeSegmentIndex.value >= segments.value.length) {
+		activeSegmentIndex.value = segments.value.length - 1;
+	}
+
+	// MediaPlayer otomatik olarak yeni segment yapısına göre clipping uygulayacak
+	// Timeline'ı başa saralım
+	currentTime.value = 0;
+	if (mediaPlayerRef.value) {
+		mediaPlayerRef.value.seek(0);
+	}
+
+	console.log(
+		"[editor.vue] Segment deleted, MediaPlayer will handle new clipping automatically"
+	);
+};
+
+// VideoClipManager'dan alınan split ve delete fonksiyonları
+const handleSplitCurrentSegment = () => {
+	// Mevcut zamanda hangi segment'te olduğumuzu bul
+	const currentSegment = segments.value.find((segment) => {
+		const start = segment.start || segment.startTime || 0;
+		const end = segment.end || segment.endTime || 0;
+		return currentTime.value >= start && currentTime.value <= end;
+	});
+
+	if (!currentSegment) {
+		console.warn("[editor.vue] Split için aktif segment bulunamadı");
+		return;
+	}
+
+	const segmentIndex = segments.value.indexOf(currentSegment);
+	const splitPoint = currentTime.value;
+	const segmentStart = currentSegment.start || currentSegment.startTime || 0;
+	const segmentEnd = currentSegment.end || currentSegment.endTime || 0;
+
+	// Split noktasının segment içinde olduğunu kontrol et
+	if (splitPoint <= segmentStart || splitPoint >= segmentEnd) {
+		console.warn("[editor.vue] Split noktası segment dışında");
+		return;
+	}
+
+	// İki yeni segment oluştur
+	const leftSegment = {
+		id: generateId(),
+		start: segmentStart,
+		end: splitPoint,
+		startTime: segmentStart,
+		endTime: splitPoint,
+		duration: splitPoint - segmentStart,
+		type: currentSegment.type || "video",
+		layer: currentSegment.layer || 0,
+		selected: false,
+		locked: false,
+	};
+
+	const rightSegment = {
+		id: generateId(),
+		start: splitPoint,
+		end: segmentEnd,
+		startTime: splitPoint,
+		endTime: segmentEnd,
+		duration: segmentEnd - splitPoint,
+		type: currentSegment.type || "video",
+		layer: currentSegment.layer || 0,
+		selected: false,
+		locked: false,
+	};
+
+	// Orijinal segmenti iki yeni segment ile değiştir
+	segments.value.splice(segmentIndex, 1, leftSegment, rightSegment);
+
+	// Segmentleri sıkıştır
+	compactSegments();
+
+	console.log("[editor.vue] Segment bölündü:", {
+		original: currentSegment,
+		left: leftSegment,
+		right: rightSegment,
+		splitPoint,
 	});
 };
 </script>
