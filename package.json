@@ -19,20 +19,23 @@
 		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false",
 		"electron:build:dmg:signed": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false",
 		"sign:app": "scripts/sign-app.sh",
-		"build:signed": "scripts/build-and-sign.sh"
+		"build:signed": "scripts/build-and-sign.sh",
+		"cleanup": "lsof -ti:3002,3003,3004,3005,3006,3007,3008,3009,3010,3011,3012,3013,3014,3015,3016,3017,3018,3019,3020 2>/dev/null | xargs kill -9 2>/dev/null || echo 'No ports to clean up' && echo 'Port cleanup completed'"
 	},
 	"dependencies": {
+		"@aslanonur/liquid-glass-vue": "^1.1.3",
 		"@ffmpeg-installer/ffmpeg": "^1.1.0",
 		"@nuxtjs/tailwindcss": "^6.10.1",
 		"@tensorflow-models/body-pix": "^2.2.1",
 		"@tensorflow/tfjs": "^4.22.0",
 		"@vueuse/components": "^12.3.0",
 		"@vueuse/core": "^12.3.0",
-		"aperture": "^7.0.0",
 		"electron-store": "^10.0.1",
+		"electron-util": "^0.18.1",
 		"express": "^4.18.2",
 		"fluent-ffmpeg": "^2.1.3",
 		"mousetrap": "^1.6.5",
+		"node-mac-recorder": "^1.1.0",
 		"uiohook-napi": "^1.5.4",
 		"wait-on": "^7.2.0"
 	},
@@ -40,7 +43,7 @@
 		"canvas": "^3.1.0",
 		"concurrently": "^8.2.2",
 		"cross-env": "^7.0.3",
-		"electron": "^35.1.4",
+		"electron": "^37.0.0",
 		"electron-builder": "^26.0.12",
 		"nuxt": "^3.9.1"
 	},
@@ -51,8 +54,6 @@
 		"asarUnpack": [
 			"node_modules/electron-store/**",
 			"node_modules/conf/**",
-			"electron/aperture.cjs",
-			"node_modules/aperture/**",
 			"node_modules/execa/**",
 			"node_modules/uiohook-napi/**",
 			"node_modules/get-stream/**",
@@ -69,14 +70,26 @@
 		},
 		"files": [
 			"electron/**",
-			".output/public/**",
 			"package.json",
 			"node_modules/electron-store/**"
 		],
 		"extraResources": [
 			{
 				"from": ".output/public",
-				"to": "public"
+				"to": "public",
+				"filter": [
+					"**/*",
+					"!mac-arm64/**",
+					"!win-unpacked/**",
+					"!linux-unpacked/**",
+					"!dist/**",
+					"!*.app/**",
+					"!*.exe",
+					"!*.dmg",
+					"!*.AppImage",
+					"!*.deb",
+					"!*.rpm"
+				]
 			}
 		],
 		"extraMetadata": {

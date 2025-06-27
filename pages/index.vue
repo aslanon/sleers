@@ -463,7 +463,20 @@ onMounted(async () => {
 	// Cihazları yükle
 	await getDevices();
 
-	await screenModule.loadApertureModule();
+	// MacRecorder test fonksiyonu
+	if (electron?.ipcRenderer) {
+		console.log("[index.vue] MacRecorder API test ediliyor...");
+		try {
+			const [screens, windows] = await Promise.all([
+				electron.macRecorder.getDisplays(),
+				electron.macRecorder.getWindows(),
+			]);
+			console.log("[index.vue] Test sonucu - Ekranlar:", screens);
+			console.log("[index.vue] Test sonucu - Pencereler:", windows);
+		} catch (testError) {
+			console.error("[index.vue] MacRecorder API test hatası:", testError);
+		}
+	}
 
 	// Electron API'si yüklendiyse event listener'ları ekle
 	if (electron) {

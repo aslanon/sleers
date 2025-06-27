@@ -41,10 +41,17 @@
 								class="w-full aspect-video rounded-lg overflow-hidden bg-black/50"
 							>
 								<img
-									:src="source.thumbnail.toDataURL()"
+									v-if="source.thumbnail"
+									:src="source.thumbnail"
 									class="w-[100px] h-24 m-auto object-contain"
 									:alt="source.name"
 								/>
+								<div
+									v-else
+									class="w-[100px] h-24 m-auto flex items-center justify-center bg-gray-700 text-gray-400 text-xs"
+								>
+									Önizleme
+								</div>
 							</div>
 							<span class="mt-2 text-xs text-center line-clamp-1">{{
 								source.name
@@ -170,68 +177,170 @@ const sources = computed(() => [
 const selectedSourceType = ref("display");
 const selectedSourceId = ref(null);
 const availableSources = ref([]);
+const loading = ref(true);
 
-// Kaynak türüne göre filtreleme
+// Kaynak türüne göre filtreleme - MacRecorder uyumlu
 const filteredSources = computed(() => {
-	return availableSources.value.filter((source) =>
-		source.id.startsWith(
-			selectedSourceType.value === "display" ? "screen:" : "window:"
-		)
-	);
+	if (selectedSourceType.value === "area") {
+		// Alan seçimi için boş liste döndür (alan seçimi manuel yapılır)
+		return [];
+	}
+
+	return availableSources.value.filter((source) => {
+		if (selectedSourceType.value === "display") {
+			return source.type === "display" || source.id.startsWith("screen:");
+		} else if (selectedSourceType.value === "window") {
+			return source.type === "window" || source.id.startsWith("window:");
+		}
+		return false;
+	});
 });
 
-// Kaynakları yükle
+// Kaynakları yükle - node-mac-recorder kullan
 const loadSources = async () => {
+	console.log("[RecordSettings] loadSources başlıyor...");
 	try {
-		// Desktop Capturer kaynakları
-		const sources = await window.electron?.desktopCapturer.getSources({
-			types: ["window", "screen"],
-			thumbnailSize: { width: 150, height: 150 },
-		});
-		availableSources.value = sources || [];
+		// Electron API kontrolü
+		if (!window.electron?.ipcRenderer) {
+			console.error("[RecordSettings] Electron IPC bulunamadı!");
+			return;
+		}
 
-		// Aperture ekran listesini de al
-		const apertureScreens = await window.electron?.aperture.getScreens();
-		console.log("Aperture ekranları:", apertureScreens);
+		console.log(
+			"[RecordSettings] MacRecorder API'leri kullanılarak kaynaklar alınıyor..."
+		);
 
-		// Ekranlara Aperture ID'lerini ekle
-		if (apertureScreens && apertureScreens.length) {
-			availableSources.value.forEach((source) => {
-				if (source.apertureId) {
-					console.log(
-						`Ekran: ${source.name} - Aperture ID: ${source.apertureId}`
-					);
+		try {
+			// MacRecorder'dan direkt kaynak al
+			const sources = await window.electron?.ipcRenderer.invoke(
+				"DESKTOP_CAPTURER_GET_SOURCES",
+				{
+					types: ["window", "screen"],
+					thumbnailSize: { width: 150, height: 150 },
 				}
-			});
+			);
+
+			if (sources && sources.length > 0) {
+				console.log(
+					`[RecordSettings] ${sources.length} kaynak bulundu (MacRecorder)`
+				);
+
+				// Thumbnail'ları yükle
+				for (const source of sources) {
+					try {
+						// Type özelliği ekle
+						if (source.id.startsWith("screen:")) {
+							source.type = "display";
+						} else if (source.id.startsWith("window:")) {
+							source.type = "window";
+						}
+
+						let thumbnail = null;
+
+						if (source.id.startsWith("screen:")) {
+							// Ekran thumbnail'ı al
+							thumbnail = await window.electron?.ipcRenderer.invoke(
+								"GET_MAC_SCREEN_THUMBNAIL",
+								source.macRecorderId,
+								{ maxWidth: 150, maxHeight: 150 }
+							);
+						} else if (source.id.startsWith("window:")) {
+							// Pencere thumbnail'ı al
+							thumbnail = await window.electron?.ipcRenderer.invoke(
+								"GET_MAC_WINDOW_THUMBNAIL",
+								source.macRecorderId,
+								{ maxWidth: 150, maxHeight: 150 }
+							);
+						}
+
+						if (thumbnail) {
+							source.thumbnail = thumbnail;
+						}
+					} catch (thumbnailError) {
+						console.warn(
+							`[RecordSettings] ${source.name} için thumbnail alınamadı:`,
+							thumbnailError
+						);
+					}
+				}
+
+				availableSources.value = sources;
+				console.log(
+					"[RecordSettings] MacRecorder kaynakları başarıyla yüklendi"
+				);
+				loading.value = false;
+
+				// Default olarak ilk screen item'ını seç
+				if (sources.length > 0) {
+					const displaySources = sources.filter((source) =>
+						source.id.startsWith("screen:")
+					);
+					if (displaySources.length > 0) {
+						console.log(
+							"[RecordSettings] Default olarak ilk ekran seçiliyor:",
+							displaySources[0]
+						);
+						selectSource(displaySources[0]);
+
+						// UI'da da seçili göster
+						selectedSourceId.value = displaySources[0].id;
+					} else if (sources.length > 0) {
+						// Hiç ekran yoksa ilk kaynağı seç
+						console.log(
+							"[RecordSettings] Ekran bulunamadı, ilk kaynağı seçiyor:",
+							sources[0]
+						);
+						selectSource(sources[0]);
+						selectedSourceId.value = sources[0].id;
+					}
+				}
+
+				return;
+			} else {
+				console.warn("[RecordSettings] MacRecorder'dan kaynak alınamadı");
+			}
+		} catch (macError) {
+			console.error(
+				"[RecordSettings] MacRecorder kaynakları alınırken hata:",
+				macError
+			);
 		}
 
-		// Eğer önceden seçili bir kaynak yoksa ve kaynaklar yüklendiyse ilk kaynağı seç
-		if (availableSources.value.length > 0 && !selectedSourceId.value) {
-			const defaultSource = filteredSources.value[0];
-			if (defaultSource) {
-				selectSource(defaultSource);
-			}
-		}
+		// MacRecorder başarısız olursa hata mesajı göster
+		console.error(
+			"[RecordSettings] MacRecorder kullanılamıyor, kaynak bulunamadı"
+		);
+		availableSources.value = [];
+		loading.value = false;
 	} catch (error) {
 		console.error("Kaynaklar yüklenirken hata:", error);
+		loading.value = false;
 	}
 };
 
-// Kaynak seçimi
+// Kaynak seçimi - MacRecorder uyumlu
 const selectSource = (source) => {
 	console.log("Kaynak seçildi:", source);
 	selectedSourceId.value = source.id;
 
-	// Aperture ID varsa kullan
+	// MacRecorder ID'sini kullan
 	let sourceData = {
 		type: selectedSourceType.value,
 		id: source.id,
 		name: source.name,
+		macRecorderId: source.macRecorderId, // MacRecorder'ın gerçek ID'si
 	};
 
-	// Aperture ID varsa ekle
-	if (source.apertureId) {
-		sourceData.apertureId = source.apertureId;
+	// Ekstra bilgileri ekle
+	if (source.width && source.height) {
+		sourceData.width = source.width;
+		sourceData.height = source.height;
+	}
+	if (source.isPrimary !== undefined) {
+		sourceData.isPrimary = source.isPrimary;
+	}
+	if (source.bounds) {
+		sourceData.bounds = source.bounds;
 	}
 
 	// Seçilen kaynağı screen config'e de güncelle
@@ -239,17 +348,16 @@ const selectSource = (source) => {
 		// Kaynak türü ve ID'sini içeren yapılandırma
 		const screenConfig = {
 			sourceType: selectedSourceType.value,
-			sourceId: source.id,
+			sourceId: source.id, // Asıl kaynak ID'sini kullan (screen:0, window:123 format)
 			sourceName: source.name,
-			apertureId: source.apertureId,
+			// MacRecorder için gerçek ID
+			macRecorderId: source.macRecorderId,
 		};
 
 		// Alan seçimi ise alanı seçme penceresini aç
 		if (selectedSourceType.value === "area") {
 			console.log("Alan seçimi başlatılıyor");
-			window.electron.ipcRenderer.send(
-				window.electron.ipcRenderer.IPC_EVENTS.START_AREA_SELECTION
-			);
+			window.electron.ipcRenderer.send("START_AREA_SELECTION");
 		} else {
 			// Alan seçimi değilse direk olarak kaynak bilgisini güncelle
 			console.log("Kayıt kaynağı güncelleniyor:", screenConfig);

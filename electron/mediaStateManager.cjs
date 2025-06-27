@@ -22,7 +22,7 @@ class MediaStateManager {
 				sourceType: "display",
 				sourceId: null,
 				sourceName: null,
-				apertureId: null,
+				macRecorderId: null,
 			},
 			audioSettings: {
 				microphoneEnabled: true,
@@ -165,7 +165,7 @@ class MediaStateManager {
 			}
 
 			// Pencere kaydı durumunda daha basit bir doğrulama yap
-			// Aperture'ın pencere kaydı desteklememesinden dolayı bazı dosyalar tam oluşmayabilir
+			// MacRecorder kayıtlarında bazı dosyalar tam oluşmayabilir
 			if (
 				this.state.recordingSource &&
 				this.state.recordingSource.sourceType === "window"
@@ -344,10 +344,24 @@ class MediaStateManager {
 							);
 						}
 
+						// Videonun nihai yolu – önce ekran kaydını dene, geçersizse video kaydına düş
+						let finalVideoPath = tempFileManager.getFilePath("screen");
+
+						try {
+							if (
+								!finalVideoPath ||
+								!fs.existsSync(finalVideoPath) ||
+								fs.statSync(finalVideoPath).size === 0
+							) {
+								// Geçersiz ya da boşsa video türüne (webm vb.) geç
+								finalVideoPath = tempFileManager.getFilePath("video");
+							}
+						} catch (_) {
+							// stat hatası – video yolunu deneyelim
+							finalVideoPath = tempFileManager.getFilePath("video");
+						}
+
 						// Tüm dosya yollarını tekrar al
-						const finalVideoPath =
-							tempFileManager.getFilePath("screen") ||
-							tempFileManager.getFilePath("video");
 						const finalAudioPath = tempFileManager.getFilePath("audio");
 						const finalCameraPath = tempFileManager.getFilePath("camera");
 
@@ -531,7 +545,7 @@ class MediaStateManager {
 				sourceType: "display",
 				sourceId: null,
 				sourceName: null,
-				apertureId: null,
+				macRecorderId: null,
 			},
 			audioSettings: {
 				microphoneEnabled: true,
@@ -809,17 +823,21 @@ class MediaStateManager {
 
 	// Kayıt kaynağı ayarlarını güncelleme
 	updateRecordingSource(source) {
-		if (!source) return;
+		if (!source) {
+			console.warn("[MediaStateManager] Kaynak bilgisi null veya undefined");
+			return;
+		}
 
 		console.log("[MediaStateManager] Kayıt kaynağı güncelleniyor:", source);
 
-		// Kaynak ID'si için doğrulama yap
+		// Kaynak ID'si kontrolü
 		if (source.sourceId) {
 			// sourceId formatını kontrol et
 			if (
 				typeof source.sourceId === "string" &&
 				(source.sourceId.startsWith("screen:") ||
-					source.sourceId.startsWith("window:"))
+					source.sourceId.startsWith("window:") ||
+					!isNaN(Number(source.sourceId))) // Sayısal ID'ler de kabul et
 			) {
 				console.log(
 					"[MediaStateManager] Geçerli kaynak ID'si:",
@@ -828,23 +846,25 @@ class MediaStateManager {
 			} else {
 				console.warn(
 					"[MediaStateManager] Kaynak ID'si uygun formatta değil:",
-					source.sourceId
+					source.sourceId,
+					"typeof:",
+					typeof source.sourceId
 				);
 			}
 		} else {
 			console.warn("[MediaStateManager] Kaynak ID'si belirtilmemiş");
 		}
 
-		// Aperture ID varsa kullan
-		if (source.apertureId) {
+		// MacRecorder ID varsa kullan
+		if (source.macRecorderId) {
 			console.log(
-				"[MediaStateManager] Aperture ID kullanılıyor:",
-				source.apertureId
+				"[MediaStateManager] MacRecorder ID kullanılıyor:",
+				source.macRecorderId
 			);
 		}
 
-		// Kaynak türünü belirle (window veya screen)
-		let sourceType = source.sourceType || "screen"; // eğer zaten tanımlanmışsa kullan
+		// Kaynak türünü belirle (window, screen, area)
+		let sourceType = source.sourceType || "screen"; // varsayılan screen
 		if (!source.sourceType && typeof source.sourceId === "string") {
 			if (source.sourceId.startsWith("window:")) {
 				sourceType = "window";
@@ -853,13 +873,16 @@ class MediaStateManager {
 			}
 		}
 
+		// State'i güncelle
+		const newRecordingSource = {
+			sourceType: sourceType,
+			sourceId: source.sourceId || null,
+			sourceName: source.sourceName || null,
+			macRecorderId: source.macRecorderId || null,
+		};
+
 		this.updateState({
-			recordingSource: {
-				sourceType: sourceType,
-				sourceId: source.sourceId || null,
-				sourceName: source.sourceName || null,
-				apertureId: source.apertureId || null,
-			},
+			recordingSource: newRecordingSource,
 		});
 
 		// State'e kaydedilen güncel değeri kontrol et
@@ -869,9 +892,16 @@ class MediaStateManager {
 		);
 
 		// Kaynak türüne göre özel işlemleri yap
-		if (source.sourceType === "area" && this.mainWindow) {
-			// Alan seçimi için gerekli işlemler zaten main.cjs içinde yapılıyor
+		if (sourceType === "area" && this.mainWindow) {
 			console.log("[MediaStateManager] Alan seçimi kaynağı güncellendi");
+		}
+
+		// Ana pencereye kaynak güncelleme bilgisini gönder
+		if (this.mainWindow && this.mainWindow.webContents) {
+			this.mainWindow.webContents.send(
+				"RECORDING_SOURCE_UPDATED",
+				newRecordingSource
+			);
 		}
 	}
 
@@ -1100,26 +1130,26 @@ class MediaStateManager {
 		}
 	}
 
-	// Aperture için ek metod
-	getApertureStatus() {
+	// MacRecorder için ek metod
+	getMacRecorderStatus() {
 		return {
-			isAvailable: true, // Simüle edilmiş Aperture modülü her zaman mevcut
-			selectedScreen: this.state.recordingSource.apertureId,
+			isAvailable: true, // MacRecorder modülü her zaman mevcut
+			selectedScreen: this.state.recordingSource.macRecorderId,
 			isRecording: this.state.isRecording,
 		};
 	}
 
-	// Aperture kaydı ayarla
-	setApertureRecording(screenId) {
+	// MacRecorder kaydı ayarla
+	setMacRecording(screenId) {
 		console.log(
-			"[MediaStateManager] Aperture kayıt ekranı ayarlanıyor:",
+			"[MediaStateManager] MacRecorder kayıt ekranı ayarlanıyor:",
 			screenId
 		);
 		this.updateState({
 			recordingSource: {
 				...this.state.recordingSource,
-				sourceType: "screen", // Aperture her zaman screen tipi kayıtlar yapar
-				apertureId: screenId,
+				sourceType: "screen", // MacRecorder ekran ve pencere destekler
+				macRecorderId: screenId,
 			},
 		});
 

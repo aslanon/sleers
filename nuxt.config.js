@@ -60,7 +60,7 @@ export default defineNuxtConfig({
 	},
 
 	devServer: {
-		port: process.env.NUXT_PORT || 3002,
+		port: process.env.NUXT_PORT || process.env.PORT || 3002,
 		host: "127.0.0.1",
 	},
 

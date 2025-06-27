@@ -67,8 +67,9 @@ export const useMediaDevices = () => {
 			let audioResult = null;
 
 			if (startScreen) {
-				// Ekran kaydını başlat - her modül kendi konfigürasyonunu kullanır
-				screenResult = await screenModule.startScreenRecording();
+				// MacRecorder kullanarak ekran kaydını başlat
+				console.log("🎬 MacRecorder ile ekran kaydı başlatılıyor...");
+				screenResult = await screenModule.startRecording(null, options);
 				mouseModule.startMouseTracking();
 			}
 
@@ -107,8 +108,8 @@ export const useMediaDevices = () => {
 
 			// Ekran kaydını durdur
 			if (screenModule.isScreenActive.value) {
-				console.log("Ekran kaydı durduruluyor...");
-				promises.push(screenModule.stopScreenRecording());
+				console.log("MacRecorder ekran kaydı durduruluyor...");
+				promises.push(screenModule.stopRecording());
 			}
 
 			// Kamera kaydını durdur

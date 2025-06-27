@@ -3,8 +3,11 @@ const net = require("net");
 class PortManager {
 	constructor() {
 		this.defaultPort = 3002;
-		this.maxPort = 65535;
+		this.maxPort = 3030; // Sınırlı aralık
 		this.currentPort = null;
+		this.preferredPorts = [
+			3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010, 3020,
+		]; // Tercih edilen portlar
 	}
 
 	/**
@@ -30,28 +33,57 @@ class PortManager {
 	}
 
 	/**
-	 * Belirtilen port'tan başlayarak kullanılabilir bir port bulur
+	 * Akıllı port bulma - önce varsayılan portu dene, sonra tercih edilen portları
 	 * @param {number} startPort - Başlangıç portu (varsayılan: 3002)
 	 * @returns {Promise<number>} Kullanılabilir port numarası
 	 */
 	async findAvailablePort(startPort = this.defaultPort) {
-		let port = startPort;
+		console.log(
+			`[PortManager] Tercih edilen port ${startPort} kontrol ediliyor...`
+		);
 
-		while (port <= this.maxPort) {
+		// Önce başlangıç portunu dene
+		const isStartPortAvailable = await this.isPortAvailable(startPort);
+		if (isStartPortAvailable) {
+			console.log(
+				`[PortManager] Tercih edilen port ${startPort} kullanılabilir!`
+			);
+			this.currentPort = startPort;
+			return startPort;
+		}
+
+		console.log(
+			`[PortManager] Port ${startPort} kullanımda, alternatif portlar deneniyor...`
+		);
+
+		// Tercih edilen portları dene
+		for (const port of this.preferredPorts) {
+			if (port === startPort) continue; // Zaten denendi
+
 			const isAvailable = await this.isPortAvailable(port);
 			if (isAvailable) {
 				console.log(`[PortManager] Kullanılabilir port bulundu: ${port}`);
 				this.currentPort = port;
 				return port;
 			}
-			console.log(
-				`[PortManager] Port ${port} kullanımda, sonraki port deneniyor...`
-			);
-			port++;
+			console.log(`[PortManager] Port ${port} kullanımda...`);
+		}
+
+		// Son çare olarak küçük aralıkta dene
+		console.log(
+			"[PortManager] Son çare olarak 3011-3030 aralığında aranıyor..."
+		);
+		for (let port = 3011; port <= this.maxPort; port++) {
+			const isAvailable = await this.isPortAvailable(port);
+			if (isAvailable) {
+				console.log(`[PortManager] Kullanılabilir port bulundu: ${port}`);
+				this.currentPort = port;
+				return port;
+			}
 		}
 
 		throw new Error(
-			`[PortManager] ${startPort} - ${this.maxPort} aralığında kullanılabilir port bulunamadı`
+			`[PortManager] 3002-${this.maxPort} aralığında kullanılabilir port bulunamadı`
 		);
 	}
 

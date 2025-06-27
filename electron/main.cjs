@@ -98,50 +98,7 @@ let recordingSource = {
 	sourceName: null,
 };
 
-// Aperture modülü için temel işlevler
-let aperture = null;
-try {
-	// Gerçek aperture modülü mevcut değilse, simüle edelim
-	aperture = {
-		screens: async () => {
-			const displays = screen.getAllDisplays();
-			return displays.map((display) => ({
-				id: `screen_${display.id}`,
-				name: `Screen ${display.id}`,
-				width: display.size.width,
-				height: display.size.height,
-			}));
-		},
-		windows: async () => {
-			// Pencere listesini desktopCapturer'dan alalım
-			const sources = await desktopCapturer.getSources({ types: ["window"] });
-			return sources.map((source) => ({
-				id: source.id,
-				name: source.name,
-				bounds: source.thumbnail.getBounds(),
-			}));
-		},
-		startRecording: async (options) => {
-			console.log("[Aperture] Kayıt başlatılıyor:", options);
-			return {
-				filePath: path.join(os.tmpdir(), `aperture_record_${Date.now()}.mp4`),
-				stop: async () => {
-					console.log("[Aperture] Kayıt durduruluyor");
-					return {
-						filePath: path.join(
-							os.tmpdir(),
-							`aperture_record_${Date.now()}.mp4`
-						),
-					};
-				},
-			};
-		},
-	};
-	console.log("[Main] Aperture modülü başarıyla simüle edildi");
-} catch (error) {
-	console.error("[Main] Aperture modülü simülasyonu başarısız:", error);
-	aperture = null;
-}
+// Not: MacRecorder fallback kodu kaldırıldı - sadece direkt MacRecorder kullanıyoruz
 
 // UPDATE_EDITOR_SETTINGS
 ipcMain.on(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, (event, settings) => {
@@ -170,51 +127,16 @@ function safeHandle(channel, handler) {
 	}
 }
 
-// Aperture modülü yükleme yardımcı fonksiyonu
-async function loadApertureModule() {
-	// Olası aperture.cjs yolları - unpacked öncelikli
-	const possibleAperturePaths = [
-		path.join(
-			process.resourcesPath,
-			"app.asar.unpacked",
-			"electron",
-			"aperture.cjs"
-		), // Build mode ASAR unpacked (öncelikli)
-		path.join(__dirname, "aperture.cjs"), // Dev mode
-		path.join(process.resourcesPath, "app", "electron", "aperture.cjs"), // Build mode unpackaged
-		path.join(app.getAppPath(), "electron", "aperture.cjs"), // Alternative build path
-		path.join(process.resourcesPath, "app.asar", "electron", "aperture.cjs"), // Build mode ASAR (son çare)
-	];
+// Global MacRecorder instance - tek bir instance kullanacağız
+let globalMacRecorder = null;
 
-	console.log("[Main] Aperture modülü aranıyor...");
-
-	for (const testPath of possibleAperturePaths) {
-		console.log(`[Main] Aperture yolu test ediliyor: ${testPath}`);
-
-		try {
-			if (fs.existsSync(testPath)) {
-				console.log(`[Main] Aperture modülü bulundu: ${testPath}`);
-
-				try {
-					const apertureModule = await import(`file://${testPath}`);
-					return apertureModule;
-				} catch (importError) {
-					console.error(
-						`[Main] Aperture modülü import hatası: ${testPath}`,
-						importError
-					);
-					continue;
-				}
-			}
-		} catch (err) {
-			console.warn(
-				`[Main] Aperture yolu test edilirken hata: ${testPath}`,
-				err.message
-			);
-		}
+// MacRecorder instance getter
+function getMacRecorderInstance() {
+	if (!globalMacRecorder) {
+		const MacRecorder = require("node-mac-recorder");
+		globalMacRecorder = new MacRecorder();
 	}
-
-	throw new Error("Aperture modülü hiçbir yolda bulunamadı");
+	return globalMacRecorder;
 }
 
 safeHandle(IPC_EVENTS.GET_EDITOR_SETTINGS, () => {
@@ -344,131 +266,13 @@ function handleEditorToRecordTransition() {
 	}, 200); // 200ms gecikme
 }
 
-// Aperture modülü için handler'lar
-safeHandle(IPC_EVENTS.LOAD_APERTURE_MODULE, async (event) => {
-	try {
-		console.log("[Main] Aperture modülü yükleniyor (ESM)...");
-
-		// Timeout kontrolü ve işletim sistemi kontrolü
-		if (process.platform !== "darwin") {
-			console.error("[Main] Aperture sadece macOS'ta desteklenir");
-			return false;
-		}
-
-		// Timeout ile yüklemeyi kontrol et
-		const apertureModule = await Promise.race([
-			loadApertureModule(),
-			new Promise((_, reject) =>
-				setTimeout(
-					() => reject(new Error("Aperture modülü yükleme zaman aşımı")),
-					10000
-				)
-			),
-		]);
-
-		if (!apertureModule) {
-			console.error("[Main] Aperture modülü yüklenemedi");
-			return false;
-		}
-
-		console.log(
-			"[Main] Aperture modülü başarıyla yüklendi:",
-			Object.keys(apertureModule)
-		);
-
-		// API yapısını kontrol et
-		let apiFound = false;
-
-		if (apertureModule.default) {
-			console.log(
-				"[Main] Default export bulundu:",
-				Object.keys(apertureModule.default)
-			);
-
-			if (apertureModule.default.recorder) {
-				console.log("[Main] Modern API (default.recorder) bulundu");
-				apiFound = true;
-			}
-
-			if (typeof apertureModule.default.startRecording === "function") {
-				console.log("[Main] Modern API (default.startRecording) bulundu");
-				apiFound = true;
-			}
-		}
-
-		if (apertureModule.recorder) {
-			console.log("[Main] Modern API (recorder) bulundu");
-			apiFound = true;
-		}
-
-		if (typeof apertureModule.startRecording === "function") {
-			console.log("[Main] Modern API (startRecording) bulundu");
-			apiFound = true;
-		}
-
-		if (!apiFound) {
-			console.error("[Main] Desteklenen API bulunamadı");
-			return false;
-		}
-
-		// Önemli fonksiyonları test et
-		try {
-			console.log("[Main] Ekranlar kontrol ediliyor...");
-
-			if (typeof apertureModule.screens === "function") {
-				const screens = await apertureModule.screens();
-				console.log(
-					"[Main] Ekranlar:",
-					screens && screens.length ? "Bulundu" : "Bulunamadı"
-				);
-			} else if (
-				apertureModule.default &&
-				typeof apertureModule.default.screens === "function"
-			) {
-				const screens = await apertureModule.default.screens();
-				console.log(
-					"[Main] Ekranlar:",
-					screens && screens.length ? "Bulundu" : "Bulunamadı"
-				);
-			}
-
-			console.log("[Main] Ses cihazları kontrol ediliyor...");
-
-			if (typeof apertureModule.audioDevices === "function") {
-				const audioDevices = await apertureModule.audioDevices();
-				console.log(
-					"[Main] Ses cihazları:",
-					audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
-				);
-			} else if (
-				apertureModule.default &&
-				typeof apertureModule.default.audioDevices === "function"
-			) {
-				const audioDevices = await apertureModule.default.audioDevices();
-				console.log(
-					"[Main] Ses cihazları:",
-					audioDevices && audioDevices.length ? "Bulundu" : "Bulunamadı"
-				);
-			}
-
-			console.log("[Main] Aperture modülü başarıyla hazır");
-			return true;
-		} catch (testError) {
-			console.warn("[Main] API testi sırasında hata:", testError);
-			// Test hataları kritik değil, API bulunduğu sürece devam et
-			return apiFound;
-		}
-	} catch (error) {
-		console.error("[Main] Aperture import hatası:", error);
-		return false;
-	}
-});
+// MacRecorder modülü için handler'lar
 
 safeHandle(
-	IPC_EVENTS.START_APERTURE_RECORDING,
+	IPC_EVENTS.START_MAC_RECORDING,
 	async (event, outputPath, options) => {
 		try {
-			console.log("[Main] Aperture kaydı başlatılıyor...", {
+			console.log("[Main] MacRecorder kaydı başlatılıyor...", {
 				outputPath,
 				options: JSON.stringify(options, null, 2),
 				recordingSource: JSON.stringify(recordingSource, null, 2),
@@ -479,20 +283,24 @@ safeHandle(
 				return false;
 			}
 
-			// Aperture'ın sadece macOS'ta çalıştığını kontrol et
+			// MacRecorder'ın sadece macOS'ta çalıştığını kontrol et
 			if (process.platform !== "darwin") {
-				console.error("[Main] Aperture sadece macOS'ta çalışır");
+				console.error("[Main] MacRecorder sadece macOS'ta çalışır");
 				return false;
 			}
+
+			// MacRecorder instance al
+			const recorder = getMacRecorderInstance();
+			console.log("[Main] MacRecorder instance alındı");
 
 			// kaynak bilgisini options'a ekle, eğer recordingSource.sourceId varsa
 			if (recordingSource && recordingSource.sourceId) {
 				// Pencere kaynağı seçilmişse uyarı verelim
 				if (recordingSource.sourceType === "window") {
 					console.log(
-						"[Main] Pencere kaynağı seçildi, Aperture sadece ekranları destekler. Varsayılan ekran kullanılacak."
+						"[Main] Pencere kaynağı seçildi, MacRecorder hem ekran hem pencere destekler."
 					);
-					// Pencere kaynağını da options'a ekleyelim, aperture.cjs'de işlenecek
+					// Pencere kaynağını da options'a ekleyelim
 				}
 
 				options.sourceId = recordingSource.sourceId;
@@ -504,14 +312,14 @@ safeHandle(
 				});
 			}
 
-			// Aperture ID varsa doğrudan kullan (daha öncelikli)
-			if (recordingSource && recordingSource.apertureId) {
-				const apertureId = parseInt(recordingSource.apertureId, 10);
-				if (!isNaN(apertureId)) {
-					options.sourceId = apertureId; // Doğrudan sayısal ID kullan
+			// MacRecorder ID varsa doğrudan kullan (daha öncelikli)
+			if (recordingSource && recordingSource.macRecorderId) {
+				const macRecorderId = parseInt(recordingSource.macRecorderId, 10);
+				if (!isNaN(macRecorderId)) {
+					options.sourceId = macRecorderId; // Doğrudan sayısal ID kullan
 					console.log(
-						"[Main] RecordingSource'dan apertureId eklendi:",
-						apertureId,
+						"[Main] RecordingSource'dan macRecorderId eklendi:",
+						macRecorderId,
 						"(önceden dönüştürülmüş)"
 					);
 				}
@@ -533,7 +341,7 @@ safeHandle(
 				) {
 					console.log("[Main] Kırpma alanı bilgisi ekleniyor:", selectedArea);
 
-					// Aperture kayıt seçeneklerine cropArea bilgisini ekle
+					// MacRecorder kayıt seçeneklerine cropArea bilgisini ekle
 					options.cropArea = {
 						x: Math.round(selectedArea.x),
 						y: Math.round(selectedArea.y),
@@ -597,107 +405,29 @@ safeHandle(
 				}
 			}
 
-			// Aperture modülünü yükle - build modunda farklı yolları dene
-			let aperturePath;
-			let apertureModule;
+			// MacRecorder devre dışı - crash nedeniyle
+			console.log(
+				"[Main] ✅ MacRecorder etkin - cursor capture kapalı (uiohook devre dışı)"
+			);
+			// console.log("[Main] Ekran kaydı şu anda kullanılamıyor");
+			// return false; // devre dışı bırakıldı, MacRecorder aktif
 
-			// Olası aperture.cjs yolları
-			const possibleAperturePaths = [
-				path.join(__dirname, "aperture.cjs"), // Dev mode
-				path.join(
-					process.resourcesPath,
-					"app.asar",
-					"electron",
-					"aperture.cjs"
-				), // Build mode ASAR
-				path.join(process.resourcesPath, "app", "electron", "aperture.cjs"), // Build mode unpackaged
-				path.join(app.getAppPath(), "electron", "aperture.cjs"), // Alternative build path
-			];
-
-			console.log("[Main] Aperture modülü aranıyor...");
-
-			for (const testPath of possibleAperturePaths) {
-				console.log(`[Main] Aperture yolu test ediliyor: ${testPath}`);
-
-				try {
-					if (fs.existsSync(testPath)) {
-						aperturePath = testPath;
-						console.log(`[Main] Aperture modülü bulundu: ${aperturePath}`);
-						break;
-					}
-				} catch (err) {
-					console.warn(
-						`[Main] Aperture yolu test edilirken hata: ${testPath}`,
-						err.message
-					);
-				}
-			}
-
-			if (!aperturePath) {
-				console.error("[Main] Aperture modülü hiçbir yolda bulunamadı");
-				return false;
-			}
-
-			// Yüklenen modülün fonksiyonlarını kullan
-			try {
-				apertureModule = await import(`file://${aperturePath}`);
-			} catch (importError) {
-				console.error("[Main] Aperture modülü import hatası:", importError);
-
-				// ASAR içindeyse unpack edilmiş yolu dene
-				if (aperturePath.includes("app.asar")) {
-					const unpackedPath = aperturePath.replace(
-						"app.asar",
-						"app.asar.unpacked"
-					);
-					console.log(`[Main] ASAR unpacked yolu deneniyor: ${unpackedPath}`);
-
-					try {
-						if (fs.existsSync(unpackedPath)) {
-							apertureModule = await import(`file://${unpackedPath}`);
-						} else {
-							console.error("[Main] ASAR unpacked yolu da bulunamadı");
-							return false;
-						}
-					} catch (unpackedError) {
-						console.error("[Main] ASAR unpacked import hatası:", unpackedError);
-						return false;
-					}
-				} else {
-					return false;
-				}
-			}
-
-			// Aperture fonksiyonlarını kontrol et
-			const {
-				start,
-				stop,
-				killApertureProcesses,
-				getScreens,
-				getAudioDevices,
-			} = apertureModule;
-
-			if (typeof start !== "function" || typeof stop !== "function") {
-				console.error("[Main] Aperture API'si bulunamadı");
-				return false;
-			}
-
-			// Önce çalışan süreçleri temizle
-			await killApertureProcesses();
+			// MacRecorder instance'ı kontrol et
+			const macRecorder = getMacRecorderInstance();
 
 			// Ekranları ve ses cihazlarını kontrol et
 			try {
 				console.log("[Main] Kullanılabilir ekranlar kontrol ediliyor");
-				const screens = await getScreens();
+				const screens = await macRecorder.getDisplays();
 				console.log(
 					"[Main] Kullanılabilir ekranlar:",
 					screens ? screens.length : 0
 				);
 
 				console.log("[Main] Ses cihazları kontrol ediliyor");
-				const audioDevices = await getAudioDevices();
+				const audioDevices = await macRecorder.getAudioDevices();
 				console.log(
-					"[Main] Ses cihazları:",
+					"[Main] MacRecorder ses cihazları:",
 					audioDevices ? audioDevices.length : 0
 				);
 			} catch (deviceError) {
@@ -752,7 +482,7 @@ safeHandle(
 				recordingOptions.includeDeviceAudio = audioSettings.microphoneEnabled;
 				recordingOptions.includeSystemAudio = audioSettings.systemAudioEnabled;
 
-				// Açık bir şekilde "audio" parametresini true yap - aperture kütüphanesi bunu gerektirir
+				// Açık bir şekilde "audio" parametresini true yap - MacRecorder kütüphanesi bunu gerektirir
 				if (
 					audioSettings.systemAudioEnabled ||
 					audioSettings.microphoneEnabled
@@ -760,7 +490,7 @@ safeHandle(
 					recordingOptions.audio = true;
 				}
 
-				console.log("[Main] Aperture ses ayarları güncellendi:", {
+				console.log("[Main] MacRecorder ses ayarları güncellendi:", {
 					audio: recordingOptions.audio, // Açık audio parametresi
 					includeDeviceAudio: recordingOptions.includeDeviceAudio,
 					includeSystemAudio: recordingOptions.includeSystemAudio,
@@ -775,18 +505,46 @@ safeHandle(
 
 			console.log("[Main] Kayıt başlatılıyor...", recordingOptions);
 
-			// Başlatma işlemi
+			// MacRecorder kayıt başlatma
 			try {
-				const success = await start(outputPath, recordingOptions);
-				if (success) {
-					console.log("[Main] Aperture kaydı başarıyla başlatıldı");
+				// MacRecorder için doğru format
+				const macRecorderOptions = {
+					displayId: 0, // Varsayılan ekran
+					quality: recordingOptions.quality || "high",
+					frameRate: recordingOptions.fps || 30,
+					includeMicrophone: recordingOptions.includeDeviceAudio || false,
+					includeSystemAudio: recordingOptions.includeSystemAudio !== false,
+				};
+
+				// macRecorderId varsa kullan (sayısal değer)
+				if (recordingSource && recordingSource.macRecorderId !== null) {
+					const screenId = parseInt(recordingSource.macRecorderId, 10);
+					if (!isNaN(screenId)) {
+						macRecorderOptions.displayId = screenId;
+						console.log("[Main] MacRecorder displayId ayarlandı:", screenId);
+					}
+				}
+
+				console.log("[Main] MacRecorder kayıt başlatılıyor:", {
+					outputPath,
+					options: macRecorderOptions,
+				});
+
+				const result = await recorder.startRecording(
+					outputPath,
+					macRecorderOptions
+				);
+				console.log("[Main] MacRecorder start result:", result);
+
+				if (result) {
+					console.log("[Main] ✅ MacRecorder kaydı başarıyla başlatıldı");
 					return true;
 				} else {
-					console.error("[Main] Aperture kaydı başlatılamadı");
+					console.error("[Main] ❌ MacRecorder kaydı başlatılamadı");
 					return false;
 				}
 			} catch (error) {
-				console.error("[Main] Aperture kaydı başlatılırken hata:", error);
+				console.error("[Main] MacRecorder kaydı başlatılırken hata:", error);
 
 				// Hataya özel mesaj
 				if (
@@ -801,113 +559,40 @@ safeHandle(
 				return false;
 			}
 		} catch (error) {
-			console.error("[Main] Aperture kaydı başlatılırken genel hata:", error);
+			console.error(
+				"[Main] MacRecorder kaydı başlatılırken genel hata:",
+				error
+			);
 			return false;
 		}
 	}
 );
 
-safeHandle(IPC_EVENTS.STOP_APERTURE_RECORDING, async (event, outputPath) => {
+safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event, outputPath) => {
 	try {
-		console.log("[Main] Aperture kaydı durduruluyor...");
+		console.log("[Main] ✅ MacRecorder kaydı durduruluyor...");
 
-		// Aperture modülünü yükle - build modunda farklı yolları dene
-		let aperturePath;
+		const recorder = getMacRecorderInstance();
 
-		// Olası aperture.cjs yolları
-		const possibleAperturePaths = [
-			path.join(__dirname, "aperture.cjs"), // Dev mode
-			path.join(process.resourcesPath, "app.asar", "electron", "aperture.cjs"), // Build mode ASAR
-			path.join(process.resourcesPath, "app", "electron", "aperture.cjs"), // Build mode unpackaged
-			path.join(app.getAppPath(), "electron", "aperture.cjs"), // Alternative build path
-		];
-
-		console.log("[Main] Aperture modülü aranıyor (stop)...");
-
-		for (const testPath of possibleAperturePaths) {
-			try {
-				if (fs.existsSync(testPath)) {
-					aperturePath = testPath;
-					console.log(`[Main] Aperture modülü bulundu: ${aperturePath}`);
-					break;
-				}
-			} catch (err) {
-				console.warn(
-					`[Main] Aperture yolu test edilirken hata: ${testPath}`,
-					err.message
-				);
-			}
+		if (!recorder.isRecording) {
+			console.log("[Main] ⚠️ Kayıt zaten durdurulmuş");
+			return { success: true, filePath: outputPath };
 		}
 
-		if (!aperturePath) {
-			console.error("[Main] Aperture modülü hiçbir yolda bulunamadı");
-			return false;
-		}
+		// Kaydı durdur
+		const result = await recorder.stopRecording();
+		console.log("[Main] MacRecorder stop result:", result);
 
-		// CommonJS modülünü dynamic import ile yükle
-		let apertureModule;
-		try {
-			apertureModule = await import(`file://${aperturePath}`);
-		} catch (importError) {
-			console.error("[Main] Aperture modülü import hatası:", importError);
-
-			// ASAR içindeyse unpack edilmiş yolu dene
-			if (aperturePath.includes("app.asar")) {
-				const unpackedPath = aperturePath.replace(
-					"app.asar",
-					"app.asar.unpacked"
-				);
-				console.log(`[Main] ASAR unpacked yolu deneniyor: ${unpackedPath}`);
-
-				try {
-					if (fs.existsSync(unpackedPath)) {
-						apertureModule = await import(`file://${unpackedPath}`);
-					} else {
-						console.error("[Main] ASAR unpacked yolu da bulunamadı");
-						return false;
-					}
-				} catch (unpackedError) {
-					console.error("[Main] ASAR unpacked import hatası:", unpackedError);
-					return false;
-				}
-			} else {
-				return false;
-			}
-		}
-		const { stop } = apertureModule;
-
-		// Durdurma işlemi
-		try {
-			const success = await stop(outputPath);
-			if (success) {
-				console.log("[Main] Aperture kaydı başarıyla durduruldu");
-
-				// Dosya boyutunu kontrol et
-				if (outputPath && fs.existsSync(outputPath)) {
-					const stats = fs.statSync(outputPath);
-					const fileSizeMB = stats.size / (1024 * 1024);
-					console.log(
-						`[Main] Kayıt dosyası boyutu: ${fileSizeMB.toFixed(2)} MB`
-					);
-
-					if (stats.size === 0) {
-						console.error("[Main] Kayıt dosyası boş (0 byte)");
-						return false;
-					}
-				}
-
-				return true;
-			} else {
-				console.error("[Main] Aperture kaydı durdurulamadı");
-				return false;
-			}
-		} catch (error) {
-			console.error("[Main] Aperture kaydı durdurulurken hata:", error);
-			return false;
+		if (result) {
+			console.log("[Main] ✅ MacRecorder kaydı başarıyla durduruldu:", result);
+			return { success: true, filePath: result };
+		} else {
+			console.error("[Main] ❌ MacRecorder kaydı durdurulamadı");
+			return { success: false, filePath: null, error: "Stop failed" };
 		}
 	} catch (error) {
-		console.error("[Main] Aperture kaydı durdurulurken genel hata:", error);
-		return false;
+		console.error("[Main] ❌ MacRecorder kaydı durdurulurken hata:", error);
+		return { success: false, filePath: null, error: error.message };
 	}
 });
 
@@ -1015,50 +700,132 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Desktop Capturer Sources
+	// Desktop Capturer Sources - MacRecorder ile değiştir
 	safeHandle(
 		IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES,
 		async (event, options) => {
 			try {
-				console.log("[Main] Desktop Capturer Sources isteniyor:", options);
-				const sources = await desktopCapturer.getSources(options);
+				console.log("[Main] MacRecorder Sources isteniyor:", options);
 
-				// Ekstra bilgi ekle
-				if (sources && sources.length) {
-					try {
-						// Aperture modülünden ekran listesini al
-						const apertureModule = await loadApertureModule();
-						const apertureScreens = await apertureModule.getScreens();
+				const recorder = getMacRecorderInstance();
+				let sources = [];
 
-						// Her kaynağa aperture ID'si ekle
-						sources.forEach((source) => {
-							// Ekran kaynağı ise
-							if (source.id.startsWith("screen:")) {
-								const matchingScreen = apertureScreens.find(
-									(screen) =>
-										screen.name &&
-										source.name &&
-										screen.name.includes(source.name)
-								);
-
-								if (matchingScreen) {
-									source.apertureId = matchingScreen.id;
-									source.apertureInfo = matchingScreen;
-								}
-							}
-						});
-					} catch (error) {
-						console.warn("[Main] Aperture ID bilgisi eklenirken hata:", error);
-					}
+				// Ekranları al
+				if (!options.types || options.types.includes("screen")) {
+					const screens = await recorder.getDisplays();
+					const screenSources = screens.map((screen) => ({
+						id: `screen:${screen.id}`,
+						name: screen.name || `Display ${screen.id}`,
+						display_id: screen.id,
+						thumbnail: null,
+						appIcon: null,
+						macRecorderId: screen.id,
+						macRecorderInfo: screen,
+					}));
+					sources.push(...screenSources);
 				}
 
+				// Pencereleri al
+				if (!options.types || options.types.includes("window")) {
+					const windows = await recorder.getWindows();
+					const windowSources = windows.map((window) => ({
+						id: `window:${window.id}`,
+						name: window.name,
+						thumbnail: null,
+						appIcon: null,
+						macRecorderId: window.id,
+						macRecorderInfo: window,
+					}));
+					sources.push(...windowSources);
+				}
+
+				console.log(`[Main] MacRecorder ${sources.length} kaynak buldu`);
 				return sources;
 			} catch (error) {
-				console.error("[Main] Desktop Capturer Sources hatası:", error);
+				console.error("[Main] MacRecorder Sources hatası:", error);
 				throw error;
 			}
 		}
 	);
+
+	// MacRecorder Thumbnail fonksiyonları ekle
+	safeHandle("GET_MAC_SCREEN_THUMBNAIL", async (event, screenId, options) => {
+		try {
+			console.log("[Main] MacRecorder ekran thumbnail'ı isteniyor:", screenId);
+
+			// Ekran thumbnail'ı için özel izinler gerekebilir, şimdilik devre dışı
+			console.warn(
+				"[Main] Ekran thumbnail'ı şu anda desteklenmiyor (izin sorunu)"
+			);
+			return null;
+
+			// TODO: Display thumbnail izin sorunu çözüldüğünde eklenecek
+		} catch (error) {
+			console.warn("[Main] MacRecorder ekran thumbnail hatası:", error.message);
+			return null;
+		}
+	});
+
+	safeHandle("GET_MAC_WINDOW_THUMBNAIL", async (event, windowId, options) => {
+		try {
+			console.log(
+				"[Main] MacRecorder pencere thumbnail'ı isteniyor:",
+				windowId
+			);
+			const MacRecorder = require("node-mac-recorder");
+			const utilRecorder = new MacRecorder();
+			const thumbnail = await utilRecorder.getWindowThumbnail(
+				windowId,
+				options
+			);
+			return thumbnail;
+		} catch (error) {
+			console.error("[Main] MacRecorder pencere thumbnail hatası:", error);
+			return null;
+		}
+	});
+
+	// MacRecorder Screens listesi
+	safeHandle("GET_MAC_SCREENS", async (event) => {
+		try {
+			console.log("[Main] MacRecorder ekranları isteniyor");
+			const recorder = getMacRecorderInstance();
+			const screens = await recorder.getDisplays();
+			console.log("[Main] MacRecorder ekranları:", screens);
+			return screens;
+		} catch (error) {
+			console.error("[Main] MacRecorder ekranları alınamadı:", error);
+			return [];
+		}
+	});
+
+	// MacRecorder Windows listesi
+	safeHandle("GET_MAC_WINDOWS", async (event) => {
+		try {
+			console.log("[Main] MacRecorder pencereleri isteniyor");
+			const recorder = getMacRecorderInstance();
+			const windows = await recorder.getWindows();
+			console.log("[Main] MacRecorder pencereleri:", windows);
+			return windows;
+		} catch (error) {
+			console.error("[Main] MacRecorder pencereleri alınamadı:", error);
+			return [];
+		}
+	});
+
+	// MacRecorder Audio Devices listesi
+	safeHandle("GET_MAC_AUDIO_DEVICES", async (event) => {
+		try {
+			console.log("[Main] MacRecorder ses cihazları isteniyor");
+			const recorder = getMacRecorderInstance();
+			const devices = await recorder.getAudioDevices();
+			console.log("[Main] MacRecorder ses cihazları:", devices);
+			return devices;
+		} catch (error) {
+			console.error("[Main] MacRecorder ses cihazları alınamadı:", error);
+			return [];
+		}
+	});
 
 	// Recording status updates
 	ipcMain.on(IPC_EVENTS.RECORDING_STATUS_UPDATE, (event, statusData) => {
@@ -1790,46 +1557,60 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Aperture ekran listesi fonksiyonu
-	safeHandle(IPC_EVENTS.GET_APERTURE_SCREENS, async (event) => {
+	// MacRecorder handler'ları
+	safeHandle(IPC_EVENTS.GET_MAC_SCREENS, async (event) => {
 		try {
-			console.log("[Main] Aperture ekran listesi alınıyor...");
-
-			// Aperture modülünü yükle
-			const apertureModule = await loadApertureModule();
-
-			// Ekran listesini al
-			const screens = await apertureModule.getScreens();
-			console.log("[Main] Aperture ekran listesi alındı:", screens);
-
-			return screens;
+			console.log("[Main] MacRecorder ekran listesi alınıyor...");
+			const recorder = getMacRecorderInstance();
+			const displays = await recorder.getDisplays();
+			console.log("[Main] MacRecorder ekranları:", displays);
+			return displays;
 		} catch (error) {
-			console.error("[Main] Aperture ekran listesi alınamadı:", error);
+			console.error("[Main] MacRecorder ekran listesi alınamadı:", error);
 			return [];
 		}
 	});
 
-	// Aperture ekran ID doğrulama fonksiyonu
-	safeHandle(
-		IPC_EVENTS.VALIDATE_APERTURE_SCREEN_ID,
-		async (event, screenId) => {
-			try {
-				console.log("[Main] Aperture ekran ID doğrulanıyor:", screenId);
-
-				// Aperture modülünü yükle
-				const apertureModule = await loadApertureModule();
-
-				// ID'yi doğrula
-				const isValid = await apertureModule.isValidScreenId(screenId);
-				console.log("[Main] Aperture ekran ID doğrulama sonucu:", isValid);
-
-				return isValid;
-			} catch (error) {
-				console.error("[Main] Aperture ekran ID doğrulanamadı:", error);
-				return false;
-			}
+	safeHandle(IPC_EVENTS.GET_MAC_WINDOWS, async (event) => {
+		try {
+			console.log("[Main] MacRecorder pencere listesi alınıyor...");
+			const recorder = getMacRecorderInstance();
+			const windows = await recorder.getWindows();
+			console.log("[Main] MacRecorder pencereleri:", windows);
+			return windows;
+		} catch (error) {
+			console.error("[Main] MacRecorder pencere listesi alınamadı:", error);
+			return [];
 		}
-	);
+	});
+
+	safeHandle(IPC_EVENTS.GET_MAC_AUDIO_DEVICES, async (event) => {
+		try {
+			console.log("[Main] MacRecorder ses cihazları alınıyor...");
+			const recorder = getMacRecorderInstance();
+			const audioDevices = await recorder.getAudioDevices();
+			console.log("[Main] MacRecorder ses cihazları:", audioDevices);
+			return audioDevices;
+		} catch (error) {
+			console.error("[Main] MacRecorder ses cihazları alınamadı:", error);
+			return [];
+		}
+	});
+
+	// MacRecorder ekran ID doğrulama fonksiyonu
+	safeHandle(IPC_EVENTS.VALIDATE_MAC_SCREEN_ID, async (event, screenId) => {
+		try {
+			console.log("[Main] MacRecorder ekran ID doğrulanıyor:", screenId);
+			const recorder = getMacRecorderInstance();
+			const displays = await recorder.getDisplays();
+			const isValid = displays.some((display) => display.id === screenId);
+			console.log("[Main] MacRecorder ekran ID doğrulama sonucu:", isValid);
+			return isValid;
+		} catch (error) {
+			console.error("[Main] MacRecorder ekran ID doğrulanamadı:", error);
+			return false;
+		}
+	});
 
 	// Audio Settings
 	ipcMain.on(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, (event, settings) => {
@@ -2099,65 +1880,6 @@ function setupIpcHandlers() {
 
 	// ... existing code ...
 
-	// Debug helper to check aperture files location
-	safeHandle("DEBUG_CHECK_APERTURE_FILES", async () => {
-		try {
-			console.log("[Debug] Checking aperture files locations");
-
-			const possiblePaths = [
-				path.join(__dirname, "aperture.cjs"),
-				path.join(
-					process.resourcesPath,
-					"app.asar.unpacked",
-					"electron",
-					"aperture.cjs"
-				),
-				path.join(
-					process.resourcesPath,
-					"app.asar",
-					"electron",
-					"aperture.cjs"
-				),
-				path.join(process.resourcesPath, "app", "electron", "aperture.cjs"),
-				path.join(app.getAppPath(), "electron", "aperture.cjs"),
-			];
-
-			const results = {};
-
-			for (const testPath of possiblePaths) {
-				console.log(`[Debug] Checking aperture path: ${testPath}`);
-				try {
-					const exists = fs.existsSync(testPath);
-					results[testPath] = {
-						exists,
-						isFile: exists ? fs.statSync(testPath).isFile() : false,
-						size: exists ? fs.statSync(testPath).size : 0,
-					};
-				} catch (err) {
-					results[testPath] = {
-						error: err.message,
-					};
-				}
-			}
-
-			// Check app paths
-			results.appPaths = {
-				appPath: app.getAppPath(),
-				resourcesPath: process.resourcesPath,
-				dirname: __dirname,
-				cwd: process.cwd(),
-				execPath: process.execPath,
-				isDev: isDev,
-				platform: process.platform,
-			};
-
-			return results;
-		} catch (error) {
-			console.error("[Debug] Error checking aperture files:", error);
-			return { error: error.message, stack: error.stack };
-		}
-	});
-
 	// Debug helper to check static files location
 	safeHandle(IPC_EVENTS.DEBUG_CHECK_STATIC_FILES, async () => {
 		try {
@@ -2328,43 +2050,71 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// Desktop capturer
+	// Desktop capturer - Sadece MacRecorder
 	safeHandle(IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES, async (event, opts) => {
 		try {
-			const sources = await desktopCapturer.getSources(opts);
+			console.log("[Main] ✅ MacRecorder kaynakları alınıyor...");
 
-			// Ekstra bilgi ekle
-			if (sources && sources.length) {
+			// Direkt MacRecorder kullan - fallback yok
+			const MacRecorder = require("node-mac-recorder");
+			const recorder = new MacRecorder();
+			console.log("[Main] ✅ MacRecorder instance oluşturuldu");
+
+			const sources = [];
+
+			// Ekranları al
+			if (!opts.types || opts.types.includes("screen")) {
 				try {
-					// Aperture modülünden ekran listesini al
-					const apertureModule = await loadApertureModule();
-					const apertureScreens = await apertureModule.getScreens();
+					console.log("[Main] MacRecorder displays alınıyor...");
+					const displays = await recorder.getDisplays();
+					console.log("[Main] MacRecorder displays:", displays);
 
-					// Her kaynağa aperture ID'si ekle
-					sources.forEach((source) => {
-						// Ekran kaynağı ise
-						if (source.id.startsWith("screen:")) {
-							const matchingScreen = apertureScreens.find(
-								(screen) =>
-									screen.name &&
-									source.name &&
-									screen.name.includes(source.name)
-							);
-
-							if (matchingScreen) {
-								source.apertureId = matchingScreen.id;
-								source.apertureInfo = matchingScreen;
-							}
-						}
+					displays.forEach((display, index) => {
+						sources.push({
+							id: `screen:${display.id || index}`,
+							name: display.name || `Display ${index + 1}`,
+							type: "screen",
+							macRecorderId: display.id || index,
+							macRecorderInfo: display,
+							thumbnail: null,
+						});
 					});
 				} catch (error) {
-					console.warn("[Main] Aperture ID bilgisi eklenirken hata:", error);
+					console.error("[Main] MacRecorder displays hatası:", error);
+					throw error;
 				}
 			}
 
+			// Pencereleri al
+			if (!opts.types || opts.types.includes("window")) {
+				try {
+					console.log("[Main] MacRecorder windows alınıyor...");
+					const windows = await recorder.getWindows();
+					console.log("[Main] MacRecorder windows:", windows);
+
+					windows.forEach((window) => {
+						sources.push({
+							id: `window:${window.id}`,
+							name: window.appName || window.name || `Window ${window.id}`,
+							type: "window",
+							macRecorderId: window.id,
+							macRecorderInfo: window,
+							thumbnail: null,
+						});
+					});
+				} catch (error) {
+					console.error("[Main] MacRecorder windows hatası:", error);
+					throw error;
+				}
+			}
+
+			console.log(
+				"[Main] ✅ MacRecorder toplam kaynak sayısı:",
+				sources.length
+			);
 			return sources;
 		} catch (error) {
-			console.error("Ekran kaynakları alınırken hata:", error);
+			console.error("[Main] ❌ MacRecorder hatası:", error);
 			throw error;
 		}
 	});
@@ -2436,7 +2186,7 @@ async function createWindow() {
 			let detectedPort = null;
 			console.log("[Main] Nuxt server'ın hazır olması bekleniyor...");
 
-			for (let port = 3002; port <= 3010; port++) {
+			for (let port = 3002; port <= 3020; port++) {
 				console.log(`[Main] Port ${port} kontrol ediliyor...`);
 				try {
 					await waitOn({

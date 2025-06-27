@@ -231,7 +231,17 @@ class TempFileManager {
 
 	// Yeni stream başlatma fonksiyonu
 	startMediaStream(type) {
-		const filePath = path.join(this.appDir, `temp_${type}_${Date.now()}.webm`);
+		// MacRecorder için uygun dosya uzantısı seç
+		let extension = ".webm"; // Varsayılan
+		if (type === "screen") {
+			// DesktopCapturer & MediaRecorder çıktısı WebM olacak
+			extension = ".webm";
+		}
+
+		const filePath = path.join(
+			this.appDir,
+			`temp_${type}_${Date.now()}${extension}`
+		);
 		const writeStream = fs.createWriteStream(filePath);
 
 		this.activeStreams.set(type, {

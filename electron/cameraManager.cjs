@@ -412,7 +412,7 @@ class CameraManager {
 				await this.cameraWindow.loadURL(
 					`http://127.0.0.1:${global.serverPort}/camera`
 				);
-				this.cameraWindow.webContents.openDevTools({ mode: "detach" });
+				// this.cameraWindow.webContents.openDevTools({ mode: "detach" });
 			} else {
 				// Express sunucusu kullanıyorsa
 				const serverPort = global.serverPort || 3030; // Global değişkenden port bilgisini al
