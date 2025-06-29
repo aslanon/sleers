@@ -151,7 +151,6 @@ export const useCamera = () => {
 			cameraRecorder.value.ondataavailable = async (event) => {
 				if (event.data.size > 0) {
 					try {
-						console.log("Kamera chunk alındı:", event.data.size);
 						const chunk = await event.data.arrayBuffer();
 						await window.electron?.ipcRenderer.invoke(
 							IPC_EVENTS.WRITE_MEDIA_CHUNK,

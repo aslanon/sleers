@@ -187,7 +187,8 @@ import ProjectManager from "~/components/ui/ProjectManager.vue";
 import ExportModal from "~/components/ui/ExportModal.vue";
 import ExportService from "~/services/ExportService";
 
-const { updateCameraSettings } = usePlayerSettings();
+const { updateCameraSettings, mouseVisible, mouseSize, updateMouseVisible } =
+	usePlayerSettings();
 
 // IPC event isimlerini al
 const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
@@ -220,7 +221,6 @@ const isSplitMode = ref(false);
 const isCropMode = ref(false);
 const activeSegmentIndex = ref(0);
 const showExportModal = ref(false);
-const mouseSize = ref(20);
 
 // Video boyutları
 const videoSize = ref({
@@ -969,8 +969,20 @@ const handleKeyDown = async (event) => {
 onMounted(async () => {
 	// Cursor verilerini yükle
 	if (electron.mediaStateManager) {
+		console.log("[editor.vue] 📍 Cursor data yükleniyor...");
 		const cursorData = await electron.mediaStateManager.loadCursorData();
+		console.log("[editor.vue] 📍 Cursor data yüklendi:", {
+			dataCount: cursorData?.length || 0,
+			firstItem: cursorData?.[0],
+			lastItem: cursorData?.[cursorData?.length - 1],
+		});
 		mousePositions.value = cursorData;
+		console.log(
+			"[editor.vue] 📍 mousePositions.value set to:",
+			mousePositions.value?.length
+		);
+	} else {
+		console.warn("[editor.vue] ⚠️ electron.mediaStateManager bulunamadı");
 	}
 
 	let editorSettings = await electron?.ipcRenderer.invoke(
@@ -983,6 +995,21 @@ onMounted(async () => {
 	updateCameraSettings({
 		followMouse: isCameraFollowMouse,
 	});
+
+	// Mouse settings durumunu kontrol et ve ensure et
+	console.log("[editor.vue] 📍 Player Settings - Mouse durumu:", {
+		mouseVisible: mouseVisible.value,
+		mouseSize: mouseSize.value,
+		mousePositionsCount: mousePositions.value?.length || 0,
+	});
+
+	// Mouse görünürlüğünü manuel olarak true yap (debug için)
+	if (!mouseVisible.value) {
+		console.warn(
+			"[editor.vue] ⚠️ Mouse visible false olduğu için true yapılıyor"
+		);
+		updateMouseVisible(true);
+	}
 
 	// Mevcut kaydedicileri temizle
 	if (mediaRecorder.value) {

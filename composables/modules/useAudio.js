@@ -115,7 +115,6 @@ export const useAudio = () => {
 			audioRecorder.value.ondataavailable = async (event) => {
 				if (event.data.size > 0 && isAudioActive.value) {
 					try {
-						console.log("Ses chunk alındı:", event.data.size);
 						const chunk = await event.data.arrayBuffer();
 						await window.electron?.ipcRenderer.invoke(
 							IPC_EVENTS.WRITE_MEDIA_CHUNK,

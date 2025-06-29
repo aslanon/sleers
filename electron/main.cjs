@@ -17,18 +17,6 @@ const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
 const ffmpeg = require("fluent-ffmpeg");
 
-// uIOhook modülünü güvenli şekilde yükle - Production build'de sorun yaratabilir
-let uIOhook = null;
-try {
-	const uIOhookModule = require("uiohook-napi");
-	uIOhook = uIOhookModule.uIOhook;
-	console.log("[Main] ✅ uIOhook modülü başarıyla yüklendi");
-} catch (error) {
-	console.error("[Main] ❌ uIOhook modülü yüklenemedi:", error.message);
-	console.warn("[Main] ⚠️ Mouse tracking özelliği kullanılamayacak");
-	uIOhook = null;
-}
-
 const express = require("express");
 const http = require("http");
 const os = require("os");
@@ -95,11 +83,7 @@ let isDragging = false;
 let dragOffset = { x: 0, y: 0 };
 let mousePosition = { x: 0, y: 0 };
 
-// Mouse tracking için değişkenler
-let isTracking = false;
-let startTime = null;
-let lastCursorType = "default";
-let currentSystemCursor = "default"; // Sistemden alınan cursor tipi
+// Not: Mouse tracking removed - handled by MacRecorder
 // Delay yönetimi için state
 let recordingDelay = 1000; // Varsayılan 1sn
 
@@ -142,56 +126,40 @@ function safeHandle(channel, handler) {
 // Global MacRecorder instance - tek bir instance kullanacağız
 let globalMacRecorder = null;
 
+// Cursor tracking state için global değişkenler - Yeni cursor capture API
+let cursorTrackingState = {
+	isTracking: false,
+	outputPath: null,
+	startTime: null,
+};
+
 // MacRecorder instance getter
-function getMacRecorderInstance() {
+function getMacRecorderInstance(forceReset = false) {
+	console.log("[Main] getMacRecorderInstance çağrıldı", {
+		forceReset,
+		hasInstance: !!globalMacRecorder,
+	});
+
+	if (forceReset && globalMacRecorder) {
+		console.log("[Main] Force reset - önceki instance temizleniyor...");
+		try {
+			// Eğer tracking yapıyorsa durdur
+			if (typeof globalMacRecorder.stopCursorTracking === "function") {
+				globalMacRecorder.stopCursorTracking().catch(() => {});
+			}
+		} catch (err) {
+			console.warn("[Main] Force reset cleanup hatası:", err.message);
+		}
+		globalMacRecorder = null;
+	}
+
 	if (!globalMacRecorder) {
 		try {
-			console.log("[Main] MacRecorder modülü yükleniyor...");
-			console.log("[Main] Process arch:", process.arch);
-			console.log("[Main] Platform:", process.platform);
-			console.log("[Main] App version:", app.getVersion());
-			console.log("[Main] Is packaged:", app.isPackaged);
-			console.log("[Main] App path:", app.getAppPath());
-			console.log("[Main] Exe path:", app.getPath("exe"));
-
-			// Production build için ek path kontrolü
-			if (app.isPackaged) {
-				console.log("[Main] Production build algılandı");
-				console.log("[Main] Node modules path check yapılıyor...");
-
-				// Olası node-mac-recorder yolları
-				const possiblePaths = [
-					path.join(
-						process.resourcesPath,
-						"app.asar.unpacked",
-						"node_modules",
-						"node-mac-recorder"
-					),
-					path.join(app.getAppPath(), "node_modules", "node-mac-recorder"),
-					path.join(
-						path.dirname(app.getPath("exe")),
-						"node_modules",
-						"node-mac-recorder"
-					),
-				];
-
-				for (const possiblePath of possiblePaths) {
-					console.log("[Main] Kontrol edilen path:", possiblePath);
-					if (fs.existsSync(possiblePath)) {
-						console.log("[Main] ✅ MacRecorder path bulundu:", possiblePath);
-						break;
-					} else {
-						console.log("[Main] ❌ Path bulunamadı:", possiblePath);
-					}
-				}
-			}
+			console.log("[Main] Yeni MacRecorder instance oluşturuluyor...");
 
 			const MacRecorder = require("node-mac-recorder");
-			console.log("[Main] MacRecorder modülü başarıyla yüklendi");
-			console.log("[Main] MacRecorder constructor:", typeof MacRecorder);
-
 			globalMacRecorder = new MacRecorder();
-			console.log("[Main] MacRecorder instance oluşturuldu");
+			console.log("[Main] ✅ MacRecorder instance başarıyla oluşturuldu");
 
 			// Event system setup - README'den eklendi
 			globalMacRecorder.on("started", (outputPath) => {
@@ -303,14 +271,12 @@ function getMacRecorderInstance() {
 
 			console.log("[Main] MacRecorder event listeners kuruldu");
 		} catch (error) {
-			console.error("[Main] MacRecorder yüklenirken hata:", error);
-			console.error("[Main] Error stack:", error.stack);
-			console.error("[Main] Error name:", error.name);
-			console.error("[Main] Error message:", error.message);
-			globalMacRecorder = null; // Hata durumunda null olarak ayarla
-			return null; // Hata fırlatmak yerine null döndür
+			console.error("[Main] MacRecorder yüklenirken hata:", error.message);
+			globalMacRecorder = null;
+			return null;
 		}
 	}
+
 	return globalMacRecorder;
 }
 
@@ -1011,136 +977,71 @@ function createScreenRecordingPath() {
 	return path.join(sleerDir, `temp_screen_${timestamp}.mov`);
 }
 
-// MacRecorder kayıt başlatma - Basit handler
-safeHandle("START_MAC_RECORDING", async (event, options) => {
+// START_MAC_RECORDING handler - MacRecorder başlatır
+safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 	try {
-		console.log("[Main] 🎬 START_MAC_RECORDING çağrıldı!");
-		console.log("[Main] Options:", options);
-
 		// YENİ KAYIT BAŞLAMADAN ÖNCE TEMİZLİK YAP
-		console.log("[Main] 🧹 Yeni kayıt için temp dosyaları temizleniyor...");
 		if (tempFileManager) {
 			await tempFileManager.cleanupAllFiles();
-			console.log("[Main] ✅ Temp dosya temizliği tamamlandı");
 		}
 
-		// MacRecorder instance'ını al
-		console.log("[Main] MacRecorder instance'ı alınıyor...");
+		// 🎬 MacRecorder KAYIT BAŞLATMA
 		const recorder = getMacRecorderInstance();
 		if (!recorder) {
-			console.error("[Main] ❌ MacRecorder instance bulunamadı");
 			return {
 				success: false,
 				outputPath: null,
-				error: "MacRecorder instance oluşturulamadı",
+				error: "MacRecorder instance bulunamadı",
 			};
 		}
-		console.log("[Main] ✅ MacRecorder instance alındı");
 
-		// Downloads/.sleer/screen.mov path'ini oluştur
 		const outputPath = createScreenRecordingPath();
-		console.log("[Main] Output path:", outputPath);
-
-		// Options'ı validate et
-		if (!options || typeof options !== "object") {
-			console.log(
-				"[Main] Options boş veya geçersiz, varsayılan değerler kullanılıyor"
-			);
-			options = {};
-		}
-
-		// İzin kontrolü - Production build'de daha esnek
-		try {
-			const permissions = await recorder.checkPermissions();
-			console.log("[Main] İzinler:", permissions);
-
-			if (!permissions.screenRecording) {
-				if (app.isPackaged) {
-					// Production build'de warning ver ama devam et
-					console.warn(
-						"[Main] ⚠️ Ekran kaydı izni algılanamadı (production build), deneniyor..."
-					);
-				} else {
-					// Development'ta hata ver
-					console.error("[Main] ❌ Ekran kaydı izni yok!");
-					return {
-						success: false,
-						outputPath: null,
-						error: "Ekran kaydı izni yok",
-					};
-				}
-			}
-		} catch (permError) {
-			console.warn("[Main] İzin kontrolü hatası:", permError.message);
-			if (app.isPackaged) {
-				console.warn(
-					"[Main] Production build'de izin kontrolü hatası göz ardı ediliyor"
-				);
-			} else {
-				console.error(
-					"[Main] Development'ta izin kontrolü başarısız:",
-					permError
-				);
-				return {
-					success: false,
-					outputPath: null,
-					error: "İzin kontrolü başarısız: " + permError.message,
-				};
-			}
-		}
-
-		// MediaState'den güncel kaynak bilgisini al
-		let currentSource = null;
-		if (mediaStateManager) {
-			const mediaState = mediaStateManager.getState();
-			currentSource = mediaState?.recordingSource;
-			console.log("[Main] 🔧 MediaState'den kaynak bilgisi:", currentSource);
-		}
-
-		// Temel kayıt seçenekleri
 		const recordingOptions = {
 			includeMicrophone: false,
 			includeSystemAudio: false,
 			quality: "medium",
 			frameRate: 30,
-			captureCursor: false, // Cursor gizli
-			...options, // Gelen seçenekleri üzerine yaz
+			captureCursor: false,
+			display: 0,
+			...options,
 		};
 
-		// Güncel kaynak bilgisine göre parametreyi ayarla
-		if (
-			currentSource &&
-			currentSource.sourceType === "window" &&
-			currentSource.macRecorderId
-		) {
-			console.log(
-				"[Main] 🎯 PENCERE KAYDI - windowId:",
-				currentSource.macRecorderId,
-				"sourceName:",
-				currentSource.sourceName
-			);
-			recordingOptions.windowId = currentSource.macRecorderId;
-		} else {
-			const displayId = currentSource?.macRecorderId ?? options?.display ?? 0;
-			console.log(
-				"[Main] 🎯 EKRAN KAYDI - displayId:",
-				displayId,
-				"sourceName:",
-				currentSource?.sourceName || "Display " + displayId
-			);
-			recordingOptions.displayId = displayId;
-		}
-
-		console.log("[Main] MacRecorder ile kayıt başlatılıyor:", recordingOptions);
-
 		const result = await recorder.startRecording(outputPath, recordingOptions);
-		console.log("[Main] 🎯 MacRecorder start result:", result);
 
 		if (result) {
-			console.log("[Main] ✅ MacRecorder kaydı başlatıldı");
+			// Start cursor capture with new API
+			try {
+				const timestamp = Date.now();
+				const cursorFilePath = path.join(
+					tempFileManager.appDir,
+					`temp_cursor_${timestamp}.json`
+				);
+
+				console.log("[Main] 🎯 Cursor capture başlatılıyor...");
+				await recorder.startCursorCapture(cursorFilePath);
+
+				// State güncelle
+				cursorTrackingState.isTracking = true;
+				cursorTrackingState.outputPath = cursorFilePath;
+				cursorTrackingState.startTime = Date.now();
+
+				if (mediaStateManager) {
+					mediaStateManager.updateState({ cursorPath: cursorFilePath });
+				}
+
+				console.log("[Main] ✅ Cursor capture başlatıldı:", cursorFilePath);
+			} catch (cursorError) {
+				console.warn(
+					"[Main] Cursor capture hatası (devam ediliyor):",
+					cursorError.message
+				);
+			}
+
+			// RECORDING_STATUS_CHANGED event'ini tetikle
+			ipcMain.emit(IPC_EVENTS.RECORDING_STATUS_CHANGED, event, true);
+
 			return { success: true, outputPath };
 		} else {
-			console.error("[Main] ❌ MacRecorder kaydı başlatılamadı");
 			return {
 				success: false,
 				outputPath: null,
@@ -1153,30 +1054,130 @@ safeHandle("START_MAC_RECORDING", async (event, options) => {
 	}
 });
 
+// STOP_MAC_RECORDING handler - MacRecorder durdurur
 safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 	try {
-		console.log("[Main] ✅ MacRecorder kaydı durduruluyor...");
-
+		// 🎬 MacRecorder KAYIT DURDURMA
 		const recorder = getMacRecorderInstance();
-		console.log("[Main] MacRecorder instance alındı");
+		if (!recorder) {
+			return {
+				success: false,
+				filePath: null,
+				error: "MacRecorder instance bulunamadı",
+			};
+		}
 
-		// Kayıt durumunu kontrol et - isRecording property'si yoksa alternatif kontrol
-		let isCurrentlyRecording = false;
+		// Stop cursor capture with new API
 		try {
-			isCurrentlyRecording = recorder.isRecording;
-			console.log("[Main] MacRecorder.isRecording:", isCurrentlyRecording);
-		} catch (recordingCheckError) {
-			console.log(
-				"[Main] isRecording property kontrol edilemedi, devam ediliyor"
+			console.log("[Main] 🛑 Cursor capture durduruluyor...");
+			await recorder.stopCursorCapture();
+
+			// Cursor data'sını düzenle ve MediaStateManager'a ekle
+			if (
+				cursorTrackingState.outputPath &&
+				fs.existsSync(cursorTrackingState.outputPath)
+			) {
+				try {
+					console.log(
+						"[Main] 📝 Cursor data'sı düzenleniyor...",
+						cursorTrackingState.outputPath
+					);
+
+					// JSON dosyasını oku
+					const rawCursorData = await fs.promises.readFile(
+						cursorTrackingState.outputPath,
+						"utf8"
+					);
+					const cursorPositions = JSON.parse(rawCursorData);
+
+					// Her bir cursor position'ını düzenle
+					const enhancedCursorData = cursorPositions.map((position) => {
+						const enhanced = {
+							x: position.x,
+							y: position.y,
+							timestamp: position.timestamp,
+							cursorType: position.cursorType || "default",
+							type: position.type || "move",
+							button: position.button,
+							clickCount: position.clickCount,
+							rotation: position.rotation,
+							direction: position.direction,
+						};
+
+						// Event tipine göre button ve clickCount bilgilerini ekle
+						if (position.type === "mousedown" || position.type === "mouseup") {
+							enhanced.button = enhanced.button || 1; // Sol tık varsayılan
+							enhanced.clickCount = enhanced.clickCount || 1;
+						} else if (
+							position.type === "rightmousedown" ||
+							position.type === "rightmouseup"
+						) {
+							enhanced.button = enhanced.button || 2; // Sağ tık
+							enhanced.clickCount = enhanced.clickCount || 1;
+							// Type'ı standard format'a çevir
+							enhanced.type = position.type.replace("rightmouse", "mouse");
+						}
+
+						return enhanced;
+					});
+
+					// MediaStateManager'a ekle
+					if (mediaStateManager) {
+						// Önce mevcut mouse position'ları temizle
+						mediaStateManager.clearMousePositions();
+
+						// Yeni data'yı ekle
+						enhancedCursorData.forEach((position) => {
+							mediaStateManager.addMousePosition(position);
+						});
+
+						console.log("[Main] ✅ Cursor data MediaStateManager'a eklendi:", {
+							totalPositions: enhancedCursorData.length,
+							firstPosition: enhancedCursorData[0],
+							lastPosition: enhancedCursorData[enhancedCursorData.length - 1],
+						});
+
+						// Cursor data'sını dosyaya kaydet
+						try {
+							if (tempFileManager) {
+								const cursorPath = await mediaStateManager.saveCursorData(
+									tempFileManager
+								);
+								console.log(
+									"[Main] ✅ Cursor data dosyaya kaydedildi:",
+									cursorPath
+								);
+							} else {
+								console.warn(
+									"[Main] ⚠️ tempFileManager bulunamadı, cursor data dosyaya kaydedilemiyor"
+								);
+							}
+						} catch (saveError) {
+							console.error(
+								"[Main] ❌ Cursor data dosyaya kaydedilirken hata:",
+								saveError
+							);
+						}
+					}
+				} catch (dataError) {
+					console.error("[Main] Cursor data düzenleme hatası:", dataError);
+				}
+			}
+
+			// State güncelle
+			cursorTrackingState.isTracking = false;
+			cursorTrackingState.outputPath = null;
+			cursorTrackingState.startTime = null;
+
+			console.log("[Main] ✅ Cursor capture durduruldu");
+		} catch (cursorError) {
+			console.warn(
+				"[Main] Cursor capture durdurma hatası (devam ediliyor):",
+				cursorError.message
 			);
 		}
 
-		// Kaydı durdur
-		console.log("[Main] recorder.stopRecording() çağrılıyor...");
 		const result = await recorder.stopRecording();
-		console.log("[Main] 🔧 MacRecorder stop result:", result);
-		console.log("[Main] 🔧 Stop result type:", typeof result);
-		console.log("[Main] 🔧 Stop result keys:", Object.keys(result || {}));
 
 		// Stop result: { code: 0, outputPath: "..." }
 		const actualFilePath =
@@ -1184,40 +1185,20 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 		const isSuccess =
 			result && (result.code === 0 || result.code === undefined);
 
-		console.log("[Main] 🔧 Actual file path:", actualFilePath);
-		console.log("[Main] 🔧 Is success:", isSuccess);
-
-		// Dosya varlığını ve boyutunu kontrol et
-		if (actualFilePath && fs.existsSync(actualFilePath)) {
-			const stats = fs.statSync(actualFilePath);
-			console.log(
-				`[Main] Kayıt dosyası oluştu: ${actualFilePath} (${stats.size} bytes)`
-			);
-
-			if (stats.size === 0) {
-				console.warn(
-					"[Main] ⚠️ Kayıt dosyası boş! Kayıt işlemi başarısız olmuş olabilir"
-				);
-			} else {
-				console.log("[Main] ✅ Kayıt dosyası geçerli boyutta");
-			}
-		} else {
-			console.error("[Main] ❌ Kayıt dosyası bulunamadı:", actualFilePath);
-		}
-
 		if (isSuccess && actualFilePath) {
-			console.log(
-				"[Main] ✅ MacRecorder kaydı başarıyla durduruldu:",
-				actualFilePath
-			);
+			// RECORDING_STATUS_CHANGED event'ini tetikle
+			ipcMain.emit(IPC_EVENTS.RECORDING_STATUS_CHANGED, event, false);
+
 			return { success: true, filePath: actualFilePath };
 		} else {
-			console.error("[Main] ❌ MacRecorder kaydı durdurulamadı");
-			return { success: false, filePath: null, error: "Stop failed" };
+			return {
+				success: false,
+				filePath: null,
+				error: "MacRecorder kaydı durdurulamadı",
+			};
 		}
 	} catch (error) {
-		console.error("[Main] ❌ MacRecorder kaydı durdurulurken hata:", error);
-		console.error("[Main] Error stack:", error.stack);
+		console.error("[Main] STOP_MAC_RECORDING hatası:", error);
 		return { success: false, filePath: null, error: error.message };
 	}
 });
@@ -1553,7 +1534,6 @@ function setupIpcHandlers() {
 
 		if (status) {
 			console.log("[Main] Kayıt başlatılıyor...");
-			startMouseTracking();
 
 			// Kayıt başladığında kamera penceresini gizle
 			if (
@@ -1566,10 +1546,6 @@ function setupIpcHandlers() {
 			}
 		} else {
 			console.log("[Main] Kayıt durduruluyor...");
-			stopMouseTracking();
-			if (mediaStateManager && tempFileManager) {
-				await mediaStateManager.saveCursorData(tempFileManager);
-			}
 		}
 
 		try {
@@ -2200,12 +2176,6 @@ function setupIpcHandlers() {
 			console.log("[Main] Editör açılıyor, tüm stream'ler temizleniyor...");
 
 			// Fare takibini durdur
-			if (isTracking) {
-				console.log("[Main] Fare takibi durduruluyor...");
-				uIOhook.stop();
-				isTracking = false;
-				mainWindow.webContents.send(IPC_EVENTS.MOUSE_TRACKING_STOPPED);
-			}
 
 			// Önce tüm aktif stream'leri temizle
 			await tempFileManager.cleanupStreams();
@@ -3082,6 +3052,12 @@ function setupIpcHandlers() {
 	ipcMain.on(IPC_EVENTS.END_WINDOW_DRAG, () => {
 		isDragging = false;
 	});
+
+	// START_CURSOR_TRACKING_ONLY handler kaldırıldı
+	// Cursor capture artık START_MAC_RECORDING içinde yönetiliyor
+
+	// Standalone cursor tracking handlers kaldırıldı
+	// Cursor capture artık START/STOP_MAC_RECORDING içinde yönetiliyor
 }
 
 async function createWindow() {
@@ -3417,11 +3393,31 @@ app.on("before-quit", () => {
 	// Temizlik işlemleri burada yapılıyor, ancak uygulamayı bloklamaması için
 	// direkt olarak kapanmaya izin veriyoruz
 	try {
-		// Fare takibini durdur
-		if (isTracking) {
-			console.log("[Main] Fare takibi durduruluyor...");
-			uIOhook.stop();
-			isTracking = false;
+		// Cursor tracking temizliği
+		if (cursorTrackingState.pollingInterval) {
+			console.log("[Main] Cursor polling interval temizleniyor...");
+			clearInterval(cursorTrackingState.pollingInterval);
+			cursorTrackingState.pollingInterval = null;
+		}
+
+		if (cursorTrackingState.isTracking) {
+			console.log("[Main] Cursor tracking durduruluyor...");
+			cursorTrackingState.isTracking = false;
+
+			// MacRecorder'ı durdur (async olmadan)
+			try {
+				const recorder = getMacRecorderInstance();
+				if (recorder && typeof recorder.stopCursorTracking === "function") {
+					recorder.stopCursorTracking().catch((err) => {
+						console.warn(
+							"[Main] MacRecorder durdurma hatası (shutdown):",
+							err.message
+						);
+					});
+				}
+			} catch (err) {
+				console.warn("[Main] MacRecorder shutdown hatası:", err.message);
+			}
 		}
 
 		// HTTP sunucusunu kapat
@@ -3440,174 +3436,6 @@ app.on("before-quit", () => {
 		console.error("[Main] Temizleme işlemi sırasında hata:", error);
 	}
 });
-
-function startMouseTracking() {
-	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
-
-	// uIOhook modülü yüklenememişse çalışmaz
-	if (!uIOhook) {
-		console.warn(
-			"[Main] ⚠️ uIOhook modülü yüklenmediği için mouse tracking başlatılamıyor"
-		);
-		return;
-	}
-
-	// Production build'de uIOhook sorun yaratıyor, şimdilik devre dışı bırak
-	if (app.isPackaged) {
-		console.warn(
-			"[Main] ⚠️ Production build'de mouse tracking devre dışı (uIOhook crash sorunu)"
-		);
-		return;
-	}
-
-	if (!isTracking) {
-		isTracking = true;
-		startTime = Date.now();
-
-		// Mouse hareketi
-		uIOhook.on("mousemove", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "move",
-			});
-		});
-
-		// Mouse tıklama
-		uIOhook.on("mousedown", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: "pointer",
-				type: "mousedown",
-				button: event.button,
-				clickCount: 1,
-				scale: 0.8, // Tıklama anında küçülme
-			});
-
-			lastCursorType = "pointer";
-
-			// 100ms sonra normale dön
-			setTimeout(() => {
-				mediaStateManager.addMousePosition({
-					x: event.x,
-					y: event.y,
-					timestamp: currentTime + 100,
-					cursorType: lastCursorType,
-					type: "scale",
-					scale: 1.1, // Hafif büyüme
-				});
-
-				// 200ms'de normal boyuta dön
-				setTimeout(() => {
-					mediaStateManager.addMousePosition({
-						x: event.x,
-						y: event.y,
-						timestamp: currentTime + 200,
-						cursorType: lastCursorType,
-						type: "scale",
-						scale: 1,
-					});
-				}, 100);
-			}, 100);
-		});
-
-		// Mouse bırakma
-		uIOhook.on("mouseup", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: "default",
-				type: "mouseup",
-				button: event.button,
-			});
-
-			lastCursorType = "default";
-		});
-
-		// Mouse tekerleği
-		uIOhook.on("wheel", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: lastCursorType,
-				type: "wheel",
-				rotation: event.rotation,
-				direction: event.direction,
-			});
-		});
-
-		// Mouse sürükleme
-		uIOhook.on("mousedrag", (event) => {
-			if (!isTracking) return;
-			const currentTime = Date.now() - startTime;
-
-			mediaStateManager.addMousePosition({
-				x: event.x,
-				y: event.y,
-				timestamp: currentTime,
-				cursorType: "grabbing",
-				type: "drag",
-			});
-
-			lastCursorType = "grabbing";
-		});
-
-		// Event dinlemeyi başlat
-		uIOhook.start();
-	}
-}
-
-function stopMouseTracking() {
-	// uIOhook modülü yüklenememişse çalışmaz
-	if (!uIOhook) {
-		console.warn(
-			"[Main] ⚠️ uIOhook modülü yüklenmediği için mouse tracking durdurulamıyor"
-		);
-		return;
-	}
-
-	// Production build'de uIOhook sorun yaratıyor, şimdilik devre dışı bırak
-	if (app.isPackaged) {
-		console.warn(
-			"[Main] ⚠️ Production build'de mouse tracking zaten devre dışı"
-		);
-		return;
-	}
-
-	if (isTracking) {
-		isTracking = false;
-		startTime = null;
-		lastCursorType = "default";
-
-		// Event dinleyicileri temizle
-		uIOhook.removeAllListeners("mousemove");
-		uIOhook.removeAllListeners("mousedown");
-		uIOhook.removeAllListeners("mouseup");
-		uIOhook.removeAllListeners("wheel");
-		uIOhook.removeAllListeners("mousedrag");
-
-		// Event dinlemeyi durdur
-		uIOhook.stop();
-	}
-}
 
 /**
  * Uygulama başlangıcında gerekli tüm izinleri kontrol eder

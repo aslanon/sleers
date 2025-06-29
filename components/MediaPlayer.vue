@@ -916,10 +916,42 @@ const {
 
 // Mouse pozisyonlarını çiz
 const drawMousePositions = () => {
-	// Mouse görünürlüğü kapalıysa çizme
-	if (!mouseVisible.value) return;
+	// Debug: Mouse cursor durumunu logla
+	if (typeof drawMousePositions.debugCounter === "undefined") {
+		drawMousePositions.debugCounter = 0;
+	}
 
-	if (!props.mousePositions || !canvasRef.value || !videoElement) return;
+	drawMousePositions.debugCounter++;
+
+	// Her 60 frame'de bir debug log
+	if (drawMousePositions.debugCounter % 60 === 0) {
+		console.log("[MediaPlayer] 🖱️ Cursor render debug:", {
+			mouseVisible: mouseVisible.value,
+			mousePositionsCount: props.mousePositions?.length || 0,
+			canvasExists: !!canvasRef.value,
+			videoExists: !!videoElement,
+			firstMousePos: props.mousePositions?.[0],
+		});
+	}
+
+	// Mouse görünürlüğü kapalıysa çizme
+	if (!mouseVisible.value) {
+		if (drawMousePositions.debugCounter % 60 === 0) {
+			console.warn("[MediaPlayer] ⚠️ Mouse görünürlüğü kapalı");
+		}
+		return;
+	}
+
+	if (!props.mousePositions || !canvasRef.value || !videoElement) {
+		if (drawMousePositions.debugCounter % 60 === 0) {
+			console.warn("[MediaPlayer] ⚠️ Mouse render için gerekli şeyler eksik:", {
+				mousePositions: !!props.mousePositions,
+				canvas: !!canvasRef.value,
+				video: !!videoElement,
+			});
+		}
+		return;
+	}
 
 	const ctx = canvasRef.value.getContext("2d");
 	if (!ctx) return;
@@ -1720,10 +1752,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// Ana context state'i geri yükle
 		ctx.restore();
 
-		// Mouse pozisyonlarını çiz
-		drawMousePositions();
-
-		// Kamera çizimi
+		// Kamera çizimi (cursor'dan önce çizilmeli)
 		if (cameraElement) {
 			let cameraPos;
 			if (isCameraDragging.value) {
@@ -1777,18 +1806,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 		}
 
-		// Mouse pozisyonlarını çiz
+		// Mouse pozisyonlarını çiz (kameradan sonra çizilmeli ki üzerine yazılmasın)
 		drawMousePositions();
-
-		// Kamera çizimi
-		if (cameraElement) {
-			let cameraPos;
-			if (isCameraDragging.value) {
-				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
-				cameraPos = cameraPosition.value;
-				console.log("[MediaPlayer] Using dragged camera position:", cameraPos);
-			}
-		}
 
 		// macOS Dock çiz (eğer aktifse ve destekleniyorsa)
 		if (

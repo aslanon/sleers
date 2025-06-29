@@ -170,6 +170,8 @@
 				<span class="text-sm">Sistem Sesi</span>
 			</button>
 
+			<!-- Cursor tracking butonu kaldırıldı - artık gerçek kayıt sistemiyle entegre -->
+
 			<!-- Kayıt Toggle Butonu -->
 			<button
 				@click="onRecordButtonClick"
@@ -255,6 +257,8 @@ const delayOptions = [0, 1000, 3002, 5000, 10000]; // 1sn, 3sn, 5sn
 const selectedSource = ref(null);
 const followMouse = ref(true);
 
+// Cursor tracking state kaldırıldı - artık gerçek kayıt sistemiyle entegre
+
 // Yeni Kayıt state'i kaldırıldı
 
 watch(followMouse, (newValue) => {
@@ -290,7 +294,9 @@ watch(isSettingsOpen, (newValue) => {
 // Kayıt düğmesi işlevi
 const onRecordButtonClick = async () => {
 	try {
+		console.log("📱📱📱 onRecordButtonClick() ÇAĞRILDI! 📱📱📱");
 		if (isRecording.value) {
+			console.log("🛑 STOP RECORDING ÇAĞRILACAK");
 			await stopRecording();
 		} else {
 			// MediaState'den güncel kaynak bilgisini al
@@ -352,6 +358,7 @@ const onRecordButtonClick = async () => {
 			}
 
 			// Kayıt başlat
+			console.log("🚀 START RECORDING ÇAĞRILACAK, options:", recordingOptions);
 			await startRecording(recordingOptions);
 		}
 	} catch (error) {
@@ -367,6 +374,8 @@ const openEditorMode = () => {
 		console.log("Editör modu açılıyor...");
 	}
 };
+
+// toggleCursorTracking fonksiyonu kaldırıldı - cursor capture artık gerçek kayıt sistemiyle entegre
 
 // Yeni Kayıt fonksiyonu kaldırıldı - artık sadece "Kaydet" butonu var
 

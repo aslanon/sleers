@@ -23,9 +23,9 @@ Bu dokümantasyon, sisteme yeni özellikler eklendikçe otomatik olarak güncell
 
 ### Son Güncelleme Bilgisi
 
-- Tarih: 2023-11-15
-- Sürüm: 1.2.0
-- Değişiklik: Düzen Yönetimi Özelliği
+- Tarih: 2024-12-19
+- Sürüm: 1.3.0
+- Değişiklik: Native Cursor Tracking Entegrasyonu
 
 ## 1. Temel Yapı ve Prensipler
 
@@ -260,13 +260,80 @@ npm run electron:build
    - Geçici dosya yönetimi
 
 6. **Düzen Yönetimi**
+
    - Kamera ve video konumlarını kaydetme
    - Düzen kaydetme ve yükleme
    - Düzen yeniden adlandırma
    - Düzen silme
    - Electron.store ile kalıcı depolama
 
-## 11. Katkıda Bulunma
+7. **Cursor Tracking Sistemi**
+   - node-mac-recorder entegrasyonu ile native cursor tracking
+   - Kayıt sırasında otomatik cursor pozisyon takibi
+   - Cursor tipi ve click event detection
+   - JSON formatında cursor data export
+   - Production kararlılığı ve ARM64 uyumluluğu
+
+## 11. Cursor Tracking Implementasyonu
+
+### Native Cursor Tracking
+
+Sleer artık cursor tracking için node-mac-recorder paketinin native cursor tracking özelliğini kullanır:
+
+```javascript
+// main.cjs içinde cursor tracking başlatma
+async function startMouseTracking() {
+	const macRecorder = getMacRecorderInstance();
+	if (!macRecorder) return;
+
+	const cursorFilePath = path.join(recordingDir, `cursor-${Date.now()}.json`);
+	await macRecorder.startCursorTracking(cursorFilePath);
+	mediaStateManager.setMousePath(cursorFilePath);
+}
+
+// Cursor tracking durdurma
+async function stopMouseTracking() {
+	const macRecorder = getMacRecorderInstance();
+	if (!macRecorder) return;
+
+	await macRecorder.stopCursorTracking();
+	// Veriler otomatik olarak dosyaya kaydedilir
+}
+```
+
+### Avantajları
+
+1. **Native Performance**: Electron API yerine native macOS APIs kullanır
+2. **Production Stability**: uIOhook dependency eliminated
+3. **ARM64 Compatibility**: Apple Silicon için tam destek
+4. **Automatic Data Export**: JSON formatında otomatik veri kaydetme
+5. **Better Accuracy**: Native cursor type detection ve click events
+
+### Dosya Formatı
+
+Cursor data JSON formatında kaydedilir:
+
+```json
+[
+	{
+		"x": 1234,
+		"y": 567,
+		"timestamp": 1640995200000,
+		"type": "move",
+		"cursorType": "default"
+	},
+	{
+		"x": 1240,
+		"y": 570,
+		"timestamp": 1640995200016,
+		"type": "click",
+		"button": "left",
+		"cursorType": "pointer"
+	}
+]
+```
+
+## 12. Katkıda Bulunma
 
 1. **Kod Standartları**
 
@@ -279,7 +346,7 @@ npm run electron:build
    - Code review
    - Test gereksinimleri
 
-## 12. Composable'lar
+## 13. Composable'lar
 
 ### useLayoutSettings
 
@@ -332,7 +399,7 @@ export function useLayoutSettings() {
 }
 ```
 
-## 13. Bileşenler
+## 14. Bileşenler
 
 ### LayoutManager
 

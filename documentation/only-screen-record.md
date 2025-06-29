@@ -11,6 +11,7 @@ A powerful native macOS screen recording Node.js package with advanced window se
 - 🎯 **Area Selection** - Record custom screen regions
 - 🖱️ **Multi-Display Support** - Automatic display detection and selection
 - 🎨 **Cursor Control** - Toggle cursor visibility in recordings
+- 🖱️ **Cursor Tracking** - Track mouse position, cursor types, and click events
 
 🎵 **Granular Audio Controls**
 
@@ -231,6 +232,50 @@ const thumbnail = await recorder.getDisplayThumbnail(0, {
 // Perfect for display selection UI
 ```
 
+### Cursor Tracking Methods
+
+#### `startCursorCapture(outputPath)`
+
+Starts automatic cursor tracking and saves data to JSON file in real-time.
+
+```javascript
+await recorder.startCursorCapture("./cursor-data.json");
+// Cursor tracking started - automatically writing to file
+```
+
+#### `stopCursorCapture()`
+
+Stops cursor tracking and closes the output file.
+
+```javascript
+await recorder.stopCursorCapture();
+// Tracking stopped, file closed
+```
+
+**JSON Output Format:**
+
+```json
+[
+	{
+		"x": 851,
+		"y": 432,
+		"timestamp": 201,
+		"cursorType": "default",
+		"type": "move"
+	},
+	{
+		"x": 851,
+		"y": 432,
+		"timestamp": 220,
+		"cursorType": "pointer",
+		"type": "mousedown"
+	}
+]
+```
+
+**Cursor Types:** `default`, `pointer`, `text`, `grab`, `grabbing`, `ew-resize`, `ns-resize`, `crosshair`  
+**Event Types:** `move`, `mousedown`, `mouseup`, `rightmousedown`, `rightmouseup`
+
 ## Usage Examples
 
 ### Window-Specific Recording
@@ -404,6 +449,98 @@ async function createDisplaySelector() {
 }
 ```
 
+### Cursor Tracking Usage
+
+```javascript
+const MacRecorder = require("node-mac-recorder");
+
+async function trackUserInteraction() {
+	const recorder = new MacRecorder();
+
+	try {
+		// Start cursor tracking - automatically writes to file
+		await recorder.startCursorCapture("./user-interactions.json");
+		console.log("✅ Cursor tracking started...");
+
+		// Track for 5 seconds
+		console.log("📱 Move mouse and click for 5 seconds...");
+		await new Promise((resolve) => setTimeout(resolve, 5000));
+
+		// Stop tracking
+		await recorder.stopCursorCapture();
+		console.log("✅ Cursor tracking completed!");
+
+		// Analyze the data
+		const fs = require("fs");
+		const data = JSON.parse(
+			fs.readFileSync("./user-interactions.json", "utf8")
+		);
+
+		console.log(`📄 ${data.length} events recorded`);
+
+		// Count clicks
+		const clicks = data.filter((d) => d.type === "mousedown").length;
+		if (clicks > 0) {
+			console.log(`🖱️ ${clicks} clicks detected`);
+		}
+
+		// Most used cursor type
+		const cursorTypes = {};
+		data.forEach((item) => {
+			cursorTypes[item.cursorType] = (cursorTypes[item.cursorType] || 0) + 1;
+		});
+
+		const mostUsed = Object.keys(cursorTypes).reduce((a, b) =>
+			cursorTypes[a] > cursorTypes[b] ? a : b
+		);
+		console.log(`🎯 Most used cursor: ${mostUsed}`);
+	} catch (error) {
+		console.error("❌ Error:", error.message);
+	}
+}
+
+trackUserInteraction();
+```
+
+### Combined Screen Recording + Cursor Tracking
+
+```javascript
+const MacRecorder = require("node-mac-recorder");
+
+async function recordWithCursorTracking() {
+	const recorder = new MacRecorder();
+
+	try {
+		// Start both screen recording and cursor tracking
+		await Promise.all([
+			recorder.startRecording("./screen-recording.mov", {
+				captureCursor: false, // Don't show cursor in video
+				includeSystemAudio: true,
+				quality: "high",
+			}),
+			recorder.startCursorCapture("./cursor-data.json"),
+		]);
+
+		console.log("✅ Recording screen and tracking cursor...");
+
+		// Record for 10 seconds
+		await new Promise((resolve) => setTimeout(resolve, 10000));
+
+		// Stop both
+		await Promise.all([recorder.stopRecording(), recorder.stopCursorCapture()]);
+
+		console.log("✅ Recording completed!");
+		console.log("📁 Files created:");
+		console.log("   - screen-recording.mov");
+		console.log("   - cursor-data.json");
+	} catch (error) {
+		console.error("❌ Error:", error.message);
+	}
+}
+
+recordWithCursorTracking();
+```
+
 ## Integration Examples
 
 ### Electron Integration
@@ -499,6 +636,21 @@ The `getWindows()` method automatically filters out:
 - **Memory Efficient** - Proper memory management in native layer
 - **Quality Presets** - Balanced quality/performance options
 
+## Testing
+
+Run the included demo to test cursor tracking:
+
+```bash
+node cursor-test.js
+```
+
+This will:
+
+- ✅ Start cursor tracking for 5 seconds
+- 📱 Capture mouse movements and clicks
+- 📄 Save data to `cursor-data.json`
+- 🖱️ Report clicks detected
+
 ## Troubleshooting
 
 ### Permission Issues
@@ -577,6 +729,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ### Latest Updates
 
+- ✅ **Cursor Tracking**: Track mouse position, cursor types, and click events with JSON export
 - ✅ **Window Recording**: Automatic coordinate conversion for multi-display setups
 - ✅ **Audio Controls**: Separate microphone and system audio controls
 - ✅ **Display Selection**: Multi-monitor support with automatic detection

@@ -464,6 +464,7 @@ export const useScreen = () => {
 
 	const startRecording = async (sourceId, options = {}) => {
 		try {
+			console.log("🚀🚀🚀 useScreen.startRecording() ÇAĞRILDI! 🚀🚀🚀");
 			console.log("[useScreen] MacRecorder kayıt başlatılıyor...");
 
 			// MediaStateManager'dan kaynak bilgisini al
@@ -531,12 +532,36 @@ export const useScreen = () => {
 			console.log("🔧 [useScreen] MacRecorder IPC çağrısı yapılıyor...");
 			console.log("🔧 [useScreen] - options:", macRecorderOptions);
 
-			const result = await window.electron?.ipcRenderer.invoke(
-				"START_MAC_RECORDING",
-				macRecorderOptions
+			console.log("🔍 [DEBUG] window.electron:", !!window.electron);
+			console.log(
+				"🔍 [DEBUG] window.electron.ipcRenderer:",
+				!!window.electron?.ipcRenderer
+			);
+			console.log(
+				"🔍 [DEBUG] invoke method:",
+				typeof window.electron?.ipcRenderer?.invoke
 			);
 
-			console.log("🔧 [useScreen] MacRecorder IPC sonucu:", result);
+			let result;
+			try {
+				console.log("🔄 [DEBUG] START_MAC_RECORDING invoke çağrılıyor...");
+				result = await window.electron?.ipcRenderer.invoke(
+					"START_MAC_RECORDING",
+					macRecorderOptions
+				);
+				console.log(
+					"✅ [DEBUG] START_MAC_RECORDING invoke başarılı, sonuç:",
+					result
+				);
+
+				console.log("🔧 [useScreen] MacRecorder IPC sonucu:", result);
+			} catch (invokeError) {
+				console.error(
+					"❌ [DEBUG] START_MAC_RECORDING invoke hatası:",
+					invokeError
+				);
+				throw invokeError;
+			}
 
 			if (result?.success) {
 				screenPath.value = result.outputPath;
@@ -561,6 +586,7 @@ export const useScreen = () => {
 
 	const stopRecording = async () => {
 		try {
+			console.log("🛑🛑🛑 useScreen.stopRecording() ÇAĞRILDI! 🛑🛑🛑");
 			console.log("[useScreen] MacRecorder kaydı durduruluyor...");
 
 			// MacRecorder kaydını durdur - YENİ FORMAT (parametre yok)

@@ -223,8 +223,32 @@ export const useMouseCursor = () => {
 			visible = true,
 		} = options;
 
+		// Debug: Her 60 çağrıda bir log
+		if (typeof drawMousePosition.debugCounter === "undefined") {
+			drawMousePosition.debugCounter = 0;
+		}
+		drawMousePosition.debugCounter++;
+
+		if (drawMousePosition.debugCounter % 60 === 0) {
+			console.log("[useMouseCursor] 🖱️ drawMousePosition called:", {
+				visible,
+				x,
+				y,
+				currentCursorType: currentCursorType.value,
+				cursorImagesLoaded: Object.keys(cursorImages.value).filter(
+					(key) => cursorImages.value[key]
+				).length,
+				allCursorImages: Object.keys(cursorImages.value).map((key) => ({
+					[key]: !!cursorImages.value[key],
+				})),
+			});
+		}
+
 		if (!visible) {
 			isVisible.value = false;
+			if (drawMousePosition.debugCounter % 60 === 0) {
+				console.log("[useMouseCursor] ⚠️ Cursor visible=false");
+			}
 			return;
 		}
 
@@ -239,7 +263,9 @@ export const useMouseCursor = () => {
 		// Cursor görselini kontrol et
 		if (!cursorImages.value[currentCursorType.value]) {
 			console.warn(
-				`Cursor image not found for type: ${currentCursorType.value}`
+				`[useMouseCursor] ⚠️ Cursor image not found for type: ${currentCursorType.value}`,
+				"Available images:",
+				Object.keys(cursorImages.value).filter((key) => cursorImages.value[key])
 			);
 			return;
 		}

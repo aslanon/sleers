@@ -28,5 +28,9 @@
 	<true/>
 	<key>com.apple.security.device.screen-capture</key>
 	<true/>
+	<key>com.apple.security.device.input-monitoring</key>
+	<true/>
+	<key>com.apple.security.cs.disable-executable-page-protection</key>
+	<true/>
 </dict>
 </plist> 
