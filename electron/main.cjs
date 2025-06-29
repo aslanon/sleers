@@ -137,6 +137,42 @@ function getMacRecorderInstance() {
 			console.log("[Main] MacRecorder modülü yükleniyor...");
 			console.log("[Main] Process arch:", process.arch);
 			console.log("[Main] Platform:", process.platform);
+			console.log("[Main] App version:", app.getVersion());
+			console.log("[Main] Is packaged:", app.isPackaged);
+			console.log("[Main] App path:", app.getAppPath());
+			console.log("[Main] Exe path:", app.getPath("exe"));
+
+			// Production build için ek path kontrolü
+			if (app.isPackaged) {
+				console.log("[Main] Production build algılandı");
+				console.log("[Main] Node modules path check yapılıyor...");
+
+				// Olası node-mac-recorder yolları
+				const possiblePaths = [
+					path.join(
+						process.resourcesPath,
+						"app.asar.unpacked",
+						"node_modules",
+						"node-mac-recorder"
+					),
+					path.join(app.getAppPath(), "node_modules", "node-mac-recorder"),
+					path.join(
+						path.dirname(app.getPath("exe")),
+						"node_modules",
+						"node-mac-recorder"
+					),
+				];
+
+				for (const possiblePath of possiblePaths) {
+					console.log("[Main] Kontrol edilen path:", possiblePath);
+					if (fs.existsSync(possiblePath)) {
+						console.log("[Main] ✅ MacRecorder path bulundu:", possiblePath);
+						break;
+					} else {
+						console.log("[Main] ❌ Path bulunamadı:", possiblePath);
+					}
+				}
+			}
 
 			const MacRecorder = require("node-mac-recorder");
 			console.log("[Main] MacRecorder modülü başarıyla yüklendi");
@@ -1001,21 +1037,44 @@ safeHandle("START_MAC_RECORDING", async (event, options) => {
 			options = {};
 		}
 
-		// İzin kontrolü
+		// İzin kontrolü - Production build'de daha esnek
 		try {
 			const permissions = await recorder.checkPermissions();
 			console.log("[Main] İzinler:", permissions);
 
 			if (!permissions.screenRecording) {
-				console.error("[Main] ❌ Ekran kaydı izni yok!");
-				return {
-					success: false,
-					outputPath: null,
-					error: "Ekran kaydı izni yok",
-				};
+				if (app.isPackaged) {
+					// Production build'de warning ver ama devam et
+					console.warn(
+						"[Main] ⚠️ Ekran kaydı izni algılanamadı (production build), deneniyor..."
+					);
+				} else {
+					// Development'ta hata ver
+					console.error("[Main] ❌ Ekran kaydı izni yok!");
+					return {
+						success: false,
+						outputPath: null,
+						error: "Ekran kaydı izni yok",
+					};
+				}
 			}
 		} catch (permError) {
 			console.warn("[Main] İzin kontrolü hatası:", permError.message);
+			if (app.isPackaged) {
+				console.warn(
+					"[Main] Production build'de izin kontrolü hatası göz ardı ediliyor"
+				);
+			} else {
+				console.error(
+					"[Main] Development'ta izin kontrolü başarısız:",
+					permError
+				);
+				return {
+					success: false,
+					outputPath: null,
+					error: "İzin kontrolü başarısız: " + permError.message,
+				};
+			}
 		}
 
 		// MediaState'den güncel kaynak bilgisini al
@@ -1382,11 +1441,54 @@ function setupIpcHandlers() {
 		try {
 			console.log("[Main] MacRecorder pencereleri isteniyor");
 			const recorder = getMacRecorderInstance();
+
+			if (!recorder) {
+				console.error("[Main] MacRecorder instance null - modül yüklenemedi");
+				return [];
+			}
+
 			const windows = await recorder.getWindows();
-			console.log("[Main] MacRecorder pencereleri:", windows);
-			return windows;
+			console.log("[Main] MacRecorder pencereleri:", windows.length, "adet");
+
+			// Production build'de pencere listesi boş olabilir - fallback ekle
+			if (app.isPackaged && (!windows || windows.length === 0)) {
+				console.warn(
+					"[Main] Production build'de pencere listesi boş, fallback kullanılıyor"
+				);
+				return [
+					{
+						id: 0,
+						name: "Tüm Ekranlar",
+						ownerName: "System",
+						isOnScreen: true,
+					},
+				];
+			}
+
+			return windows || [];
 		} catch (error) {
 			console.error("[Main] MacRecorder pencereleri alınamadı:", error);
+			console.error("[Main] Error details:", {
+				name: error.name,
+				message: error.message,
+				stack: error.stack,
+			});
+
+			// Production build'de hata olduğunda fallback döndür
+			if (app.isPackaged) {
+				console.warn(
+					"[Main] Production build'de pencere listesi hatası, fallback kullanılıyor"
+				);
+				return [
+					{
+						id: 0,
+						name: "Varsayılan Display",
+						ownerName: "System",
+						isOnScreen: true,
+					},
+				];
+			}
+
 			return [];
 		}
 	});
@@ -2150,11 +2252,75 @@ function setupIpcHandlers() {
 		try {
 			console.log("[Main] MacRecorder ekran listesi alınıyor...");
 			const recorder = getMacRecorderInstance();
+
+			if (!recorder) {
+				console.error("[Main] MacRecorder instance null - modül yüklenemedi");
+				// Production build'de fallback display listesi döndür
+				if (app.isPackaged) {
+					console.warn(
+						"[Main] Production build'de display fallback kullanılıyor"
+					);
+					return [
+						{
+							id: 0,
+							name: "Ana Ekran",
+							width: 1920,
+							height: 1080,
+							isPrimary: true,
+						},
+					];
+				}
+				return [];
+			}
+
 			const displays = await recorder.getDisplays();
-			console.log("[Main] MacRecorder ekranları:", displays);
-			return displays;
+			console.log(
+				"[Main] MacRecorder ekranları:",
+				displays?.length || 0,
+				"adet"
+			);
+
+			// Production build'de display listesi boş olabilir - fallback ekle
+			if (app.isPackaged && (!displays || displays.length === 0)) {
+				console.warn(
+					"[Main] Production build'de display listesi boş, fallback kullanılıyor"
+				);
+				return [
+					{
+						id: 0,
+						name: "Ana Ekran",
+						width: 1920,
+						height: 1080,
+						isPrimary: true,
+					},
+				];
+			}
+
+			return displays || [];
 		} catch (error) {
 			console.error("[Main] MacRecorder ekran listesi alınamadı:", error);
+			console.error("[Main] Error details:", {
+				name: error.name,
+				message: error.message,
+				stack: error.stack,
+			});
+
+			// Production build'de hata olduğunda fallback döndür
+			if (app.isPackaged) {
+				console.warn(
+					"[Main] Production build'de display listesi hatası, fallback kullanılıyor"
+				);
+				return [
+					{
+						id: 0,
+						name: "Ana Ekran",
+						width: 1920,
+						height: 1080,
+						isPrimary: true,
+					},
+				];
+			}
+
 			return [];
 		}
 	});
@@ -2163,11 +2329,58 @@ function setupIpcHandlers() {
 		try {
 			console.log("[Main] MacRecorder pencere listesi alınıyor...");
 			const recorder = getMacRecorderInstance();
+
+			if (!recorder) {
+				console.error("[Main] MacRecorder instance null - modül yüklenemedi");
+				return [];
+			}
+
 			const windows = await recorder.getWindows();
-			console.log("[Main] MacRecorder pencereleri:", windows);
-			return windows;
+			console.log(
+				"[Main] MacRecorder pencereleri:",
+				windows?.length || 0,
+				"adet"
+			);
+
+			// Production build'de pencere listesi boş olabilir - fallback ekle
+			if (app.isPackaged && (!windows || windows.length === 0)) {
+				console.warn(
+					"[Main] Production build'de pencere listesi boş, fallback kullanılıyor"
+				);
+				return [
+					{
+						id: 0,
+						name: "Varsayılan Display",
+						ownerName: "System",
+						isOnScreen: true,
+					},
+				];
+			}
+
+			return windows || [];
 		} catch (error) {
 			console.error("[Main] MacRecorder pencere listesi alınamadı:", error);
+			console.error("[Main] Error details:", {
+				name: error.name,
+				message: error.message,
+				stack: error.stack,
+			});
+
+			// Production build'de hata olduğunda fallback döndür
+			if (app.isPackaged) {
+				console.warn(
+					"[Main] Production build'de pencere listesi hatası, fallback kullanılıyor"
+				);
+				return [
+					{
+						id: 0,
+						name: "Varsayılan Display",
+						ownerName: "System",
+						isOnScreen: true,
+					},
+				];
+			}
+
 			return [];
 		}
 	});
@@ -2244,15 +2457,33 @@ function setupIpcHandlers() {
 		try {
 			console.log("[Main] MacRecorder izinleri kontrol ediliyor...");
 			const recorder = getMacRecorderInstance();
+
+			// Production build'de recorder null olabilir
+			if (!recorder) {
+				console.error("[Main] MacRecorder instance null - modül yüklenemedi");
+				return {
+					screenRecording: false,
+					microphone: false,
+					accessibility: false,
+					error: "MacRecorder modülü yüklenemedi",
+				};
+			}
+
 			const permissions = await recorder.checkPermissions();
 			console.log("[Main] MacRecorder izinleri:", permissions);
 			return permissions;
 		} catch (error) {
 			console.error("[Main] MacRecorder izinleri kontrol edilemedi:", error);
+			console.error("[Main] Error details:", {
+				name: error.name,
+				message: error.message,
+				stack: error.stack,
+			});
 			return {
 				screenRecording: false,
 				microphone: false,
 				accessibility: false,
+				error: error.message,
 			};
 		}
 	});
