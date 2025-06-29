@@ -16,7 +16,19 @@ const fs = require("fs");
 const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
 const ffmpeg = require("fluent-ffmpeg");
-const { uIOhook } = require("uiohook-napi");
+
+// uIOhook modülünü güvenli şekilde yükle - Production build'de sorun yaratabilir
+let uIOhook = null;
+try {
+	const uIOhookModule = require("uiohook-napi");
+	uIOhook = uIOhookModule.uIOhook;
+	console.log("[Main] ✅ uIOhook modülü başarıyla yüklendi");
+} catch (error) {
+	console.error("[Main] ❌ uIOhook modülü yüklenemedi:", error.message);
+	console.warn("[Main] ⚠️ Mouse tracking özelliği kullanılamayacak");
+	uIOhook = null;
+}
+
 const express = require("express");
 const http = require("http");
 const os = require("os");
@@ -3432,6 +3444,22 @@ app.on("before-quit", () => {
 function startMouseTracking() {
 	console.log("Mouse tracking başlatılıyor, delay:", recordingDelay);
 
+	// uIOhook modülü yüklenememişse çalışmaz
+	if (!uIOhook) {
+		console.warn(
+			"[Main] ⚠️ uIOhook modülü yüklenmediği için mouse tracking başlatılamıyor"
+		);
+		return;
+	}
+
+	// Production build'de uIOhook sorun yaratıyor, şimdilik devre dışı bırak
+	if (app.isPackaged) {
+		console.warn(
+			"[Main] ⚠️ Production build'de mouse tracking devre dışı (uIOhook crash sorunu)"
+		);
+		return;
+	}
+
 	if (!isTracking) {
 		isTracking = true;
 		startTime = Date.now();
@@ -3548,6 +3576,22 @@ function startMouseTracking() {
 }
 
 function stopMouseTracking() {
+	// uIOhook modülü yüklenememişse çalışmaz
+	if (!uIOhook) {
+		console.warn(
+			"[Main] ⚠️ uIOhook modülü yüklenmediği için mouse tracking durdurulamıyor"
+		);
+		return;
+	}
+
+	// Production build'de uIOhook sorun yaratıyor, şimdilik devre dışı bırak
+	if (app.isPackaged) {
+		console.warn(
+			"[Main] ⚠️ Production build'de mouse tracking zaten devre dışı"
+		);
+		return;
+	}
+
 	if (isTracking) {
 		isTracking = false;
 		startTime = null;
