@@ -30,7 +30,6 @@
 					ref="canvasRef"
 					class="rounded-md"
 					style="display: block; position: absolute; margin: auto"
-					@click="handleCanvasClick"
 				></canvas>
 			</div>
 
@@ -411,15 +410,6 @@ const pause = async () => {
 		emit("pause");
 	} catch (error) {
 		console.error("[MediaPlayer] Pause error:", error);
-	}
-};
-
-// Canvas click handler - VideoClipManager'dan alınan özellik
-const handleCanvasClick = async () => {
-	if (videoState.value.isPlaying) {
-		await pause();
-	} else {
-		await play();
 	}
 };
 

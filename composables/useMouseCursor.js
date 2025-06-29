@@ -441,8 +441,8 @@ export const useMouseCursor = () => {
 		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
 
 		// Rotasyon ve warp efektlerini hesapla
-		const maxRotation = 0.02;
-		const rotationTarget = dx * maxRotation * Math.min(moveSpeed / 20, 1);
+		const maxRotation = 0.015;
+		const rotationTarget = dx * maxRotation * Math.min(moveSpeed / 30, 0.7);
 
 		const maxWarp = 0.045;
 		const speedFactor = Math.min(moveSpeed / 15, 1);
@@ -453,7 +453,7 @@ export const useMouseCursor = () => {
 
 		// Efektleri yumuşak geçişle uygula
 		const effectSpeed = Math.min(1, deltaTime * 60);
-		rotation.value += (rotationTarget - rotation.value) * effectSpeed * 0.2;
+		rotation.value += (rotationTarget - rotation.value) * effectSpeed * 0.15;
 		warpX.value += (warpXTarget - warpX.value) * effectSpeed * 0.15;
 		warpY.value += (warpYTarget - warpY.value) * effectSpeed * 0.15;
 		currentScale.value +=

@@ -6,7 +6,7 @@ import { ref, onMounted, computed } from "vue";
  */
 export default function useDockSettings() {
 	const isSupported = ref(false);
-	const showDockItems = ref(true);
+	const showDockItems = ref(false);
 	const dockItems = ref([]);
 	const isLoading = ref(false);
 	const error = ref(null);

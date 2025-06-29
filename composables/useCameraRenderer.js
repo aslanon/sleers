@@ -252,25 +252,27 @@ export const useCameraRenderer = () => {
 
 			if (dragPosition) {
 				// Sürükleme sırasında video pozisyonunu ekleyerek kamera pozisyonunu güncelle
-				cameraX = dragPosition.x + videoPosition.x;
-				cameraY = dragPosition.y + videoPosition.y;
+				cameraX = dragPosition.x;
+				cameraY = dragPosition.y;
 			} else {
 				// İmleç pozisyonuna göre kamera pozisyonunu hesapla
-				const targetX = mouseX + offsetX + videoPosition.x - cameraWidth / 2;
-				const targetY = mouseY + offsetY + videoPosition.y - cameraHeight / 2;
+				// Video pozisyonunu çıkararak mouse pozisyonunu normalize et
+				const normalizedMouseX = mouseX - videoPosition.x;
+				const normalizedMouseY = mouseY - videoPosition.y;
+
+				const targetX = normalizedMouseX + offsetX - cameraWidth / 2;
+				const targetY = normalizedMouseY + offsetY - cameraHeight / 2;
 
 				// Daha hızlı takip için lerp faktörünü artır
 				const lerpFactor = 0.3; // Daha hızlı takip için lerp faktörünü artırdık
 
 				// Mevcut pozisyonu yumuşak geçiş ile güncelle
-				cameraX = lastCameraPosition.value?.x
-					? lastCameraPosition.value.x +
-					  (targetX - lastCameraPosition.value.x) * lerpFactor
-					: targetX;
-				cameraY = lastCameraPosition.value?.y
-					? lastCameraPosition.value.y +
-					  (targetY - lastCameraPosition.value.y) * lerpFactor
-					: targetY;
+				// Video pozisyonunu ekleyerek kamera pozisyonunu güncelle
+				const lastX = lastCameraPosition.value?.x || targetX;
+				const lastY = lastCameraPosition.value?.y || targetY;
+
+				cameraX = lastX + (targetX - lastX) * lerpFactor + videoPosition.x;
+				cameraY = lastY + (targetY - lastY) * lerpFactor + videoPosition.y;
 			}
 		} else {
 			// When not following mouse or being dragged, maintain fixed position
@@ -286,24 +288,34 @@ export const useCameraRenderer = () => {
 			const zoomCameraWidth = cameraWidth;
 			const zoomCameraHeight = cameraHeight;
 
-			// Calculate zoom-aware bounds checking
-			cameraX = Math.max(0, Math.min(canvasWidth - zoomCameraWidth, cameraX));
-			cameraY = Math.max(0, Math.min(canvasHeight - zoomCameraHeight, cameraY));
+			// Calculate zoom-aware bounds checking with padding
+			const CANVAS_PADDING = 48 * dpr; // 48px padding from edges
+			cameraX = Math.max(
+				CANVAS_PADDING,
+				Math.min(canvasWidth - zoomCameraWidth - CANVAS_PADDING, cameraX)
+			);
+			cameraY = Math.max(
+				CANVAS_PADDING,
+				Math.min(canvasHeight - zoomCameraHeight - CANVAS_PADDING, cameraY)
+			);
 		}
 
-		// Ensure camera stays within canvas bounds
-		cameraX = Math.max(0, Math.min(canvasWidth - cameraWidth, cameraX));
-		cameraY = Math.max(0, Math.min(canvasHeight - cameraHeight, cameraY));
+		// Ensure camera stays within canvas bounds with padding
+		const CANVAS_PADDING = 48 * dpr; // 48px padding from edges
+		cameraX = Math.max(
+			CANVAS_PADDING,
+			Math.min(canvasWidth - cameraWidth - CANVAS_PADDING, cameraX)
+		);
+		cameraY = Math.max(
+			CANVAS_PADDING,
+			Math.min(canvasHeight - cameraHeight - CANVAS_PADDING, cameraY)
+		);
 
 		// Save last position, accounting for zoom
 		if (dragPosition || !cameraSettings.value.followMouse) {
 			lastCameraPosition.value = {
-				x: cameraSettings.value.followMouse
-					? cameraX - videoPosition.x
-					: cameraX,
-				y: cameraSettings.value.followMouse
-					? cameraY - videoPosition.y
-					: cameraY,
+				x: cameraX - videoPosition.x,
+				y: cameraY - videoPosition.y,
 			};
 		}
 
