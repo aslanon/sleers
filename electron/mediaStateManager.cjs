@@ -569,8 +569,6 @@ class MediaStateManager {
 	notifyRenderers(window = this.mainWindow) {
 		if (window && !window.isDestroyed()) {
 			try {
-				window.webContents.send(IPC_EVENTS.MEDIA_STATE_UPDATE, this.getState());
-				console.log("Renderer'lara state güncellendi:", this.getState());
 			} catch (error) {
 				console.error("State güncellenirken hata:", error);
 			}

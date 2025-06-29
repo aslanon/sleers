@@ -361,7 +361,7 @@ export const useMouseCursor = () => {
 		ctx.scale(warpX.value, warpY.value);
 
 		// Blur efektini sadece cursor çizimi için uygula
-		if (motionEnabled && moveSpeed > 3) {
+		if (motionEnabled && moveSpeed > 50) {
 			const blurAmount = Math.min(moveSpeed * 0.4, 2.8);
 			ctx.filter = `blur(${blurAmount}px)`;
 		} else {
@@ -402,51 +402,62 @@ export const useMouseCursor = () => {
 		const prevX = cursorX.value;
 		const prevY = cursorY.value;
 
-		// Calculate distance to target for adaptive smoothing
-		const distance = Math.sqrt(
+		// Hedef noktaya olan mesafeyi hesapla
+		const distanceToTarget = Math.sqrt(
 			Math.pow(targetX.value - cursorX.value, 2) +
 				Math.pow(targetY.value - cursorY.value, 2)
 		);
 
-		// Apply different smoothing based on distance
-		let currentSpeed = speed;
-		if (distance < 5) {
-			currentSpeed = speed * 2; // Faster for small movements (more precise)
-		} else if (distance > 100) {
-			currentSpeed = speed * 0.8; // Slower for large jumps (more fluid)
+		// Mesafeye ve hıza bağlı olarak adaptif smoothing uygula
+		let adaptiveSpeed;
+		if (distanceToTarget < 2) {
+			// Çok yakın mesafede anında hareket et
+			cursorX.value = targetX.value;
+			cursorY.value = targetY.value;
+			adaptiveSpeed = 1;
+		} else if (distanceToTarget < 10) {
+			// Yakın mesafede hızlı hareket
+			adaptiveSpeed = speed * 3;
+		} else if (distanceToTarget > 100) {
+			// Uzak mesafede daha akıcı hareket
+			adaptiveSpeed = speed * (1 + (distanceToTarget - 100) / 200);
+		} else {
+			// Normal mesafede standart hız
+			adaptiveSpeed = speed * 1.5;
 		}
 
-		// Hedef pozisyona doğru hareket et
-		cursorX.value += (targetX.value - cursorX.value) * currentSpeed;
-		cursorY.value += (targetY.value - cursorY.value) * currentSpeed;
+		// Hareket hızını deltaTime ile normalize et
+		const normalizedSpeed = adaptiveSpeed * (60 * deltaTime);
 
-		// Hareket yönünü ve hızını hesapla
+		// Pozisyonu güncelle
+		if (distanceToTarget >= 2) {
+			cursorX.value += (targetX.value - cursorX.value) * normalizedSpeed;
+			cursorY.value += (targetY.value - cursorY.value) * normalizedSpeed;
+		}
+
+		// Hareket vektörünü hesapla
 		const dx = cursorX.value - prevX;
 		const dy = cursorY.value - prevY;
-
-		// Hareket hızını hesapla
 		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
 
-		// Eğimi ve warp değerlerini hız ve yönlere göre ayarla
+		// Rotasyon ve warp efektlerini hesapla
 		const maxRotation = 0.02;
-		targetRotation.value = dx * maxRotation;
+		const rotationTarget = dx * maxRotation * Math.min(moveSpeed / 20, 1);
 
-		// Daha belirgin warp efekti
-		const maxWarp = 0.045; // Increased from 0.03 for more visible warp effect
-		const speedFactor = Math.min(moveSpeed / 20, 1); // Speed-based scaling for warp effect
-		const dynamicWarpX =
-			1 + Math.min(Math.abs(dx) * maxWarp * (1 + speedFactor * 0.5), 0.065);
-		const dynamicWarpY =
-			1 - Math.min(Math.abs(dy) * maxWarp * (1 + speedFactor * 0.5), 0.065);
+		const maxWarp = 0.045;
+		const speedFactor = Math.min(moveSpeed / 15, 1);
+		const warpXTarget =
+			1 + Math.min(Math.abs(dx) * maxWarp * speedFactor, 0.065);
+		const warpYTarget =
+			1 - Math.min(Math.abs(dy) * maxWarp * speedFactor, 0.065);
 
-		targetWarpX.value = dynamicWarpX;
-		targetWarpY.value = dynamicWarpY;
-
-		// Smooth geçişler - improved easing factors
-		rotation.value += (targetRotation.value - rotation.value) * 0.1;
-		warpX.value += (targetWarpX.value - warpX.value) * 0.1;
-		warpY.value += (targetWarpY.value - warpY.value) * 0.1;
-		currentScale.value += (targetScale.value - currentScale.value) * 0.2;
+		// Efektleri yumuşak geçişle uygula
+		const effectSpeed = Math.min(1, deltaTime * 60);
+		rotation.value += (rotationTarget - rotation.value) * effectSpeed * 0.2;
+		warpX.value += (warpXTarget - warpX.value) * effectSpeed * 0.15;
+		warpY.value += (warpYTarget - warpY.value) * effectSpeed * 0.15;
+		currentScale.value +=
+			(targetScale.value - currentScale.value) * effectSpeed * 0.3;
 
 		// Animasyonu devam ettir
 		requestAnimationFrame(animateCursor);
