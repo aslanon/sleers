@@ -160,6 +160,7 @@ class TempFileManager {
 		console.log("[TempFileManager] Tüm geçici dosyalar temizleniyor...");
 		console.log("Mevcut dosyalar:", this.tempFiles);
 
+		// Önce state'deki dosyaları temizle
 		const cleanupPromises = Object.keys(this.tempFiles).map((type) => {
 			const filePath = this.tempFiles[type];
 			// Dosya korunan listesinde mi kontrol et
@@ -174,6 +175,50 @@ class TempFileManager {
 		});
 
 		await Promise.all(cleanupPromises);
+
+		// FİZİKSEL DOSYA TEMİZLİĞİ - .sleer klasöründeki tüm temp dosyaları sil
+		try {
+			console.log(
+				"[TempFileManager] 🧹 Fiziksel temp dosya taraması başlatılıyor..."
+			);
+
+			if (fs.existsSync(this.appDir)) {
+				const files = await fs.promises.readdir(this.appDir);
+				const tempFiles = files.filter(
+					(file) => file.startsWith("temp_") || file.startsWith("temp-")
+				);
+
+				console.log(
+					`[TempFileManager] ${tempFiles.length} fiziksel temp dosya bulundu:`,
+					tempFiles
+				);
+
+				for (const file of tempFiles) {
+					const filePath = path.join(this.appDir, file);
+
+					// Korunan dosya kontrolü
+					if (this.protectedFiles.has(filePath)) {
+						console.log(`[TempFileManager] Korunan dosya atlanıyor: ${file}`);
+						continue;
+					}
+
+					try {
+						await fs.promises.unlink(filePath);
+						console.log(`[TempFileManager] ✅ Fiziksel dosya silindi: ${file}`);
+					} catch (deleteError) {
+						console.error(
+							`[TempFileManager] ❌ Dosya silinemedi ${file}:`,
+							deleteError.message
+						);
+					}
+				}
+			}
+		} catch (dirError) {
+			console.error(
+				"[TempFileManager] Fiziksel temizlik hatası:",
+				dirError.message
+			);
+		}
 
 		// Korunan dosyalar hariç tüm dosyaları null yap
 		Object.keys(this.tempFiles).forEach((type) => {
@@ -234,8 +279,8 @@ class TempFileManager {
 		// MacRecorder için uygun dosya uzantısı seç
 		let extension = ".webm"; // Varsayılan
 		if (type === "screen") {
-			// DesktopCapturer & MediaRecorder çıktısı WebM olacak
-			extension = ".webm";
+			// MacRecorder çıktısı .mov formatında olacak
+			extension = ".mov";
 		}
 
 		const filePath = path.join(

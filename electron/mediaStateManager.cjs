@@ -530,6 +530,11 @@ class MediaStateManager {
 
 	resetState() {
 		console.log("MediaState sıfırlanıyor...");
+
+		// Kaynak seçimi ve ses ayarlarını koru
+		const preservedRecordingSource = { ...this.state.recordingSource };
+		const preservedAudioSettings = { ...this.state.audioSettings };
+
 		this.state = {
 			cameraPath: null,
 			videoPath: null,
@@ -541,24 +546,19 @@ class MediaStateManager {
 			isRecording: false,
 			recordingStartTime: null,
 			selectedArea: null,
-			recordingSource: {
-				sourceType: "display",
-				sourceId: null,
-				sourceName: null,
-				macRecorderId: null,
-			},
-			audioSettings: {
-				microphoneEnabled: true,
-				systemAudioEnabled: true,
-				selectedAudioDevice: null,
-				microphoneLevel: 0,
-			},
+			recordingSource: preservedRecordingSource, // Kaynak seçimini koru
+			audioSettings: preservedAudioSettings, // Ses ayarlarını koru
 			processingStatus: {
 				isProcessing: false,
 				progress: 0,
 				error: null,
 			},
 		};
+
+		console.log(
+			"MediaState sıfırlandı, korunan kaynak:",
+			preservedRecordingSource
+		);
 		this.notifyRenderers();
 	}
 
@@ -878,7 +878,7 @@ class MediaStateManager {
 			sourceType: sourceType,
 			sourceId: source.sourceId || null,
 			sourceName: source.sourceName || null,
-			macRecorderId: source.macRecorderId || null,
+			macRecorderId: source.macRecorderId ?? null, // 🔧 macRecorderId 0 olabilir!
 		};
 
 		this.updateState({
@@ -933,6 +933,15 @@ class MediaStateManager {
 	}
 
 	async saveCursorData(tempFileManager) {
+		// DUPLICATE CHECK - zaten kaydedilmişse skip et
+		if (this.state.cursorPath) {
+			console.log(
+				"[MediaStateManager] ⚠️ Cursor verisi zaten kaydedilmiş, skip ediliyor:",
+				this.state.cursorPath
+			);
+			return this.state.cursorPath;
+		}
+
 		if (this.mousePositions.length === 0) {
 			console.log("[MediaStateManager] Kaydedilecek cursor verisi yok");
 			return null;

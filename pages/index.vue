@@ -197,6 +197,11 @@
 	>
 		<!-- Ayarlar Menüsü -->
 		<div v-if="isSettingsOpen" class="w-full p-4 border border-gray-700">
+			<!-- MacRecorder İzin Kontrol Paneli -->
+			<MacRecorderPermissionChecker />
+
+			<div class="border-t border-gray-700 my-4"></div>
+
 			<!-- İzinler Bölümü -->
 			<div class="mb-4">
 				<PermissionChecker />
@@ -212,6 +217,7 @@ import { useScreen } from "~/composables/modules/useScreen";
 
 import RecordSettings from "~/components/record-settings/index.vue";
 import PermissionChecker from "~/components/ui/PermissionChecker.vue";
+import MacRecorderPermissionChecker from "~/components/ui/MacRecorderPermissionChecker.vue";
 
 const electron = window.electron;
 const IPC_EVENTS = electron?.ipcRenderer?.IPC_EVENTS || {};
@@ -249,6 +255,8 @@ const delayOptions = [0, 1000, 3002, 5000, 10000]; // 1sn, 3sn, 5sn
 const selectedSource = ref(null);
 const followMouse = ref(true);
 
+// Yeni Kayıt state'i kaldırıldı
+
 watch(followMouse, (newValue) => {
 	if (electron?.ipcRenderer) {
 		electron.ipcRenderer.send("TOGGLE_CAMERA_FOLLOW", newValue);
@@ -285,35 +293,57 @@ const onRecordButtonClick = async () => {
 		if (isRecording.value) {
 			await stopRecording();
 		} else {
+			// MediaState'den güncel kaynak bilgisini al
+			console.log("🔧 [index.vue] MediaState'den kaynak bilgisi alınıyor...");
+
+			let currentRecordingSource = null;
+			try {
+				const mediaState = await electron?.ipcRenderer?.invoke(
+					"GET_MEDIA_STATE"
+				);
+				currentRecordingSource = mediaState?.recordingSource;
+				console.log(
+					"🔧 [index.vue] Güncel recording source:",
+					currentRecordingSource
+				);
+			} catch (error) {
+				console.warn("🔧 [index.vue] MediaState alınamadı:", error);
+			}
+
 			// Kaynak seçimi kontrolü
 			let recordingOptions = {};
 
-			// Eğer seçili bir kaynak varsa, kayıt ayarlarını yap
-			if (selectedSource.value) {
+			// MediaState'de kaynak varsa onu kullan
+			if (currentRecordingSource && currentRecordingSource.sourceId) {
 				console.log(
-					"Seçili kaynak ile kayıt başlatılıyor:",
-					selectedSource.value
+					"🔧 [index.vue] ✅ MediaState'den kaynak bulundu:",
+					currentRecordingSource.sourceType,
+					currentRecordingSource.sourceName
 				);
 
-				// Alan seçimi ise özel bir işlem yap
-				if (selectedSource.value.type === "area") {
-					recordingOptions = {
-						startScreen: true,
-						startCamera: true,
-						startAudio: true,
-					};
-				}
-				// Ekran veya pencere kaydı
-				else {
-					recordingOptions = {
-						startScreen: true,
-						startCamera: true,
-						startAudio: true,
-					};
-				}
+				recordingOptions = {
+					startScreen: true,
+					startCamera: true,
+					startAudio: true,
+				};
 			} else {
-				console.warn("Seçili kaynak yok, varsayılan ayarlar kullanılıyor");
-				// Varsayılan kayıt ayarlarını kullan
+				console.warn(
+					"🔧 [index.vue] ⚠️ MediaState'de kaynak yok, default display ayarlanıyor"
+				);
+
+				// Default kaynak ayarla
+				await electron?.ipcRenderer?.invoke("UPDATE_RECORDING_SOURCE", {
+					sourceType: "display",
+					sourceId: "screen:0",
+					sourceName: "Display 1",
+					macRecorderId: 0,
+				});
+
+				console.log("🔧 [index.vue] Default kaynak ayarlandı");
+
+				// 200ms bekle ki MediaState güncellensin
+				await new Promise((resolve) => setTimeout(resolve, 200));
+
 				recordingOptions = {
 					startScreen: true,
 					startCamera: true,
@@ -337,6 +367,8 @@ const openEditorMode = () => {
 		console.log("Editör modu açılıyor...");
 	}
 };
+
+// Yeni Kayıt fonksiyonu kaldırıldı - artık sadece "Kaydet" butonu var
 
 // Kaynak seçimi
 const selectSource = (source) => {
@@ -476,6 +508,24 @@ onMounted(async () => {
 		} catch (testError) {
 			console.error("[index.vue] MacRecorder API test hatası:", testError);
 		}
+	}
+
+	// ✅ KESIN ÇÖZÜM: Direkt Display 1 seç
+	console.log("[index.vue] 🚀 Varsayılan kaynak ayarlanıyor...");
+
+	const defaultSource = {
+		sourceType: "display",
+		sourceId: "screen:0",
+		sourceName: "Display 1",
+		macRecorderId: 0,
+	};
+
+	console.log("[index.vue] Seçilen kaynak:", defaultSource);
+
+	// IPC ile kaynak seçimini bildir
+	if (electron?.ipcRenderer) {
+		electron.ipcRenderer.send("UPDATE_RECORDING_SOURCE", defaultSource);
+		console.log("[index.vue] ✅ Kaynak seçimi gönderildi");
 	}
 
 	// Electron API'si yüklendiyse event listener'ları ekle

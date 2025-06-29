@@ -30,30 +30,47 @@
 							v-for="source in filteredSources"
 							:key="source.id"
 							@click="selectSource(source)"
-							class="max-w h-28 flex flex-col items-center justify-between p-2 rounded-lg transition-all border"
+							class="w-32 h-32 flex flex-col items-center justify-between p-3 rounded-xl transition-all border hover:scale-105 transform"
 							:class="[
 								selectedSourceId === source.id
-									? 'bg-blue-500/20 border-blue-500 text-blue-400'
-									: 'border-gray-700 hover:border-gray-500 hover:bg-gray-700/50 text-gray-300',
+									? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/25'
+									: 'border-gray-700 hover:border-gray-500 hover:bg-gray-700/50 text-gray-300 hover:shadow-lg',
 							]"
 						>
 							<div
-								class="w-full aspect-video rounded-lg overflow-hidden bg-black/50"
+								class="w-full h-20 rounded-lg overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center"
 							>
 								<img
 									v-if="source.thumbnail"
 									:src="source.thumbnail"
-									class="w-[100px] h-24 m-auto object-contain"
+									class="w-full h-full object-cover rounded-lg"
 									:alt="source.name"
+									loading="lazy"
 								/>
 								<div
 									v-else
-									class="w-[100px] h-24 m-auto flex items-center justify-center bg-gray-700 text-gray-400 text-xs"
+									class="w-full h-full flex items-center justify-center text-gray-400 text-xs"
 								>
-									Önizleme
+									<div class="flex flex-col items-center gap-1">
+										<svg
+											xmlns="http://www.w3.org/2000/svg"
+											class="h-6 w-6"
+											fill="none"
+											viewBox="0 0 24 24"
+											stroke="currentColor"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+											/>
+										</svg>
+										<span>Yükleniyor...</span>
+									</div>
 								</div>
 							</div>
-							<span class="mt-2 text-xs text-center line-clamp-1">{{
+							<span class="mt-2 text-xs text-center line-clamp-1 font-medium">{{
 								source.name
 							}}</span>
 						</button>
@@ -225,8 +242,8 @@ const loadSources = async () => {
 					`[RecordSettings] ${sources.length} kaynak bulundu (MacRecorder)`
 				);
 
-				// Thumbnail'ları yükle
-				for (const source of sources) {
+				// Thumbnail'ları yükle - README best practices ile optimize edildi
+				const thumbnailPromises = sources.map(async (source) => {
 					try {
 						// Type özelliği ekle
 						if (source.id.startsWith("screen:")) {
@@ -237,32 +254,53 @@ const loadSources = async () => {
 
 						let thumbnail = null;
 
+						// README'den optimize edilmiş thumbnail boyutları
+						const thumbnailOptions = {
+							maxWidth: 160, // Daha iyi görünüm için biraz büyük
+							maxHeight: 120,
+						};
+
 						if (source.id.startsWith("screen:")) {
-							// Ekran thumbnail'ı al
+							// Display thumbnail'ı al (README API)
 							thumbnail = await window.electron?.ipcRenderer.invoke(
 								"GET_MAC_SCREEN_THUMBNAIL",
 								source.macRecorderId,
-								{ maxWidth: 150, maxHeight: 150 }
+								thumbnailOptions
 							);
 						} else if (source.id.startsWith("window:")) {
-							// Pencere thumbnail'ı al
+							// Window thumbnail'ı al (README API)
 							thumbnail = await window.electron?.ipcRenderer.invoke(
 								"GET_MAC_WINDOW_THUMBNAIL",
 								source.macRecorderId,
-								{ maxWidth: 150, maxHeight: 150 }
+								thumbnailOptions
 							);
 						}
 
 						if (thumbnail) {
+							// README'de belirtildiği gibi base64 format gelir
 							source.thumbnail = thumbnail;
+							console.log(
+								`[RecordSettings] Thumbnail başarıyla yüklendi: ${source.name}`
+							);
+						} else {
+							console.warn(
+								`[RecordSettings] ${source.name} için thumbnail null geldi`
+							);
 						}
+
+						return source;
 					} catch (thumbnailError) {
 						console.warn(
 							`[RecordSettings] ${source.name} için thumbnail alınamadı:`,
-							thumbnailError
+							thumbnailError.message
 						);
+						// Hata durumunda da source'u döndür (thumbnail olmadan)
+						return source;
 					}
-				}
+				});
+
+				// Tüm thumbnail'ları paralel olarak yükle (README best practice)
+				await Promise.allSettled(thumbnailPromises);
 
 				availableSources.value = sources;
 				console.log(
@@ -319,8 +357,12 @@ const loadSources = async () => {
 };
 
 // Kaynak seçimi - MacRecorder uyumlu
-const selectSource = (source) => {
-	console.log("Kaynak seçildi:", source);
+const selectSource = async (source) => {
+	console.log("🔥🔥🔥 [RecordSettings] KAYNAK SEÇİLDİ:", source);
+	console.log(
+		"🔥🔥🔥 [RecordSettings] selectedSourceType:",
+		selectedSourceType.value
+	);
 	selectedSourceId.value = source.id;
 
 	// MacRecorder ID'sini kullan
@@ -360,8 +402,44 @@ const selectSource = (source) => {
 			window.electron.ipcRenderer.send("START_AREA_SELECTION");
 		} else {
 			// Alan seçimi değilse direk olarak kaynak bilgisini güncelle
-			console.log("Kayıt kaynağı güncelleniyor:", screenConfig);
-			window.electron.ipcRenderer.send("UPDATE_RECORDING_SOURCE", screenConfig);
+			console.log(
+				"🔧 [RecordSettings] Kayıt kaynağı güncelleniyor:",
+				screenConfig
+			);
+
+			try {
+				const result = await window.electron.ipcRenderer.invoke(
+					"UPDATE_RECORDING_SOURCE",
+					screenConfig
+				);
+				console.log(
+					"🔧 [RecordSettings] ✅ Kaynak güncelleme başarılı:",
+					result
+				);
+
+				// Güncellemeden sonra MediaState'i kontrol et
+				setTimeout(async () => {
+					try {
+						const mediaState = await window.electron.ipcRenderer.invoke(
+							"GET_MEDIA_STATE"
+						);
+						console.log(
+							"🔧 [RecordSettings] Güncelleme sonrası MediaState:",
+							mediaState?.recordingSource
+						);
+					} catch (stateError) {
+						console.error(
+							"🔧 [RecordSettings] MediaState kontrol hatası:",
+							stateError
+						);
+					}
+				}, 100);
+			} catch (error) {
+				console.error(
+					"🔧 [RecordSettings] ❌ Kaynak güncelleme hatası:",
+					error
+				);
+			}
 		}
 	} else {
 		console.error("Electron API bulunamadı - kaynak seçimi güncellenemedi");

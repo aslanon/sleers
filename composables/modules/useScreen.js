@@ -405,6 +405,63 @@ export const useScreen = () => {
 		return false;
 	};
 
+	// MacRecorder event listeners - README'den eklendi
+	const recordingEvents = ref({
+		isStarted: false,
+		recordingTime: 0,
+		lastStatus: null,
+		error: null,
+	});
+
+	// Event listeners kurulumu
+	if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
+		// Kayıt başladı eventi
+		window.electron.ipcRenderer.on("MAC_RECORDING_STARTED", (event, data) => {
+			console.log("[useScreen] MacRecorder kayıt başladı:", data);
+			recordingEvents.value.isStarted = true;
+			recordingEvents.value.error = null;
+			isRecording.value = true;
+			isScreenActive.value = true;
+		});
+
+		// Kayıt durdu eventi
+		window.electron.ipcRenderer.on("MAC_RECORDING_STOPPED", (event, data) => {
+			console.log("[useScreen] MacRecorder kayıt durdu:", data);
+			recordingEvents.value.isStarted = false;
+			recordingEvents.value.recordingTime = 0;
+			isRecording.value = false;
+			isScreenActive.value = false;
+		});
+
+		// Zaman güncelleme eventi
+		window.electron.ipcRenderer.on(
+			"MAC_RECORDING_TIME_UPDATE",
+			(event, data) => {
+				console.log(`[useScreen] Kayıt süresi: ${data.seconds}s`);
+				recordingEvents.value.recordingTime = data.seconds;
+			}
+		);
+
+		// Kayıt tamamlandı eventi
+		window.electron.ipcRenderer.on("MAC_RECORDING_COMPLETED", (event, data) => {
+			console.log("[useScreen] MacRecorder kayıt tamamlandı:", data);
+			recordingEvents.value.isStarted = false;
+			// Final dosya yolunu güncelle
+			if (data.outputPath) {
+				screenPath.value = data.outputPath;
+			}
+		});
+
+		// Hata eventi
+		window.electron.ipcRenderer.on("MAC_RECORDING_ERROR", (event, data) => {
+			console.error("[useScreen] MacRecorder kayıt hatası:", data);
+			recordingEvents.value.error = data.error;
+			recordingEvents.value.isStarted = false;
+			isRecording.value = false;
+			isScreenActive.value = false;
+		});
+	}
+
 	const startRecording = async (sourceId, options = {}) => {
 		try {
 			console.log("[useScreen] MacRecorder kayıt başlatılıyor...");
@@ -415,63 +472,87 @@ export const useScreen = () => {
 			);
 			const recordingSource = mediaState?.recordingSource;
 
-			console.log("[useScreen] Media state:", mediaState);
-			console.log("[useScreen] Recording source:", recordingSource);
+			console.log("🔧 [useScreen] KAYNAK KONTROLÜ:");
+			console.log("  - Media state:", mediaState);
+			console.log("  - Recording source:", recordingSource);
+			console.log("  - sourceId:", recordingSource?.sourceId);
+			console.log("  - macRecorderId:", recordingSource?.macRecorderId);
 
-			if (!recordingSource) {
-				throw new Error(
-					"Kayıt kaynağı bilgisi bulunamadı - lütfen önce bir kaynak seçin"
+			// Default kaynak ayarları - display kaydı
+			let sourceType = "display";
+			let macRecorderId = 0;
+
+			// Kaynak seçilmişse onun bilgilerini kullan
+			if (recordingSource && recordingSource.sourceId) {
+				sourceType = recordingSource.sourceType || "display";
+				macRecorderId = recordingSource.macRecorderId || 0;
+				console.log(
+					"🔧 [useScreen] ✅ Seçili kaynak kullanılacak:",
+					sourceType,
+					macRecorderId
+				);
+			} else {
+				console.log(
+					"🔧 [useScreen] ⚠️ Kaynak seçilmemiş, default display kaydı yapılacak"
 				);
 			}
 
-			if (!recordingSource.sourceId) {
-				throw new Error(
-					"Kayıt kaynağı ID'si seçilmemiş - lütfen bir ekran veya pencere seçin"
+			console.log("[useScreen] Kullanılacak kaynak:", {
+				sourceType,
+				macRecorderId,
+			});
+
+			// Kaynak tipine göre Mac recorder seçeneklerini hazırla
+			const macRecorderOptions = {
+				includeMicrophone: false,
+				includeSystemAudio: false,
+				quality: options.quality || "medium",
+				frameRate: options.frameRate || options.fps || 30,
+				captureCursor: options.captureCursor === true, // Default false
+				...options,
+			};
+
+			// Kaynak tipine göre display veya windowId ekle
+			if (sourceType === "window" && macRecorderId) {
+				console.log(
+					"🔧 [useScreen] Pencere kaydı için windowId ekleniyor:",
+					macRecorderId
 				);
+				macRecorderOptions.windowId = macRecorderId;
+			} else {
+				console.log(
+					"🔧 [useScreen] Ekran kaydı için display ekleniyor:",
+					macRecorderId
+				);
+				macRecorderOptions.display = macRecorderId;
 			}
 
-			console.log("[useScreen] Kayıt kaynağı:", recordingSource);
+			// MacRecorder kullanarak kayıt başlat - YENİ FORMAT
+			console.log("🔧 [useScreen] MacRecorder IPC çağrısı yapılıyor...");
+			console.log("🔧 [useScreen] - options:", macRecorderOptions);
 
-			// Geçici dosya yolu oluştur
-			const outputPath = await window.electron?.ipcRenderer.invoke(
-				"START_MEDIA_STREAM",
-				"screen"
-			);
-
-			if (!outputPath) {
-				throw new Error("Geçici dosya yolu oluşturulamadı");
-			}
-
-			console.log("[useScreen] Çıktı dosyası:", outputPath);
-
-			// MacRecorder kullanarak kayıt başlat
-			const success = await window.electron?.ipcRenderer.invoke(
+			const result = await window.electron?.ipcRenderer.invoke(
 				"START_MAC_RECORDING",
-				outputPath,
-				{
-					sourceId: recordingSource.sourceId,
-					sourceType: recordingSource.sourceType,
-					quality: options.quality || "high",
-					fps: options.fps || 30,
-					...options,
-				}
+				macRecorderOptions
 			);
 
-			if (success) {
-				isRecording.value = true;
-				isScreenActive.value = true;
-				screenPath.value = outputPath;
+			console.log("🔧 [useScreen] MacRecorder IPC sonucu:", result);
+
+			if (result?.success) {
+				screenPath.value = result.outputPath;
 				console.log("[useScreen] MacRecorder kaydı başarıyla başlatıldı");
 
-				// Kayıt durumunu bildir
-				window.electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", true);
+				// Event system sayesinde isRecording state otomatik güncellenecek
+				// Not: RECORDING_STATUS_CHANGED eventini manuel göndermiyoruz çünkü
+				// pages/index.vue'deki watch(isRecording) zaten bunu yapıyor
 
-				return { success: true, videoPath: outputPath };
+				return { success: true, videoPath: result.outputPath };
 			} else {
-				throw new Error("MacRecorder kaydı başlatılamadı");
+				throw new Error(result?.error || "MacRecorder kaydı başlatılamadı");
 			}
 		} catch (error) {
 			console.error("[useScreen] Kayıt başlatma hatası:", error);
+			recordingEvents.value.error = error.message;
 			isRecording.value = false;
 			isScreenActive.value = false;
 			throw error;
@@ -482,10 +563,9 @@ export const useScreen = () => {
 		try {
 			console.log("[useScreen] MacRecorder kaydı durduruluyor...");
 
-			// MacRecorder kaydını durdur
+			// MacRecorder kaydını durdur - YENİ FORMAT (parametre yok)
 			const result = await window.electron?.ipcRenderer.invoke(
-				"STOP_MAC_RECORDING",
-				screenPath.value
+				"STOP_MAC_RECORDING"
 			);
 
 			console.log("[useScreen] MacRecorder stop result:", result);
@@ -495,8 +575,8 @@ export const useScreen = () => {
 				isScreenActive.value = false;
 				console.log("[useScreen] MacRecorder kaydı başarıyla durduruldu");
 
-				// Kayıt durumunu bildir
-				window.electron?.ipcRenderer.send("RECORDING_STATUS_CHANGED", false);
+				// Not: RECORDING_STATUS_CHANGED eventini manuel göndermiyoruz çünkü
+				// pages/index.vue'deki watch(isRecording) zaten bunu yapıyor
 
 				return {
 					success: true,
@@ -521,6 +601,9 @@ export const useScreen = () => {
 		audioPath,
 		config,
 
+		// MacRecorder Events (README'den eklendi)
+		recordingEvents,
+
 		// Functions
 		updateConfig,
 		startScreenRecording,
@@ -531,6 +614,7 @@ export const useScreen = () => {
 		startScreenStream,
 		loadMacRecorderModule,
 
+		// MacRecorder API
 		startRecording,
 		stopRecording,
 	};

@@ -56,6 +56,13 @@ export const useMediaDevices = () => {
 			const startCamera = options.startCamera ?? true;
 			const startAudio = options.startAudio ?? true;
 
+			// 🔧 DEBUG: Options'ları kontrol et
+			console.log("🔧 [useMediaDevices] startRecording çağrıldı!");
+			console.log("🔧 [useMediaDevices] Alınan options:", options);
+			console.log("🔧 [useMediaDevices] startScreen:", startScreen);
+			console.log("🔧 [useMediaDevices] startCamera:", startCamera);
+			console.log("🔧 [useMediaDevices] startAudio:", startAudio);
+
 			if (!startScreen && !startCamera && !startAudio) {
 				console.warn("Hiçbir kayıt türü seçilmedi");
 				return;
@@ -71,6 +78,10 @@ export const useMediaDevices = () => {
 				console.log("🎬 MacRecorder ile ekran kaydı başlatılıyor...");
 				screenResult = await screenModule.startRecording(null, options);
 				mouseModule.startMouseTracking();
+			} else {
+				console.warn(
+					"🔧 [useMediaDevices] startScreen false olduğu için MacRecorder çağrılmıyor!"
+				);
 			}
 
 			if (startCamera) {
@@ -128,8 +139,8 @@ export const useMediaDevices = () => {
 			const results = await Promise.all(promises);
 			console.log("Tüm kayıtlar durduruldu:", results);
 
-			// Kayıt durumunu güncelle
-			isRecording.value = false;
+			// Kayıt durumunu güncelle - computed property olduğu için doğrudan güncellenemez
+			// isRecording.value = false; // Bu satır kaldırıldı çünkü computed property'dir
 
 			// Editör açılmadan önce kısa bir gecikme ekle (stream'lerin tamamen kapanması için)
 			await new Promise((resolve) => setTimeout(resolve, 1000));

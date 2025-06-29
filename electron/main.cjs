@@ -133,8 +133,135 @@ let globalMacRecorder = null;
 // MacRecorder instance getter
 function getMacRecorderInstance() {
 	if (!globalMacRecorder) {
-		const MacRecorder = require("node-mac-recorder");
-		globalMacRecorder = new MacRecorder();
+		try {
+			console.log("[Main] MacRecorder modülü yükleniyor...");
+			console.log("[Main] Process arch:", process.arch);
+			console.log("[Main] Platform:", process.platform);
+
+			const MacRecorder = require("node-mac-recorder");
+			console.log("[Main] MacRecorder modülü başarıyla yüklendi");
+			console.log("[Main] MacRecorder constructor:", typeof MacRecorder);
+
+			globalMacRecorder = new MacRecorder();
+			console.log("[Main] MacRecorder instance oluşturuldu");
+
+			// Event system setup - README'den eklendi
+			globalMacRecorder.on("started", (outputPath) => {
+				console.log("[MacRecorder] Kayıt başladı:", outputPath);
+
+				// Ana pencereye bildir
+				if (mainWindow && mainWindow.webContents) {
+					mainWindow.webContents.send("MAC_RECORDING_STARTED", { outputPath });
+				}
+
+				// Kamera penceresine bildir
+				if (
+					cameraManager &&
+					cameraManager.cameraWindow &&
+					cameraManager.cameraWindow.webContents
+				) {
+					cameraManager.cameraWindow.webContents.send("MAC_RECORDING_STARTED", {
+						outputPath,
+					});
+				}
+			});
+
+			globalMacRecorder.on("stopped", (result) => {
+				console.log("[MacRecorder] Kayıt durdu:", result);
+
+				// Ana pencereye bildir
+				if (mainWindow && mainWindow.webContents) {
+					mainWindow.webContents.send("MAC_RECORDING_STOPPED", result);
+				}
+
+				// Kamera penceresine bildir
+				if (
+					cameraManager &&
+					cameraManager.cameraWindow &&
+					cameraManager.cameraWindow.webContents
+				) {
+					cameraManager.cameraWindow.webContents.send(
+						"MAC_RECORDING_STOPPED",
+						result
+					);
+				}
+			});
+
+			globalMacRecorder.on("timeUpdate", (seconds) => {
+				console.log(`[MacRecorder] Kayıt süresi: ${seconds}s`);
+
+				// Ana pencereye bildir
+				if (mainWindow && mainWindow.webContents) {
+					mainWindow.webContents.send("MAC_RECORDING_TIME_UPDATE", { seconds });
+				}
+
+				// Kamera penceresine bildir
+				if (
+					cameraManager &&
+					cameraManager.cameraWindow &&
+					cameraManager.cameraWindow.webContents
+				) {
+					cameraManager.cameraWindow.webContents.send(
+						"MAC_RECORDING_TIME_UPDATE",
+						{ seconds }
+					);
+				}
+			});
+
+			globalMacRecorder.on("completed", (outputPath) => {
+				console.log("[MacRecorder] Kayıt tamamlandı:", outputPath);
+
+				// Ana pencereye bildir
+				if (mainWindow && mainWindow.webContents) {
+					mainWindow.webContents.send("MAC_RECORDING_COMPLETED", {
+						outputPath,
+					});
+				}
+
+				// Kamera penceresine bildir
+				if (
+					cameraManager &&
+					cameraManager.cameraWindow &&
+					cameraManager.cameraWindow.webContents
+				) {
+					cameraManager.cameraWindow.webContents.send(
+						"MAC_RECORDING_COMPLETED",
+						{ outputPath }
+					);
+				}
+			});
+
+			globalMacRecorder.on("error", (error) => {
+				console.error("[MacRecorder] Kayıt hatası:", error);
+
+				// Ana pencereye bildir
+				if (mainWindow && mainWindow.webContents) {
+					mainWindow.webContents.send("MAC_RECORDING_ERROR", {
+						error: error.message,
+					});
+				}
+
+				// Kamera penceresine bildir
+				if (
+					cameraManager &&
+					cameraManager.cameraWindow &&
+					cameraManager.cameraWindow.webContents
+				) {
+					cameraManager.cameraWindow.webContents.send("MAC_RECORDING_ERROR", {
+						error: error.message,
+					});
+				}
+			});
+
+			console.log("[Main] MacRecorder event listeners kuruldu");
+		} catch (error) {
+			console.error("[Main] MacRecorder yüklenirken hata:", error);
+			console.error("[Main] Error stack:", error.stack);
+			console.error("[Main] Error name:", error.name);
+			console.error("[Main] Error message:", error.message);
+			globalMacRecorder = null; // Hata durumunda null olarak ayarla
+			return null; // Hata fırlatmak yerine null döndür
+		}
 	}
 	return globalMacRecorder;
 }
@@ -268,7 +395,10 @@ function handleEditorToRecordTransition() {
 
 // MacRecorder modülü için handler'lar
 
-safeHandle(
+// Eski START_MAC_RECORDING handler kaldırıldı - Yeni handler aşağıda
+
+/*
+OLD_safeHandle(
 	IPC_EVENTS.START_MAC_RECORDING,
 	async (event, outputPath, options) => {
 		try {
@@ -507,40 +637,287 @@ safeHandle(
 
 			// MacRecorder kayıt başlatma
 			try {
-				// MacRecorder için doğru format
+				// README - İzinleri kontrol et (kritik)
+				console.log("[Main] MacRecorder izinleri kontrol ediliyor...");
+				try {
+					const permissions = await recorder.checkPermissions();
+					console.log("[Main] MacRecorder izinleri:", permissions);
+
+					if (!permissions.screenRecording) {
+						console.error(
+							"[Main] ❌ Ekran kaydı izni yok! macOS System Preferences'den izin verin"
+						);
+						console.error(
+							"[Main] Sistem Ayarları > Gizlilik ve Güvenlik > Ekran Kaydı > Sleer'i etkinleştirin"
+						);
+						return false;
+					}
+
+					console.log("[Main] ✅ Ekran kaydı izni mevcut");
+				} catch (permError) {
+					console.warn("[Main] İzin kontrolü yapılamadı:", permError.message);
+					console.warn("[Main] Devam ediliyor, ancak kayıt başarısız olabilir");
+				}
+
+				// MacRecorder için doğru format - README'den optimize edildi
 				const macRecorderOptions = {
-					displayId: 0, // Varsayılan ekran
-					quality: recordingOptions.quality || "high",
-					frameRate: recordingOptions.fps || 30,
-					includeMicrophone: recordingOptions.includeDeviceAudio || false,
-					includeSystemAudio: recordingOptions.includeSystemAudio !== false,
+					// Ses ayarları (README'den) - önce ayarla
+					includeMicrophone: false, // Varsayılan kapalı
+					includeSystemAudio: true, // Varsayılan açık (sistem sesi)
+
+					// Display/Window seçimi (null = ana ekran)
+					displayId: null,
+					windowId: null, // README'den eklendi
+
+					// Kırpma alanı seçimi (README'den)
+					captureArea: null,
+
+					// Kalite ve performans ayarları (README seçenekleri)
+					quality: options.quality || "high", // 'low', 'medium', 'high'
+					frameRate: options.frameRate || options.fps || 30, // 15, 30, 60
+					captureCursor: options.captureCursor || false, // Cursor gösterimi
 				};
 
-				// macRecorderId varsa kullan (sayısal değer)
+				// MediaStateManager'dan ses ayarlarını al
+				if (mediaStateManager) {
+					const audioSettings = mediaStateManager.state.audioSettings;
+					macRecorderOptions.includeMicrophone =
+						audioSettings.microphoneEnabled || false;
+					macRecorderOptions.includeSystemAudio =
+						audioSettings.systemAudioEnabled !== false; // varsayılan true
+
+					console.log("[Main] Ses ayarları MacRecorder'a uygulandı:", {
+						includeMicrophone: macRecorderOptions.includeMicrophone,
+						includeSystemAudio: macRecorderOptions.includeSystemAudio,
+					});
+				}
+
+				// Kaynak türüne göre uygun seçeneği belirle (README best practices)
 				if (recordingSource && recordingSource.macRecorderId !== null) {
-					const screenId = parseInt(recordingSource.macRecorderId, 10);
-					if (!isNaN(screenId)) {
-						macRecorderOptions.displayId = screenId;
-						console.log("[Main] MacRecorder displayId ayarlandı:", screenId);
+					if (recordingSource.sourceType === "window") {
+						// Pencere kaydı için windowId kullan (README'den)
+						const windowId = parseInt(recordingSource.macRecorderId, 10);
+						if (!isNaN(windowId)) {
+							macRecorderOptions.windowId = windowId;
+							macRecorderOptions.displayId = null; // Window recording'de displayId null olmalı
+							console.log("[Main] MacRecorder windowId ayarlandı:", windowId);
+						}
+					} else {
+						// Ekran kaydı için displayId kullan
+						const screenId = parseInt(recordingSource.macRecorderId, 10);
+						if (!isNaN(screenId)) {
+							macRecorderOptions.displayId = screenId;
+							console.log("[Main] MacRecorder displayId ayarlandı:", screenId);
+						}
 					}
 				}
+
+				// Seçilen alan varsa captureArea olarak ekle (README format)
+				if (mediaStateManager && mediaStateManager.state.selectedArea) {
+					const selectedArea = mediaStateManager.state.selectedArea;
+					if (
+						selectedArea &&
+						selectedArea.width > 0 &&
+						selectedArea.height > 0
+					) {
+						macRecorderOptions.captureArea = {
+							x: Math.round(selectedArea.x),
+							y: Math.round(selectedArea.y),
+							width: Math.round(selectedArea.width),
+							height: Math.round(selectedArea.height),
+						};
+						// Alan kaydında display/window ID'sini temizle (README'den)
+						macRecorderOptions.displayId = null;
+						macRecorderOptions.windowId = null;
+						console.log(
+							"[Main] Kırpma alanı MacRecorder'a eklendi:",
+							macRecorderOptions.captureArea
+						);
+					}
+				}
+
+				// README'den - Performans optimizasyonları
+				if (macRecorderOptions.quality === "low") {
+					macRecorderOptions.frameRate = Math.min(
+						macRecorderOptions.frameRate,
+						15
+					);
+				} else if (macRecorderOptions.quality === "medium") {
+					macRecorderOptions.frameRate = Math.min(
+						macRecorderOptions.frameRate,
+						30
+					);
+				}
+
+				// README'den - Geçersiz kombinasyonları temizle
+				if (macRecorderOptions.windowId && macRecorderOptions.displayId) {
+					console.warn(
+						"[Main] Hem windowId hem displayId ayarlanmış, windowId tercih ediliyor"
+					);
+					macRecorderOptions.displayId = null;
+				}
+
+				console.log("[Main] Final MacRecorder options:", macRecorderOptions);
 
 				console.log("[Main] MacRecorder kayıt başlatılıyor:", {
 					outputPath,
 					options: macRecorderOptions,
 				});
 
-				const result = await recorder.startRecording(
-					outputPath,
-					macRecorderOptions
-				);
-				console.log("[Main] MacRecorder start result:", result);
+				// MacRecorder instance durumunu kontrol et
+				console.log("[Main] MacRecorder instance kontrol:", {
+					isRecording: recorder.isRecording || "property yok",
+					methods: Object.getOwnPropertyNames(Object.getPrototypeOf(recorder)),
+				});
 
-				if (result) {
+				// README debug information - module info
+				try {
+					console.log("[Main] MacRecorder module info kontrol ediliyor...");
+					// Module info almanın bir yolu yoksa method listesini gösterelim
+					const availableMethods = Object.getOwnPropertyNames(recorder)
+						.concat(Object.getOwnPropertyNames(Object.getPrototypeOf(recorder)))
+						.filter((name, index, arr) => arr.indexOf(name) === index); // unique
+					console.log("[Main] MacRecorder mevcut metodlar:", availableMethods);
+				} catch (infoError) {
+					console.warn(
+						"[Main] MacRecorder module info alınamadı:",
+						infoError.message
+					);
+				}
+
+				// MacRecorder'ın status metoduna test için erişmeye çalış
+				try {
+					const status = recorder.getStatus();
+					console.log("[Main] MacRecorder status:", status);
+				} catch (statusError) {
+					console.log(
+						"[Main] MacRecorder status alınamadı (normal):",
+						statusError.message
+					);
+				}
+
+				console.log("[Main] recorder.startRecording() çağrılıyor...");
+				console.log("[Main] Process architecture:", process.arch);
+				console.log("[Main] Node.js version:", process.version);
+
+				// README'den basit test - problemi debug etmek için
+				console.log("[Main] MacRecorder simple test başlatılıyor...");
+
+				// DEBUG: Test'te çalışan exact seçenekleri kullanıyoruz
+				const testOptions = {
+					includeMicrophone: false,
+					includeSystemAudio: false,
+					displayId: null, // Ana ekran
+					quality: "low",
+					frameRate: 15,
+					captureCursor: false,
+				};
+
+				console.log(
+					"[Main] 🔧 DEBUG: Test'te çalışan seçenekleri kullanıyoruz"
+				);
+				console.log("[Main] Test options:", testOptions);
+				console.log("[Main] Output path:", outputPath);
+				console.log("[Main] Output path type:", typeof outputPath);
+				console.log("[Main] Output path length:", outputPath?.length);
+
+				const result = await recorder.startRecording(outputPath, testOptions);
+				console.log("[Main] 🔧 MacRecorder start result:", result);
+				console.log("[Main] 🔧 Result type:", typeof result);
+				console.log("[Main] 🔧 Result keys:", Object.keys(result || {}));
+				console.log("[Main] MacRecorder kayıt sonrası durum:", {
+					isRecording: recorder.isRecording || "property yok",
+				});
+
+				// Test'te gördük ki result bir object döner: { outputPath: "...", code: 0 }
+				// String değil! Result'ı düzgün handle edelim
+				const actualOutputPath =
+					result && typeof result === "object"
+						? result.outputPath || result
+						: result;
+				console.log("[Main] 🔧 Actual output path:", actualOutputPath);
+
+				// README best practice - Gelişmiş dosya monitoring
+				let lastSize = 0;
+				let sizeCheckCount = 0;
+				const checkInterval = setInterval(() => {
+					if (fs.existsSync(outputPath)) {
+						const stats = fs.statSync(outputPath);
+						const currentSize = stats.size;
+
+						console.log(
+							`[Main] 📊 Kayıt dosyası: ${outputPath} (${currentSize} bytes)`
+						);
+
+						if (currentSize > 0) {
+							if (currentSize > lastSize) {
+								console.log("[Main] ✅ Dosya büyüyor, kayıt aktif!");
+								lastSize = currentSize;
+								sizeCheckCount = 0; // Reset count
+							} else {
+								sizeCheckCount++;
+								console.log(
+									`[Main] ⚠️ Dosya boyutu aynı kaldı (${sizeCheckCount}/3)`
+								);
+
+								// 3 saniye boyunca boyut değişmezse uyar
+								if (sizeCheckCount >= 3) {
+									console.warn(
+										"[Main] ⚠️ Dosya boyutu artmıyor, kayıt problemi olabilir"
+									);
+									clearInterval(checkInterval);
+								}
+							}
+						} else {
+							console.warn("[Main] ⚠️ Dosya hala boş");
+						}
+					} else {
+						console.warn(
+							"[Main] ⚠️ Kayıt dosyası henüz oluşmamış:",
+							outputPath
+						);
+					}
+				}, 1000);
+
+				// 15 saniye sonra interval'ı durdur
+				setTimeout(() => {
+					clearInterval(checkInterval);
+					console.log("[Main] Dosya monitoring durduruldu");
+
+					// Final kontrol
+					if (fs.existsSync(outputPath)) {
+						const finalStats = fs.statSync(outputPath);
+						console.log(
+							`[Main] 🏁 Final dosya boyutu: ${finalStats.size} bytes`
+						);
+
+						if (finalStats.size === 0) {
+							console.error(
+								"[Main] ❌ UYARI: Kayıt dosyası boş! İzin problemi olabilir"
+							);
+						} else if (finalStats.size < 1000) {
+							console.warn(
+								"[Main] ⚠️ UYARI: Dosya çok küçük, kayıt kısa olabilir"
+							);
+						} else {
+							console.log("[Main] ✅ Dosya boyutu normal görünüyor");
+						}
+					}
+				}, 15000);
+
+				// Test'te gördük ki startRecording outputPath döndürüyor (string)
+				const startSuccess =
+					result &&
+					(typeof result === "string" ||
+						(typeof result === "object" && result.outputPath));
+
+				if (startSuccess) {
 					console.log("[Main] ✅ MacRecorder kaydı başarıyla başlatıldı");
+					console.log("[Main] 🔧 Start result was truthy:", !!result);
 					return true;
 				} else {
 					console.error("[Main] ❌ MacRecorder kaydı başlatılamadı");
+					console.error("[Main] 🔧 Start result was falsy:", result);
 					return false;
 				}
 			} catch (error) {
@@ -567,31 +944,209 @@ safeHandle(
 		}
 	}
 );
+*/
 
-safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event, outputPath) => {
+// Downloads/.sleer/temp_screen_TIMESTAMP.mov path'ini oluştur
+function createScreenRecordingPath() {
+	const homeDir = os.homedir();
+	const downloadDir = path.join(homeDir, "Downloads");
+	const sleerDir = path.join(downloadDir, ".sleer");
+
+	// .sleer klasörünü oluştur
+	if (!fs.existsSync(sleerDir)) {
+		fs.mkdirSync(sleerDir, { recursive: true });
+		console.log("[Main] .sleer klasörü oluşturuldu:", sleerDir);
+	}
+
+	// Timestamp ile temp dosya adı oluştur
+	const timestamp = Date.now();
+	return path.join(sleerDir, `temp_screen_${timestamp}.mov`);
+}
+
+// MacRecorder kayıt başlatma - Basit handler
+safeHandle("START_MAC_RECORDING", async (event, options) => {
+	try {
+		console.log("[Main] 🎬 START_MAC_RECORDING çağrıldı!");
+		console.log("[Main] Options:", options);
+
+		// YENİ KAYIT BAŞLAMADAN ÖNCE TEMİZLİK YAP
+		console.log("[Main] 🧹 Yeni kayıt için temp dosyaları temizleniyor...");
+		if (tempFileManager) {
+			await tempFileManager.cleanupAllFiles();
+			console.log("[Main] ✅ Temp dosya temizliği tamamlandı");
+		}
+
+		// MacRecorder instance'ını al
+		console.log("[Main] MacRecorder instance'ı alınıyor...");
+		const recorder = getMacRecorderInstance();
+		if (!recorder) {
+			console.error("[Main] ❌ MacRecorder instance bulunamadı");
+			return {
+				success: false,
+				outputPath: null,
+				error: "MacRecorder instance oluşturulamadı",
+			};
+		}
+		console.log("[Main] ✅ MacRecorder instance alındı");
+
+		// Downloads/.sleer/screen.mov path'ini oluştur
+		const outputPath = createScreenRecordingPath();
+		console.log("[Main] Output path:", outputPath);
+
+		// Options'ı validate et
+		if (!options || typeof options !== "object") {
+			console.log(
+				"[Main] Options boş veya geçersiz, varsayılan değerler kullanılıyor"
+			);
+			options = {};
+		}
+
+		// İzin kontrolü
+		try {
+			const permissions = await recorder.checkPermissions();
+			console.log("[Main] İzinler:", permissions);
+
+			if (!permissions.screenRecording) {
+				console.error("[Main] ❌ Ekran kaydı izni yok!");
+				return {
+					success: false,
+					outputPath: null,
+					error: "Ekran kaydı izni yok",
+				};
+			}
+		} catch (permError) {
+			console.warn("[Main] İzin kontrolü hatası:", permError.message);
+		}
+
+		// MediaState'den güncel kaynak bilgisini al
+		let currentSource = null;
+		if (mediaStateManager) {
+			const mediaState = mediaStateManager.getState();
+			currentSource = mediaState?.recordingSource;
+			console.log("[Main] 🔧 MediaState'den kaynak bilgisi:", currentSource);
+		}
+
+		// Temel kayıt seçenekleri
+		const recordingOptions = {
+			includeMicrophone: false,
+			includeSystemAudio: false,
+			quality: "medium",
+			frameRate: 30,
+			captureCursor: false, // Cursor gizli
+			...options, // Gelen seçenekleri üzerine yaz
+		};
+
+		// Güncel kaynak bilgisine göre parametreyi ayarla
+		if (
+			currentSource &&
+			currentSource.sourceType === "window" &&
+			currentSource.macRecorderId
+		) {
+			console.log(
+				"[Main] 🎯 PENCERE KAYDI - windowId:",
+				currentSource.macRecorderId,
+				"sourceName:",
+				currentSource.sourceName
+			);
+			recordingOptions.windowId = currentSource.macRecorderId;
+		} else {
+			const displayId = currentSource?.macRecorderId ?? options?.display ?? 0;
+			console.log(
+				"[Main] 🎯 EKRAN KAYDI - displayId:",
+				displayId,
+				"sourceName:",
+				currentSource?.sourceName || "Display " + displayId
+			);
+			recordingOptions.displayId = displayId;
+		}
+
+		console.log("[Main] MacRecorder ile kayıt başlatılıyor:", recordingOptions);
+
+		const result = await recorder.startRecording(outputPath, recordingOptions);
+		console.log("[Main] 🎯 MacRecorder start result:", result);
+
+		if (result) {
+			console.log("[Main] ✅ MacRecorder kaydı başlatıldı");
+			return { success: true, outputPath };
+		} else {
+			console.error("[Main] ❌ MacRecorder kaydı başlatılamadı");
+			return {
+				success: false,
+				outputPath: null,
+				error: "MacRecorder kaydı başlatılamadı",
+			};
+		}
+	} catch (error) {
+		console.error("[Main] START_MAC_RECORDING hatası:", error);
+		return { success: false, outputPath: null, error: error.message };
+	}
+});
+
+safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 	try {
 		console.log("[Main] ✅ MacRecorder kaydı durduruluyor...");
 
 		const recorder = getMacRecorderInstance();
+		console.log("[Main] MacRecorder instance alındı");
 
-		if (!recorder.isRecording) {
-			console.log("[Main] ⚠️ Kayıt zaten durdurulmuş");
-			return { success: true, filePath: outputPath };
+		// Kayıt durumunu kontrol et - isRecording property'si yoksa alternatif kontrol
+		let isCurrentlyRecording = false;
+		try {
+			isCurrentlyRecording = recorder.isRecording;
+			console.log("[Main] MacRecorder.isRecording:", isCurrentlyRecording);
+		} catch (recordingCheckError) {
+			console.log(
+				"[Main] isRecording property kontrol edilemedi, devam ediliyor"
+			);
 		}
 
 		// Kaydı durdur
+		console.log("[Main] recorder.stopRecording() çağrılıyor...");
 		const result = await recorder.stopRecording();
-		console.log("[Main] MacRecorder stop result:", result);
+		console.log("[Main] 🔧 MacRecorder stop result:", result);
+		console.log("[Main] 🔧 Stop result type:", typeof result);
+		console.log("[Main] 🔧 Stop result keys:", Object.keys(result || {}));
 
-		if (result) {
-			console.log("[Main] ✅ MacRecorder kaydı başarıyla durduruldu:", result);
-			return { success: true, filePath: result };
+		// Stop result: { code: 0, outputPath: "..." }
+		const actualFilePath =
+			result && typeof result === "object" ? result.outputPath : result;
+		const isSuccess =
+			result && (result.code === 0 || result.code === undefined);
+
+		console.log("[Main] 🔧 Actual file path:", actualFilePath);
+		console.log("[Main] 🔧 Is success:", isSuccess);
+
+		// Dosya varlığını ve boyutunu kontrol et
+		if (actualFilePath && fs.existsSync(actualFilePath)) {
+			const stats = fs.statSync(actualFilePath);
+			console.log(
+				`[Main] Kayıt dosyası oluştu: ${actualFilePath} (${stats.size} bytes)`
+			);
+
+			if (stats.size === 0) {
+				console.warn(
+					"[Main] ⚠️ Kayıt dosyası boş! Kayıt işlemi başarısız olmuş olabilir"
+				);
+			} else {
+				console.log("[Main] ✅ Kayıt dosyası geçerli boyutta");
+			}
+		} else {
+			console.error("[Main] ❌ Kayıt dosyası bulunamadı:", actualFilePath);
+		}
+
+		if (isSuccess && actualFilePath) {
+			console.log(
+				"[Main] ✅ MacRecorder kaydı başarıyla durduruldu:",
+				actualFilePath
+			);
+			return { success: true, filePath: actualFilePath };
 		} else {
 			console.error("[Main] ❌ MacRecorder kaydı durdurulamadı");
 			return { success: false, filePath: null, error: "Stop failed" };
 		}
 	} catch (error) {
 		console.error("[Main] ❌ MacRecorder kaydı durdurulurken hata:", error);
+		console.error("[Main] Error stack:", error.stack);
 		return { success: false, filePath: null, error: error.message };
 	}
 });
@@ -705,44 +1260,67 @@ function setupIpcHandlers() {
 		IPC_EVENTS.DESKTOP_CAPTURER_GET_SOURCES,
 		async (event, options) => {
 			try {
-				console.log("[Main] MacRecorder Sources isteniyor:", options);
+				console.log("[Main] ✅ MacRecorder kaynakları alınıyor...");
 
+				// Global instance kullan
 				const recorder = getMacRecorderInstance();
-				let sources = [];
+				console.log("[Main] ✅ MacRecorder instance oluşturuldu");
+
+				const sources = [];
 
 				// Ekranları al
 				if (!options.types || options.types.includes("screen")) {
-					const screens = await recorder.getDisplays();
-					const screenSources = screens.map((screen) => ({
-						id: `screen:${screen.id}`,
-						name: screen.name || `Display ${screen.id}`,
-						display_id: screen.id,
-						thumbnail: null,
-						appIcon: null,
-						macRecorderId: screen.id,
-						macRecorderInfo: screen,
-					}));
-					sources.push(...screenSources);
+					try {
+						console.log("[Main] MacRecorder displays alınıyor...");
+						const displays = await recorder.getDisplays();
+						console.log("[Main] MacRecorder displays:", displays);
+
+						displays.forEach((display, index) => {
+							sources.push({
+								id: `screen:${display.id || index}`,
+								name: display.name || `Display ${index + 1}`,
+								type: "screen",
+								macRecorderId: display.id || index,
+								macRecorderInfo: display,
+								thumbnail: null,
+							});
+						});
+					} catch (error) {
+						console.error("[Main] MacRecorder displays hatası:", error);
+						throw error;
+					}
 				}
 
 				// Pencereleri al
 				if (!options.types || options.types.includes("window")) {
-					const windows = await recorder.getWindows();
-					const windowSources = windows.map((window) => ({
-						id: `window:${window.id}`,
-						name: window.name,
-						thumbnail: null,
-						appIcon: null,
-						macRecorderId: window.id,
-						macRecorderInfo: window,
-					}));
-					sources.push(...windowSources);
+					try {
+						console.log("[Main] MacRecorder windows alınıyor...");
+						const windows = await recorder.getWindows();
+						console.log("[Main] MacRecorder windows:", windows);
+
+						windows.forEach((window) => {
+							sources.push({
+								id: `window:${window.id}`,
+								name: window.appName || window.name || `Window ${window.id}`,
+								type: "window",
+								macRecorderId: window.id,
+								macRecorderInfo: window,
+								thumbnail: null,
+							});
+						});
+					} catch (error) {
+						console.error("[Main] MacRecorder windows hatası:", error);
+						throw error;
+					}
 				}
 
-				console.log(`[Main] MacRecorder ${sources.length} kaynak buldu`);
+				console.log(
+					"[Main] ✅ MacRecorder toplam kaynak sayısı:",
+					sources.length
+				);
 				return sources;
 			} catch (error) {
-				console.error("[Main] MacRecorder Sources hatası:", error);
+				console.error("[Main] ❌ MacRecorder hatası:", error);
 				throw error;
 			}
 		}
@@ -1527,7 +2105,7 @@ function setupIpcHandlers() {
 			console.log("[Main] Editör verileri:", data);
 
 			// Editör penceresini aç
-			createEditorWindow(data);
+			await editorManager.createEditorWindow();
 			return { success: true };
 		} catch (error) {
 			console.error("[Main] Editör açılırken hata:", error);
@@ -1543,18 +2121,28 @@ function setupIpcHandlers() {
 		}
 	});
 
-	// UPDATE_RECORDING_SOURCE
-	ipcMain.on("UPDATE_RECORDING_SOURCE", (event, source) => {
+	// UPDATE_RECORDING_SOURCE - safeHandle ile invoke desteği
+	safeHandle("UPDATE_RECORDING_SOURCE", async (event, source) => {
 		console.log("[Main] Kayıt kaynağı güncellendi:", source);
+
+		// Global recordingSource'u güncelle
 		recordingSource = {
 			...recordingSource,
 			...source,
 		};
 
-		// Media state manager üzerinden aktif kaynak ayarını güncelle
+		// Media state manager üzerinden aktif kaynak ayarını güncelle - DIREKt source'u gönder
 		if (mediaStateManager) {
-			mediaStateManager.updateRecordingSource(recordingSource);
+			console.log(
+				"[Main] MediaStateManager.updateRecordingSource çağrılıyor:",
+				source
+			);
+			mediaStateManager.updateRecordingSource(source); // Global değişken değil, direkt source
+		} else {
+			console.error("[Main] MediaStateManager bulunamadı!");
 		}
+
+		return { success: true, recordingSource: source };
 	});
 
 	// MacRecorder handler'ları
@@ -1609,6 +2197,82 @@ function setupIpcHandlers() {
 		} catch (error) {
 			console.error("[Main] MacRecorder ekran ID doğrulanamadı:", error);
 			return false;
+		}
+	});
+
+	// MacRecorder thumbnail preview handlers - README'den eklendi
+	safeHandle(
+		"GET_MAC_WINDOW_THUMBNAIL",
+		async (event, windowId, options = {}) => {
+			try {
+				console.log("[Main] Window thumbnail alınıyor:", windowId, options);
+				const recorder = getMacRecorderInstance();
+				const thumbnail = await recorder.getWindowThumbnail(windowId, {
+					maxWidth: options.maxWidth || 300,
+					maxHeight: options.maxHeight || 200,
+				});
+				console.log("[Main] Window thumbnail başarıyla alındı");
+				return thumbnail;
+			} catch (error) {
+				console.error("[Main] Window thumbnail alınamadı:", error);
+				return null;
+			}
+		}
+	);
+
+	safeHandle(
+		"GET_MAC_SCREEN_THUMBNAIL",
+		async (event, displayId, options = {}) => {
+			try {
+				console.log("[Main] Display thumbnail alınıyor:", displayId, options);
+				const recorder = getMacRecorderInstance();
+				const thumbnail = await recorder.getDisplayThumbnail(displayId, {
+					maxWidth: options.maxWidth || 300,
+					maxHeight: options.maxHeight || 200,
+				});
+				console.log("[Main] Display thumbnail başarıyla alındı");
+				return thumbnail;
+			} catch (error) {
+				console.error("[Main] Display thumbnail alınamadı:", error);
+				return null;
+			}
+		}
+	);
+
+	// MacRecorder permission checking - README'den eklendi
+	safeHandle("CHECK_MAC_PERMISSIONS", async (event) => {
+		try {
+			console.log("[Main] MacRecorder izinleri kontrol ediliyor...");
+			const recorder = getMacRecorderInstance();
+			const permissions = await recorder.checkPermissions();
+			console.log("[Main] MacRecorder izinleri:", permissions);
+			return permissions;
+		} catch (error) {
+			console.error("[Main] MacRecorder izinleri kontrol edilemedi:", error);
+			return {
+				screenRecording: false,
+				microphone: false,
+				accessibility: false,
+			};
+		}
+	});
+
+	// MacRecorder status tracking - README'den eklendi
+	safeHandle("GET_MAC_RECORDER_STATUS", async (event) => {
+		try {
+			console.log("[Main] MacRecorder status alınıyor...");
+			const recorder = getMacRecorderInstance();
+			const status = recorder.getStatus();
+			console.log("[Main] MacRecorder status:", status);
+			return status;
+		} catch (error) {
+			console.error("[Main] MacRecorder status alınamadı:", error);
+			return {
+				isRecording: false,
+				outputPath: null,
+				options: null,
+				recordingTime: 0,
+			};
 		}
 	});
 
@@ -2055,9 +2719,8 @@ function setupIpcHandlers() {
 		try {
 			console.log("[Main] ✅ MacRecorder kaynakları alınıyor...");
 
-			// Direkt MacRecorder kullan - fallback yok
-			const MacRecorder = require("node-mac-recorder");
-			const recorder = new MacRecorder();
+			// Global instance kullan
+			const recorder = getMacRecorderInstance();
 			console.log("[Main] ✅ MacRecorder instance oluşturuldu");
 
 			const sources = [];
