@@ -1,6 +1,6 @@
 import { ref, onMounted, watch } from "vue";
 import defaultCursor from "@/assets/cursors/high/default.svg";
-import pointerCursor from "@/assets/cursors/high/default.svg";
+import pointerCursor from "@/assets/cursors/high/pointer.svg";
 import grabbingCursor from "@/assets/cursors/high/grabbing.svg";
 import textCursor from "@/assets/cursors/high/text.svg";
 import { calculateZoomOrigin } from "~/composables/utils/zoomPositions";
@@ -61,6 +61,8 @@ export const useMouseCursor = () => {
 		pointer: null,
 		grabbing: null,
 		text: null,
+		grab: null,
+		resize: null,
 	});
 
 	const currentCursorType = ref("default");
@@ -114,16 +116,22 @@ export const useMouseCursor = () => {
 			const loadImage = (src) => {
 				return new Promise((resolve, reject) => {
 					const img = new Image();
-					img.onload = () => resolve(img);
+					img.onload = () => {
+						console.log(`[useMouseCursor] ✅ Loaded cursor image: ${src}`);
+						resolve(img);
+					};
 					img.onerror = (e) => {
-						console.error(`Failed to load cursor image: ${src}`, e);
+						console.error(
+							`[useMouseCursor] ❌ Failed to load cursor image: ${src}`,
+							e
+						);
 						reject(e);
 					};
 					img.src = src;
 				});
 			};
 
-			console.log("Loading cursor images...");
+			console.log("[useMouseCursor] 🔄 Loading cursor images...");
 
 			// Tüm cursor görsellerini paralel olarak yükle
 			const [defaultImg, pointerImg, grabbingImg, textImg] = await Promise.all([
@@ -133,19 +141,31 @@ export const useMouseCursor = () => {
 				loadImage(textCursor),
 			]);
 
-			console.log("Cursor images loaded successfully");
+			console.log("[useMouseCursor] ✅ All cursor images loaded successfully");
 
+			// Cursor image mapping'i güncelle
 			cursorImages.value = {
 				default: defaultImg,
 				pointer: pointerImg,
 				grabbing: grabbingImg,
 				text: textImg,
+				grab: grabbingImg, // Grab için grabbing cursor'ı kullan
+				resize: defaultImg, // Resize için şimdilik default cursor
 			};
+
+			// Log loaded cursor images
+			console.log("[useMouseCursor] 🖼️ Loaded cursor images:", {
+				default: !!defaultImg,
+				pointer: !!pointerImg,
+				grabbing: !!grabbingImg,
+				text: !!textImg,
+				availableTypes: Object.keys(cursorImages.value),
+			});
 
 			// Cursor canvas'ını oluştur
 			createCursorCanvas();
 		} catch (error) {
-			console.error("Error loading cursor images:", error);
+			console.error("[useMouseCursor] ❌ Error loading cursor images:", error);
 		}
 	});
 
@@ -163,50 +183,63 @@ export const useMouseCursor = () => {
 	const updateCursorType = (event) => {
 		if (!event) return;
 
-		const prevType = currentCursorType.value;
-		let newType = prevType;
+		// Debug: Event'i detaylı logla
+		console.log("[useMouseCursor] 🔍 Event details:", {
+			type: event.type,
+			cursorType: event.cursorType,
+			x: event.x,
+			y: event.y,
+			timestamp: event.timestamp,
+			currentType: currentCursorType.value,
+		});
 
-		switch (event.type) {
-			case MOUSE_EVENTS.DOWN:
-				isMouseDown.value = true;
-				newType = CURSOR_TYPES.POINTER;
-				handleClickAnimation();
-				break;
-			case MOUSE_EVENTS.UP:
-				isMouseDown.value = false;
-				isDragging.value = false;
-				newType = isHovering.value
-					? CURSOR_TYPES.POINTER
-					: CURSOR_TYPES.DEFAULT;
-				break;
-			case MOUSE_EVENTS.DRAG:
-				isDragging.value = true;
+		const prevType = currentCursorType.value;
+		let newType = event.cursorType || CURSOR_TYPES.DEFAULT;
+
+		// Mousedown/mouseup olaylarını işle
+		if (event.type === MOUSE_EVENTS.DOWN) {
+			handleClickAnimation();
+			if (currentCursorType.value === CURSOR_TYPES.GRAB) {
 				newType = CURSOR_TYPES.GRABBING;
-				break;
-			case MOUSE_EVENTS.HOVER:
-				isHovering.value = true;
-				hoverTarget.value = event.target;
-				newType = CURSOR_TYPES.POINTER;
-				break;
-			case MOUSE_EVENTS.MOVE:
-				if (!isMouseDown.value && !isDragging.value) {
-					newType = isHovering.value
-						? CURSOR_TYPES.POINTER
-						: CURSOR_TYPES.DEFAULT;
-				}
-				break;
+			}
+		} else if (event.type === MOUSE_EVENTS.UP) {
+			if (currentCursorType.value === CURSOR_TYPES.GRABBING) {
+				newType = CURSOR_TYPES.GRAB;
+			}
 		}
 
+		// Cursor tipini güncelle
 		if (prevType !== newType) {
-			currentCursorType.value = newType;
-			// Cursor type değişikliğini kaydet
-			if (event.recordChange) {
-				event.recordChange({
-					type: "cursor_change",
-					from: prevType,
-					to: newType,
-					timestamp: Date.now(),
-				});
+			// Cursor type değişimini logla
+			console.log("[useMouseCursor] 🖱️ Cursor type changed:", {
+				from: prevType,
+				to: newType,
+				eventType: event.type,
+				cursorType: event.cursorType,
+				hasImage: !!cursorImages.value[newType.toLowerCase()],
+				availableImages: Object.keys(cursorImages.value),
+			});
+
+			// Cursor type'ı küçük harfe çevir
+			const normalizedType = newType.toLowerCase();
+
+			// Eğer bu cursor type için görsel varsa güncelle
+			if (cursorImages.value[normalizedType]) {
+				currentCursorType.value = normalizedType;
+
+				if (event.recordChange) {
+					event.recordChange({
+						type: "cursor_change",
+						from: prevType,
+						to: normalizedType,
+						timestamp: Date.now(),
+					});
+				}
+			} else {
+				console.warn(
+					`[useMouseCursor] ⚠️ No image for cursor type: ${normalizedType}`
+				);
+				currentCursorType.value = "default";
 			}
 		}
 	};
@@ -223,32 +256,8 @@ export const useMouseCursor = () => {
 			visible = true,
 		} = options;
 
-		// Debug: Her 60 çağrıda bir log
-		if (typeof drawMousePosition.debugCounter === "undefined") {
-			drawMousePosition.debugCounter = 0;
-		}
-		drawMousePosition.debugCounter++;
-
-		if (drawMousePosition.debugCounter % 60 === 0) {
-			console.log("[useMouseCursor] 🖱️ drawMousePosition called:", {
-				visible,
-				x,
-				y,
-				currentCursorType: currentCursorType.value,
-				cursorImagesLoaded: Object.keys(cursorImages.value).filter(
-					(key) => cursorImages.value[key]
-				).length,
-				allCursorImages: Object.keys(cursorImages.value).map((key) => ({
-					[key]: !!cursorImages.value[key],
-				})),
-			});
-		}
-
 		if (!visible) {
 			isVisible.value = false;
-			if (drawMousePosition.debugCounter % 60 === 0) {
-				console.log("[useMouseCursor] ⚠️ Cursor visible=false");
-			}
 			return;
 		}
 
@@ -260,18 +269,32 @@ export const useMouseCursor = () => {
 			cursorSize.value = size;
 		}
 
+		// Event'e göre cursor tipini güncelle
+		if (event) {
+			// Debug: Her event'i logla
+			console.log("[useMouseCursor] 📍 Drawing event:", {
+				type: event.type,
+				cursorType: event.cursorType,
+				x: event.x,
+				y: event.y,
+				currentType: currentCursorType.value,
+			});
+
+			updateCursorType(event);
+		}
+
 		// Cursor görselini kontrol et
-		if (!cursorImages.value[currentCursorType.value]) {
+		const currentImage = cursorImages.value[currentCursorType.value];
+		if (!currentImage) {
 			console.warn(
-				`[useMouseCursor] ⚠️ Cursor image not found for type: ${currentCursorType.value}`,
+				`[useMouseCursor] ⚠️ No cursor image for type: ${currentCursorType.value}`,
 				"Available images:",
-				Object.keys(cursorImages.value).filter((key) => cursorImages.value[key])
+				Object.keys(cursorImages.value),
+				"Current event:",
+				event
 			);
 			return;
 		}
-
-		// Event'e göre cursor tipini güncelle
-		updateCursorType(event);
 
 		// Hedef pozisyonu güncelle
 		targetX.value = x;
@@ -291,34 +314,22 @@ export const useMouseCursor = () => {
 		const dy = targetY.value - cursorY.value;
 		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
 
-		// Cursor görselini doğrudan çiz
-		const cursorImg = cursorImages.value[currentCursorType.value];
-		if (!cursorImg) return;
-
 		// Cursor boyutunu hesapla
 		const cursorWidth = cursorSize.value * currentScale.value;
 		const cursorHeight = cursorSize.value * currentScale.value;
 
-		// Cursor tipine göre hotspot pozisyonunu ayarla (20px cursor boyutu için)
-		// Bu değerler SVG'lerin içindeki boşlukları dikkate alarak ayarlanmıştır
+		// Cursor tipine göre hotspot pozisyonunu ayarla
 		const hotspots = {
-			default: { x: 3, y: 3 }, // Default cursor için uç noktası (ok işareti)
-			pointer: { x: 3, y: 4 }, // Pointer cursor için uç noktası (el işareti)
-			grabbing: { x: 4, y: 5 }, // Grabbing cursor için uç noktası (yumruk işareti)
-			text: { x: 4, y: 5 }, // Text cursor için uç noktası (I-beam işareti)
-			grab: { x: 4, y: 5 }, // Grab cursor için uç noktası
-			resize: { x: 4, y: 5 }, // Resize cursor için uç noktası
+			default: { x: 3, y: 3 },
+			pointer: { x: 3, y: 4 },
+			grabbing: { x: 4, y: 5 },
+			text: { x: 4, y: 5 },
+			grab: { x: 4, y: 5 },
+			resize: { x: 4, y: 5 },
 		};
 
-		// Geçerli cursor tipi için hotspot'u al
 		const baseHotspot = hotspots[currentCursorType.value] || hotspots.default;
-
-		// Hotspot pozisyonunu cursor boyutuna göre ölçekle
-		// 20px baz boyut için tanımlanmış hotspot değerlerini, mevcut cursor boyutuna göre orantılı olarak ayarla
 		const hotspotScale = cursorSize.value / 20;
-
-		// Doğrusal olmayan ölçekleme için düzeltme faktörü
-		// Size arttıkça hotspot değerlerinin daha az artmasını sağlar
 		const correctionFactor =
 			0.85 + 0.15 * (20 / Math.max(20, cursorSize.value));
 
@@ -327,12 +338,7 @@ export const useMouseCursor = () => {
 			y: baseHotspot.y * hotspotScale * correctionFactor,
 		};
 
-		// Cursor'ı çiz - hotspot pozisyonunu kullanarak cursor'ın uç noktasının tam olarak mouse pozisyonuna gelmesini sağla
-		ctx.save();
-
 		// Mouse size'a göre cursor pozisyonunu ayarla
-		// Size arttıkça cursor'ı sola ve yukarıya doğru kaydır
-		// Cursor tipine göre farklı offset faktörleri kullanıyoruz
 		const baseOffsetFactors = {
 			default: { x: 0.25, y: 0.15 },
 			pointer: { x: 0.3, y: 0.2 },
@@ -354,28 +360,28 @@ export const useMouseCursor = () => {
 		ctx.rotate(rotation.value);
 		ctx.scale(warpX.value, warpY.value);
 
-		// Blur efektini sadece cursor çizimi için uygula - böylece diğer elementleri etkilemez
-		if (motionEnabled) {
-			// Kısa hareketlerde blur efektini kaldır (moveSpeed < 3 için blur yok)
-			if (moveSpeed > 3) {
-				const blurAmount = Math.min(moveSpeed * 0.4, 2.8); // Slightly reduced blur to emphasize warp
-				ctx.filter = `blur(${blurAmount}px)`;
-			} else {
-				ctx.filter = "none";
-			}
+		// Blur efektini sadece cursor çizimi için uygula
+		if (motionEnabled && moveSpeed > 3) {
+			const blurAmount = Math.min(moveSpeed * 0.4, 2.8);
+			ctx.filter = `blur(${blurAmount}px)`;
 		} else {
 			ctx.filter = "none";
 		}
 
-		// Cursor'ı çiz - hotspot pozisyonunu kullanarak cursor'ın uç noktasının tam olarak mouse pozisyonuna gelmesini sağla
-		ctx.drawImage(cursorImg, -hotspot.x, -hotspot.y, cursorWidth, cursorHeight);
+		// Cursor'ı çiz
+		ctx.drawImage(
+			currentImage,
+			-hotspot.x,
+			-hotspot.y,
+			cursorWidth,
+			cursorHeight
+		);
 
-		// Blur efektini sıfırla
+		// Efektleri sıfırla
 		ctx.filter = "none";
-
 		ctx.restore();
 
-		// Animasyonu başlat (eğer zaten çalışmıyorsa)
+		// Animasyonu başlat
 		if (!animationActive.value) {
 			animationActive.value = true;
 			requestAnimationFrame(animateCursor);
@@ -448,19 +454,40 @@ export const useMouseCursor = () => {
 
 	// Hover state yönetimi
 	const handleHover = (element, isHoverable = false) => {
-		if (isHoverable) {
-			element.addEventListener("mouseenter", () => {
+		if (!element || !isHoverable) return;
+
+		console.log("[useMouseCursor] 🎯 Setting up hover for element:", {
+			element: element?.tagName,
+			isHoverable,
+		});
+
+		const handleMouseEnter = () => {
+			if (!isDragging.value) {
+				// Sürükleme sırasında hover'ı engelle
 				isHovering.value = true;
 				hoverTarget.value = element;
 				updateCursorType({ type: MOUSE_EVENTS.HOVER, target: element });
-			});
+			}
+		};
 
-			element.addEventListener("mouseleave", () => {
-				isHovering.value = false;
-				hoverTarget.value = null;
+		const handleMouseLeave = () => {
+			isHovering.value = false;
+			hoverTarget.value = null;
+			if (!isDragging.value) {
+				// Sürükleme sırasında state değişimini engelle
 				updateCursorType({ type: MOUSE_EVENTS.MOVE });
-			});
-		}
+			}
+		};
+
+		// Event listener'ları ekle
+		element.addEventListener("mouseenter", handleMouseEnter);
+		element.addEventListener("mouseleave", handleMouseLeave);
+
+		// Cleanup fonksiyonu
+		return () => {
+			element.removeEventListener("mouseenter", handleMouseEnter);
+			element.removeEventListener("mouseleave", handleMouseLeave);
+		};
 	};
 
 	return {

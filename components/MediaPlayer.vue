@@ -14,6 +14,7 @@
 			@mousemove="handleMouseMove"
 			@mouseup="handleMouseUp"
 			@mouseleave="handleMouseUp"
+			@wheel="handleWheel"
 		>
 			<div
 				class="relative crop-area flex items-center justify-center"
@@ -931,6 +932,7 @@ const drawMousePositions = () => {
 			canvasExists: !!canvasRef.value,
 			videoExists: !!videoElement,
 			firstMousePos: props.mousePositions?.[0],
+			currentCursorType: currentCursorType.value,
 		});
 	}
 
@@ -1016,6 +1018,11 @@ const drawMousePositions = () => {
 	const prevPos = props.mousePositions[prevIndex];
 	const nextPos = props.mousePositions[nextIndex];
 
+	// Update cursor type based on current position
+	if (prevPos.cursorType) {
+		currentCursorType.value = prevPos.cursorType;
+	}
+
 	// DPR'ı hesaba kat
 	const dpr = window.devicePixelRatio || 1;
 
@@ -1087,6 +1094,7 @@ const drawMousePositions = () => {
 		x: prevPos.x + (nextPos.x - prevPos.x) * fraction,
 		y: prevPos.y + (nextPos.y - prevPos.y) * fraction,
 		timestamp: estimatedTimestamp,
+		cursorType: prevPos.cursorType,
 	};
 
 	// Apply transition factor to interpolation
@@ -1212,6 +1220,7 @@ const drawMousePositions = () => {
 			clickCount: prevPos.clickCount,
 			rotation: prevPos.rotation,
 			direction: prevPos.direction,
+			cursorType: prevPos.cursorType || "default", // Add cursor type from position data
 			speed,
 			dirX,
 			dirY,
@@ -1220,7 +1229,7 @@ const drawMousePositions = () => {
 		dpr,
 		motionEnabled: mouseMotionEnabled.value,
 		motionBlurValue: motionBlurValue.value,
-		visible: mouseVisible.value, // Add visibility parameter
+		visible: mouseVisible.value,
 	});
 
 	// Kamera pozisyonunu güncelle
