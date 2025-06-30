@@ -601,8 +601,8 @@ export const useScreen = () => {
 				isScreenActive.value = false;
 				console.log("[useScreen] MacRecorder kaydı başarıyla durduruldu");
 
-				// Not: RECORDING_STATUS_CHANGED eventini manuel göndermiyoruz çünkü
-				// pages/index.vue'deki watch(isRecording) zaten bunu yapıyor
+				// Ana pencereyi gizle
+				window.electron?.ipcRenderer.send("HIDE_MAIN_WINDOW");
 
 				return {
 					success: true,

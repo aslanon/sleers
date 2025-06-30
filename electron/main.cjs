@@ -1582,7 +1582,6 @@ function setupIpcHandlers() {
 
 							// Kullanıcıya bilgi ver
 							if (mainWindow && !mainWindow.isDestroyed()) {
-								mainWindow.show();
 								mainWindow.webContents.send(
 									IPC_EVENTS.RECORDING_ERROR,
 									"Medya dosyaları hazırlanamadı. Lütfen tekrar kayıt yapmayı deneyin."
@@ -1603,9 +1602,11 @@ function setupIpcHandlers() {
 						console.log("[Main] Editor penceresi açılıyor...");
 						editorManager.showEditorWindow();
 
-						// Ana pencereyi gizle
+						// Ana pencereyi kapat
 						if (mainWindow && !mainWindow.isDestroyed()) {
 							mainWindow.hide();
+							// Tüm kaynakları temizle
+							mainWindow.webContents.send(IPC_EVENTS.RESET_FOR_NEW_RECORDING);
 						}
 					} catch (error) {
 						console.error("[main.cjs] Editor penceresi açılırken hata:", error);
@@ -3058,6 +3059,15 @@ function setupIpcHandlers() {
 
 	// Standalone cursor tracking handlers kaldırıldı
 	// Cursor capture artık START/STOP_MAC_RECORDING içinde yönetiliyor
+
+	// Ana pencereyi gizleme
+	ipcMain.on("HIDE_MAIN_WINDOW", () => {
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			mainWindow.hide();
+			// Tüm kaynakları temizle
+			mainWindow.webContents.send(IPC_EVENTS.RESET_FOR_NEW_RECORDING);
+		}
+	});
 }
 
 async function createWindow() {

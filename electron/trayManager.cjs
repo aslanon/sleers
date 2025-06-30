@@ -93,7 +93,6 @@ class TrayManager {
 				click: () => {
 					if (this.isRecording) {
 						this.mainWindow.webContents.send("STOP_RECORDING_FROM_TRAY");
-						this.mainWindow.show();
 					} else {
 						this.mainWindow.webContents.send("START_RECORDING_FROM_TRAY");
 						this.mainWindow.hide();

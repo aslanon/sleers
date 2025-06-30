@@ -360,6 +360,8 @@ class EditorManager {
 
 			if (this.mainWindow && !this.mainWindow.isDestroyed()) {
 				this.mainWindow.hide();
+				// Tüm kaynakları temizle
+				this.mainWindow.webContents.send(IPC_EVENTS.RESET_FOR_NEW_RECORDING);
 			}
 
 			// MEDIA_READY eventini gönder
