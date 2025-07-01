@@ -248,10 +248,8 @@ export const useCameraRenderer = () => {
 		);
 
 		const maxShadowBlur = Math.min(cameraWidth, cameraHeight) * 0.2;
-		const safeShadowBlur = Math.min(
-			(cameraSettings.value?.shadow || 0) * dpr * scaleValue,
-			maxShadowBlur
-		);
+		const safeShadowBlur =
+			((cameraSettings.value?.shadow || 0) / 100) * maxShadowBlur;
 
 		// Calculate camera position with fallbacks
 		let cameraX, cameraY;
@@ -439,11 +437,11 @@ export const useCameraRenderer = () => {
 					cameraHeight,
 					safeRadius
 				);
-				ctx.shadowColor = "rgba(0, 0, 0, 0)";
+				ctx.shadowColor = "rgba(0,0,0,0.6)";
 				ctx.shadowBlur = safeShadowBlur;
 				ctx.shadowOffsetX = 0;
 				ctx.shadowOffsetY = 0;
-				ctx.fillStyle = "#00000000";
+				ctx.fillStyle = "rgba(0,0,0,0.01)";
 				ctx.fill();
 				ctx.globalAlpha = 1.0;
 				ctx.restore();

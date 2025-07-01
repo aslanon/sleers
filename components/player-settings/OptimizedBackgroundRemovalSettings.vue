@@ -1,95 +1,105 @@
 <template>
 	<div class="space-y-6">
-		<!-- Header -->
-		<div>
-			<h4 class="text-base font-semibold text-white">Arkaplan Kaldırma</h4>
-			<p class="text-sm font-normal text-gray-500">
-				TensorFlow ile geliştirilmiş arkaplan kaldırma
-			</p>
+		<!-- Enable Switch -->
+		<div class="flex items-center justify-between">
+			<div>
+				<h4 class="text-base font-semibold text-white">Arkaplan Kaldırma</h4>
+				<p class="text-sm font-normal text-gray-500">
+					TensorFlow ile geliştirilmiş arkaplan kaldırma
+				</p>
+			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input type="checkbox" v-model="enabled" class="sr-only peer" />
+				<div
+					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
+				></div>
+			</label>
 		</div>
 
-		<!-- Kalite Seçimi Butonları -->
-		<div class="flex gap-2">
-			<button
-				:class="[
-					'px-4 py-2 rounded-md flex items-center justify-center gap-2',
-					selectedQuality === 'low'
-						? 'bg-blue-600 text-white'
-						: 'bg-zinc-700 text-gray-300',
-				]"
-				@click="selectQuality('low')"
-			>
-				<span>Düşük</span>
-				<span v-if="isLoading && false && selectedQuality === 'low'">
-					<span class="circle-loader"></span>
-				</span>
-			</button>
-			<button
-				:class="[
-					'px-4 py-2 rounded-md flex items-center justify-center gap-2',
-					selectedQuality === 'medium'
-						? 'bg-blue-600 text-white'
-						: 'bg-zinc-700 text-gray-300',
-				]"
-				@click="selectQuality('medium')"
-			>
-				<span>Orta</span>
-				<span v-if="isLoading && false && selectedQuality === 'medium'">
-					<span class="circle-loader"></span>
-				</span>
-			</button>
-			<button
-				:class="[
-					'px-4 py-2 rounded-md flex items-center justify-center gap-2',
-					selectedQuality === 'high'
-						? 'bg-blue-600 text-white'
-						: 'bg-zinc-700 text-gray-300',
-				]"
-				@click="selectQuality('high')"
-			>
-				<span>Yüksek</span>
-				<span v-if="isLoading && false && selectedQuality === 'high'">
-					<span class="circle-loader"></span>
-				</span>
-			</button>
-		</div>
+		<!-- Ayar UI'ı sadece enabled ise göster -->
+		<div v-if="enabled">
+			<!-- Kalite Seçimi Butonları -->
+			<div class="flex gap-2">
+				<button
+					:class="[
+						'px-4 py-2 rounded-md flex items-center justify-center gap-2',
+						selectedQuality === 'low'
+							? 'bg-blue-600 text-white'
+							: 'bg-zinc-700 text-gray-300',
+					]"
+					@click="selectQuality('low')"
+				>
+					<span>Düşük</span>
+					<span v-if="isLoading && false && selectedQuality === 'low'">
+						<span class="circle-loader"></span>
+					</span>
+				</button>
+				<button
+					:class="[
+						'px-4 py-2 rounded-md flex items-center justify-center gap-2',
+						selectedQuality === 'medium'
+							? 'bg-blue-600 text-white'
+							: 'bg-zinc-700 text-gray-300',
+					]"
+					@click="selectQuality('medium')"
+				>
+					<span>Orta</span>
+					<span v-if="isLoading && false && selectedQuality === 'medium'">
+						<span class="circle-loader"></span>
+					</span>
+				</button>
+				<button
+					:class="[
+						'px-4 py-2 rounded-md flex items-center justify-center gap-2',
+						selectedQuality === 'high'
+							? 'bg-blue-600 text-white'
+							: 'bg-zinc-700 text-gray-300',
+					]"
+					@click="selectQuality('high')"
+				>
+					<span>Yüksek</span>
+					<span v-if="isLoading && false && selectedQuality === 'high'">
+						<span class="circle-loader"></span>
+					</span>
+				</button>
+			</div>
 
-		<!-- Arka Plan Tipi ve Renk Paleti (sadece kalite seçiliyse) -->
-		<div v-if="selectedQuality" class="flex items-center gap-3 mt-2">
-			<button
-				:class="[
-					'px-3 py-1 rounded',
-					backgroundType === 'transparent'
-						? 'bg-blue-600 text-white'
-						: 'bg-zinc-700 text-gray-300',
-				]"
-				@click="setBackgroundType('transparent')"
+			<!-- Arka Plan Tipi ve Renk Paleti (sadece kalite seçiliyse) -->
+			<div v-if="selectedQuality" class="flex items-center gap-3 mt-2">
+				<button
+					:class="[
+						'px-3 py-1 rounded',
+						backgroundType === 'transparent'
+							? 'bg-blue-600 text-white'
+							: 'bg-zinc-700 text-gray-300',
+					]"
+					@click="setBackgroundType('transparent')"
+				>
+					Saydam
+				</button>
+				<input
+					type="color"
+					v-model="backgroundColor"
+					:class="[
+						'w-8 h-8 rounded cursor-pointer',
+						backgroundType === 'color' ? 'ring-2 ring-blue-500' : '',
+					]"
+					@input="onColorInput"
+				/>
+				<span class="text-xs text-gray-400">Arkaplan rengi</span>
+			</div>
+
+			<!-- Error State -->
+			<div
+				v-if="hasError"
+				class="bg-red-900/50 border border-red-700 rounded-lg p-3"
 			>
-				Saydam
-			</button>
-			<input
-				type="color"
-				v-model="backgroundColor"
-				:class="[
-					'w-8 h-8 rounded cursor-pointer',
-					backgroundType === 'color' ? 'ring-2 ring-blue-500' : '',
-				]"
-				@input="onColorInput"
-			/>
-			<span class="text-xs text-gray-400">Arkaplan rengi</span>
-		</div>
-
-		<!-- Loading State -->
-		<!-- KALDIRILDI -->
-
-		<!-- Error State -->
-		<div
-			v-if="hasError"
-			class="bg-red-900/50 border border-red-700 rounded-lg p-3"
-		>
-			<div class="flex items-center space-x-2">
-				<span class="text-red-400">⚠️</span>
-				<span class="text-sm text-red-300">Model yüklenirken hata oluştu</span>
+				<div class="flex items-center space-x-2">
+					<span class="text-red-400">⚠️</span>
+					<span class="text-sm text-red-300"
+						>Model yüklenirken hata oluştu</span
+					>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -104,6 +114,7 @@ const props = defineProps({
 	mediaPlayerRef: { type: Object, default: null },
 });
 
+const enabled = ref(false);
 const { cameraSettings, updateCameraSettings } = usePlayerSettings();
 const {
 	isInitialized,
@@ -235,6 +246,18 @@ watch(
 	},
 	{ deep: true, immediate: true }
 );
+
+watch(enabled, async (val) => {
+	if (!val) {
+		// Switch kapalıya çekildiğinde arkaplan kaldırmayı tamamen devre dışı bırak
+		await cleanup();
+		updateCameraSettings({
+			optimizedBackgroundRemoval: false,
+			removeBackground: false,
+			optimizedBackgroundRemovalSettings: {},
+		});
+	}
+});
 
 onMounted(() => {
 	const settings = cameraSettings.value.optimizedBackgroundRemovalSettings;
