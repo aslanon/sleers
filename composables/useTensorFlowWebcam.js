@@ -121,7 +121,7 @@ export const useTensorFlowWebcam = () => {
 	};
 
 	// Process single frame with optimizations
-	const processFrame = async (videoElement) => {
+	const processFrame = async (videoElement, settings = {}) => {
 		if (
 			!model.value ||
 			!processCtx.value ||
@@ -179,17 +179,35 @@ export const useTensorFlowWebcam = () => {
 			const pixels = imageData.data;
 			const segmentationMask = segmentation.data;
 
-			// Apply background removal with smooth transparency
+			// Arka plan tipi ve rengi
+			const bgType = settings.backgroundType || "transparent";
+			const bgColor = settings.backgroundColor || "#000000";
+			let bgR = 0,
+				bgG = 0,
+				bgB = 0;
+			if (bgType === "color") {
+				const hex = bgColor.replace("#", "");
+				bgR = parseInt(hex.substring(0, 2), 16);
+				bgG = parseInt(hex.substring(2, 4), 16);
+				bgB = parseInt(hex.substring(4, 6), 16);
+			}
+
+			// Apply background removal with smooth transparency or color
 			const threshold = segmentationThreshold.value;
 			for (let i = 0; i < segmentationMask.length; i++) {
 				const pixelIndex = i * 4;
 				const isPersonPixel = segmentationMask[i];
 
 				if (!isPersonPixel) {
-					// Background pixel - make fully transparent
-					pixels[pixelIndex + 3] = 0;
+					if (bgType === "color") {
+						pixels[pixelIndex] = bgR;
+						pixels[pixelIndex + 1] = bgG;
+						pixels[pixelIndex + 2] = bgB;
+						pixels[pixelIndex + 3] = 128; // Yarı saydamlık
+					} else {
+						pixels[pixelIndex + 3] = 0;
+					}
 				} else {
-					// Person pixel - apply alpha based on threshold for smoother edges
 					const alpha =
 						threshold < 0.5
 							? Math.min(255, 180 + threshold * 150) // Softer edges for low threshold
@@ -201,7 +219,7 @@ export const useTensorFlowWebcam = () => {
 			// Clear output canvas completely (transparent background)
 			outputCtx.value.clearRect(0, 0, videoWidth, videoHeight);
 
-			// Only draw person pixels with transparency
+			// Only draw person pixels with transparency or color
 			outputCtx.value.putImageData(imageData, 0, 0);
 
 			// Update performance metrics (simplified)
@@ -214,11 +232,14 @@ export const useTensorFlowWebcam = () => {
 	};
 
 	// Start continuous processing with FPS control
-	const startProcessing = () => {
+	// onFirstFrame: ilk frame işlenince çağrılacak callback
+	const startProcessing = (onFirstFrame) => {
 		if (isProcessing.value) return;
 
 		isProcessing.value = true;
 		lastFrameTime.value = performance.now();
+
+		let firstFrame = true;
 
 		const processLoop = (videoElement, callback) => {
 			if (!isProcessing.value) {
@@ -234,6 +255,12 @@ export const useTensorFlowWebcam = () => {
 
 			if (elapsed >= frameInterval.value) {
 				processFrame(videoElement).then((processedCanvas) => {
+					if (firstFrame && processedCanvas) {
+						firstFrame = false;
+						if (typeof onFirstFrame === "function") {
+							onFirstFrame();
+						}
+					}
 					if (processedCanvas && callback) {
 						callback(processedCanvas);
 					}

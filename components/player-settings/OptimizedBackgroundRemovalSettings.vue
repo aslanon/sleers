@@ -1,109 +1,86 @@
 <template>
 	<div class="space-y-6">
 		<!-- Header -->
-		<div class="flex items-center justify-between">
-			<div>
-				<h4 class="text-base font-semibold text-white">Arkaplan Kaldırma</h4>
-				<p class="text-sm font-normal text-gray-500">
-					TensorFlow ile geliştirilmiş arkaplan kaldırma
-				</p>
-			</div>
-			<label class="relative inline-flex items-center cursor-pointer">
-				<input
-					type="checkbox"
-					v-model="isEnabled"
-					@change="handleToggle"
-					class="sr-only peer"
-				/>
-				<div
-					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
-				></div>
-			</label>
+		<div>
+			<h4 class="text-base font-semibold text-white">Arkaplan Kaldırma</h4>
+			<p class="text-sm font-normal text-gray-500">
+				TensorFlow ile geliştirilmiş arkaplan kaldırma
+			</p>
 		</div>
 
-		<!-- Settings (sadece aktifken göster) -->
-		<div v-if="isEnabled" class="space-y-4">
-			<!-- Segmentation Threshold -->
-			<div>
-				<label class="block text-sm font-medium text-gray-300 mb-2">
-					Kenar Hassasiyeti:
-					{{ localSettings.segmentationThreshold.toFixed(2) }}
-				</label>
-				<input
-					type="range"
-					v-model.number="localSettings.segmentationThreshold"
-					min="0.1"
-					max="0.9"
-					step="0.05"
-					@input="updateSettings"
-					class="w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer slider"
-				/>
-				<div class="flex justify-between text-xs text-gray-500 mt-1">
-					<span>Yumuşak Kenar</span>
-					<span>Keskin Kenar</span>
-				</div>
-			</div>
+		<!-- Kalite Seçimi Butonları -->
+		<div class="flex gap-2">
+			<button
+				:class="[
+					'px-4 py-2 rounded-md flex items-center justify-center gap-2',
+					selectedQuality === 'low'
+						? 'bg-blue-600 text-white'
+						: 'bg-zinc-700 text-gray-300',
+				]"
+				@click="selectQuality('low')"
+			>
+				<span>Düşük</span>
+				<span v-if="isLoading && false && selectedQuality === 'low'">
+					<span class="circle-loader"></span>
+				</span>
+			</button>
+			<button
+				:class="[
+					'px-4 py-2 rounded-md flex items-center justify-center gap-2',
+					selectedQuality === 'medium'
+						? 'bg-blue-600 text-white'
+						: 'bg-zinc-700 text-gray-300',
+				]"
+				@click="selectQuality('medium')"
+			>
+				<span>Orta</span>
+				<span v-if="isLoading && false && selectedQuality === 'medium'">
+					<span class="circle-loader"></span>
+				</span>
+			</button>
+			<button
+				:class="[
+					'px-4 py-2 rounded-md flex items-center justify-center gap-2',
+					selectedQuality === 'high'
+						? 'bg-blue-600 text-white'
+						: 'bg-zinc-700 text-gray-300',
+				]"
+				@click="selectQuality('high')"
+			>
+				<span>Yüksek</span>
+				<span v-if="isLoading && false && selectedQuality === 'high'">
+					<span class="circle-loader"></span>
+				</span>
+			</button>
+		</div>
 
-			<!-- Internal Resolution -->
-			<div>
-				<label class="block text-sm font-medium text-gray-300 mb-2"
-					>Kalite</label
-				>
-				<select
-					v-model="localSettings.internalResolution"
-					@change="updateSettings"
-					class="w-full bg-zinc-800 text-white text-sm rounded-md border border-zinc-700 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-				>
-					<option value="low">Düşük (En Hızlı)</option>
-					<option value="medium">Orta (Önerilen)</option>
-					<option value="high">Yüksek (En Kaliteli)</option>
-				</select>
-			</div>
-
-			<!-- FPS Setting -->
-			<div>
-				<label class="block text-sm font-medium text-gray-300 mb-2">
-					FPS: {{ localSettings.targetFps }}
-				</label>
-				<input
-					type="range"
-					v-model.number="localSettings.targetFps"
-					min="15"
-					max="60"
-					step="5"
-					@input="updateSettings"
-					class="w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer slider"
-				/>
-				<div class="flex justify-between text-xs text-gray-500 mt-1">
-					<span>15 FPS</span>
-					<span>60 FPS</span>
-				</div>
-			</div>
-
-			<!-- Flip Horizontal -->
-			<!-- <div class="flex items-center justify-between">
-				<span class="text-sm font-medium text-gray-300">Yatay Çevir</span>
-				<label class="relative inline-flex items-center cursor-pointer">
-					<input
-						type="checkbox"
-						v-model="localSettings.flipHorizontal"
-						@change="updateSettings"
-						class="sr-only peer"
-					/>
-					<div
-						class="w-9 h-5 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"
-					></div>
-				</label>
-			</div> -->
+		<!-- Arka Plan Tipi ve Renk Paleti (sadece kalite seçiliyse) -->
+		<div v-if="selectedQuality" class="flex items-center gap-3 mt-2">
+			<button
+				:class="[
+					'px-3 py-1 rounded',
+					backgroundType === 'transparent'
+						? 'bg-blue-600 text-white'
+						: 'bg-zinc-700 text-gray-300',
+				]"
+				@click="setBackgroundType('transparent')"
+			>
+				Saydam
+			</button>
+			<input
+				type="color"
+				v-model="backgroundColor"
+				:class="[
+					'w-8 h-8 rounded cursor-pointer',
+					backgroundType === 'color' ? 'ring-2 ring-blue-500' : '',
+				]"
+				@input="onColorInput"
+			/>
+			<span class="text-xs text-gray-400">Arkaplan rengi</span>
 		</div>
 
 		<!-- Loading State -->
-		<div v-if="isLoading" class="flex items-center justify-center py-4">
-			<div
-				class="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"
-			></div>
-			<span class="text-sm text-gray-400">Model yükleniyor...</span>
-		</div>
+		<!-- KALDIRILDI -->
 
 		<!-- Error State -->
 		<div
@@ -119,146 +96,157 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, reactive, watch, onMounted, onUnmounted } from "vue";
 import { useTensorFlowWebcam } from "~/composables/useTensorFlowWebcam";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
-// Player settings
-const { cameraSettings, updateCameraSettings } = usePlayerSettings();
+const props = defineProps({
+	mediaPlayerRef: { type: Object, default: null },
+});
 
-// TensorFlow webcam composable
+const { cameraSettings, updateCameraSettings } = usePlayerSettings();
 const {
 	isInitialized,
-	isProcessing,
 	initialize,
-	startProcessing,
-	stopProcessing,
-	processFrame,
 	updateSettings: updateTensorFlowSettings,
 	cleanup,
+	startProcessing,
 } = useTensorFlowWebcam();
 
-// Local state
-const isEnabled = ref(false);
+const selectedQuality = ref(null); // 'low', 'medium', 'high'
+const backgroundType = ref("transparent"); // 'transparent' | 'color'
+const backgroundColor = ref("#000000");
 const isLoading = ref(false);
 const hasError = ref(false);
 
-// Local settings - optimized defaults
-const localSettings = reactive({
-	segmentationThreshold: 0.5,
-	internalResolution: "medium",
-	flipHorizontal: false,
-	targetFps: 30,
-});
-
-// Toggle handler
-const handleToggle = async () => {
-	if (isEnabled.value) {
-		await startOptimizedBackgroundRemoval();
-	} else {
-		await stopOptimizedBackgroundRemoval();
-	}
+const qualityDefaults = {
+	low: { internalResolution: "low", segmentationThreshold: 0.3, targetFps: 20 },
+	medium: {
+		internalResolution: "medium",
+		segmentationThreshold: 0.5,
+		targetFps: 30,
+	},
+	high: {
+		internalResolution: "high",
+		segmentationThreshold: 0.7,
+		targetFps: 45,
+	},
 };
 
-// Initialize background removal
-const initializeBackgroundRemoval = async () => {
-	try {
+async function selectQuality(quality) {
+	selectedQuality.value = quality;
+	const defaults = qualityDefaults[quality];
+	if (defaults) {
 		isLoading.value = true;
-		hasError.value = false;
+		try {
+			await cleanup();
+			await initialize();
+			await updateTensorFlowSettings({
+				...defaults,
+				backgroundType: backgroundType.value,
+				backgroundColor: backgroundColor.value,
+			});
+			await updateCameraSettings({
+				optimizedBackgroundRemoval: true,
+				removeBackground: true,
+				optimizedBackgroundRemovalSettings: {
+					...defaults,
+					backgroundType: backgroundType.value,
+					backgroundColor: backgroundColor.value,
+				},
+			});
 
-		// Initialize TensorFlow
-		await initialize();
-
-		isInitialized.value = true;
-		isLoading.value = false;
-	} catch (error) {
-		// Failed to initialize background removal
-		hasError.value = true;
-		isLoading.value = false;
-		throw error;
-	}
-};
-
-// Start optimized background removal
-const startOptimizedBackgroundRemoval = async () => {
-	try {
-		isLoading.value = true;
-		hasError.value = false;
-
-		// Initialize if not already done
-		if (!isInitialized.value) {
-			await initializeBackgroundRemoval();
+			if (
+				typeof startProcessing === "function" &&
+				props.mediaPlayerRef?.value?.getVideoElement
+			) {
+				const videoElement = props.mediaPlayerRef.value.getVideoElement();
+				const processLoop = startProcessing(() => {
+					isLoading.value = false;
+					if (
+						props.mediaPlayerRef &&
+						props.mediaPlayerRef.value &&
+						typeof props.mediaPlayerRef.value.updateCanvas === "function"
+					) {
+						props.mediaPlayerRef.value.updateCanvas(performance.now());
+					}
+				});
+				if (videoElement) {
+					processLoop(videoElement);
+				}
+			}
+		} finally {
+			// loading artık onFirstFrame ile kapanacak
 		}
-
-		// Update camera settings
-		updateCameraSettings({
-			optimizedBackgroundRemoval: true,
-			removeBackground: true,
-		});
-
-		isLoading.value = false;
-	} catch (error) {
-		// Failed to start background removal
-		hasError.value = true;
-		isEnabled.value = false;
-		isLoading.value = false;
 	}
-};
+}
 
-// Stop optimized background removal
-const stopOptimizedBackgroundRemoval = async () => {
-	try {
-		// Update camera settings
-		updateCameraSettings({
-			optimizedBackgroundRemoval: false,
-			removeBackground: false,
-		});
-	} catch (error) {
-		// Failed to stop background removal
-	}
-};
-
-// Update settings
-const updateSettings = () => {
-	// Update TensorFlow settings
-	updateTensorFlowSettings(localSettings);
-
-	// Update camera settings for persistence
-	updateCameraSettings({
-		optimizedBackgroundRemovalSettings: { ...localSettings },
+function setBackgroundType(type) {
+	backgroundType.value = type;
+	updateTensorFlowSettings({
+		...qualityDefaults[selectedQuality.value],
+		backgroundType: type,
+		backgroundColor: backgroundColor.value,
 	});
-};
+	updateCameraSettings({
+		optimizedBackgroundRemovalSettings: {
+			...qualityDefaults[selectedQuality.value],
+			backgroundType: type,
+			backgroundColor: backgroundColor.value,
+		},
+	});
+}
 
-// Watch for camera settings changes
+function onColorInput(e) {
+	backgroundType.value = "color";
+	backgroundColor.value = e.target.value;
+	updateTensorFlowSettings({
+		...qualityDefaults[selectedQuality.value],
+		backgroundType: "color",
+		backgroundColor: backgroundColor.value,
+	});
+	updateCameraSettings({
+		optimizedBackgroundRemovalSettings: {
+			...qualityDefaults[selectedQuality.value],
+			backgroundType: "color",
+			backgroundColor: backgroundColor.value,
+		},
+	});
+}
+
 watch(
 	() => cameraSettings.value,
 	(newSettings) => {
 		if (newSettings.optimizedBackgroundRemovalSettings) {
-			Object.assign(
-				localSettings,
-				newSettings.optimizedBackgroundRemovalSettings
-			);
+			backgroundType.value =
+				newSettings.optimizedBackgroundRemovalSettings.backgroundType ||
+				"transparent";
+			backgroundColor.value =
+				newSettings.optimizedBackgroundRemovalSettings.backgroundColor ||
+				"#000000";
 		}
-
-		// Sync enabled state
-		if (newSettings.optimizedBackgroundRemoval !== isEnabled.value) {
-			isEnabled.value = newSettings.optimizedBackgroundRemoval || false;
+		if (newSettings.optimizedBackgroundRemoval) {
+			selectedQuality.value =
+				newSettings.optimizedBackgroundRemovalSettings?.internalResolution ||
+				null;
+		} else {
+			selectedQuality.value = null;
 		}
 	},
 	{ deep: true, immediate: true }
 );
 
-// Initialize from settings
 onMounted(() => {
 	const settings = cameraSettings.value.optimizedBackgroundRemovalSettings;
 	if (settings) {
-		Object.assign(localSettings, settings);
+		backgroundType.value = settings.backgroundType || "transparent";
+		backgroundColor.value = settings.backgroundColor || "#000000";
 	}
-
-	isEnabled.value = cameraSettings.value.optimizedBackgroundRemoval || false;
+	if (cameraSettings.value.optimizedBackgroundRemoval) {
+		selectedQuality.value = settings?.internalResolution || null;
+	}
 });
 
-// Cleanup on unmount
 onUnmounted(() => {
 	cleanup();
 });
@@ -299,5 +287,23 @@ onUnmounted(() => {
 	height: 8px;
 	border-radius: 4px;
 	background: #374151;
+}
+
+.circle-loader {
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	border: 2.5px solid #fff;
+	border-radius: 50%;
+	border-top: 2.5px solid #3b82f6;
+	animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
 }
 </style>

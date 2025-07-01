@@ -23,9 +23,6 @@
 			</label>
 		</div>
 
-		<!-- Optimize Edilmiş Arkaplan Kaldırma -->
-		<OptimizedBackgroundRemovalSettings v-if="cameraVisible" />
-
 		<!-- Kamera Mouse Takibi -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
@@ -41,6 +38,12 @@
 				></div>
 			</label>
 		</div>
+
+		<!-- Optimize Edilmiş Arkaplan Kaldırma -->
+		<OptimizedBackgroundRemovalSettings
+			v-if="cameraVisible"
+			:media-player-ref="props.mediaPlayerRef"
+		/>
 
 		<!-- Kamera Yatay Çevirme -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
@@ -260,12 +263,16 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted, defineProps } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import SliderInput from "~/components/ui/SliderInput.vue";
 import OptimizedBackgroundRemovalSettings from "~/components/player-settings/OptimizedBackgroundRemovalSettings.vue";
 
 const { cameraSettings, updateCameraSettings } = usePlayerSettings();
+
+const props = defineProps({
+	mediaPlayerRef: { type: Object, default: null },
+});
 
 // Kamera ayarları için state
 const cameraSize = ref(cameraSettings.value?.size || 30);

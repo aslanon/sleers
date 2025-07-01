@@ -1834,7 +1834,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					mouseY,
 					cameraPos,
 					videoScale.value, // Zoom ölçeğini kameraya aktar
-					scaledVideoPosition
+					scaledVideoPosition,
+					cameraSettings.value.optimizedBackgroundRemovalSettings
+						?.backgroundType || "transparent",
+					cameraSettings.value.optimizedBackgroundRemovalSettings
+						?.backgroundColor || "#000000"
 				);
 			} catch (error) {
 				console.warn("[MediaPlayer] Camera draw error:", error);

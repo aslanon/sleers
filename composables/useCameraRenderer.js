@@ -72,7 +72,9 @@ export const useCameraRenderer = () => {
 		mouseY,
 		dragPosition = null,
 		zoomScale = 1,
-		videoPosition = { x: 0, y: 0 }
+		videoPosition = { x: 0, y: 0 },
+		backgroundType = "transparent",
+		backgroundColor = "#000000"
 	) => {
 		// Check if camera should be visible
 		if (!cameraSettings.value.visible) return false;
@@ -387,6 +389,26 @@ export const useCameraRenderer = () => {
 		ctx.save();
 
 		try {
+			// Kamera alanı için arka planı doldur
+			if (backgroundType === "color") {
+				ctx.save();
+				ctx.beginPath();
+				useRoundRect(
+					ctx,
+					cameraX,
+					cameraY,
+					cameraWidth,
+					cameraHeight,
+					safeRadius
+				);
+				ctx.clip();
+				// Renk ve tam opaklık uygula
+				ctx.globalAlpha = 1.0;
+				ctx.fillStyle = backgroundColor;
+				ctx.fill();
+				ctx.restore();
+			}
+
 			// Apply hover effect scaling
 			const scaledWidth = cameraWidth * hoverScale.value;
 			const scaledHeight = cameraHeight * hoverScale.value;
