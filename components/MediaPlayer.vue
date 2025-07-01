@@ -1160,33 +1160,20 @@ const drawMousePositions = () => {
 	// Mouse pozisyonunu video koordinatlarından canvas koordinatlarına çevir
 	let canvasX, canvasY;
 
-	if (cropArea.value?.isApplied) {
-		// Crop uygulanmışsa, mouse pozisyonunu crop alanına göre normalize et
-		const normalizedX = (interpolatedX - sourceX) / sourceWidth;
-		const normalizedY = (interpolatedY - sourceY) / sourceHeight;
-
-		canvasX = displayX + normalizedX * displayWidth + position.value.x;
-		canvasY = displayY + normalizedY * displayHeight + position.value.y;
-	} else {
-		// Crop uygulanmamışsa normal hesaplama yap
-		canvasX =
-			displayX +
-			(interpolatedX / videoElement.videoWidth) * displayWidth +
-			position.value.x;
-		canvasY =
-			displayY +
-			(interpolatedY / videoElement.videoHeight) * displayHeight +
-			position.value.y;
-	}
-
-	// Zoom durumunda pozisyonu ayarla
+	// Önce zoom durumunu kontrol et ve zoom origin'i hesapla
+	let zoomOriginX = displayX;
+	let zoomOriginY = displayY;
 	if (videoScale.value > 1.001) {
 		const activeZoom = checkZoomSegments(
 			videoElement.currentTime,
 			zoomRanges.value
 		);
-		const { originX: zoomOriginX, originY: zoomOriginY } = calculateZoomOrigin(
-			activeZoom?.position || lastZoomPosition.value || "center",
+		const dynamicOrigin = {
+			x: ((interpolatedX - sourceX) / sourceWidth) * 100,
+			y: ((interpolatedY - sourceY) / sourceHeight) * 100,
+		};
+		const zoomOrigin = calculateZoomOrigin(
+			dynamicOrigin,
 			displayX,
 			displayY,
 			displayWidth,
@@ -1194,10 +1181,53 @@ const drawMousePositions = () => {
 			displayX + displayWidth / 2,
 			displayY + displayHeight / 2
 		);
+		zoomOriginX = zoomOrigin.originX;
+		zoomOriginY = zoomOrigin.originY;
+		lastZoomPosition.value = dynamicOrigin;
+	}
 
-		// Zoom'u hesaba katarak pozisyonu güncelle
-		canvasX = zoomOriginX + (canvasX - zoomOriginX) * videoScale.value;
-		canvasY = zoomOriginY + (canvasY - zoomOriginY) * videoScale.value;
+	if (cropArea.value?.isApplied) {
+		// Crop uygulanmışsa, mouse pozisyonunu crop alanına göre normalize et
+		const normalizedX = (interpolatedX - sourceX) / sourceWidth;
+		const normalizedY = (interpolatedY - sourceY) / sourceHeight;
+
+		// Zoom'u hesaba katarak pozisyonu hesapla
+		const baseX = displayX + normalizedX * displayWidth;
+		const baseY = displayY + normalizedY * displayHeight;
+
+		if (videoScale.value > 1.001) {
+			canvasX =
+				zoomOriginX +
+				(baseX - zoomOriginX) * videoScale.value +
+				position.value.x;
+			canvasY =
+				zoomOriginY +
+				(baseY - zoomOriginY) * videoScale.value +
+				position.value.y;
+		} else {
+			canvasX = baseX + position.value.x;
+			canvasY = baseY + position.value.y;
+		}
+	} else {
+		// Crop uygulanmamışsa normal hesaplama yap
+		const baseX =
+			displayX + (interpolatedX / videoElement.videoWidth) * displayWidth;
+		const baseY =
+			displayY + (interpolatedY / videoElement.videoHeight) * displayHeight;
+
+		if (videoScale.value > 1.001) {
+			canvasX =
+				zoomOriginX +
+				(baseX - zoomOriginX) * videoScale.value +
+				position.value.x;
+			canvasY =
+				zoomOriginY +
+				(baseY - zoomOriginY) * videoScale.value +
+				position.value.y;
+		} else {
+			canvasX = baseX + position.value.x;
+			canvasY = baseY + position.value.y;
+		}
 	}
 
 	// Mouse cursor'ı çiz
@@ -1475,10 +1505,10 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			const centerX = x + drawWidth / 2;
 			const centerY = y + drawHeight / 2;
 
-			// Zoom origin'i hesapla
+			// Zoom origin'ini son kaydedilen cursor konumuna göre hesapla
 			const { originX: transformOriginX, originY: transformOriginY } =
 				calculateZoomOrigin(
-					activeZoom?.position || lastZoomPosition.value || "center",
+					lastZoomPosition.value || "center",
 					x,
 					y,
 					drawWidth,
@@ -1486,11 +1516,6 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					centerX,
 					centerY
 				);
-
-			// Son zoom pozisyonunu kaydet
-			if (activeZoom?.position) {
-				lastZoomPosition.value = activeZoom.position;
-			}
 
 			// Orijinal görüntüyü çiz - Transform the entire context for all elements
 			ctx.save();

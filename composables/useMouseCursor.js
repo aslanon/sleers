@@ -85,12 +85,9 @@ export const useMouseCursor = () => {
 	const currentScale = ref(1);
 	const targetScale = ref(1);
 	const rotation = ref(0);
-	const targetRotation = ref(0);
 	const warpX = ref(1);
 	const warpY = ref(1);
-	const targetWarpX = ref(1);
-	const targetWarpY = ref(1);
-	const speed = 0.1; // Decreased for smoother movement
+	const speed = 0.2; // Decreased for smoother movement
 	const animationActive = ref(false);
 	const lastTimestamp = ref(0);
 	const isVisible = ref(true);
@@ -182,16 +179,6 @@ export const useMouseCursor = () => {
 	// Mouse event'lerine göre cursor tipini güncelle
 	const updateCursorType = (event) => {
 		if (!event) return;
-
-		// Debug: Event'i detaylı logla
-		console.log("[useMouseCursor] 🔍 Event details:", {
-			type: event.type,
-			cursorType: event.cursorType,
-			x: event.x,
-			y: event.y,
-			timestamp: event.timestamp,
-			currentType: currentCursorType.value,
-		});
 
 		const prevType = currentCursorType.value;
 		let newType = event.cursorType || CURSOR_TYPES.DEFAULT;
