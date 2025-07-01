@@ -72,7 +72,7 @@ const exportVideo = async (
 		exportCanvas.width = params.width;
 		exportCanvas.height = params.height;
 		const exportCtx = exportCanvas.getContext("2d", {
-			alpha: false,
+			alpha: true, // Camera transparency için
 			antialias: true,
 			desynchronized: false,
 		});
@@ -86,7 +86,7 @@ const exportVideo = async (
 		tempCanvas.width = params.width;
 		tempCanvas.height = params.height;
 		const tempCtx = tempCanvas.getContext("2d", {
-			alpha: false,
+			alpha: true, // Camera transparency için
 			antialias: true,
 			desynchronized: false,
 		});

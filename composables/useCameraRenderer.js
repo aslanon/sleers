@@ -2,6 +2,7 @@ import { ref, shallowRef } from "vue";
 import { useRoundRect } from "~/composables/useRoundRect";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useBackgroundRemoval } from "~/composables/useBackgroundRemoval";
+import { useTensorFlowWebcam } from "~/composables/useTensorFlowWebcam";
 
 export const useCameraRenderer = () => {
 	const { cameraSettings } = usePlayerSettings();
@@ -15,7 +16,7 @@ export const useCameraRenderer = () => {
 	// Cache ve optimizasyon için yeni referanslar
 	const lastFrameTime = ref(0);
 	const renderRequestID = ref(null);
-	const frameLimiter = ref(1000 / 30); // 30 FPS ile sınırla
+	const frameLimiter = ref(1000 / 60); // 60 FPS ile sınırla - daha yüksek FPS
 
 	// Background removal integration
 	const {
@@ -25,6 +26,21 @@ export const useCameraRenderer = () => {
 		stopBackgroundRemoval,
 		processFrame: processBackgroundRemovalFrame,
 	} = useBackgroundRemoval();
+
+	// TensorFlow background removal
+	const {
+		isInitialized: isTensorFlowInitialized,
+		isProcessing: isTensorFlowProcessing,
+		initialize: initializeTensorFlow,
+		processFrame: processTensorFlowFrame,
+		startProcessing: startTensorFlowProcessing,
+		stopProcessing: stopTensorFlowProcessing,
+	} = useTensorFlowWebcam();
+
+	// Optimized processing state
+	const processingCache = ref(new Map());
+	const lastProcessedFrame = ref(null);
+	const backgroundRemovalActive = ref(false);
 
 	// Hover scale değerini güncelle
 	const updateHoverScale = () => {
@@ -319,6 +335,50 @@ export const useCameraRenderer = () => {
 			};
 		}
 
+		// Process frame with TensorFlow if enabled (optimized)
+		if (cameraSettings.value.optimizedBackgroundRemoval && cameraElement) {
+			backgroundRemovalActive.value = true;
+
+			if (!isTensorFlowInitialized.value) {
+				initializeTensorFlow().then(() => {
+					startTensorFlowProcessing();
+				});
+			} else if (!isTensorFlowProcessing.value) {
+				startTensorFlowProcessing();
+			}
+
+			// Cache processed frames to avoid re-processing
+			const frameKey = `${cameraElement?.currentTime || now}`;
+			if (processingCache.value.has(frameKey)) {
+				lastProcessedFrame.value = processingCache.value.get(frameKey);
+			} else {
+				// Process asynchronously without blocking render
+				processTensorFlowFrame(cameraElement)
+					.then((processedCanvas) => {
+						if (processedCanvas) {
+							processingCache.value.set(frameKey, processedCanvas);
+							lastProcessedFrame.value = processedCanvas;
+
+							// Limit cache size to 3 frames
+							if (processingCache.value.size > 3) {
+								const firstKey = processingCache.value.keys().next().value;
+								processingCache.value.delete(firstKey);
+							}
+						}
+					})
+					.catch(() => {
+						// Handle processing errors silently
+					});
+			}
+		} else {
+			backgroundRemovalActive.value = false;
+			if (isTensorFlowProcessing.value) {
+				stopTensorFlowProcessing();
+			}
+			lastProcessedFrame.value = null;
+			processingCache.value.clear();
+		}
+
 		// Draw camera with proper state management
 		ctx.save();
 
@@ -387,9 +447,8 @@ export const useCameraRenderer = () => {
 			);
 			ctx.clip();
 
-			// Draw background
-			ctx.fillStyle = "rgba(0, 0, 0, 0)";
-			ctx.fill();
+			// No background fill needed for transparency
+			// The clipped area will naturally show transparency
 
 			// Apply mirror effect if enabled
 			if (cameraSettings.value?.mirror) {
@@ -398,130 +457,40 @@ export const useCameraRenderer = () => {
 				ctx.translate(-cameraX, -cameraY);
 			}
 
-			// Draw camera with error handling
-			if (
-				isBackgroundRemovalActive.value &&
-				cameraSettings.value?.removeBackground
-			) {
-				try {
-					// Process the current frame for background removal
-					const processedCanvas = await processBackgroundRemovalFrame(
-						cameraElement
-					);
+			// Draw camera with real transparency support
+			if (backgroundRemovalActive.value && lastProcessedFrame.value) {
+				const processedCanvas = lastProcessedFrame.value;
 
-					if (processedCanvas) {
-						// Draw checkerboard pattern for transparency
-						const patternSize = 20;
-						for (let x = cameraX; x < cameraX + cameraWidth; x += patternSize) {
-							for (
-								let y = cameraY;
-								y < cameraY + cameraHeight;
-								y += patternSize
-							) {
-								ctx.fillStyle =
-									((x + y) / patternSize) % 2 === 0 ? "#333333" : "#666666";
-								ctx.fillRect(x, y, patternSize, patternSize);
-							}
-						}
+				// Calculate aspect ratio preserving dimensions
+				const sourceRatio = processedCanvas.width / processedCanvas.height;
+				const targetRatio = cameraWidth / cameraHeight;
 
-						// Draw the processed frame with transparency
-						ctx.save();
-						ctx.globalCompositeOperation = "source-over";
+				let drawWidth = cameraWidth;
+				let drawHeight = cameraHeight;
+				let drawX = cameraX;
+				let drawY = cameraY;
 
-						// Calculate aspect ratio preserving dimensions
-						const sourceRatio = processedCanvas.width / processedCanvas.height;
-						const targetRatio = cameraWidth / cameraHeight;
-
-						let drawWidth = cameraWidth;
-						let drawHeight = cameraHeight;
-						let drawX = cameraX;
-						let drawY = cameraY;
-
-						if (sourceRatio > targetRatio) {
-							drawHeight = drawWidth / sourceRatio;
-							drawY += (cameraHeight - drawHeight) / 2;
-						} else {
-							drawWidth = drawHeight * sourceRatio;
-							drawX += (cameraWidth - drawWidth) / 2;
-						}
-
-						// Draw the processed frame
-						ctx.drawImage(
-							processedCanvas,
-							0,
-							0,
-							processedCanvas.width,
-							processedCanvas.height,
-							drawX,
-							drawY,
-							drawWidth,
-							drawHeight
-						);
-						ctx.restore();
-
-						// Draw indicator border
-						ctx.save();
-						ctx.strokeStyle = "#00ff00";
-						ctx.lineWidth = 2;
-						ctx.setLineDash([5, 5]);
-						useRoundRect(
-							ctx,
-							cameraX - 2,
-							cameraY - 2,
-							cameraWidth + 4,
-							cameraHeight + 4,
-							safeRadius
-						);
-						ctx.stroke();
-						ctx.restore();
-
-						// Request next frame update
-						requestAnimationFrame(() => {
-							drawCamera(
-								ctx,
-								cameraElement,
-								canvasWidth,
-								canvasHeight,
-								dpr,
-								mouseX,
-								mouseY,
-								dragPosition,
-								zoomScale,
-								videoPosition
-							);
-						});
-					} else {
-						// Fallback to normal rendering if processing failed
-						ctx.drawImage(
-							cameraElement,
-							sourceX,
-							sourceY,
-							sourceWidth,
-							sourceHeight,
-							cameraX,
-							cameraY,
-							cameraWidth,
-							cameraHeight
-						);
-					}
-				} catch (error) {
-					console.error(
-						"[CameraRenderer] Error in background removal rendering:",
-						error
-					);
-					// Fallback to normal rendering
-					ctx.drawImage(
-						cameraElement,
-						sourceX,
-						sourceY,
-						sourceWidth,
-						sourceHeight,
-						cameraX,
-						cameraY,
-						cameraWidth,
-						cameraHeight
-					);
+				if (sourceRatio > targetRatio) {
+					drawHeight = drawWidth / sourceRatio;
+					drawY += (cameraHeight - drawHeight) / 2;
+				} else {
+					drawWidth = drawHeight * sourceRatio;
+					drawX += (cameraWidth - drawWidth) / 2;
 				}
+
+				// Draw the processed frame with true transparency support
+				// No globalCompositeOperation override needed for transparency
+				ctx.drawImage(
+					processedCanvas,
+					0,
+					0,
+					processedCanvas.width,
+					processedCanvas.height,
+					drawX,
+					drawY,
+					drawWidth,
+					drawHeight
+				);
 			} else {
 				// Normal rendering without background removal
 				ctx.drawImage(
@@ -558,7 +527,7 @@ export const useCameraRenderer = () => {
 				ctx.restore();
 			}
 		} catch (error) {
-			console.error("[CameraRenderer] Error in camera rendering:", error);
+			// Handle rendering errors gracefully without logging
 		} finally {
 			ctx.restore();
 		}

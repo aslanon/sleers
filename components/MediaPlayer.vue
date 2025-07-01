@@ -1415,12 +1415,26 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.filter = "none";
 			} catch (error) {
 				console.error("Error drawing background image:", error);
+				// Camera background removal aktifse arkaplan doldurmayı atla
+				const isCameraBackgroundRemovalActive =
+					cameraSettings.value?.optimizedBackgroundRemoval;
+
+				if (!isCameraBackgroundRemovalActive) {
+					ctx.fillStyle = backgroundColor.value;
+					ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+				}
+			}
+		} else {
+			// Camera background removal aktifse arkaplan doldurmayı atla
+			// Bu sayede camera transparency korunur
+			const isCameraBackgroundRemovalActive =
+				cameraSettings.value?.optimizedBackgroundRemoval;
+
+			if (!isCameraBackgroundRemovalActive) {
 				ctx.fillStyle = backgroundColor.value;
 				ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 			}
-		} else {
-			ctx.fillStyle = backgroundColor.value;
-			ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+			// Background removal aktifse canvas transparent kalır
 		}
 
 		// Ana context state'i kaydet
@@ -2141,7 +2155,7 @@ const onVideoMetadataLoaded = () => {
 
 		// Context'i oluştur
 		ctx = canvasRef.value.getContext("2d", {
-			alpha: false,
+			alpha: true, // Camera transparency için gerekli!
 			desynchronized: false,
 			willReadFrequently: false,
 			preserveDrawingBuffer: true,

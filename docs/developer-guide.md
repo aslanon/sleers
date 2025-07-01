@@ -259,7 +259,18 @@ npm run electron:build
    - Asenkron işlem yönetimi
    - Geçici dosya yönetimi
 
-6. **Düzen Yönetimi**
+6. **Optimize Edilmiş Arka Plan Kaldırma**
+
+   - TensorFlow.js makale tekniklerini kullanarak geliştirilen yeni sistem
+   - WebGL backend optimizasyonu ile hızlandırılmış işleme
+   - Geliştirilmiş kişi segmentasyonu algoritması
+   - Gerçek zamanlı performans metrikleri
+   - Çift canvas sistemi ile optimizasyon
+   - Exponential moving average ile FPS kontrolü
+   - Modern BodyPix konfigürasyonu
+   - Test sayfası ile performans analizi
+
+7. **Düzen Yönetimi**
 
    - Kamera ve video konumlarını kaydetme
    - Düzen kaydetme ve yükleme
@@ -267,7 +278,7 @@ npm run electron:build
    - Düzen silme
    - Electron.store ile kalıcı depolama
 
-7. **Cursor Tracking Sistemi**
+8. **Cursor Tracking Sistemi**
    - node-mac-recorder entegrasyonu ile native cursor tracking
    - Kayıt sırasında otomatik cursor pozisyon takibi
    - Cursor tipi ve click event detection
