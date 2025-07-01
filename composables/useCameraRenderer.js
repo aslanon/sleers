@@ -304,28 +304,32 @@ export const useCameraRenderer = () => {
 			const zoomCameraWidth = cameraWidth;
 			const zoomCameraHeight = cameraHeight;
 
-			// Calculate zoom-aware bounds checking with padding
+			// CANVAS_PADDING sadece followMouse aktifse uygula
+			if (cameraSettings.value.followMouse) {
+				const CANVAS_PADDING = 48 * dpr; // 48px padding from edges
+				cameraX = Math.max(
+					CANVAS_PADDING,
+					Math.min(canvasWidth - zoomCameraWidth - CANVAS_PADDING, cameraX)
+				);
+				cameraY = Math.max(
+					CANVAS_PADDING,
+					Math.min(canvasHeight - zoomCameraHeight - CANVAS_PADDING, cameraY)
+				);
+			}
+		}
+
+		// CANVAS_PADDING sadece followMouse aktifse uygula
+		if (cameraSettings.value.followMouse) {
 			const CANVAS_PADDING = 48 * dpr; // 48px padding from edges
 			cameraX = Math.max(
 				CANVAS_PADDING,
-				Math.min(canvasWidth - zoomCameraWidth - CANVAS_PADDING, cameraX)
+				Math.min(canvasWidth - cameraWidth - CANVAS_PADDING, cameraX)
 			);
 			cameraY = Math.max(
 				CANVAS_PADDING,
-				Math.min(canvasHeight - zoomCameraHeight - CANVAS_PADDING, cameraY)
+				Math.min(canvasHeight - cameraHeight - CANVAS_PADDING, cameraY)
 			);
 		}
-
-		// Ensure camera stays within canvas bounds with padding
-		const CANVAS_PADDING = 48 * dpr; // 48px padding from edges
-		cameraX = Math.max(
-			CANVAS_PADDING,
-			Math.min(canvasWidth - cameraWidth - CANVAS_PADDING, cameraX)
-		);
-		cameraY = Math.max(
-			CANVAS_PADDING,
-			Math.min(canvasHeight - cameraHeight - CANVAS_PADDING, cameraY)
-		);
 
 		// Save last position, accounting for zoom
 		if (dragPosition || !cameraSettings.value.followMouse) {
