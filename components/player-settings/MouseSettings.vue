@@ -21,6 +21,21 @@
 			</label>
 		</div>
 
+		<div v-if="mouseVisible" class="flex items-center justify-between">
+			<div>
+				<h4 class="text-base font-semibold text-white">Otomatik Gizlenme</h4>
+				<p class="text-sm font-normal text-gray-500">
+					İmleç 3 saniye hareketsiz kaldığında otomatik olarak gizlenir.
+				</p>
+			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input type="checkbox" v-model="autoHide" class="sr-only peer" />
+				<div
+					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
+				></div>
+			</label>
+		</div>
+
 		<SliderInput
 			v-if="mouseVisible"
 			v-model="mouseSize"
@@ -104,11 +119,13 @@ const {
 	motionBlurValue: motionBlurStore,
 	mouseVisible: mouseVisibleStore,
 	cursorTransitionType: cursorTransitionTypeStore,
+	autoHideCursor: autoHideCursorStore,
 	CURSOR_TRANSITION_TYPES: transitionTypes,
 	updateMouseSize,
 	updateMotionBlur,
 	updateMouseVisible,
 	updateCursorTransitionType,
+	updateAutoHideCursor,
 } = usePlayerSettings();
 
 // Local state
@@ -116,6 +133,7 @@ const mouseSize = ref(mouseSizeStore.value);
 const motionBlurValue = ref(motionBlurStore.value);
 const mouseVisible = ref(mouseVisibleStore.value);
 const selectedTransitionType = ref(cursorTransitionTypeStore.value);
+const autoHide = ref(autoHideCursorStore.value);
 
 // Önizleme için state
 const isPreviewActive = ref(false);
@@ -280,6 +298,11 @@ watch(mouseVisibleStore, (newValue) => {
 
 watch(cursorTransitionTypeStore, (newValue) => {
 	selectedTransitionType.value = newValue;
+});
+
+// Watch autoHide changes
+watch(autoHide, (newValue) => {
+	updateAutoHideCursor(newValue);
 });
 </script>
 

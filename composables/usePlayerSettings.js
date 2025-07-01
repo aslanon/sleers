@@ -8,6 +8,7 @@ const mouseSize = ref(180);
 const motionBlurValue = ref(0.5);
 const mouseVisible = ref(true);
 const cursorTransitionType = ref(CURSOR_TRANSITION_TYPES.EASE);
+const autoHideCursor = ref(true);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
@@ -17,7 +18,7 @@ const shadowSize = ref(50);
 const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
-const showDock = ref(true);
+const showDock = ref(false);
 const dockSize = ref(4);
 const cameraSettings = ref({
 	size: 15,
@@ -97,6 +98,10 @@ export const usePlayerSettings = () => {
 			cursorTransitionType.value = type;
 			setTransitionInMotionBlur(type);
 		}
+	};
+
+	const updateAutoHideCursor = (value) => {
+		autoHideCursor.value = value;
 	};
 
 	const updateBackgroundColor = (color) => {
@@ -225,6 +230,7 @@ export const usePlayerSettings = () => {
 		motionBlurValue,
 		mouseVisible,
 		cursorTransitionType,
+		autoHideCursor,
 		backgroundColor,
 		backgroundImage,
 		backgroundBlur,
@@ -246,6 +252,7 @@ export const usePlayerSettings = () => {
 		updateMotionBlur,
 		updateMouseVisible,
 		updateCursorTransitionType,
+		updateAutoHideCursor,
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,

@@ -1,4 +1,4 @@
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, onUnmounted } from "vue";
 import defaultCursor from "@/assets/cursors/high/default.svg";
 import pointerCursor from "@/assets/cursors/high/pointer.svg";
 import grabbingCursor from "@/assets/cursors/high/grabbing.svg";
@@ -40,7 +40,7 @@ export const CURSOR_TYPES = {
 
 export const useMouseCursor = () => {
 	// Player ayarlarını al
-	const { cursorTransitionType } = usePlayerSettings();
+	const { cursorTransitionType, autoHideCursor } = usePlayerSettings();
 
 	// Component başlatıldığında transition tipini ayarla
 	onMounted(() => {
@@ -91,6 +91,35 @@ export const useMouseCursor = () => {
 	const animationActive = ref(false);
 	const lastTimestamp = ref(0);
 	const isVisible = ref(true);
+
+	// Cursor hareketsizlik takibi için değişkenler
+	const lastMovementTime = ref(Date.now());
+	const inactivityTimeout = ref(null);
+	const INACTIVITY_DURATION = 3000; // 3 saniye
+
+	// Cursor hareketsizlik kontrolü
+	const checkCursorInactivity = () => {
+		// Otomatik gizlenme kapalıysa işlem yapma
+		if (!autoHideCursor.value) {
+			isVisible.value = true;
+			return;
+		}
+
+		if (inactivityTimeout.value) {
+			clearTimeout(inactivityTimeout.value);
+		}
+
+		inactivityTimeout.value = setTimeout(() => {
+			isVisible.value = false;
+		}, INACTIVITY_DURATION);
+
+		// Eğer cursor gizliyse ve hareket varsa göster
+		if (!isVisible.value) {
+			isVisible.value = true;
+		}
+
+		lastMovementTime.value = Date.now();
+	};
 
 	// Cursor canvas'ını oluştur
 	const createCursorCanvas = () => {
@@ -243,8 +272,12 @@ export const useMouseCursor = () => {
 			visible = true,
 		} = options;
 
-		if (!visible) {
-			isVisible.value = false;
+		// Mouse hareketi varsa inaktivite kontrolünü başlat
+		if (x !== cursorX.value || y !== cursorY.value) {
+			checkCursorInactivity();
+		}
+
+		if (!isVisible.value) {
 			return;
 		}
 
@@ -258,15 +291,6 @@ export const useMouseCursor = () => {
 
 		// Event'e göre cursor tipini güncelle
 		if (event) {
-			// Debug: Her event'i logla
-			console.log("[useMouseCursor] 📍 Drawing event:", {
-				type: event.type,
-				cursorType: event.cursorType,
-				x: event.x,
-				y: event.y,
-				currentType: currentCursorType.value,
-			});
-
 			updateCursorType(event);
 		}
 
@@ -450,52 +474,38 @@ export const useMouseCursor = () => {
 		requestAnimationFrame(animateCursor);
 	};
 
-	// Hover state yönetimi
-	const handleHover = (element, isHoverable = false) => {
-		if (!element || !isHoverable) return;
-
-		console.log("[useMouseCursor] 🎯 Setting up hover for element:", {
-			element: element?.tagName,
-			isHoverable,
-		});
-
-		const handleMouseEnter = () => {
-			if (!isDragging.value) {
-				// Sürükleme sırasında hover'ı engelle
-				isHovering.value = true;
-				hoverTarget.value = element;
-				updateCursorType({ type: MOUSE_EVENTS.HOVER, target: element });
-			}
-		};
-
-		const handleMouseLeave = () => {
-			isHovering.value = false;
-			hoverTarget.value = null;
-			if (!isDragging.value) {
-				// Sürükleme sırasında state değişimini engelle
-				updateCursorType({ type: MOUSE_EVENTS.MOVE });
-			}
-		};
-
-		// Event listener'ları ekle
-		element.addEventListener("mouseenter", handleMouseEnter);
-		element.addEventListener("mouseleave", handleMouseLeave);
-
-		// Cleanup fonksiyonu
-		return () => {
-			element.removeEventListener("mouseenter", handleMouseEnter);
-			element.removeEventListener("mouseleave", handleMouseLeave);
-		};
-	};
+	// Component unmount olduğunda timeout'u temizle
+	onUnmounted(() => {
+		if (inactivityTimeout.value) {
+			clearTimeout(inactivityTimeout.value);
+		}
+	});
 
 	return {
+		cursorCanvas,
+		cursorCtx,
+		cursorSize,
+		dpr,
+		cursorX,
+		cursorY,
+		targetX,
+		targetY,
+		currentScale,
+		targetScale,
+		rotation,
+		warpX,
+		warpY,
+		speed,
+		animationActive,
+		lastTimestamp,
+		isVisible,
 		currentCursorType,
 		isMouseDown,
 		isDragging,
 		isHovering,
-		MOUSE_EVENTS,
-		CURSOR_TYPES,
+		hoverTarget,
+		updateCursorType,
 		drawMousePosition,
-		handleHover,
+		handleClickAnimation,
 	};
 };

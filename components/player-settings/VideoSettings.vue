@@ -172,7 +172,7 @@
 		</div>
 
 		<!-- macOS Dock Ayarı -->
-		<div class="space-y-4 border-zinc-700">
+		<div v-if="false" class="space-y-4 border-zinc-700">
 			<div class="flex items-center justify-between">
 				<div>
 					<h4 class="text-base font-semibold text-white">MacOS Dock</h4>
