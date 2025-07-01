@@ -38,12 +38,12 @@
 							]"
 						>
 							<div
-								class="w-full h-20 rounded-lg overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center"
+								class="w-full h-24 rounded-lg overflow-hidden bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center"
 							>
 								<img
 									v-if="source.thumbnail"
 									:src="source.thumbnail"
-									class="w-full h-full object-cover rounded-lg"
+									class="w-full h-full object-contain rounded-lg"
 									:alt="source.name"
 									loading="lazy"
 								/>

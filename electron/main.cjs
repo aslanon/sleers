@@ -996,15 +996,86 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		}
 
 		const outputPath = createScreenRecordingPath();
+
+		// MediaStateManager'dan seçili kaynak bilgisini al
+		const recordingSource = mediaStateManager?.state.recordingSource;
+		console.log(
+			"[Main] MacRecorder başlatılırken kaynak bilgisi:",
+			recordingSource
+		);
+
 		const recordingOptions = {
 			includeMicrophone: false,
 			includeSystemAudio: false,
 			quality: "medium",
 			frameRate: 30,
 			captureCursor: false,
-			display: 0,
 			...options,
 		};
+
+		// MediaStateManager'dan ses ayarlarını al
+		if (mediaStateManager) {
+			const audioSettings = mediaStateManager.state.audioSettings;
+			if (audioSettings) {
+				recordingOptions.includeMicrophone = audioSettings.microphoneEnabled;
+				recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
+				console.log("[Main] Ses ayarları eklendi:", {
+					includeMicrophone: recordingOptions.includeMicrophone,
+					audioDeviceId: recordingOptions.audioDeviceId,
+				});
+			}
+		}
+
+		// Seçili kaynağa göre MacRecorder seçeneklerini ayarla
+		if (recordingSource && recordingSource.macRecorderId !== null) {
+			if (recordingSource.sourceType === "window") {
+				// Pencere kaydı için windowId kullan
+				const windowId = parseInt(recordingSource.macRecorderId, 10);
+				if (!isNaN(windowId)) {
+					recordingOptions.windowId = windowId;
+					recordingOptions.displayId = null; // Window recording'de displayId null olmalı
+					console.log("[Main] MacRecorder windowId ayarlandı:", windowId);
+				}
+			} else if (
+				recordingSource.sourceType === "display" ||
+				recordingSource.sourceType === "screen"
+			) {
+				// Ekran kaydı için displayId kullan
+				const displayId = parseInt(recordingSource.macRecorderId, 10);
+				if (!isNaN(displayId)) {
+					recordingOptions.displayId = displayId;
+					recordingOptions.windowId = null; // Display recording'de windowId null olmalı
+					console.log("[Main] MacRecorder displayId ayarlandı:", displayId);
+				}
+			}
+		} else {
+			// Default olarak ana ekranı kullan
+			recordingOptions.displayId = 0;
+			recordingOptions.windowId = null;
+			console.log("[Main] MacRecorder default displayId (0) kullanılıyor");
+		}
+
+		// Seçilen alan varsa captureArea olarak ekle
+		if (mediaStateManager && mediaStateManager.state.selectedArea) {
+			const selectedArea = mediaStateManager.state.selectedArea;
+			if (selectedArea && selectedArea.width > 0 && selectedArea.height > 0) {
+				recordingOptions.captureArea = {
+					x: Math.round(selectedArea.x),
+					y: Math.round(selectedArea.y),
+					width: Math.round(selectedArea.width),
+					height: Math.round(selectedArea.height),
+				};
+				// Alan kaydında display/window ID'sini temizle
+				recordingOptions.displayId = null;
+				recordingOptions.windowId = null;
+				console.log(
+					"[Main] Kırpma alanı MacRecorder'a eklendi:",
+					recordingOptions.captureArea
+				);
+			}
+		}
+
+		console.log("[Main] Final MacRecorder options:", recordingOptions);
 
 		const result = await recorder.startRecording(outputPath, recordingOptions);
 
@@ -1327,16 +1398,40 @@ function setupIpcHandlers() {
 						const displays = await recorder.getDisplays();
 						console.log("[Main] MacRecorder displays:", displays);
 
-						displays.forEach((display, index) => {
-							sources.push({
-								id: `screen:${display.id || index}`,
-								name: display.name || `Display ${index + 1}`,
-								type: "screen",
-								macRecorderId: display.id || index,
-								macRecorderInfo: display,
-								thumbnail: null,
-							});
-						});
+						// Process displays and get thumbnails
+						for (const display of displays) {
+							try {
+								const thumbnail = await recorder.getDisplayThumbnail(
+									display.id,
+									{
+										maxWidth: options.thumbnailSize?.width || 300,
+										maxHeight: options.thumbnailSize?.height || 200,
+									}
+								);
+
+								sources.push({
+									id: `screen:${display.id || index}`,
+									name: display.name || `Display ${index + 1}`,
+									type: "screen",
+									macRecorderId: display.id || index,
+									macRecorderInfo: display,
+									thumbnail: thumbnail,
+								});
+							} catch (thumbnailError) {
+								console.warn(
+									`[Main] Display thumbnail alınamadı (${display.id}):`,
+									thumbnailError
+								);
+								sources.push({
+									id: `screen:${display.id}`,
+									name: display.name || `Display ${display.id}`,
+									type: "screen",
+									macRecorderId: display.id,
+									macRecorderInfo: display,
+									thumbnail: null,
+								});
+							}
+						}
 					} catch (error) {
 						console.error("[Main] MacRecorder displays hatası:", error);
 						throw error;
@@ -1350,16 +1445,37 @@ function setupIpcHandlers() {
 						const windows = await recorder.getWindows();
 						console.log("[Main] MacRecorder windows:", windows);
 
-						windows.forEach((window) => {
-							sources.push({
-								id: `window:${window.id}`,
-								name: window.appName || window.name || `Window ${window.id}`,
-								type: "window",
-								macRecorderId: window.id,
-								macRecorderInfo: window,
-								thumbnail: null,
-							});
-						});
+						// Process windows and get thumbnails
+						for (const window of windows) {
+							try {
+								const thumbnail = await recorder.getWindowThumbnail(window.id, {
+									maxWidth: options.thumbnailSize?.width || 300,
+									maxHeight: options.thumbnailSize?.height || 200,
+								});
+
+								sources.push({
+									id: `window:${window.id}`,
+									name: window.appName || window.name || `Window ${window.id}`,
+									type: "window",
+									macRecorderId: window.id,
+									macRecorderInfo: window,
+									thumbnail: thumbnail,
+								});
+							} catch (thumbnailError) {
+								console.warn(
+									`[Main] Window thumbnail alınamadı (${window.id}):`,
+									thumbnailError
+								);
+								sources.push({
+									id: `window:${window.id}`,
+									name: window.appName || window.name || `Window ${window.id}`,
+									type: "window",
+									macRecorderId: window.id,
+									macRecorderInfo: window,
+									thumbnail: null,
+								});
+							}
+						}
 					} catch (error) {
 						console.error("[Main] MacRecorder windows hatası:", error);
 						throw error;
@@ -1378,23 +1494,7 @@ function setupIpcHandlers() {
 		}
 	);
 
-	// MacRecorder Thumbnail fonksiyonları ekle
-	safeHandle("GET_MAC_SCREEN_THUMBNAIL", async (event, screenId, options) => {
-		try {
-			console.log("[Main] MacRecorder ekran thumbnail'ı isteniyor:", screenId);
-
-			// Ekran thumbnail'ı için özel izinler gerekebilir, şimdilik devre dışı
-			console.warn(
-				"[Main] Ekran thumbnail'ı şu anda desteklenmiyor (izin sorunu)"
-			);
-			return null;
-
-			// TODO: Display thumbnail izin sorunu çözüldüğünde eklenecek
-		} catch (error) {
-			console.warn("[Main] MacRecorder ekran thumbnail hatası:", error.message);
-			return null;
-		}
-	});
+	// MacRecorder Thumbnail fonksiyonları
 
 	safeHandle("GET_MAC_WINDOW_THUMBNAIL", async (event, windowId, options) => {
 		try {

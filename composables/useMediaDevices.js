@@ -76,7 +76,7 @@ export const useMediaDevices = () => {
 			if (startScreen) {
 				// MacRecorder kullanarak ekran kaydını başlat
 				console.log("🎬 MacRecorder ile ekran kaydı başlatılıyor...");
-				screenResult = await screenModule.startRecording(null, options);
+				screenResult = screenModule.startRecording(null, options);
 				mouseModule.startMouseTracking();
 			} else {
 				console.warn(
