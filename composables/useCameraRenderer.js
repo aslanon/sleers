@@ -401,7 +401,7 @@ export const useCameraRenderer = () => {
 			ctx.imageSmoothingEnabled = true;
 			ctx.imageSmoothingQuality = "high";
 
-			// Draw shadow if enabled
+			// Draw shadow if enabled (only shadow, no background fill)
 			if (cameraSettings.value?.shadow > 0) {
 				ctx.save();
 				ctx.beginPath();
@@ -413,12 +413,13 @@ export const useCameraRenderer = () => {
 					cameraHeight,
 					safeRadius
 				);
-				ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+				ctx.shadowColor = "rgba(0, 0, 0, 0)";
 				ctx.shadowBlur = safeShadowBlur;
 				ctx.shadowOffsetX = 0;
 				ctx.shadowOffsetY = 0;
-				ctx.fillStyle = "#000000";
+				ctx.fillStyle = "#00000000";
 				ctx.fill();
+				ctx.globalAlpha = 1.0;
 				ctx.restore();
 			}
 
@@ -461,35 +462,17 @@ export const useCameraRenderer = () => {
 			if (backgroundRemovalActive.value && lastProcessedFrame.value) {
 				const processedCanvas = lastProcessedFrame.value;
 
-				// Calculate aspect ratio preserving dimensions
-				const sourceRatio = processedCanvas.width / processedCanvas.height;
-				const targetRatio = cameraWidth / cameraHeight;
-
-				let drawWidth = cameraWidth;
-				let drawHeight = cameraHeight;
-				let drawX = cameraX;
-				let drawY = cameraY;
-
-				if (sourceRatio > targetRatio) {
-					drawHeight = drawWidth / sourceRatio;
-					drawY += (cameraHeight - drawHeight) / 2;
-				} else {
-					drawWidth = drawHeight * sourceRatio;
-					drawX += (cameraWidth - drawWidth) / 2;
-				}
-
-				// Draw the processed frame with true transparency support
-				// No globalCompositeOperation override needed for transparency
+				// Crop ve aspect ratio mantığını processedCanvas için de uygula
 				ctx.drawImage(
 					processedCanvas,
-					0,
-					0,
-					processedCanvas.width,
-					processedCanvas.height,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight
+					sourceX,
+					sourceY,
+					sourceWidth,
+					sourceHeight,
+					cameraX,
+					cameraY,
+					cameraWidth,
+					cameraHeight
 				);
 			} else {
 				// Normal rendering without background removal
