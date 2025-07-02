@@ -12,7 +12,6 @@ module.exports = {
 	},
 	files: [
 		"electron/**",
-		".output/public/**",
 		"package.json",
 		"node_modules/electron-store/**", // Electron-store modülünü açıkça dahil et
 		"node_modules/conf/**", // conf modülü (electron-store bağımlılığı)
