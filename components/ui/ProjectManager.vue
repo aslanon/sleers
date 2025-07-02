@@ -405,24 +405,64 @@ const loadSelectedProject = async (projectId) => {
 
 					// Video dosyasını yükle
 					if (mediaFiles.videoPath) {
-						const videoBase64 = await electron?.ipcRenderer?.invoke(
-							electron.ipcRenderer.IPC_EVENTS.READ_VIDEO_FILE,
+						const videoResponse = await electron?.ipcRenderer?.invoke(
+							"READ_VIDEO_FILE",
 							mediaFiles.videoPath
 						);
 
-						if (videoBase64) {
-							// Video dosyasını Blob'a dönüştür
-							const byteCharacters = atob(videoBase64);
-							const byteNumbers = new Array(byteCharacters.length);
-							for (let i = 0; i < byteCharacters.length; i++) {
-								byteNumbers[i] = byteCharacters.charCodeAt(i);
-							}
-							const byteArray = new Uint8Array(byteNumbers);
-							const videoBlob = new Blob([byteArray], { type: "video/mp4" });
-							const videoUrl = URL.createObjectURL(videoBlob);
+						if (videoResponse) {
+							let videoBlob;
 
-							emit("update:videoUrl", videoUrl);
-							console.log("Video URL updated:", videoUrl);
+							// Tüm dosyalar için streaming yaklaşımı
+							if (videoResponse.type === "stream") {
+								// Streaming ile güvenli dosya okuma
+								const streamData = await electron?.ipcRenderer?.invoke(
+									"READ_VIDEO_STREAM",
+									videoResponse.path
+								);
+
+								if (streamData && streamData.chunks) {
+									try {
+										// Her chunk'ı ayrı ayrı decode edip birleştir
+										const allByteArrays = [];
+										let totalLength = 0;
+
+										for (const chunk of streamData.chunks) {
+											if (chunk && chunk.length > 0) {
+												const byteCharacters = atob(chunk);
+												const chunkByteArray = new Uint8Array(
+													byteCharacters.length
+												);
+												for (let i = 0; i < byteCharacters.length; i++) {
+													chunkByteArray[i] = byteCharacters.charCodeAt(i);
+												}
+												allByteArrays.push(chunkByteArray);
+												totalLength += chunkByteArray.length;
+											}
+										}
+
+										// Tüm chunk'ları tek bir array'de birleştir
+										const finalByteArray = new Uint8Array(totalLength);
+										let offset = 0;
+										for (const chunkArray of allByteArrays) {
+											finalByteArray.set(chunkArray, offset);
+											offset += chunkArray.length;
+										}
+
+										videoBlob = new Blob([finalByteArray], {
+											type: "video/mp4",
+										});
+									} catch (decodeError) {
+										console.error("Video chunk decode hatası:", decodeError);
+									}
+								}
+							}
+
+							if (videoBlob) {
+								const videoUrl = URL.createObjectURL(videoBlob);
+								emit("update:videoUrl", videoUrl);
+								console.log("Video URL updated:", videoUrl);
+							}
 						}
 					}
 
@@ -431,47 +471,123 @@ const loadSelectedProject = async (projectId) => {
 						mediaFiles.audioPath &&
 						mediaFiles.audioPath !== mediaFiles.videoPath
 					) {
-						const audioBase64 = await electron?.ipcRenderer?.invoke(
-							electron.ipcRenderer.IPC_EVENTS.READ_VIDEO_FILE,
+						const audioResponse = await electron?.ipcRenderer?.invoke(
+							"READ_VIDEO_FILE",
 							mediaFiles.audioPath
 						);
 
-						if (audioBase64) {
-							// Ses dosyasını Blob'a dönüştür
-							const byteCharacters = atob(audioBase64);
-							const byteNumbers = new Array(byteCharacters.length);
-							for (let i = 0; i < byteCharacters.length; i++) {
-								byteNumbers[i] = byteCharacters.charCodeAt(i);
-							}
-							const byteArray = new Uint8Array(byteNumbers);
-							const audioBlob = new Blob([byteArray], { type: "audio/webm" });
-							const audioUrl = URL.createObjectURL(audioBlob);
+						if (audioResponse) {
+							let audioBlob;
 
-							emit("update:audioUrl", audioUrl);
-							console.log("Audio URL updated:", audioUrl);
+							if (audioResponse.type === "stream") {
+								const streamData = await electron?.ipcRenderer?.invoke(
+									"READ_VIDEO_STREAM",
+									audioResponse.path
+								);
+
+								if (streamData && streamData.chunks) {
+									try {
+										// Her chunk'ı ayrı ayrı decode edip birleştir
+										const allByteArrays = [];
+										let totalLength = 0;
+
+										for (const chunk of streamData.chunks) {
+											if (chunk && chunk.length > 0) {
+												const byteCharacters = atob(chunk);
+												const chunkByteArray = new Uint8Array(
+													byteCharacters.length
+												);
+												for (let i = 0; i < byteCharacters.length; i++) {
+													chunkByteArray[i] = byteCharacters.charCodeAt(i);
+												}
+												allByteArrays.push(chunkByteArray);
+												totalLength += chunkByteArray.length;
+											}
+										}
+
+										// Tüm chunk'ları tek bir array'de birleştir
+										const finalByteArray = new Uint8Array(totalLength);
+										let offset = 0;
+										for (const chunkArray of allByteArrays) {
+											finalByteArray.set(chunkArray, offset);
+											offset += chunkArray.length;
+										}
+
+										audioBlob = new Blob([finalByteArray], {
+											type: "audio/webm",
+										});
+									} catch (decodeError) {
+										console.error("Audio chunk decode hatası:", decodeError);
+									}
+								}
+							}
+
+							if (audioBlob) {
+								const audioUrl = URL.createObjectURL(audioBlob);
+								emit("update:audioUrl", audioUrl);
+								console.log("Audio URL updated:", audioUrl);
+							}
 						}
 					}
 
 					// Kamera dosyasını yükle
 					if (mediaFiles.cameraPath) {
-						const cameraBase64 = await electron?.ipcRenderer?.invoke(
-							electron.ipcRenderer.IPC_EVENTS.READ_VIDEO_FILE,
+						const cameraResponse = await electron?.ipcRenderer?.invoke(
+							"READ_VIDEO_FILE",
 							mediaFiles.cameraPath
 						);
 
-						if (cameraBase64) {
-							// Kamera dosyasını Blob'a dönüştür
-							const byteCharacters = atob(cameraBase64);
-							const byteNumbers = new Array(byteCharacters.length);
-							for (let i = 0; i < byteCharacters.length; i++) {
-								byteNumbers[i] = byteCharacters.charCodeAt(i);
-							}
-							const byteArray = new Uint8Array(byteNumbers);
-							const cameraBlob = new Blob([byteArray], { type: "video/webm" });
-							const cameraUrl = URL.createObjectURL(cameraBlob);
+						if (cameraResponse) {
+							let cameraBlob;
 
-							emit("update:cameraUrl", cameraUrl);
-							console.log("Camera URL updated:", cameraUrl);
+							if (cameraResponse.type === "stream") {
+								const streamData = await electron?.ipcRenderer?.invoke(
+									"READ_VIDEO_STREAM",
+									cameraResponse.path
+								);
+
+								if (streamData && streamData.chunks) {
+									try {
+										// Her chunk'ı ayrı ayrı decode edip birleştir
+										const allByteArrays = [];
+										let totalLength = 0;
+
+										for (const chunk of streamData.chunks) {
+											if (chunk && chunk.length > 0) {
+												const byteCharacters = atob(chunk);
+												const chunkByteArray = new Uint8Array(
+													byteCharacters.length
+												);
+												for (let i = 0; i < byteCharacters.length; i++) {
+													chunkByteArray[i] = byteCharacters.charCodeAt(i);
+												}
+												allByteArrays.push(chunkByteArray);
+												totalLength += chunkByteArray.length;
+											}
+										}
+
+										// Tüm chunk'ları tek bir array'de birleştir
+										const finalByteArray = new Uint8Array(totalLength);
+										let offset = 0;
+										for (const chunkArray of allByteArrays) {
+											finalByteArray.set(chunkArray, offset);
+											offset += chunkArray.length;
+										}
+
+										cameraBlob = new Blob([finalByteArray], {
+											type: "video/webm",
+										});
+									} catch (decodeError) {
+										console.error("Camera chunk decode hatası:", decodeError);
+									}
+								}
+							}
+
+							if (cameraBlob) {
+								const cameraUrl = URL.createObjectURL(cameraBlob);
+								emit("update:cameraUrl", cameraUrl);
+								console.log("Camera URL updated:", cameraUrl);
+							}
 						}
 					}
 				} catch (error) {

@@ -1999,13 +1999,54 @@ function setupIpcHandlers() {
 				sizeInMB: (stats.size / (1024 * 1024)).toFixed(2) + "MB",
 			});
 
-			const buffer = await fs.promises.readFile(filePath);
-			return buffer.toString("base64");
+			// Tüm dosyalar için güvenli streaming yaklaşımı
+			return { type: "stream", path: filePath, size: stats.size };
 		} catch (error) {
 			console.error("[main.cjs] Video dosyası okunurken hata:", error);
 			return null;
 		}
 	});
+
+	// Stream-based file reading for large files
+	safeHandle(
+		IPC_EVENTS.READ_VIDEO_STREAM,
+		async (event, filePath, chunkSize = 1024 * 1024) => {
+			try {
+				if (!filePath || !fs.existsSync(filePath)) {
+					console.error("[main.cjs] Stream dosyası bulunamadı:", filePath);
+					return null;
+				}
+
+				const stats = fs.statSync(filePath);
+				const readStream = fs.createReadStream(filePath, {
+					highWaterMark: chunkSize,
+				});
+				const chunks = [];
+
+				return new Promise((resolve, reject) => {
+					readStream.on("data", (chunk) => {
+						chunks.push(chunk.toString("base64"));
+					});
+
+					readStream.on("end", () => {
+						resolve({
+							chunks,
+							totalSize: stats.size,
+							chunkCount: chunks.length,
+						});
+					});
+
+					readStream.on("error", (error) => {
+						console.error("[main.cjs] Stream okuma hatası:", error);
+						reject(error);
+					});
+				});
+			} catch (error) {
+				console.error("[main.cjs] Video stream hatası:", error);
+				return null;
+			}
+		}
+	);
 
 	safeHandle(IPC_EVENTS.GET_MEDIA_PATHS, () => {
 		return {

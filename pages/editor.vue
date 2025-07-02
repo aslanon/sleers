@@ -260,18 +260,16 @@ const cropState = ref({
 // Video ve ses dosyalarını yükle
 const loadMedia = async (filePath, type = "video") => {
 	try {
-		console.log(`[editor.vue] ${type} yükleniyor:`, filePath);
-
-		const base64Data = await electron?.ipcRenderer.invoke(
-			IPC_EVENTS.READ_VIDEO_FILE,
+		const fileResponse = await electron?.ipcRenderer.invoke(
+			"READ_VIDEO_FILE",
 			filePath
 		);
 
-		if (!base64Data) {
-			console.error(`[editor.vue] ${type} dosyası okunamadı:`, filePath);
+		if (!fileResponse) {
 			throw new Error(`${type} dosyası okunamadı`);
 		}
 
+		let blob;
 		const extension = filePath.split(".").pop()?.toLowerCase();
 		const mimeType =
 			type === "video"
@@ -284,33 +282,50 @@ const loadMedia = async (filePath, type = "video") => {
 				? "audio/webm"
 				: "audio/mp4";
 
-		console.log(`[editor.vue] ${type} MIME type:`, mimeType);
+		// Tüm dosyalar için streaming yaklaşımı
+		if (fileResponse.type === "stream") {
+			// Streaming ile güvenli dosya okuma
+			const streamData = await electron?.ipcRenderer.invoke(
+				"READ_VIDEO_STREAM",
+				fileResponse.path
+			);
 
-		const byteCharacters = atob(base64Data);
-		const byteNumbers = new Array(byteCharacters.length);
-		for (let i = 0; i < byteCharacters.length; i++) {
-			byteNumbers[i] = byteCharacters.charCodeAt(i);
-		}
-		const byteArray = new Uint8Array(byteNumbers);
-		const blob = new Blob([byteArray], { type: mimeType });
+			if (!streamData || !streamData.chunks) {
+				throw new Error(`${type} stream verisi alınamadı`);
+			}
 
-		console.log(`[editor.vue] ${type} blob created, size:`, blob.size);
+			// Chunk'ları güvenli şekilde birleştir ve decode et
+			try {
+				// Her chunk'ı ayrı ayrı decode edip birleştir
+				const allByteArrays = [];
+				let totalLength = 0;
 
-		if (type === "video") {
-			if (videoBlob.value) URL.revokeObjectURL(videoBlob.value);
-			videoBlob.value = URL.createObjectURL(blob);
-			videoUrl.value = videoBlob.value;
-			videoType.value = mimeType;
-		} else if (type === "camera") {
-			if (cameraBlob.value) URL.revokeObjectURL(cameraBlob.value);
-			cameraBlob.value = URL.createObjectURL(blob);
-			cameraUrl.value = cameraBlob.value;
-			cameraType.value = mimeType;
+				for (const chunk of streamData.chunks) {
+					if (chunk && chunk.length > 0) {
+						const byteCharacters = atob(chunk);
+						const chunkByteArray = new Uint8Array(byteCharacters.length);
+						for (let i = 0; i < byteCharacters.length; i++) {
+							chunkByteArray[i] = byteCharacters.charCodeAt(i);
+						}
+						allByteArrays.push(chunkByteArray);
+						totalLength += chunkByteArray.length;
+					}
+				}
+
+				// Tüm chunk'ları tek bir array'de birleştir
+				const finalByteArray = new Uint8Array(totalLength);
+				let offset = 0;
+				for (const chunkArray of allByteArrays) {
+					finalByteArray.set(chunkArray, offset);
+					offset += chunkArray.length;
+				}
+
+				blob = new Blob([finalByteArray], { type: mimeType });
+			} catch (decodeError) {
+				throw new Error(`Base64 decode hatası: ${decodeError.message}`);
+			}
 		} else {
-			if (audioBlob.value) URL.revokeObjectURL(audioBlob.value);
-			audioBlob.value = URL.createObjectURL(blob);
-			audioUrl.value = audioBlob.value;
-			audioType.value = mimeType;
+			throw new Error(`Bilinmeyen dosya türü: ${fileResponse.type}`);
 		}
 
 		console.log(`[editor.vue] ${type} yüklendi:`, {
@@ -329,6 +344,23 @@ const loadMedia = async (filePath, type = "video") => {
 			size: blob.size,
 			mimeType,
 		});
+
+		if (type === "video") {
+			if (videoBlob.value) URL.revokeObjectURL(videoBlob.value);
+			videoBlob.value = URL.createObjectURL(blob);
+			videoUrl.value = videoBlob.value;
+			videoType.value = mimeType;
+		} else if (type === "camera") {
+			if (cameraBlob.value) URL.revokeObjectURL(cameraBlob.value);
+			cameraBlob.value = URL.createObjectURL(blob);
+			cameraUrl.value = cameraBlob.value;
+			cameraType.value = mimeType;
+		} else {
+			if (audioBlob.value) URL.revokeObjectURL(audioBlob.value);
+			audioBlob.value = URL.createObjectURL(blob);
+			audioUrl.value = audioBlob.value;
+			audioType.value = mimeType;
+		}
 	} catch (error) {
 		console.error(`[editor.vue] ${type} yükleme hatası:`, error);
 		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
@@ -1011,10 +1043,10 @@ onMounted(async () => {
 		updateMouseVisible(true);
 	}
 
-	// Mevcut kaydedicileri temizle
-	if (mediaRecorder.value) {
-		mediaRecorder.value = null;
-	}
+	// Mevcut kaydedicileri temizle (mediaRecorder tanımlı değilse atla)
+	// if (mediaRecorder.value) {
+	// 	mediaRecorder.value = null;
+	// }
 
 	// Ekran boyutlarını alıp saklayalım
 	if (window?.electron?.screen) {
