@@ -120,7 +120,7 @@
 				<div class="player-settings-blur"></div>
 
 				<div
-					class="relative flex-1 pb-[40px] pt-[20px] pr-8 rounded-2xl max-h-[700px] px-8 overflow-y-auto"
+					class="relative flex-1 pb-[40px] pt-[20px] pr-8 rounded-2xl min-h-[700px] max-h-[700px] px-8 overflow-y-auto"
 				>
 					<!-- Video Ayarları Tab -->
 					<VideoSettings

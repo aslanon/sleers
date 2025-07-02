@@ -94,26 +94,32 @@ const frameDataUrl = ref(null);
 
 // Frame güncelleme fonksiyonu
 const updateFrame = () => {
-	if (props.mediaPlayer) {
+	if (props.mediaPlayer && !frameDataUrl.value) {
 		frameDataUrl.value = props.mediaPlayer.captureFrame();
 	}
 };
 
-// Frame güncelleme interval'i
-let frameUpdateInterval = null;
+// Watch currentZoomRange changes to update frame when a new zoom range is selected
+watch(
+	currentZoomRange,
+	(newRange) => {
+		if (newRange) {
+			// Reset frame data to force a new capture
+			frameDataUrl.value = null;
+			// Capture new frame
+			updateFrame();
+		}
+	},
+	{ immediate: true }
+);
 
 onMounted(() => {
 	// İlk frame'i yakala
 	updateFrame();
-
-	// Her 100ms'de bir frame'i güncelle (daha sık güncelleme için 500ms'den düşürüldü)
-	frameUpdateInterval = setInterval(updateFrame, 100);
 });
 
 onUnmounted(() => {
-	if (frameUpdateInterval) {
-		clearInterval(frameUpdateInterval);
-	}
+	frameDataUrl.value = null;
 });
 
 // Watch local changes

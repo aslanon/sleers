@@ -1073,56 +1073,113 @@ const drawMousePositions = () => {
 	let fraction = 0;
 	if (timeDiff > 0) {
 		fraction = (estimatedTimestamp - prevPos.timestamp) / timeDiff;
-		// Clamp fraction between 0 and 1
+		// Clamp fraction between 0 and 1 and smooth it out
 		fraction = Math.max(0, Math.min(1, fraction));
+		fraction = smoothstep(0, 1, fraction);
 	}
 
-	// Save state for next frame
+	// Save state for next frame with improved position tracking
 	drawMousePositions.lastIsStationary = isStationary;
 	drawMousePositions.lastVelocity = velocity;
 	drawMousePositions.lastPosition = {
-		x: prevPos.x + (nextPos.x - prevPos.x) * fraction,
-		y: prevPos.y + (nextPos.y - prevPos.y) * fraction,
+		x: lerp(prevPos.x, nextPos.x, fraction),
+		y: lerp(prevPos.y, nextPos.y, fraction),
 		timestamp: estimatedTimestamp,
 		cursorType: prevPos.cursorType,
 	};
 
-	// Apply transition factor to interpolation
+	// Apply transition factor to interpolation with improved smoothing
 	let interpolatedX, interpolatedY;
 	let dirX = 0,
 		dirY = 0;
 	let speed = 0;
 
 	if (drawMousePositions.transitionFactor < 0.01) {
-		// Almost fully stationary - use previous position exactly
-		interpolatedX = prevPos.x;
-		interpolatedY = prevPos.y;
+		// Almost fully stationary - use smoothed previous position
+		interpolatedX = lerp(drawMousePositions.lastPosition.x, prevPos.x, 0.85);
+		interpolatedY = lerp(drawMousePositions.lastPosition.y, prevPos.y, 0.85);
 	} else if (drawMousePositions.transitionFactor > 0.99) {
-		// Almost fully in motion - use full interpolation
-		interpolatedX = prevPos.x + (nextPos.x - prevPos.x) * fraction;
-		interpolatedY = prevPos.y + (nextPos.y - prevPos.y) * fraction;
+		// Almost fully in motion - use smoothed interpolation
+		interpolatedX = lerp(prevPos.x, nextPos.x, fraction);
+		interpolatedY = lerp(prevPos.y, nextPos.y, fraction);
 
-		// Calculate direction and speed for motion effects
+		// Calculate direction and speed for motion effects with improved smoothing
 		if (moveDistance > 0) {
-			dirX = (nextPos.x - prevPos.x) / moveDistance;
-			dirY = (nextPos.y - prevPos.y) / moveDistance;
-			speed = timeDiff > 0 ? moveDistance / timeDiff : 0;
+			dirX = lerp(
+				0,
+				(nextPos.x - prevPos.x) / moveDistance,
+				drawMousePositions.transitionFactor
+			);
+			dirY = lerp(
+				0,
+				(nextPos.y - prevPos.y) / moveDistance,
+				drawMousePositions.transitionFactor
+			);
+			speed =
+				timeDiff > 0
+					? lerp(
+							0,
+							moveDistance / timeDiff,
+							drawMousePositions.transitionFactor
+					  )
+					: 0;
 		}
 	} else {
-		// In transition - blend between stationary and moving positions
-		const tf = drawMousePositions.transitionFactor;
-		const movingX = prevPos.x + (nextPos.x - prevPos.x) * fraction;
-		const movingY = prevPos.y + (nextPos.y - prevPos.y) * fraction;
+		// In transition - blend between stationary and motion
+		const stationaryX = lerp(
+			drawMousePositions.lastPosition.x,
+			prevPos.x,
+			0.85
+		);
+		const stationaryY = lerp(
+			drawMousePositions.lastPosition.y,
+			prevPos.y,
+			0.85
+		);
+		const motionX = lerp(prevPos.x, nextPos.x, fraction);
+		const motionY = lerp(prevPos.y, nextPos.y, fraction);
 
-		interpolatedX = prevPos.x * (1 - tf) + movingX * tf;
-		interpolatedY = prevPos.y * (1 - tf) + movingY * tf;
+		interpolatedX = lerp(
+			stationaryX,
+			motionX,
+			drawMousePositions.transitionFactor
+		);
+		interpolatedY = lerp(
+			stationaryY,
+			motionY,
+			drawMousePositions.transitionFactor
+		);
 
-		// Scale speed and direction by transition factor
 		if (moveDistance > 0) {
-			dirX = ((nextPos.x - prevPos.x) / moveDistance) * tf;
-			dirY = ((nextPos.y - prevPos.y) / moveDistance) * tf;
-			speed = (timeDiff > 0 ? moveDistance / timeDiff : 0) * tf;
+			dirX = lerp(
+				0,
+				(nextPos.x - prevPos.x) / moveDistance,
+				drawMousePositions.transitionFactor
+			);
+			dirY = lerp(
+				0,
+				(nextPos.y - prevPos.y) / moveDistance,
+				drawMousePositions.transitionFactor
+			);
+			speed =
+				timeDiff > 0
+					? lerp(
+							0,
+							moveDistance / timeDiff,
+							drawMousePositions.transitionFactor
+					  )
+					: 0;
 		}
+	}
+
+	// Helper functions for smooth interpolation
+	function lerp(start, end, t) {
+		return start * (1 - t) + end * t;
+	}
+
+	function smoothstep(min, max, value) {
+		const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+		return x * x * (3 - 2 * x);
 	}
 
 	// Rest of the existing code for video/crop dimensions and cursor rendering

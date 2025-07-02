@@ -2,8 +2,8 @@
 	<div
 		class="h-full ring-inset relative transition-all duration-200 group"
 		:class="{
-			'ring-[1px] ring-white z-50': isActive,
-			'hover:!ring-[1px] hover:!ring-white hover:z-50':
+			'ring-[1px] ring-white z-30': isActive,
+			'hover:!ring-[1px] hover:!ring-white hover:z-30':
 				!isResizing && !isActive,
 			'z-10': !isResizing && !isActive && !isHovered,
 		}"

@@ -172,8 +172,7 @@
 					<!-- Preview Playhead -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-4 bottom-0 w-[1px]"
-						:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						class="absolute top-4 bottom-0 w-[1px] z-50"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -185,8 +184,7 @@
 					<!-- Preview Playhead Handle -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-4 w-3 h-5"
-						:class="{ 'z-30': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						class="absolute top-4 w-3 h-5 z-50"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -203,8 +201,7 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-[1px] transition-[left] duration-[250ms] ease-linear will-change-[left]"
-						:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						class="absolute top-0 bottom-0 w-[1px] transition-[left] duration-[250ms] ease-linear will-change-[left] z-40"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -215,8 +212,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute top-0 w-3 h-5 cursor-move transition-[left] duration-[250ms] ease-linear will-change-[left]"
-						:class="{ 'z-20': !isTimelineHovered, 'z-0': isTimelineHovered }"
+						class="absolute top-0 w-3 h-5 cursor-move transition-[left] duration-[250ms] ease-linear will-change-[left] z-40"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
