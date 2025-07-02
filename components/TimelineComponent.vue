@@ -167,6 +167,64 @@
 								/>
 							</div>
 						</div>
+
+						<!-- Layout Track -->
+						<div
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleLayoutTrackClick"
+							@mousemove="handleLayoutTrackMouseMove"
+							@mouseenter="isLayoutTrackHovered = true"
+							@mouseleave="handleLayoutTrackLeave"
+						>
+							<div
+								class="flex flex-row h-[42px] relative"
+								:class="{ 'z-50': isLayoutTrackHovered }"
+							>
+								<!-- Empty State Label -->
+								<div
+									v-if="layoutRanges.length === 0"
+									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<span class="text-sm font-medium tracking-wide"
+										>Add layout effect</span
+									>
+								</div>
+
+								<!-- Layout Ranges -->
+								<TimelineLayoutSegment
+									v-for="(range, index) in layoutRanges"
+									:key="index"
+									:range="range"
+									:index="index"
+									:is-selected="selectedLayoutIndex === index"
+									:is-resizing="isLayoutResizing"
+									:is-dragging="
+										isLayoutDragging && draggedLayoutIndex === index
+									"
+									:is-hovered="isHovered"
+									:duration="maxDuration"
+									@click="handleLayoutSegmentClick"
+									@mouse-enter="handleLayoutRangeEnter"
+									@mouse-leave="handleLayoutRangeLeave"
+									@drag-start="handleLayoutDragStart"
+									@resize-start="handleLayoutResizeStart"
+									@delete="handleLayoutDelete"
+								/>
+
+								<!-- Ghost Layout Preview -->
+								<TimelineGhostZoom
+									:position="
+										ghostLayoutPosition !== null &&
+										!isLayoutResizing &&
+										!isLayoutDragging
+											? ghostLayoutPosition
+											: null
+									"
+									:width="calculateGhostBarWidth()"
+									label="Add layout effect"
+								/>
+							</div>
+						</div>
 					</div>
 
 					<!-- Preview Playhead -->
@@ -229,15 +287,29 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- Layout Type Popover -->
+		<LayoutTypePopover
+			v-if="showLayoutTypePopover"
+			:is-open="true"
+			:x="layoutPopoverPosition.x"
+			:y="layoutPopoverPosition.y"
+			@select="handleLayoutTypeSelect"
+			@close="closeLayoutPopover"
+			class="layout-type-popover"
+		/>
 	</div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import { useLayoutSettings } from "~/composables/useLayoutSettings";
 import TimelineSegment from "~/components/timeline/TimelineSegment.vue";
 import TimelineZoomSegment from "~/components/timeline/TimelineZoomSegment.vue";
+import TimelineLayoutSegment from "~/components/timeline/TimelineLayoutSegment.vue";
 import TimelineGhostZoom from "~/components/timeline/TimelineGhostZoom.vue";
+import LayoutTypePopover from "~/components/timeline/LayoutTypePopover.vue";
 
 const props = defineProps({
 	duration: {
@@ -295,6 +367,17 @@ const {
 	updateZoomRange,
 	setCurrentZoomRange,
 } = usePlayerSettings();
+
+const {
+	layoutRanges,
+	addLayoutRange,
+	removeLayoutRange,
+	updateLayoutRange,
+	setCurrentLayoutRange,
+	currentLayout,
+	setCurrentLayoutType,
+	wouldOverlap,
+} = useLayoutSettings();
 
 // Referanslar ve state
 const scrollContainerRef = ref(null);
@@ -669,6 +752,17 @@ const handleTimelineClick = (e) => {
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const compactedTime = (x / timelineWidth.value) * maxDuration.value;
+
+	// Layout track'e tıklandıysa popover'ı aç
+	if (e.target.classList.contains("layout-track")) {
+		layoutClickTime.value = compactedTime;
+		layoutPopoverPosition.value = {
+			x: e.clientX,
+			y: e.clientY,
+		};
+		showLayoutTypePopover.value = true;
+		return;
+	}
 
 	// Sıkıştırılmış timeline zamanını orijinal video zamanına çevir
 	const originalTime = convertCompactedTimeToOriginalTime(compactedTime);
@@ -1383,14 +1477,309 @@ const handleSegmentClick = (index, event) => {
 	emit("segmentSelect", index);
 };
 
+// Layout track state
+const isLayoutTrackHovered = ref(false);
+const isLayoutDragging = ref(false);
+const draggedLayoutIndex = ref(null);
+const dragStartLayoutRange = ref(null);
+const selectedLayoutIndex = ref(null);
+const isLayoutResizing = ref(false);
+const ghostLayoutPosition = ref(null);
+
+// Layout track click handler
+const handleLayoutTrackClick = (e) => {
+	e.stopPropagation(); // Prevent timeline click handler
+
+	const container = timelineRef.value;
+	const rect = container.getBoundingClientRect();
+	const x = e.clientX - rect.left + container.scrollLeft;
+	const clickTime = (x / timelineWidth.value) * maxDuration.value;
+
+	layoutClickTime.value = clickTime;
+	layoutPopoverPosition.value = {
+		x: e.clientX,
+		y: e.clientY - 10, // Offset a bit above the click
+	};
+	showLayoutTypePopover.value = true;
+};
+
+const handleLayoutTrackMouseMove = (event) => {
+	if (isLayoutResizing.value || isLayoutDragging.value) return;
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const mouseX = event.clientX - rect.left + timeline.scrollLeft;
+	const mouseTime = (mouseX / timelineWidth.value) * maxDuration.value;
+
+	ghostLayoutPosition.value = (mouseTime / maxDuration.value) * 100;
+};
+
+const handleLayoutTrackLeave = () => {
+	hideGhostLayout();
+	isLayoutTrackHovered.value = false;
+};
+
+const hideGhostLayout = () => {
+	ghostLayoutPosition.value = null;
+};
+
+const handleLayoutSegmentClick = (event, index) => {
+	event.stopPropagation();
+	selectedLayoutIndex.value = index;
+	setCurrentLayoutRange(index);
+};
+
+const handleLayoutRangeEnter = (range, index) => {
+	isHovered.value = true;
+};
+
+const handleLayoutRangeLeave = () => {
+	isHovered.value = false;
+};
+
+const handleLayoutDragStart = (event, index) => {
+	if (isLayoutResizing.value) return;
+
+	event.stopPropagation();
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const clickX = event.clientX - rect.left + timeline.scrollLeft;
+	const clickTime = (clickX / timelineWidth.value) * maxDuration.value;
+
+	const segment = layoutRanges.value[index];
+	const clickOffset = clickTime - segment.start;
+
+	isLayoutDragging.value = true;
+	draggedLayoutIndex.value = index;
+	dragStartLayoutRange.value = {
+		...segment,
+		clickOffset,
+	};
+
+	const segmentEl = event.currentTarget;
+	segmentEl.style.willChange = "transform";
+	segmentEl.style.transition = "none";
+
+	window.addEventListener("mousemove", handleLayoutDrag, { passive: true });
+	window.addEventListener("mouseup", handleLayoutDragEnd);
+};
+
+const handleLayoutDrag = (event) => {
+	if (!isLayoutDragging.value || draggedLayoutIndex.value === null) return;
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const mouseX = event.clientX - rect.left + timeline.scrollLeft;
+	const currentTime = (mouseX / timelineWidth.value) * maxDuration.value;
+
+	const segment = dragStartLayoutRange.value;
+	const duration = segment.end - segment.start;
+
+	let newStart = currentTime - segment.clickOffset;
+	let newEnd = newStart + duration;
+
+	if (newStart < 0) {
+		newStart = 0;
+		newEnd = duration;
+	}
+
+	if (newEnd > props.duration) {
+		newEnd = props.duration;
+		newStart = newEnd - duration;
+	}
+
+	const otherRanges = layoutRanges.value.filter(
+		(_, i) => i !== draggedLayoutIndex.value
+	);
+	const snapThreshold = 0.05;
+
+	let shouldSnap = false;
+	let snappedStart = newStart;
+	let snappedEnd = newEnd;
+
+	for (const range of otherRanges) {
+		if (Math.abs(newStart - range.end) < snapThreshold) {
+			snappedStart = range.end;
+			snappedEnd = range.end + duration;
+			if (snappedEnd > props.duration) continue;
+			shouldSnap = true;
+			break;
+		}
+		if (Math.abs(newEnd - range.start) < snapThreshold) {
+			snappedEnd = range.start;
+			snappedStart = range.start - duration;
+			if (snappedStart < 0) continue;
+			shouldSnap = true;
+			break;
+		}
+	}
+
+	const hasCollision = otherRanges.some((range) => {
+		if (shouldSnap) return false;
+		const isOverlapping = newStart < range.end && newEnd > range.start;
+		const isSnapping =
+			Math.abs(newStart - range.end) < snapThreshold ||
+			Math.abs(newEnd - range.start) < snapThreshold;
+		return isOverlapping && !isSnapping;
+	});
+
+	if (!hasCollision) {
+		const updatedRange = {
+			...segment,
+			start: shouldSnap ? snappedStart : newStart,
+			end: shouldSnap ? snappedEnd : newEnd,
+		};
+
+		requestAnimationFrame(() => {
+			updateLayoutRange(draggedLayoutIndex.value, updatedRange);
+		});
+	}
+};
+
+const handleLayoutDragEnd = () => {
+	if (!isLayoutDragging.value) return;
+
+	const segments = document.querySelectorAll(".timeline-layer-bar > div > div");
+	segments.forEach((segment) => {
+		segment.style.willChange = "auto";
+		segment.style.transition = null;
+	});
+
+	isLayoutDragging.value = false;
+	draggedLayoutIndex.value = null;
+	dragStartLayoutRange.value = null;
+
+	window.removeEventListener("mousemove", handleLayoutDrag);
+	window.removeEventListener("mouseup", handleLayoutDragEnd);
+};
+
+const handleLayoutResizeStart = (event, index, edge) => {
+	if (isLayoutDragging.value) return;
+
+	event.stopPropagation();
+
+	const timeline = timelineRef.value;
+	const rect = timeline.getBoundingClientRect();
+	const clickX = event.clientX - rect.left + timeline.scrollLeft;
+
+	isLayoutResizing.value = true;
+	selectedLayoutIndex.value = index;
+	setCurrentLayoutRange(index);
+
+	const segment = layoutRanges.value[index];
+	const startX = (segment.start / maxDuration.value) * timelineWidth.value;
+	const endX = (segment.end / maxDuration.value) * timelineWidth.value;
+
+	const resizeData = {
+		edge,
+		index,
+		startX: clickX,
+		originalStart: segment.start,
+		originalEnd: segment.end,
+		minX:
+			edge === "start"
+				? 0
+				: startX + (0.1 * timelineWidth.value) / maxDuration.value,
+		maxX:
+			edge === "end"
+				? timelineWidth.value
+				: endX - (0.1 * timelineWidth.value) / maxDuration.value,
+	};
+
+	const handleResize = (e) => {
+		const currentX = e.clientX - rect.left + timeline.scrollLeft;
+		const deltaX = currentX - resizeData.startX;
+		const deltaTime = (deltaX / timelineWidth.value) * maxDuration.value;
+
+		let newStart = segment.start;
+		let newEnd = segment.end;
+
+		if (edge === "start") {
+			newStart = Math.max(
+				0,
+				Math.min(resizeData.originalStart + deltaTime, segment.end - 0.1)
+			);
+		} else {
+			newEnd = Math.min(
+				props.duration,
+				Math.max(segment.start + 0.1, resizeData.originalEnd + deltaTime)
+			);
+		}
+
+		const updatedRange = {
+			...segment,
+			start: newStart,
+			end: newEnd,
+		};
+
+		if (!wouldOverlap(updatedRange, index)) {
+			updateLayoutRange(index, updatedRange);
+		}
+	};
+
+	const handleResizeEnd = () => {
+		isLayoutResizing.value = false;
+		window.removeEventListener("mousemove", handleResize);
+		window.removeEventListener("mouseup", handleResizeEnd);
+	};
+
+	window.addEventListener("mousemove", handleResize);
+	window.addEventListener("mouseup", handleResizeEnd);
+};
+
+// Add layout delete handler
+const handleLayoutDelete = (index) => {
+	removeLayoutRange(index);
+	selectedLayoutIndex.value = -1;
+};
+
+// Layout type popover state
+const showLayoutTypePopover = ref(false);
+const layoutPopoverPosition = ref({ x: 0, y: 0 });
+const layoutClickTime = ref(null);
+
+// Close popover
+const closeLayoutPopover = () => {
+	showLayoutTypePopover.value = false;
+	layoutClickTime.value = null;
+};
+
+// Close popover when clicking outside
+const handleClickOutside = (e) => {
+	if (
+		showLayoutTypePopover.value &&
+		!e.target.closest(".layout-type-popover")
+	) {
+		closeLayoutPopover();
+	}
+};
+
+// Layout type selection handler
+const handleLayoutTypeSelect = (type) => {
+	if (layoutClickTime.value !== null) {
+		const newLayout = {
+			start: layoutClickTime.value,
+			end: Math.min(layoutClickTime.value + 2, props.duration),
+			type: type,
+		};
+
+		if (!wouldOverlap(newLayout, -1)) {
+			layoutRanges.value.push(newLayout);
+		}
+	}
+
+	closeLayoutPopover();
+};
+
 // Lifecycle hooks
 onMounted(() => {
-	// Klavye event listener'ını ekle
+	window.addEventListener("click", handleClickOutside);
 	window.addEventListener("keydown", handleKeyDown);
 });
 
 onUnmounted(() => {
-	// Klavye event listener'ını kaldır
+	window.removeEventListener("click", handleClickOutside);
 	window.removeEventListener("keydown", handleKeyDown);
 });
 </script>
@@ -1462,5 +1851,15 @@ button:disabled {
 
 .group.selected-zoom:not(:hover) {
 	animation: bounce 1s ease-in-out infinite;
+}
+
+.layout-type-popover {
+	position: fixed; /* Use fixed positioning to ensure it's always visible */
+	pointer-events: auto; /* Ensure clicks are captured */
+}
+
+.timeline-track {
+	position: relative;
+	cursor: pointer;
 }
 </style>

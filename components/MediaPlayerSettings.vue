@@ -141,6 +141,11 @@
 
 					<!-- Kamera Ayarları Tab -->
 					<CameraSettings v-if="currentTab === 'camera'" />
+
+					<!-- Optimized Background Removal Settings -->
+					<OptimizedBackgroundRemovalSettings
+						v-if="currentTab === 'optimized-background-removal'"
+					/>
 				</div>
 				<div class="player-settings-blur --bottom"></div>
 			</div>
@@ -154,6 +159,7 @@ import VideoSettings from "./player-settings/VideoSettings.vue";
 import MouseSettings from "./player-settings/MouseSettings.vue";
 import ZoomSettings from "./player-settings/ZoomSettings.vue";
 import CameraSettings from "./player-settings/CameraSettings.vue";
+import OptimizedBackgroundRemovalSettings from "./player-settings/OptimizedBackgroundRemovalSettings.vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -207,6 +213,11 @@ const tabs = [
 	{
 		id: "zoom",
 		name: "Zoom Ayarları",
+		isShowInTab: false,
+	},
+	{
+		id: "optimized-background-removal",
+		name: "Optimized Background Removal",
 		isShowInTab: false,
 	},
 ];

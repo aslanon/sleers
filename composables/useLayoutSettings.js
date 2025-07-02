@@ -1,12 +1,24 @@
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { usePlayerSettings } from "./usePlayerSettings";
 
 // Store saved layouts
 const savedLayouts = ref([]);
+const layoutRanges = ref([]);
 
 export const useLayoutSettings = () => {
 	const playerSettings = usePlayerSettings();
 	const electron = window.electron;
+	const selectedLayoutIndex = ref(null);
+	const currentLayout = ref("camera-full"); // Default layout type
+
+	// Watch for layout range changes
+	watch(
+		layoutRanges,
+		(newRanges) => {
+			console.log("Layout ranges updated:", newRanges);
+		},
+		{ deep: true }
+	);
 
 	// Save current settings as a layout
 	const saveLayout = async (
@@ -464,6 +476,81 @@ export const useLayoutSettings = () => {
 		}
 	};
 
+	// Add a new layout range
+	const addLayoutRange = (range) => {
+		layoutRanges.value.push({
+			...range,
+			type: currentLayout.value,
+		});
+	};
+
+	// Remove a layout range
+	const removeLayoutRange = (index) => {
+		layoutRanges.value.splice(index, 1);
+		if (selectedLayoutIndex.value === index) {
+			selectedLayoutIndex.value = null;
+		}
+	};
+
+	// Update a layout range
+	const updateLayoutRange = (index, updatedRange) => {
+		if (index >= 0 && index < layoutRanges.value.length) {
+			layoutRanges.value[index] = {
+				...updatedRange,
+				type: updatedRange.type || layoutRanges.value[index].type,
+			};
+		}
+	};
+
+	// Set the current layout range
+	const setCurrentLayoutRange = (index) => {
+		selectedLayoutIndex.value = index;
+	};
+
+	// Set the current layout type
+	const setCurrentLayoutType = (type) => {
+		currentLayout.value = type;
+	};
+
+	// Get the current layout at a specific time
+	const getCurrentLayoutAtTime = (time) => {
+		for (let i = 0; i < layoutRanges.value.length; i++) {
+			const range = layoutRanges.value[i];
+			if (time >= range.start && time <= range.end) {
+				return {
+					type: range.type,
+					index: i,
+				};
+			}
+		}
+		return {
+			type: "normal", // Default layout if no range is active
+			index: -1,
+		};
+	};
+
+	// Check if a new range would overlap with existing ranges
+	const wouldOverlap = (newRange, excludeIndex = -1) => {
+		return layoutRanges.value.some((range, index) => {
+			if (index === excludeIndex) return false;
+			return newRange.start < range.end && newRange.end > range.start;
+		});
+	};
+
+	// Available layout types
+	const layoutTypes = computed(() => [
+		{
+			id: "camera-full",
+			label: "Full Camera",
+			description: "Show only the camera in full width",
+		},
+		{
+			id: "screen-full",
+			label: "Full Screen",
+			description: "Show only the screen recording in full width",
+		},
+	]);
+
 	return {
 		savedLayouts,
 		saveLayout,
@@ -472,5 +559,16 @@ export const useLayoutSettings = () => {
 		deleteLayout,
 		loadSavedLayouts,
 		setLayouts,
+		layoutRanges,
+		selectedLayoutIndex,
+		currentLayout,
+		layoutTypes,
+		addLayoutRange,
+		removeLayoutRange,
+		updateLayoutRange,
+		setCurrentLayoutRange,
+		setCurrentLayoutType,
+		getCurrentLayoutAtTime,
+		wouldOverlap,
 	};
 };

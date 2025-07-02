@@ -80,6 +80,7 @@ import { useVideoDrag } from "~/composables/useVideoDrag";
 import useDockSettings from "~/composables/useDockSettings";
 import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
 import VideoCropModal from "~/components/player-settings/VideoCropModal.vue";
+import { useLayoutRenderer } from "~/composables/useLayoutRenderer";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -237,6 +238,9 @@ let ctx = null;
 // Video objesi
 let videoElement = null;
 let cameraElement = null;
+
+// layout segment için
+const { renderLayout } = useLayoutRenderer();
 
 // Zoom yönetimi
 const {
@@ -1570,6 +1574,25 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// Scale değişim hızını hesapla
 		const scaleVelocity = Math.abs(videoScale.value - previousScale.value);
 		isZoomTransitioning.value = scaleVelocity > 0.01; // Eşik değeri
+
+		// layout segmenti aktif mi
+		// Layout kontrolü - erken return için
+		// Layout renderer'ı al
+		const isLayoutHandled = renderLayout({
+			ctx,
+			canvasRef,
+			cameraElement,
+			videoElement,
+			videoState,
+			currentTime: videoElement.currentTime,
+			mouseX,
+			mouseY,
+			updateCanvas,
+		});
+
+		if (isLayoutHandled) {
+			return;
+		}
 
 		// Zoom efektini uygula
 		if (videoScale.value > 1.001) {
