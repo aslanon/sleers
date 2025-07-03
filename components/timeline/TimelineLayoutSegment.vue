@@ -19,8 +19,10 @@
 		<div
 			class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
 			:class="{
-				'opacity-80': isSelected,
-				'group-hover:opacity-80': !isResizing && !isDragging,
+				'opacity-80': isSelected && isTimelineHovered,
+				'group-hover:opacity-80':
+					!isResizing && !isDragging && isTimelineHovered,
+				hidden: !isTimelineHovered,
 			}"
 			@mousedown.stop="handleResizeStart($event, 'start')"
 		>
@@ -33,8 +35,10 @@
 		<div
 			class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
 			:class="{
-				'opacity-80': isSelected,
-				'group-hover:opacity-80': !isResizing && !isDragging,
+				'opacity-80': isSelected && isTimelineHovered,
+				'group-hover:opacity-80':
+					!isResizing && !isDragging && isTimelineHovered,
+				hidden: !isTimelineHovered,
 			}"
 			@mousedown.stop="handleResizeStart($event, 'end')"
 		>
@@ -47,11 +51,20 @@
 		<div
 			class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
 		>
-			<span class="text-white/70 text-[10px] font-medium tracking-wide">{{
-				label
-			}}</span>
-			<span class="text-white/90 text-sm font-medium tracking-wide mt-0.5">
-				{{ formattedDuration }} @ {{ range.type }}
+			<span
+				v-if="isTimelineHovered"
+				class="text-white/70 text-[10px] font-medium tracking-wide"
+				>{{ label }}</span
+			>
+			<span
+				class="text-white/90 font-medium tracking-wide transition-all duration-200"
+				:class="{
+					'mt-0.5 text-sm': isTimelineHovered,
+					'text-xs': !isTimelineHovered,
+				}"
+			>
+				<template v-if="isTimelineHovered">{{ formattedDuration }} @ </template
+				>{{ range.label || range.type }}
 			</span>
 		</div>
 	</div>
@@ -93,6 +106,10 @@ const props = defineProps({
 		type: String,
 		default: "Layout",
 	},
+	isTimelineHovered: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const emit = defineEmits([
@@ -108,20 +125,19 @@ const emit = defineEmits([
 const layoutStyle = computed(() => {
 	const layoutColors = {
 		"camera-full": {
-			selected: "rgb(22, 163, 74)",
-			normal: "rgb(21, 128, 61)",
+			selected: "rgb(64, 64, 64)",
+			normal: "rgb(38, 38, 38)",
 			gradient: {
-				selected: "linear-gradient(rgb(22, 163, 74) 0%, rgb(34, 197, 94) 100%)",
-				normal: "linear-gradient(rgb(21, 128, 61) 0%, rgb(34, 197, 94) 100%)",
+				selected: "linear-gradient(rgb(64, 64, 64) 0%, rgb(82, 82, 82) 100%)",
+				normal: "linear-gradient(rgb(38, 38, 38) 0%, rgb(51, 51, 51) 100%)",
 			},
 		},
 		"screen-full": {
-			selected: "rgb(147, 51, 234)",
-			normal: "rgb(126, 34, 206)",
+			selected: "rgb(64, 64, 64)",
+			normal: "rgb(38, 38, 38)",
 			gradient: {
-				selected:
-					"linear-gradient(rgb(147, 51, 234) 0%, rgb(168, 85, 247) 100%)",
-				normal: "linear-gradient(rgb(126, 34, 206) 0%, rgb(168, 85, 247) 100%)",
+				selected: "linear-gradient(rgb(64, 64, 64) 0%, rgb(82, 82, 82) 100%)",
+				normal: "linear-gradient(rgb(38, 38, 38) 0%, rgb(51, 51, 51) 100%)",
 			},
 		},
 	};
@@ -137,8 +153,8 @@ const layoutStyle = computed(() => {
 		background: props.isSelected
 			? colorSet.gradient.selected
 			: colorSet.gradient.normal,
-		borderRadius: "10px",
-		height: "100%",
+		borderRadius: props.isTimelineHovered ? "10px" : "6px",
+		height: props.isTimelineHovered ? "100%" : "46%",
 		cursor: props.isDragging ? "grabbing" : "grab",
 		transition: props.isDragging ? "none" : "all 0.2s ease",
 		transform: "translate3d(0,0,0)", // Hardware acceleration

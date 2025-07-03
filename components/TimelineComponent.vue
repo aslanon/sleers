@@ -83,11 +83,70 @@
 						@mouseenter="isTimelineHovered = true"
 						@mouseleave="isTimelineHovered = false"
 					>
+						<!-- Layout Track -->
+						<div
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleLayoutTrackClick"
+							@mousemove="handleLayoutTrackMouseMove"
+							@mouseenter="isLayoutTrackHovered = true"
+							@mouseleave="handleLayoutTrackLeave"
+						>
+							<div
+								class="flex flex-row h-[42px] relative items-center"
+								:class="{ 'z-50': isLayoutTrackHovered }"
+							>
+								<!-- Empty State Label -->
+								<div
+									v-if="layoutRanges.length === 0"
+									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<span class="text-sm font-medium tracking-wide"
+										>Add layout effect</span
+									>
+								</div>
+
+								<!-- Layout Ranges -->
+								<TimelineLayoutSegment
+									v-for="(range, index) in layoutRanges"
+									:key="index"
+									:range="range"
+									:index="index"
+									:is-selected="selectedLayoutIndex === index"
+									:is-resizing="isLayoutResizing"
+									:is-dragging="
+										isLayoutDragging && draggedLayoutIndex === index
+									"
+									:is-hovered="isHovered"
+									:duration="maxDuration"
+									:is-timeline-hovered="isTimelineHovered"
+									@click="handleLayoutSegmentClick"
+									@mouse-enter="handleLayoutRangeEnter"
+									@mouse-leave="handleLayoutRangeLeave"
+									@drag-start="handleLayoutDragStart"
+									@resize-start="handleLayoutResizeStart"
+									@delete="handleLayoutDelete"
+								/>
+
+								<!-- Ghost Layout Preview -->
+								<TimelineGhostZoom
+									:position="
+										ghostLayoutPosition !== null &&
+										!isLayoutResizing &&
+										!isLayoutDragging
+											? ghostLayoutPosition
+											: null
+									"
+									:width="calculateGhostBarWidth()"
+									label="Add layout effect"
+								/>
+							</div>
+						</div>
+
 						<!-- Segment Bar -->
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
 							<div
-								class="flex flex-row h-[42px] relative w-full"
+								class="flex flex-row h-[42px] relative w-full items-center"
 								@dragover.prevent
 								@drop.prevent="handleSegmentDrop"
 							>
@@ -122,7 +181,7 @@
 							@mouseleave="handleZoomTrackLeave"
 						>
 							<div
-								class="flex flex-row h-[42px] relative"
+								class="flex flex-row h-[42px] relative items-center"
 								:class="{ 'z-50': isZoomTrackHovered }"
 							>
 								<!-- Empty State Label -->
@@ -164,64 +223,6 @@
 									"
 									:width="calculateGhostBarWidth()"
 									label="Add zoom effect"
-								/>
-							</div>
-						</div>
-
-						<!-- Layout Track -->
-						<div
-							class="timeline-layer-bar w-full rounded-xl relative"
-							@click="handleLayoutTrackClick"
-							@mousemove="handleLayoutTrackMouseMove"
-							@mouseenter="isLayoutTrackHovered = true"
-							@mouseleave="handleLayoutTrackLeave"
-						>
-							<div
-								class="flex flex-row h-[42px] relative"
-								:class="{ 'z-50': isLayoutTrackHovered }"
-							>
-								<!-- Empty State Label -->
-								<div
-									v-if="layoutRanges.length === 0"
-									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
-								>
-									<span class="text-sm font-medium tracking-wide"
-										>Add layout effect</span
-									>
-								</div>
-
-								<!-- Layout Ranges -->
-								<TimelineLayoutSegment
-									v-for="(range, index) in layoutRanges"
-									:key="index"
-									:range="range"
-									:index="index"
-									:is-selected="selectedLayoutIndex === index"
-									:is-resizing="isLayoutResizing"
-									:is-dragging="
-										isLayoutDragging && draggedLayoutIndex === index
-									"
-									:is-hovered="isHovered"
-									:duration="maxDuration"
-									@click="handleLayoutSegmentClick"
-									@mouse-enter="handleLayoutRangeEnter"
-									@mouse-leave="handleLayoutRangeLeave"
-									@drag-start="handleLayoutDragStart"
-									@resize-start="handleLayoutResizeStart"
-									@delete="handleLayoutDelete"
-								/>
-
-								<!-- Ghost Layout Preview -->
-								<TimelineGhostZoom
-									:position="
-										ghostLayoutPosition !== null &&
-										!isLayoutResizing &&
-										!isLayoutDragging
-											? ghostLayoutPosition
-											: null
-									"
-									:width="calculateGhostBarWidth()"
-									label="Add layout effect"
 								/>
 							</div>
 						</div>
@@ -358,6 +359,7 @@ const emit = defineEmits([
 	"previewTimeUpdate",
 	"deleteSegment",
 	"videoEnded",
+	"zoomSegmentSelect",
 ]);
 
 const {
@@ -1365,7 +1367,7 @@ const hideGhostZoom = () => {
 
 // Ghost bar genişliği hesaplama
 const calculateGhostBarWidth = () => {
-	if (ghostZoomPosition.value === null) return 0;
+	if (ghostZoomPosition.value === null) return 20;
 	return (ghostZoomDuration.value / maxDuration.value) * 100;
 };
 
@@ -1408,8 +1410,13 @@ const selectedZoomIndex = ref(null);
 // Zoom segmentine tıklama
 const handleZoomSegmentClick = (event, index) => {
 	event.stopPropagation();
-	selectedZoomIndex.value = index;
-	setCurrentZoomRange(zoomRanges.value[index]); // Sadece tıklamada ayarları aç
+	if (selectedZoomIndex.value === index) {
+		selectedZoomIndex.value = null;
+		setCurrentZoomRange(null);
+	} else {
+		selectedZoomIndex.value = index;
+		setCurrentZoomRange(zoomRanges.value[index]);
+	}
 	emit("zoomSegmentSelect");
 };
 
@@ -1525,8 +1532,13 @@ const hideGhostLayout = () => {
 
 const handleLayoutSegmentClick = (event, index) => {
 	event.stopPropagation();
-	selectedLayoutIndex.value = index;
-	setCurrentLayoutRange(index);
+	if (selectedLayoutIndex.value === index) {
+		selectedLayoutIndex.value = null;
+		setCurrentLayoutRange(null);
+	} else {
+		selectedLayoutIndex.value = index;
+		setCurrentLayoutRange(index);
+	}
 };
 
 const handleLayoutRangeEnter = (range, index) => {
@@ -1757,11 +1769,17 @@ const handleClickOutside = (e) => {
 
 // Layout type selection handler
 const handleLayoutTypeSelect = (type) => {
+	const labels = {
+		"camera-full": "Full Camera",
+		"screen-full": "Full Screen",
+	};
+
 	if (layoutClickTime.value !== null) {
 		const newLayout = {
 			start: layoutClickTime.value,
 			end: Math.min(layoutClickTime.value + 2, props.duration),
 			type: type,
+			label: labels[type],
 		};
 
 		if (!wouldOverlap(newLayout, -1)) {
