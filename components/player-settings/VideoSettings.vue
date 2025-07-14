@@ -507,20 +507,12 @@ function updateBorderOpacity() {
 
 // Update dock visibility
 function updateShowDock() {
-	console.log("[VideoSettings] Updating dock visibility:", {
-		oldValue: showDock.value,
-		newValue: showDockValue.value,
-	});
 	toggleDockVisibility(showDockValue.value);
 	updateDockVisibility(showDockValue.value);
 }
 
 // Update dock size
 function updateDockSize() {
-	console.log("[VideoSettings] Updating dock size:", {
-		oldValue: dockSize.value,
-		newValue: dockSizeValue.value,
-	});
 	updateDockSizeValue(dockSizeValue.value);
 }
 

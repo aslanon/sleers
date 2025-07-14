@@ -433,6 +433,7 @@ const emit = defineEmits([
 	"toggleTrimMode",
 	"update:isCropMode",
 	"captureScreenshot",
+	"splitCurrentSegment",
 ]);
 
 // Space tuşu için event handler

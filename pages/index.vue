@@ -294,13 +294,10 @@ watch(isSettingsOpen, (newValue) => {
 // Kayıt düğmesi işlevi
 const onRecordButtonClick = async () => {
 	try {
-		console.log("📱📱📱 onRecordButtonClick() ÇAĞRILDI! 📱📱📱");
 		if (isRecording.value) {
-			console.log("🛑 STOP RECORDING ÇAĞRILACAK");
 			await stopRecording();
 		} else {
 			// MediaState'den güncel kaynak bilgisini al
-			console.log("🔧 [index.vue] MediaState'den kaynak bilgisi alınıyor...");
 
 			let currentRecordingSource = null;
 			try {
@@ -308,10 +305,6 @@ const onRecordButtonClick = async () => {
 					"GET_MEDIA_STATE"
 				);
 				currentRecordingSource = mediaState?.recordingSource;
-				console.log(
-					"🔧 [index.vue] Güncel recording source:",
-					currentRecordingSource
-				);
 			} catch (error) {
 				console.warn("🔧 [index.vue] MediaState alınamadı:", error);
 			}
@@ -321,11 +314,6 @@ const onRecordButtonClick = async () => {
 
 			// MediaState'de kaynak varsa onu kullan
 			if (currentRecordingSource && currentRecordingSource.sourceId) {
-				console.log(
-					"🔧 [index.vue] ✅ MediaState'den kaynak bulundu:",
-					currentRecordingSource.sourceType,
-					currentRecordingSource.sourceName
-				);
 
 				recordingOptions = {
 					startScreen: true,
@@ -345,7 +333,6 @@ const onRecordButtonClick = async () => {
 					macRecorderId: 0,
 				});
 
-				console.log("🔧 [index.vue] Default kaynak ayarlandı");
 
 				// 200ms bekle ki MediaState güncellensin
 				await new Promise((resolve) => setTimeout(resolve, 200));
@@ -358,7 +345,6 @@ const onRecordButtonClick = async () => {
 			}
 
 			// Kayıt başlat
-			console.log("🚀 START RECORDING ÇAĞRILACAK, options:", recordingOptions);
 			await startRecording(recordingOptions);
 		}
 	} catch (error) {
@@ -371,7 +357,6 @@ const openEditorMode = () => {
 	if (electron?.ipcRenderer) {
 		// Editör modunu aç
 		electron.ipcRenderer.send(IPC_EVENTS.OPEN_EDITOR_MODE);
-		console.log("Editör modu açılıyor...");
 	}
 };
 
@@ -410,15 +395,10 @@ const throttledUpdateAudioSettings = throttle((settings) => {
 watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 	if (newDeviceId && newDeviceId !== oldDeviceId) {
 		try {
-			console.log("[index.vue] Seçilen mikrofon deviceId:", newDeviceId);
 
 			// Mikrofon değişikliğini main process'e bildir
 			if (electron?.ipcRenderer) {
 				electron.ipcRenderer.send(IPC_EVENTS.AUDIO_DEVICE_CHANGED, newDeviceId);
-				console.log(
-					"[index.vue] Mikrofon değişikliği main process'e gönderildi:",
-					newDeviceId
-				);
 			}
 
 			// Eski yöntem - MediaState'e yeni mikrofon cihazını bildir
@@ -438,15 +418,10 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 watch(selectedVideoDevice, async (deviceId) => {
 	if (deviceId) {
 		try {
-			console.log("[index.vue] Seçilen kamera deviceId:", deviceId);
 
 			// Kamera değişikliğini main process'e bildir
 			if (electron?.ipcRenderer) {
 				electron.ipcRenderer.send(IPC_EVENTS.CAMERA_DEVICE_CHANGED, deviceId);
-				console.log(
-					"[index.vue] Kamera değişikliği main process'e gönderildi:",
-					deviceId
-				);
 			} else {
 				console.error("[index.vue] Electron API bulunamadı");
 			}
@@ -506,21 +481,17 @@ onMounted(async () => {
 
 	// MacRecorder test fonksiyonu
 	if (electron?.ipcRenderer) {
-		console.log("[index.vue] MacRecorder API test ediliyor...");
 		try {
 			const [screens, windows] = await Promise.all([
 				electron.macRecorder.getDisplays(),
 				electron.macRecorder.getWindows(),
 			]);
-			console.log("[index.vue] Test sonucu - Ekranlar:", screens);
-			console.log("[index.vue] Test sonucu - Pencereler:", windows);
 		} catch (testError) {
 			console.error("[index.vue] MacRecorder API test hatası:", testError);
 		}
 	}
 
 	// ✅ KESIN ÇÖZÜM: Direkt Display 1 seç
-	console.log("[index.vue] 🚀 Varsayılan kaynak ayarlanıyor...");
 
 	const defaultSource = {
 		sourceType: "display",
@@ -529,12 +500,10 @@ onMounted(async () => {
 		macRecorderId: 0,
 	};
 
-	console.log("[index.vue] Seçilen kaynak:", defaultSource);
 
 	// IPC ile kaynak seçimini bildir
 	if (electron?.ipcRenderer) {
 		electron.ipcRenderer.send("UPDATE_RECORDING_SOURCE", defaultSource);
-		console.log("[index.vue] ✅ Kaynak seçimi gönderildi");
 	}
 
 	// Electron API'si yüklendiyse event listener'ları ekle
@@ -542,7 +511,6 @@ onMounted(async () => {
 		// Mouse pozisyonlarını dinle
 		electron.ipcRenderer.on("MOUSE_POSITION", (event, position) => {
 			// Mouse pozisyonları useMediaDevices composable'ında işleniyor
-			console.log("[index.vue] Mouse pozisyonu alındı:", position);
 		});
 
 		// MediaState'i al ve ses durumlarını güncelle
@@ -585,7 +553,6 @@ onMounted(async () => {
 		// Kamera durumunu dinle
 		electron.ipcRenderer.on("CAMERA_STATUS_CHANGED", (event, statusData) => {
 			if (statusData.status === "active") {
-				console.log("Kamera aktif:", statusData.deviceId);
 			} else if (statusData.status === "error") {
 				console.error("Kamera hatası:", statusData.error);
 			}
@@ -611,7 +578,6 @@ onMounted(async () => {
 // Kayıt durumu değiştiğinde tray'i güncelle
 watch(isRecording, (newValue) => {
 	if (electron?.ipcRenderer) {
-		console.log("[index.vue] Kayıt durumu değişti:", newValue);
 		electron.ipcRenderer.send(IPC_EVENTS.RECORDING_STATUS_CHANGED, newValue);
 	}
 });

@@ -20,7 +20,6 @@ export const useProjectManager = () => {
 		mousePositions
 	) => {
 		try {
-			console.log("Saving project with name:", name);
 
 			// Benzersiz bir ID oluştur
 			const projectId = `project_${Date.now()}_${Math.floor(
@@ -49,7 +48,6 @@ export const useProjectManager = () => {
 			// Dosyaları koruma listesine ekle
 			for (const filePath of filesToProtect) {
 				await electron?.ipcRenderer?.invoke("PROTECT_FILE", filePath);
-				console.log("Dosya koruma listesine eklendi:", filePath);
 			}
 
 			// Mevcut ayarları ve durumları al
@@ -134,7 +132,6 @@ export const useProjectManager = () => {
 					"sleer-projects",
 					JSON.stringify(savedProjects.value)
 				);
-				console.log("Projects saved to localStorage");
 			} catch (localStorageError) {
 				console.error(
 					"Failed to save projects to localStorage:",
@@ -155,7 +152,6 @@ export const useProjectManager = () => {
 	// Projeyi yükle
 	const loadProject = async (projectId, callbacks) => {
 		try {
-			console.log("Loading project with ID:", projectId);
 
 			// Projeyi ID'ye göre bul
 			const project = savedProjects.value.find((p) => p.id === projectId);
@@ -164,7 +160,6 @@ export const useProjectManager = () => {
 				return false;
 			}
 
-			console.log("Found project:", project.name);
 
 			// Electron API'sini al
 			const electron = window.electron;
@@ -174,8 +169,7 @@ export const useProjectManager = () => {
 				for (const filePath of project.protectedFiles) {
 					if (filePath) {
 						await electron?.ipcRenderer?.invoke("PROTECT_FILE", filePath);
-						console.log("Dosya koruma listesine eklendi:", filePath);
-					}
+							}
 				}
 			}
 
@@ -283,7 +277,6 @@ export const useProjectManager = () => {
 			// Mevcut proje adını güncelle
 			currentProjectName.value = project.name;
 
-			console.log(`Project "${project.name}" loaded successfully`);
 			return true;
 		} catch (error) {
 			console.error("Error loading project:", error);
@@ -294,7 +287,6 @@ export const useProjectManager = () => {
 	// Projeyi sil
 	const deleteProject = async (projectId) => {
 		try {
-			console.log("Deleting project with ID:", projectId);
 
 			// Projeyi ID'ye göre bul ve sil
 			const projectIndex = savedProjects.value.findIndex(
@@ -325,7 +317,6 @@ export const useProjectManager = () => {
 				// Başka projede kullanılmıyorsa koruma listesinden çıkar
 				if (!isUsedInOtherProjects && filePath) {
 					await electron?.ipcRenderer?.invoke("UNPROTECT_FILE", filePath);
-					console.log("Dosya koruma listesinden çıkarıldı:", filePath);
 				}
 			}
 
@@ -338,7 +329,6 @@ export const useProjectManager = () => {
 					"sleer-projects",
 					JSON.stringify(savedProjects.value)
 				);
-				console.log("Projects saved to localStorage after deletion");
 			} catch (localStorageError) {
 				console.error(
 					"Failed to save projects to localStorage:",
@@ -361,8 +351,7 @@ export const useProjectManager = () => {
 	// Projeyi yeniden adlandır
 	const renameProject = async (projectId, newName) => {
 		try {
-			console.log("Renaming project with ID:", projectId, "to:", newName);
-
+	
 			// Projeyi ID'ye göre bul
 			const project = savedProjects.value.find((p) => p.id === projectId);
 			if (!project) {
@@ -382,7 +371,6 @@ export const useProjectManager = () => {
 					"sleer-projects",
 					JSON.stringify(savedProjects.value)
 				);
-				console.log("Projects saved to localStorage after rename");
 			} catch (localStorageError) {
 				console.error(
 					"Failed to save projects to localStorage:",
@@ -410,10 +398,6 @@ export const useProjectManager = () => {
 				const parsedProjects = JSON.parse(projectsJson);
 				if (Array.isArray(parsedProjects)) {
 					savedProjects.value = parsedProjects;
-					console.log(
-						"Loaded saved projects from localStorage:",
-						savedProjects.value.length
-					);
 
 					// Korunan dosyaları yeniden koruma listesine ekle
 					const electron = window.electron;
@@ -428,9 +412,7 @@ export const useProjectManager = () => {
 									if (filePath) {
 										electron.ipcRenderer
 											.invoke("PROTECT_FILE", filePath)
-											.then(() =>
-												console.log("Dosya koruma listesine eklendi:", filePath)
-											)
+											.then(() => {})
 											.catch((err) =>
 												console.error(
 													"Dosya koruma listesine eklenirken hata:",

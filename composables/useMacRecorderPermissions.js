@@ -15,7 +15,6 @@ export const useMacRecorderPermissions = () => {
 	// Check all permissions - README API
 	const checkPermissions = async () => {
 		try {
-			console.log("[useMacRecorderPermissions] İzinler kontrol ediliyor...");
 			isLoading.value = true;
 
 			if (!window.electron?.ipcRenderer) {
@@ -36,10 +35,6 @@ export const useMacRecorderPermissions = () => {
 				};
 
 				lastCheck.value = new Date();
-				console.log(
-					"[useMacRecorderPermissions] İzinler güncellendi:",
-					permissions.value
-				);
 			}
 
 			return permissions.value;
@@ -108,7 +103,6 @@ export const useMacRecorderPermissions = () => {
 		try {
 			if (window.electron?.ipcRenderer) {
 				window.electron.ipcRenderer.send("OPEN_SYSTEM_PREFERENCES");
-				console.log("[useMacRecorderPermissions] Sistem ayarları açılıyor...");
 			}
 		} catch (error) {
 			console.error(
@@ -121,9 +115,6 @@ export const useMacRecorderPermissions = () => {
 	// Request specific permission (limited on macOS)
 	const requestPermission = async (permissionType) => {
 		try {
-			console.log(
-				`[useMacRecorderPermissions] ${permissionType} izni isteniyor...`
-			);
 
 			if (!window.electron?.ipcRenderer) {
 				return false;
@@ -170,7 +161,6 @@ export const useMacRecorderPermissions = () => {
 		// Return cleanup function
 		return () => {
 			clearInterval(interval);
-			console.log("[useMacRecorderPermissions] İzin izleme durduruldu");
 		};
 	};
 

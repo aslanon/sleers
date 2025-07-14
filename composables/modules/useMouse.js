@@ -20,7 +20,6 @@ export const useMouse = () => {
 			...config.value,
 			...newConfig,
 		};
-		console.log("Fare izleme konfigürasyonu güncellendi:", config.value);
 	};
 
 	// Throttle fonksiyonu

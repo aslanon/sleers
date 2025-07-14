@@ -215,7 +215,6 @@ const filteredSources = computed(() => {
 
 // Kaynakları yükle - node-mac-recorder kullan
 const loadSources = async () => {
-	console.log("[RecordSettings] loadSources başlıyor...");
 	try {
 		// Electron API kontrolü
 		if (!window.electron?.ipcRenderer) {
@@ -223,9 +222,6 @@ const loadSources = async () => {
 			return;
 		}
 
-		console.log(
-			"[RecordSettings] MacRecorder API'leri kullanılarak kaynaklar alınıyor..."
-		);
 
 		try {
 			// MacRecorder'dan direkt kaynak al
@@ -238,9 +234,6 @@ const loadSources = async () => {
 			);
 
 			if (sources && sources.length > 0) {
-				console.log(
-					`[RecordSettings] ${sources.length} kaynak bulundu (MacRecorder)`
-				);
 
 				// Thumbnail'ları yükle - README best practices ile optimize edildi
 				const thumbnailPromises = sources.map(async (source) => {
@@ -279,9 +272,6 @@ const loadSources = async () => {
 						if (thumbnail) {
 							// README'de belirtildiği gibi base64 format gelir
 							source.thumbnail = thumbnail;
-							console.log(
-								`[RecordSettings] Thumbnail başarıyla yüklendi: ${source.name}`
-							);
 						} else {
 							console.warn(
 								`[RecordSettings] ${source.name} için thumbnail null geldi`
@@ -303,9 +293,6 @@ const loadSources = async () => {
 				await Promise.allSettled(thumbnailPromises);
 
 				availableSources.value = sources;
-				console.log(
-					"[RecordSettings] MacRecorder kaynakları başarıyla yüklendi"
-				);
 				loading.value = false;
 
 				// Default olarak ilk screen item'ını seç
@@ -314,20 +301,12 @@ const loadSources = async () => {
 						source.id.startsWith("screen:")
 					);
 					if (displaySources.length > 0) {
-						console.log(
-							"[RecordSettings] Default olarak ilk ekran seçiliyor:",
-							displaySources[0]
-						);
 						selectSource(displaySources[0]);
 
 						// UI'da da seçili göster
 						selectedSourceId.value = displaySources[0].id;
 					} else if (sources.length > 0) {
 						// Hiç ekran yoksa ilk kaynağı seç
-						console.log(
-							"[RecordSettings] Ekran bulunamadı, ilk kaynağı seçiyor:",
-							sources[0]
-						);
 						selectSource(sources[0]);
 						selectedSourceId.value = sources[0].id;
 					}
@@ -358,11 +337,6 @@ const loadSources = async () => {
 
 // Kaynak seçimi - MacRecorder uyumlu
 const selectSource = async (source) => {
-	console.log("🔥🔥🔥 [RecordSettings] KAYNAK SEÇİLDİ:", source);
-	console.log(
-		"🔥🔥🔥 [RecordSettings] selectedSourceType:",
-		selectedSourceType.value
-	);
 	selectedSourceId.value = source.id;
 
 	// MacRecorder ID'sini kullan
@@ -398,23 +372,14 @@ const selectSource = async (source) => {
 
 		// Alan seçimi ise alanı seçme penceresini aç
 		if (selectedSourceType.value === "area") {
-			console.log("Alan seçimi başlatılıyor");
 			window.electron.ipcRenderer.send("START_AREA_SELECTION");
 		} else {
 			// Alan seçimi değilse direk olarak kaynak bilgisini güncelle
-			console.log(
-				"🔧 [RecordSettings] Kayıt kaynağı güncelleniyor:",
-				screenConfig
-			);
 
 			try {
 				const result = await window.electron.ipcRenderer.invoke(
 					"UPDATE_RECORDING_SOURCE",
 					screenConfig
-				);
-				console.log(
-					"🔧 [RecordSettings] ✅ Kaynak güncelleme başarılı:",
-					result
 				);
 
 				// Güncellemeden sonra MediaState'i kontrol et
@@ -422,10 +387,6 @@ const selectSource = async (source) => {
 					try {
 						const mediaState = await window.electron.ipcRenderer.invoke(
 							"GET_MEDIA_STATE"
-						);
-						console.log(
-							"🔧 [RecordSettings] Güncelleme sonrası MediaState:",
-							mediaState?.recordingSource
 						);
 					} catch (stateError) {
 						console.error(

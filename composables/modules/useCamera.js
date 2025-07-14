@@ -26,7 +26,6 @@ export const useCamera = () => {
 			...config.value,
 			...newConfig,
 		};
-		console.log("Kamera konfigürasyonu güncellendi:", config.value);
 	};
 
 	const getVideoDevices = async () => {
@@ -49,13 +48,6 @@ export const useCamera = () => {
 		let cameraStream = null;
 		if (selectedVideoDevice.value) {
 			try {
-				console.log("Kamera cihazları:", videoDevices.value);
-				console.log("Seçili kamera cihazı:", {
-					deviceId: selectedVideoDevice.value,
-					device: videoDevices.value.find(
-						(d) => d.deviceId === selectedVideoDevice.value
-					),
-				});
 
 				cameraStream = await navigator.mediaDevices.getUserMedia({
 					audio: false,
@@ -67,11 +59,6 @@ export const useCamera = () => {
 					},
 				});
 
-				console.log("Kamera stream'i başarıyla alındı:", {
-					tracks: cameraStream.getTracks().length,
-					settings: cameraStream.getVideoTracks()[0]?.getSettings(),
-					constraints: cameraStream.getVideoTracks()[0]?.getConstraints(),
-				});
 
 				// Kamera track'lerini ayrı bir stream'de tut
 				cameraStream = new MediaStream(cameraStream.getVideoTracks());
@@ -86,7 +73,6 @@ export const useCamera = () => {
 				// Hata OverconstrainedError ise, daha basit ayarlarla tekrar deneyelim
 				if (err.name === "OverconstrainedError") {
 					try {
-						console.log("Basit ayarlarla tekrar deneniyor...");
 						cameraStream = await navigator.mediaDevices.getUserMedia({
 							audio: false,
 							video: {
@@ -95,7 +81,6 @@ export const useCamera = () => {
 						});
 						// Başarılı olursa yeni bir MediaStream oluştur
 						cameraStream = new MediaStream(cameraStream.getVideoTracks());
-						console.log("Basit ayarlarla kamera stream'i alındı");
 					} catch (retryErr) {
 						console.error("Basit ayarlarla da alınamadı:", retryErr);
 					}
@@ -121,7 +106,6 @@ export const useCamera = () => {
 				throw new Error("IPC events are not available");
 			}
 
-			console.log("Kamera stream'i başlatılıyor...");
 
 			const cameraStream = await startCameraStream();
 
@@ -130,8 +114,6 @@ export const useCamera = () => {
 				return null;
 			}
 
-			console.log("Kamera stream'i başlatıldı");
-			console.log("Kamera MediaRecorder oluşturuluyor");
 
 			// Dosya yolunu al
 			cameraPath.value = await window.electron?.ipcRenderer.invoke(
@@ -145,7 +127,6 @@ export const useCamera = () => {
 				videoBitsPerSecond: config.value.videoBitsPerSecond,
 			});
 
-			console.log("Kamera recorder event listener'ları ekleniyor");
 
 			// Kamera chunk'larını doğrudan dosyaya yaz
 			cameraRecorder.value.ondataavailable = async (event) => {
@@ -164,7 +145,6 @@ export const useCamera = () => {
 			};
 
 			cameraRecorder.value.onstop = () => {
-				console.log("Kamera kaydı durduruldu");
 				isCameraActive.value = false;
 
 				// Recorder durdurulduğunda stream'i temizle
@@ -187,11 +167,8 @@ export const useCamera = () => {
 				}
 			};
 
-			console.log("Kamera kaydı başlatılıyor");
 			// Daha sık chunk gönderimi için interval değerini düşür
 			cameraRecorder.value.start(config.value.chunkInterval);
-
-			console.log("Kamera MediaRecorder başlatıldı");
 			isCameraActive.value = true;
 
 			return { cameraPath: cameraPath.value };
@@ -204,7 +181,6 @@ export const useCamera = () => {
 
 	const stopCameraRecording = async () => {
 		try {
-			console.log("Kamera kaydı durdurma başlatıldı");
 
 			// Önce state'i false yap ki yeni chunk'lar oluşmasın
 			isCameraActive.value = false;
@@ -227,9 +203,7 @@ export const useCamera = () => {
 
 					// Recorder'ı durdur
 					if (cameraRecorder.value.state === "recording") {
-						console.log("Kamera recorder durduruluyor...");
 						cameraRecorder.value.stop();
-						console.log("Kamera recorder durduruldu");
 					}
 				} catch (recorderError) {
 					console.error("Kamera recorder durdurulurken hata:", recorderError);
@@ -240,14 +214,9 @@ export const useCamera = () => {
 			}
 
 			// Tüm track'leri durdur
-			console.log(
-				"Kamera stream track'leri durduruluyor...",
-				cameraStreamTracks.length
-			);
 			cameraStreamTracks.forEach((track) => {
 				try {
 					track.stop();
-					console.log(`Track durduruldu: ${track.id} (${track.kind})`);
 				} catch (err) {
 					console.error(`Track durdurulurken hata: ${track.id}`, err);
 				}
@@ -257,18 +226,15 @@ export const useCamera = () => {
 			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 			if (IPC_EVENTS) {
 				try {
-					console.log("Kamera medya stream'i sonlandırılıyor...");
 					await window.electron?.ipcRenderer.invoke(
 						IPC_EVENTS.END_MEDIA_STREAM,
 						"camera"
 					);
-					console.log("Kamera medya stream'i sonlandırıldı");
 				} catch (streamError) {
 					console.error("Camera stream sonlandırılırken hata:", streamError);
 				}
 			}
 
-			console.log("Kamera kaydı durdurma tamamlandı");
 			return cameraPath.value;
 		} catch (error) {
 			console.error("Kamera kaydı durdurulurken hata:", error);

@@ -40,7 +40,6 @@ export const useMediaDevices = () => {
 
 			// Önceki kaydı temizle
 			if (isRecording.value) {
-				console.log("Önceki kayıt durduruluyor");
 				await stopRecording();
 				// Kısa bir bekleme ekleyelim
 				await new Promise((resolve) => setTimeout(resolve, 100));
@@ -56,12 +55,6 @@ export const useMediaDevices = () => {
 			const startCamera = options.startCamera ?? true;
 			const startAudio = options.startAudio ?? true;
 
-			// 🔧 DEBUG: Options'ları kontrol et
-			console.log("🔧 [useMediaDevices] startRecording çağrıldı!");
-			console.log("🔧 [useMediaDevices] Alınan options:", options);
-			console.log("🔧 [useMediaDevices] startScreen:", startScreen);
-			console.log("🔧 [useMediaDevices] startCamera:", startCamera);
-			console.log("🔧 [useMediaDevices] startAudio:", startAudio);
 
 			if (!startScreen && !startCamera && !startAudio) {
 				console.warn("Hiçbir kayıt türü seçilmedi");
@@ -75,7 +68,6 @@ export const useMediaDevices = () => {
 
 			if (startScreen) {
 				// MacRecorder kullanarak ekran kaydını başlat
-				console.log("🎬 MacRecorder ile ekran kaydı başlatılıyor...");
 				screenResult = screenModule.startRecording(null, options);
 				mouseModule.startMouseTracking();
 			} else {
@@ -112,32 +104,27 @@ export const useMediaDevices = () => {
 
 	const stopRecording = async () => {
 		try {
-			console.log("Kayıt durdurma başlatıldı");
 
 			// Tüm kayıtları durdur ve sonuçları bekle
 			const promises = [];
 
 			// Ekran kaydını durdur
 			if (screenModule.isScreenActive.value) {
-				console.log("MacRecorder ekran kaydı durduruluyor...");
 				promises.push(screenModule.stopRecording());
 			}
 
 			// Kamera kaydını durdur
 			if (cameraModule.isCameraActive.value) {
-				console.log("Kamera kaydı durduruluyor...");
 				promises.push(cameraModule.stopCameraRecording());
 			}
 
 			// Ses kaydını durdur
 			if (audioModule.isAudioActive.value) {
-				console.log("Ses kaydı durduruluyor...");
 				promises.push(audioModule.stopAudioRecording());
 			}
 
 			// Tüm kayıtların durmasını bekle
 			const results = await Promise.all(promises);
-			console.log("Tüm kayıtlar durduruldu:", results);
 
 			// Kayıt durumunu güncelle - computed property olduğu için doğrudan güncellenemez
 			// isRecording.value = false; // Bu satır kaldırıldı çünkü computed property'dir
@@ -146,7 +133,6 @@ export const useMediaDevices = () => {
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 
 			// Editör penceresini aç
-			console.log("Editör açılıyor...");
 			const screenResult = results.find((r) => r && r.videoPath);
 			const cameraResult =
 				results.find((r) => r && r.cameraPath) ||
@@ -161,7 +147,6 @@ export const useMediaDevices = () => {
 				audioPath: audioResult?.audioPath || null,
 			});
 
-			console.log("Kayıt durdurma tamamlandı");
 		} catch (error) {
 			console.error("Kayıt durdurulurken hata:", error);
 			isRecording.value = false;

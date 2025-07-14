@@ -21,7 +21,6 @@ export const useRecordingUtils = () => {
 			...config.value,
 			...newConfig,
 		};
-		console.log("Kayıt yardımcıları konfigürasyonu güncellendi:", config.value);
 	};
 
 	const startCountdown = async () => {
@@ -52,23 +51,14 @@ export const useRecordingUtils = () => {
 	const stopMediaStream = () => {
 		try {
 			if (mediaStream.value) {
-				console.log(
-					"MediaStream durduruluyor, track sayısı:",
-					mediaStream.value.getTracks().length
-				);
 
 				const tracks = mediaStream.value.getTracks();
-				console.log(`Toplam ${tracks.length} track durdurulacak`);
 
 				for (const track of tracks) {
 					try {
 						if (track.readyState === "live") {
 							track.stop();
-							console.log(`Track durduruldu: ${track.kind}, id: ${track.id}`);
 						} else {
-							console.log(
-								`Track zaten durdurulmuş: ${track.kind}, id: ${track.id}, durum: ${track.readyState}`
-							);
 						}
 					} catch (trackError) {
 						console.error(
@@ -79,9 +69,6 @@ export const useRecordingUtils = () => {
 				}
 
 				mediaStream.value = null;
-				console.log("MediaStream temizlendi");
-			} else {
-				console.log("Durdurulacak MediaStream bulunamadı");
 			}
 
 			// Kayıt durumunu güncelle

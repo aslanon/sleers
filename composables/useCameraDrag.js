@@ -44,7 +44,6 @@ export const useCameraDrag = () => {
 		};
 
 		// Kamera pozisyonu değiştiğinde log
-		console.log("Camera position updated during drag:", cameraPosition.value);
 	};
 
 	const stopDrag = () => {

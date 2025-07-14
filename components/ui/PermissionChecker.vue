@@ -171,7 +171,6 @@ async function checkPermissions() {
 		if (window.electron?.permissions) {
 			const permissionStatus = await window.electron.permissions.check();
 			permissions.value = permissionStatus;
-			console.log("İzin durumları:", permissionStatus);
 		} else {
 			console.error("Electron permissions API kullanılamıyor");
 		}
@@ -185,22 +184,17 @@ async function checkPermissions() {
 // İzinleri otomatik olarak iste
 async function autoRequestPermissions() {
 	// Otomatik izin isteme devre dışı bırakıldı
-	console.log(
-		"Otomatik izin isteme devre dışı bırakıldı. Kullanıcı manuel olarak izin isteyebilir."
-	);
 	return;
 
 	// Aşağıdaki kod artık çalışmayacak
 	try {
 		// Kamera izni durumuna göre
 		if (permissions.value.camera === "prompt") {
-			console.log("Kamera izni otomatik olarak isteniyor...");
 			await requestPermission("camera");
 		}
 
 		// Mikrofon izni durumuna göre
 		if (permissions.value.microphone === "prompt") {
-			console.log("Mikrofon izni otomatik olarak isteniyor...");
 			await requestPermission("microphone");
 		}
 	} catch (error) {
@@ -246,11 +240,9 @@ async function requestPermission(type) {
 		if (window.electron?.permissions) {
 			// İzin zaten verilmiş mi kontrol et
 			if (permissions.value[type] === "granted") {
-				console.log(`${type} izni zaten verilmiş, tekrar istemeye gerek yok.`);
 				return true;
 			}
 
-			console.log(`${type} izni isteniyor...`);
 			// İzin isteme ekranını göster
 			const result = await window.electron.permissions.request(type);
 

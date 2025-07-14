@@ -258,7 +258,6 @@ watch(
 // Varsayılan dizini ayarla
 const setDefaultDirectory = async () => {
 	try {
-		console.log("Varsayılan dizin ayarlanıyor...");
 
 		// Electron API kontrolü
 		if (!window.electron?.ipcRenderer) {
@@ -268,7 +267,6 @@ const setDefaultDirectory = async () => {
 
 		// Önce indirilenler klasörünü almaya çalış
 		try {
-			console.log("'GET_PATH' isteği ile downloads dizini alınıyor");
 			const downloadsDir = await window.electron.ipcRenderer.invoke(
 				"GET_PATH",
 				"downloads"
@@ -276,7 +274,6 @@ const setDefaultDirectory = async () => {
 
 			if (downloadsDir) {
 				directory.value = downloadsDir;
-				console.log("Varsayılan indirilenler dizini ayarlandı:", downloadsDir);
 				return;
 			}
 		} catch (error) {
@@ -285,12 +282,10 @@ const setDefaultDirectory = async () => {
 
 		// Alternatif olarak ev dizinini al
 		try {
-			console.log("'GET_HOME_DIR' isteği ile ev dizini alınıyor");
 			const homeDir = await window.electron.ipcRenderer.invoke("GET_HOME_DIR");
 
 			if (homeDir) {
 				directory.value = homeDir;
-				console.log("Varsayılan ev dizini ayarlandı:", homeDir);
 				return;
 			}
 		} catch (error) {
@@ -306,7 +301,6 @@ const setDefaultDirectory = async () => {
 // Dizin seçme fonksiyonu
 const selectDirectory = async () => {
 	try {
-		console.log("Dizin seçme fonksiyonu çağrıldı");
 
 		// Electron nesnesinin varlığını kontrol et
 		if (!window.electron || !window.electron.ipcRenderer) {
@@ -315,7 +309,6 @@ const selectDirectory = async () => {
 		}
 
 		// Direkt string kullan
-		console.log("Doğrudan 'SHOW_DIRECTORY_DIALOG' isteği gönderiliyor");
 		const result = await window.electron.ipcRenderer.invoke(
 			"SHOW_DIRECTORY_DIALOG",
 			{
@@ -325,7 +318,6 @@ const selectDirectory = async () => {
 			}
 		);
 
-		console.log("Dizin seçme sonucu:", result);
 
 		if (
 			result &&
@@ -334,9 +326,7 @@ const selectDirectory = async () => {
 			result.filePaths.length > 0
 		) {
 			directory.value = result.filePaths[0];
-			console.log("Seçilen dizin:", directory.value);
 		} else {
-			console.log("Dizin seçilmedi veya iptal edildi");
 		}
 	} catch (error) {
 		console.error("Dizin seçme hatası:", error);

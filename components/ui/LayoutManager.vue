@@ -247,7 +247,6 @@ const getCurrentPositions = () => {
 	}
 
 	try {
-		console.log("Getting current positions and settings from MediaPlayer");
 
 		// Get video and camera positions
 		const videoPosition = props.mediaPlayer.getVideoPosition?.() || null;
@@ -256,30 +255,23 @@ const getCurrentPositions = () => {
 		let cameraPosition = null;
 		if (props.mediaPlayer.getCameraPosition) {
 			cameraPosition = props.mediaPlayer.getCameraPosition();
-			console.log("Got camera position:", cameraPosition);
 		}
 
 		// Get canvas size
 		let canvasSize = { width: 800, height: 600 };
 		if (props.mediaPlayer.getCanvasSize) {
 			canvasSize = props.mediaPlayer.getCanvasSize();
-			console.log("Got canvas size:", canvasSize);
 		}
 
 		// Get camera settings
 		let cameraSettings = {};
 		if (props.mediaPlayer.getCameraSettings) {
 			cameraSettings = props.mediaPlayer.getCameraSettings();
-			console.log("Got camera settings:", cameraSettings);
 
 			// Düzen kaydedilirken, kamera pozisyonunu cameraSettings içine de kaydet
 			// Bu, düzen uygulandığında kameranın doğru konuma gitmesini sağlar
 			if (cameraPosition) {
 				cameraSettings.position = { ...cameraPosition };
-				console.log(
-					"Updated camera settings with current position:",
-					cameraSettings
-				);
 			}
 		}
 
@@ -287,21 +279,18 @@ const getCurrentPositions = () => {
 		let videoBorderSettings = {};
 		if (props.mediaPlayer.getVideoBorderSettings) {
 			videoBorderSettings = props.mediaPlayer.getVideoBorderSettings();
-			console.log("Got video border settings:", videoBorderSettings);
 		}
 
 		// Get mouse cursor settings
 		let mouseCursorSettings = {};
 		if (props.mediaPlayer.getMouseCursorSettings) {
 			mouseCursorSettings = props.mediaPlayer.getMouseCursorSettings();
-			console.log("Got mouse cursor settings:", mouseCursorSettings);
 		}
 
 		// Get zoom settings
 		let zoomSettings = { zoomRanges: [], currentZoomRange: null };
 		if (props.mediaPlayer.getZoomSettings) {
 			zoomSettings = props.mediaPlayer.getZoomSettings();
-			console.log("Got zoom settings:", zoomSettings);
 		}
 
 		return {
@@ -332,17 +321,11 @@ const getCurrentPositions = () => {
 
 // Toggle layout popover
 const toggleLayoutPopover = () => {
-	console.log(
-		"Toggle layout popover called, current state:",
-		isLayoutPopoverOpen.value
-	);
 	isLayoutPopoverOpen.value = !isLayoutPopoverOpen.value;
-	console.log("New popover state:", isLayoutPopoverOpen.value);
 
 	if (isLayoutPopoverOpen.value) {
 		// Use nextTick to ensure the popover is rendered before calculating position
 		nextTick(() => {
-			console.log("Updating popover position");
 			updatePopoverPosition();
 			// Add event listener for window resize
 			window.addEventListener("resize", updatePopoverPosition);
@@ -355,7 +338,6 @@ const toggleLayoutPopover = () => {
 
 // Update popover position
 const updatePopoverPosition = () => {
-	console.log("updatePopoverPosition called");
 
 	if (!layoutButtonRef.value || !layoutPopoverRef.value) {
 		console.warn("Missing refs:", {
@@ -366,30 +348,25 @@ const updatePopoverPosition = () => {
 	}
 
 	const buttonRect = layoutButtonRef.value.getBoundingClientRect();
-	console.log("Button rect:", buttonRect);
 
 	const popoverWidth = 280; // Width of the popover
 	const windowWidth = window.innerWidth;
-	console.log("Window width:", windowWidth);
 
 	// Calculate left position to ensure popover is positioned to the left of the button
 	// but still visible within the window
 	let leftPosition = buttonRect.left - popoverWidth + buttonRect.width;
-	console.log("Initial left position:", leftPosition);
 
 	// Ensure popover is not positioned off-screen
 	leftPosition = Math.max(
 		10,
 		Math.min(leftPosition, windowWidth - popoverWidth - 10)
 	);
-	console.log("Adjusted left position:", leftPosition);
 
 	// Set position with a slight delay to ensure DOM is updated
 	popoverPosition.value = {
 		top: buttonRect.bottom + 10,
 		left: leftPosition,
 	};
-	console.log("Final popover position:", popoverPosition.value);
 
 	// Force a repaint
 	layoutPopoverRef.value.style.display = "none";
@@ -412,7 +389,6 @@ const saveCurrentLayout = async () => {
 			.padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
 		const layoutName = `Düzen ${savedLayouts.value.length + 1} - ${dateStr}`;
 
-		console.log("Saving layout with name:", layoutName);
 
 		// Get all positions and settings
 		const {
@@ -435,7 +411,6 @@ const saveCurrentLayout = async () => {
 			currentZoomRange: zoomSettings?.currentZoomRange || null,
 		});
 
-		console.log("Layout saved:", result);
 
 		// Force update popover position after adding a new layout
 		nextTick(() => {
@@ -450,7 +425,6 @@ const saveCurrentLayout = async () => {
 // Apply a layout
 const applyLayout = async (layoutId) => {
 	try {
-		console.log("Applying layout with ID:", layoutId);
 
 		if (!props.mediaPlayer) {
 			console.error("MediaPlayer reference not available");
@@ -479,7 +453,6 @@ const applyLayout = async (layoutId) => {
 		);
 
 		if (result) {
-			console.log("Layout applied successfully");
 		} else {
 			console.error("Failed to apply layout");
 			alert("Düzen uygulanamadı");
@@ -498,7 +471,6 @@ const startEditLayoutName = (layout) => {
 
 // Save layout name
 const saveLayoutName = async (layoutId) => {
-	console.log("Saving new name for layout:", layoutId, editingLayoutName.value);
 
 	if (editingLayoutName.value.trim()) {
 		try {
@@ -506,7 +478,6 @@ const saveLayoutName = async (layoutId) => {
 				layoutId,
 				editingLayoutName.value.trim()
 			);
-			console.log("Layout renamed:", result);
 			cancelEditLayoutName();
 		} catch (error) {
 			console.error("Error renaming layout:", error);
@@ -526,11 +497,8 @@ const cancelEditLayoutName = () => {
 // Delete layout
 const deleteLayout = async (layoutId) => {
 	try {
-		console.log("Deleting layout with ID:", layoutId);
-
 		// Delete the layout directly without confirmation
 		const result = await removeLayout(layoutId);
-		console.log("Layout deleted:", result);
 
 		// Force update popover position after removing a layout
 		nextTick(() => {

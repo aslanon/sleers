@@ -279,7 +279,6 @@ const requestMicrophonePermission = async () => {
 	try {
 		const granted = await requestPermission("microphone");
 		if (granted) {
-			console.log("[MacRecorderPermissionChecker] Mikrofon izni verildi");
 		} else {
 			console.warn("[MacRecorderPermissionChecker] Mikrofon izni verilmedi");
 		}

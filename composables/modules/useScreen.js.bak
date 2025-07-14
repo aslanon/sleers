@@ -49,6 +49,7 @@ export const useScreen = () => {
 				throw new Error("IPC events kullanılamıyor");
 			}
 
+
 			// Get media state for audio and source settings
 			let mediaState = null;
 			try {
@@ -57,6 +58,7 @@ export const useScreen = () => {
 				);
 
 				if (mediaState?.audioSettings) {
+					console.log("Ses ayarları alındı:", mediaState.audioSettings);
 					config.systemAudio = mediaState.audioSettings.systemAudioEnabled;
 					config.microphone = mediaState.audioSettings.microphoneEnabled;
 					config.microphoneDeviceId =
@@ -65,9 +67,11 @@ export const useScreen = () => {
 
 				// Get recording source settings
 				if (mediaState?.recordingSource) {
+					console.log("Kayıt kaynağı:", mediaState.recordingSource);
 					const { sourceType, sourceId } = mediaState.recordingSource;
 
 					if (sourceType === "area" && mediaState.selectedArea) {
+						console.log("Alan seçimi:", mediaState.selectedArea);
 						config.x = mediaState.selectedArea.x;
 						config.y = mediaState.selectedArea.y;
 						config.width = mediaState.selectedArea.width;
@@ -82,6 +86,7 @@ export const useScreen = () => {
 			}
 
 			// 1. Get screen sources with DesktopCapturer
+			console.log("📺 Ekran kaynakları alınıyor...");
 
 			const desktopSources = await window.electron.desktopCapturer.getSources({
 				types: ["screen", "window"],
@@ -106,7 +111,12 @@ export const useScreen = () => {
 				}
 			}
 
+			console.log(
+				`🎯 Seçilen kaynak: ${selectedSource.name} (${selectedSource.id})`
+			);
+
 			// 2. Start recording with MediaRecorder
+			console.log("🎥 MediaRecorder hazırlanıyor...");
 
 			// getUserMedia constraints
 			const constraints = {
@@ -126,12 +136,16 @@ export const useScreen = () => {
 				constraints.video.mandatory.maxHeight = config.height;
 			}
 
+			console.log("🎬 Video stream başlatılıyor...", constraints);
+
 			// Get video stream
 			const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
 			if (!stream) {
 				throw new Error("Video stream alınamadı");
 			}
+
+			console.log("✅ Video stream başarıyla alındı");
 
 			// Create temporary file path
 			screenPath.value = await window.electron.ipcRenderer.invoke(
@@ -142,6 +156,8 @@ export const useScreen = () => {
 			if (!screenPath.value) {
 				throw new Error("Geçici dosya oluşturulamadı");
 			}
+
+			console.log("📁 Geçici dosya:", screenPath.value);
 
 			// MediaRecorder setup
 			const mediaRecorder = new MediaRecorder(stream, {
@@ -154,6 +170,7 @@ export const useScreen = () => {
 			mediaRecorder.ondataavailable = (event) => {
 				if (event.data.size > 0) {
 					chunks.push(event.data);
+					console.log(`📦 Chunk alındı: ${event.data.size} bytes`);
 
 					// Write chunks to file
 					const reader = new FileReader();
@@ -173,11 +190,13 @@ export const useScreen = () => {
 			};
 
 			mediaRecorder.onstop = async () => {
+				console.log("🏁 MediaRecorder durduruldu");
 				stream.getTracks().forEach((track) => track.stop());
 
 				// Process final chunks
 				if (chunks.length > 0) {
 					const blob = new Blob(chunks, { type: "video/webm" });
+					console.log(`📼 Final video blob: ${blob.size} bytes`);
 				}
 			};
 
@@ -208,6 +227,8 @@ export const useScreen = () => {
 				audioPath: audioPath.value,
 			});
 
+			console.log("🎬 DesktopCapturer ekran kaydı başlatıldı!");
+
 			// Start file size check interval
 			fileSizeCheckInterval.value = setInterval(async () => {
 				if (isScreenActive.value) {
@@ -218,6 +239,11 @@ export const useScreen = () => {
 						);
 
 						if (fileSize > 0) {
+							console.log(
+								`Ekran kaydı dosya boyutu: ${(fileSize / (1024 * 1024)).toFixed(
+									2
+								)}MB`
+							);
 							window.electron?.ipcRenderer.send(
 								IPC_EVENTS.RECORDING_STATUS_UPDATE,
 								{
@@ -249,12 +275,15 @@ export const useScreen = () => {
 		const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 
 		try {
+			console.log("Ekran kaydı durduruluyor...");
+
 			if (!IPC_EVENTS) {
 				throw new Error("IPC events kullanılamıyor");
 			}
 
 			// Check if recording is active
 			if (!isScreenActive.value) {
+				console.log("Ekran kaydı zaten durdurulmuş");
 				return {
 					success: true,
 					videoPath: screenPath.value,
@@ -264,12 +293,14 @@ export const useScreen = () => {
 
 			// Stop MediaRecorder
 			if (screenMediaRecorder && screenMediaRecorder.state !== "inactive") {
+				console.log("🛑 MediaRecorder durduruluyor...");
 				screenMediaRecorder.stop();
 			}
 
 			// Stop stream tracks
 			if (screenStream) {
 				screenStream.getTracks().forEach((track) => {
+					console.log(`🚫 Track durduruluyor: ${track.kind}`);
 					track.stop();
 				});
 			}
@@ -287,12 +318,19 @@ export const useScreen = () => {
 			// Check file size
 			let fileSize = 0;
 			try {
+				console.log("Oluşan dosyanın boyutu kontrol ediliyor...");
 				fileSize = await window.electron?.ipcRenderer.invoke(
 					IPC_EVENTS.GET_FILE_SIZE,
 					screenPath.value
 				);
 
 				if (fileSize > 0) {
+					console.log(
+						`Dosya boyutu: ${fileSize} byte (${(
+							fileSize /
+							(1024 * 1024)
+						).toFixed(2)}MB)`
+					);
 				} else {
 					console.warn("Dosya boyutu 0 - kayıt sorunlu olabilir!");
 				}
@@ -302,16 +340,20 @@ export const useScreen = () => {
 
 			// End media stream
 			try {
+				console.log("Ekran medya stream'i sonlandırılıyor...");
 				await window.electron?.ipcRenderer.invoke(
 					IPC_EVENTS.END_MEDIA_STREAM,
 					"screen"
 				);
+				console.log("Ekran medya stream'i sonlandırıldı");
 			} catch (streamError) {
 				console.error(
 					"Ekran medya stream'i sonlandırılırken hata:",
 					streamError
 				);
 			}
+
+			console.log("✅ Ekran kaydı başarıyla durduruldu");
 
 			return {
 				success: true,
@@ -341,14 +383,23 @@ export const useScreen = () => {
 
 	// Legacy compatibility functions
 	const initializeMacRecorder = async () => {
+		console.log(
+			"⚠️  MacRecorder devre dışı - native DesktopCapturer kullanılıyor"
+		);
 		return false;
 	};
 
 	const startScreenStream = async () => {
+		console.log(
+			"⚠️  startScreenStream deprecated - startScreenRecording kullanın"
+		);
 		return null;
 	};
 
 	const loadMacRecorderModule = async () => {
+		console.log(
+			"⚠️  MacRecorder devre dışı - native DesktopCapturer kullanılıyor"
+		);
 		return false;
 	};
 
@@ -364,6 +415,7 @@ export const useScreen = () => {
 	if (typeof window !== "undefined" && window.electron?.ipcRenderer) {
 		// Kayıt başladı eventi
 		window.electron.ipcRenderer.on("MAC_RECORDING_STARTED", (event, data) => {
+			console.log("[useScreen] MacRecorder kayıt başladı:", data);
 			recordingEvents.value.isStarted = true;
 			recordingEvents.value.error = null;
 			isRecording.value = true;
@@ -372,6 +424,7 @@ export const useScreen = () => {
 
 		// Kayıt durdu eventi
 		window.electron.ipcRenderer.on("MAC_RECORDING_STOPPED", (event, data) => {
+			console.log("[useScreen] MacRecorder kayıt durdu:", data);
 			recordingEvents.value.isStarted = false;
 			recordingEvents.value.recordingTime = 0;
 			isRecording.value = false;
@@ -382,12 +435,14 @@ export const useScreen = () => {
 		window.electron.ipcRenderer.on(
 			"MAC_RECORDING_TIME_UPDATE",
 			(event, data) => {
+				console.log(`[useScreen] Kayıt süresi: ${data.seconds}s`);
 				recordingEvents.value.recordingTime = data.seconds;
 			}
 		);
 
 		// Kayıt tamamlandı eventi
 		window.electron.ipcRenderer.on("MAC_RECORDING_COMPLETED", (event, data) => {
+			console.log("[useScreen] MacRecorder kayıt tamamlandı:", data);
 			recordingEvents.value.isStarted = false;
 			// Final dosya yolunu güncelle
 			if (data.outputPath) {
@@ -407,11 +462,20 @@ export const useScreen = () => {
 
 	const startRecording = async (sourceId, options = {}) => {
 		try {
+			console.log("🚀🚀🚀 useScreen.startRecording() ÇAĞRILDI! 🚀🚀🚀");
+			console.log("[useScreen] MacRecorder kayıt başlatılıyor...");
+
 			// MediaStateManager'dan kaynak bilgisini al
 			const mediaState = await window.electron?.ipcRenderer.invoke(
 				"GET_MEDIA_STATE"
 			);
 			const recordingSource = mediaState?.recordingSource;
+
+			console.log("🔧 [useScreen] KAYNAK KONTROLÜ:");
+			console.log("  - Media state:", mediaState);
+			console.log("  - Recording source:", recordingSource);
+			console.log("  - sourceId:", recordingSource?.sourceId);
+			console.log("  - macRecorderId:", recordingSource?.macRecorderId);
 
 			// Default kaynak ayarları - display kaydı
 			let sourceType = "display";
@@ -421,10 +485,21 @@ export const useScreen = () => {
 			if (recordingSource && recordingSource.sourceId) {
 				sourceType = recordingSource.sourceType || "display";
 				macRecorderId = recordingSource.macRecorderId || 0;
+				console.log(
+					"🔧 [useScreen] ✅ Seçili kaynak kullanılacak:",
+					sourceType,
+					macRecorderId
+				);
 			} else {
-				sourceType = "display";
-				macRecorderId = 0;
+				console.log(
+					"🔧 [useScreen] ⚠️ Kaynak seçilmemiş, default display kaydı yapılacak"
+				);
 			}
+
+			console.log("[useScreen] Kullanılacak kaynak:", {
+				sourceType,
+				macRecorderId,
+			});
 
 			// Kaynak tipine göre Mac recorder seçeneklerini hazırla
 			const macRecorderOptions = {
@@ -438,25 +513,57 @@ export const useScreen = () => {
 
 			// Kaynak tipine göre display veya windowId ekle
 			if (sourceType === "window" && macRecorderId) {
+				console.log(
+					"🔧 [useScreen] Pencere kaydı için windowId ekleniyor:",
+					macRecorderId
+				);
 				macRecorderOptions.windowId = macRecorderId;
 			} else {
+				console.log(
+					"🔧 [useScreen] Ekran kaydı için display ekleniyor:",
+					macRecorderId
+				);
 				macRecorderOptions.display = macRecorderId;
 			}
 
 			// MacRecorder kullanarak kayıt başlat - YENİ FORMAT
+			console.log("🔧 [useScreen] MacRecorder IPC çağrısı yapılıyor...");
+			console.log("🔧 [useScreen] - options:", macRecorderOptions);
+
+			console.log("🔍 [DEBUG] window.electron:", !!window.electron);
+			console.log(
+				"🔍 [DEBUG] window.electron.ipcRenderer:",
+				!!window.electron?.ipcRenderer
+			);
+			console.log(
+				"🔍 [DEBUG] invoke method:",
+				typeof window.electron?.ipcRenderer?.invoke
+			);
 
 			let result;
 			try {
+				console.log("🔄 [DEBUG] START_MAC_RECORDING invoke çağrılıyor...");
 				result = await window.electron?.ipcRenderer.invoke(
 					"START_MAC_RECORDING",
 					macRecorderOptions
 				);
+				console.log(
+					"✅ [DEBUG] START_MAC_RECORDING invoke başarılı, sonuç:",
+					result
+				);
+
+				console.log("🔧 [useScreen] MacRecorder IPC sonucu:", result);
 			} catch (invokeError) {
+				console.error(
+					"❌ [DEBUG] START_MAC_RECORDING invoke hatası:",
+					invokeError
+				);
 				throw invokeError;
 			}
 
 			if (result?.success) {
 				screenPath.value = result.outputPath;
+				console.log("[useScreen] MacRecorder kaydı başarıyla başlatıldı");
 
 				// Event system sayesinde isRecording state otomatik güncellenecek
 				// Not: RECORDING_STATUS_CHANGED eventini manuel göndermiyoruz çünkü
@@ -477,14 +584,20 @@ export const useScreen = () => {
 
 	const stopRecording = async () => {
 		try {
+			console.log("🛑🛑🛑 useScreen.stopRecording() ÇAĞRILDI! 🛑🛑🛑");
+			console.log("[useScreen] MacRecorder kaydı durduruluyor...");
+
 			// MacRecorder kaydını durdur - YENİ FORMAT (parametre yok)
 			const result = await window.electron?.ipcRenderer.invoke(
 				"STOP_MAC_RECORDING"
 			);
 
+			console.log("[useScreen] MacRecorder stop result:", result);
+
 			if (result && result.success) {
 				isRecording.value = false;
 				isScreenActive.value = false;
+				console.log("[useScreen] MacRecorder kaydı başarıyla durduruldu");
 
 				// Ana pencereyi gizle
 				window.electron?.ipcRenderer.send("HIDE_MAIN_WINDOW");

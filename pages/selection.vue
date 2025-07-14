@@ -140,7 +140,6 @@ const applyAspectRatio = () => {
 // ESC tuşuna basılınca pencereyi kapat
 const handleKeyDown = (e) => {
 	if (e.key === "Escape") {
-		console.log("ESC tuşuna basıldı, pencere kapatılıyor");
 
 		// Doğrudan pencereyi kapat
 		try {
@@ -223,10 +222,8 @@ const updateSelection = (e) => {
 
 // Seçim alanını sürükleme başlat
 const startDrag = (e) => {
-	console.log("Sürükleme başlatılıyor", e);
 
 	if (!selectionCompleted.value) {
-		console.log("Seçim tamamlanmadı, sürükleme başlatılamaz");
 		return;
 	}
 
@@ -236,7 +233,6 @@ const startDrag = (e) => {
 		y: e.clientY - Math.min(startPoint.value.y, endPoint.value.y),
 	};
 
-	console.log("Sürükleme offset:", dragOffset.value);
 
 	document.addEventListener("mousemove", handleDrag);
 	document.addEventListener("mouseup", stopDrag);
@@ -249,7 +245,6 @@ const startDrag = (e) => {
 const handleDrag = (e) => {
 	if (!isDragging.value) return;
 
-	console.log("Sürükleme işlemi:", e.clientX, e.clientY);
 
 	const width = Math.abs(endPoint.value.x - startPoint.value.x);
 	const height = Math.abs(endPoint.value.y - startPoint.value.y);
@@ -285,7 +280,6 @@ const handleDrag = (e) => {
 
 // Sürükleme işlemini sonlandır
 const stopDrag = () => {
-	console.log("Sürükleme işlemi sonlandırılıyor");
 	isDragging.value = false;
 	document.removeEventListener("mousemove", handleDrag);
 	document.removeEventListener("mouseup", stopDrag);
@@ -370,17 +364,14 @@ const confirmSelection = () => {
 		}
 	}
 
-	console.log("Seçim onaylandı, veriler gönderiliyor:", selectionData);
 
 	// Önce verileri gönder, sonra pencereyi kapat
 	try {
 		// Ana sürece seçim verilerini gönder
 		electron.ipcRenderer.send("AREA_SELECTED", selectionData);
-		console.log("AREA_SELECTED olayı gönderildi");
 
 		// Kısa bir gecikme ile pencereyi kapat (ana sürecin işlem yapması için)
 		setTimeout(() => {
-			console.log("Pencere kapatma işlemi başlatılıyor...");
 			electron.selection.closeWindow();
 		}, 200);
 	} catch (error) {
@@ -408,7 +399,6 @@ onMounted(() => {
 	// ESC tuşu için global event listener
 	document.addEventListener("keydown", (e) => {
 		if (e.key === "Escape") {
-			console.log("Global ESC tuşu yakalandı, pencere kapatılıyor");
 
 			// Doğrudan pencereyi kapat
 			try {
@@ -449,7 +439,6 @@ const onMouseDown = (e) => {
 	if (e.button === 0) {
 		// Zaten seçim tamamlanmışsa ve seçim alanına tıklanmışsa, sürükleme başlat
 		if (selectionCompleted.value && isClickInsideSelectionBox(e)) {
-			console.log("Seçim alanına tıklandı, sürükleme başlatılıyor");
 			startDrag(e);
 			return;
 		}
@@ -505,10 +494,8 @@ const onMouseUp = (e) => {
 				height,
 			};
 
-			console.log("Seçim tamamlandı:", selectedArea.value);
 		} else {
 			// Minimum boyut sağlanmıyorsa seçimi iptal et
-			console.log("Seçim çok küçük, iptal edildi");
 			selectionCompleted.value = false;
 		}
 	}

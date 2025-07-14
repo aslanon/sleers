@@ -216,7 +216,6 @@ const changeCamera = async (deviceId) => {
 	if (!deviceId || deviceId === "undefined") return;
 
 	try {
-		console.log("[camera.vue] Kamera değiştiriliyor, deviceId:", deviceId);
 		activeDeviceId.value = deviceId;
 
 		await stopCamera();
@@ -267,7 +266,6 @@ onMounted(() => {
 
 	// Kamera cihazı değişikliğini dinle
 	electron?.ipcRenderer.on("UPDATE_CAMERA_DEVICE", (deviceId) => {
-		console.log("[camera.vue] Kamera cihazı değişikliği alındı:", deviceId);
 		if (deviceId && deviceId !== "undefined") {
 			changeCamera(deviceId);
 		}

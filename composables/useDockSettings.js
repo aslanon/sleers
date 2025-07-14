@@ -86,7 +86,6 @@ export default function useDockSettings() {
 
 		// Eğer forceRefresh true ise, önbelleği temizle
 		if (forceRefresh) {
-			console.log("[useDockSettings] Force refresh requested, clearing cache");
 			this.cachedItems = null;
 			this.cacheTime = null;
 		}
@@ -96,9 +95,7 @@ export default function useDockSettings() {
 			await Promise.all([loadFinderIcon(), loadTrashIcon()]);
 
 			// Dock öğelerini doğrudan al
-			console.log("[useDockSettings] Fetching dock items");
 			const items = await window.dockAPI.getDockIcons(forceRefresh);
-			console.log(`[useDockSettings] Got ${items?.length || 0} dock items`);
 
 			// Icon durumlarını kontrol et
 			let validIconCount = 0;
@@ -133,9 +130,6 @@ export default function useDockSettings() {
 					}
 				});
 
-				console.log(
-					`[useDockSettings] Icon stats: ${validIconCount} valid, ${invalidIconCount} invalid/missing`
-				);
 
 				// Başlangıç değeri olarak itemları al
 				let finalItems = [...items];
@@ -150,9 +144,6 @@ export default function useDockSettings() {
 					};
 
 					finalItems = [finderItem, ...finalItems];
-					console.log(
-						"[useDockSettings] Added default Finder app to dock items"
-					);
 				}
 
 				// Eğer Trash yoksa, son sırada ekle
@@ -166,7 +157,6 @@ export default function useDockSettings() {
 					};
 
 					finalItems = [...finalItems, trashItem];
-					console.log("[useDockSettings] Added default Trash to dock items");
 				}
 
 				dockItems.value = finalItems;
@@ -245,7 +235,6 @@ export default function useDockSettings() {
 	 * @param {boolean} value - Yeni değer
 	 */
 	const toggleDockVisibility = (value) => {
-		console.log(`[useDockSettings] Toggling dock visibility: ${value}`);
 		showDockItems.value = value;
 	};
 
@@ -266,9 +255,6 @@ export default function useDockSettings() {
 			return true;
 		});
 
-		console.log(
-			`[useDockSettings] Visible dock items: ${items.length} of ${dockItems.value.length}`
-		);
 		return items;
 	});
 

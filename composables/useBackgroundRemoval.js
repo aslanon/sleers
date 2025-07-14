@@ -44,14 +44,10 @@ export const useBackgroundRemoval = () => {
 			// Try loading from CDN first
 			const loadedModel = await bodyPix.load(modelConfig);
 			model.value = loadedModel;
-			console.log("[BackgroundRemoval] Model loaded successfully");
 			return model.value;
 		} catch (error) {
 			console.error("[BackgroundRemoval] Error loading model:", error);
 			if (retryCount < 3) {
-				console.log(
-					`[BackgroundRemoval] Retrying model load (${retryCount + 1}/3)...`
-				);
 				await new Promise((resolve) => setTimeout(resolve, 1000));
 				return loadModel(retryCount + 1);
 			}
@@ -73,7 +69,6 @@ export const useBackgroundRemoval = () => {
 
 			initProcessingCanvas();
 			isProcessing.value = true;
-			console.log("[BackgroundRemoval] Background removal started");
 		} catch (error) {
 			console.error(
 				"[BackgroundRemoval] Failed to start background removal:",
@@ -90,7 +85,6 @@ export const useBackgroundRemoval = () => {
 			cancelAnimationFrame(animationFrameId.value);
 			animationFrameId.value = null;
 		}
-		console.log("[BackgroundRemoval] Background removal stopped");
 	};
 
 	// Process a single video frame with optimized performance
@@ -166,10 +160,6 @@ export const useBackgroundRemoval = () => {
 	// Process frames continuously with optimized FPS control
 	const processFrameLoop = (videoElement, callback) => {
 		if (!isProcessing.value || !videoElement) {
-			console.log("[BackgroundRemoval] Stopping frame loop:", {
-				isProcessing: isProcessing.value,
-				hasVideo: !!videoElement,
-			});
 			if (animationFrameId.value) {
 				cancelAnimationFrame(animationFrameId.value);
 				animationFrameId.value = null;

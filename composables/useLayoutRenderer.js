@@ -15,7 +15,6 @@ export const useLayoutRenderer = () => {
 	watch(
 		layoutRanges,
 		(newRanges) => {
-			console.log("Layout ranges in renderer:", newRanges);
 		},
 		{ deep: true }
 	);
@@ -60,15 +59,6 @@ export const useLayoutRenderer = () => {
 			opacity.value = Math.min(1, opacity.value + enterSpeed);
 		}
 
-		// Debug current layout
-		console.log(
-			"Current layout at time",
-			currentTime,
-			":",
-			layoutType,
-			currentLayout
-		);
-		console.log("Available layout ranges:", layoutRanges.value);
 
 		// If no special layout and not exiting, return false to continue normal rendering
 		if (layoutType === "normal" && !isExiting.value) {

@@ -15,7 +15,6 @@ export const useLayoutSettings = () => {
 	watch(
 		layoutRanges,
 		(newRanges) => {
-			console.log("Layout ranges updated:", newRanges);
 		},
 		{ deep: true }
 	);
@@ -27,10 +26,6 @@ export const useLayoutSettings = () => {
 		cameraPos,
 		additionalSettings = {}
 	) => {
-		console.log("Saving layout with name:", name);
-		console.log("Video position:", videoPos);
-		console.log("Camera position:", cameraPos);
-		console.log("Additional settings:", additionalSettings);
 
 		try {
 			// Generate a unique ID
@@ -139,7 +134,6 @@ export const useLayoutSettings = () => {
 					"sleer-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
-				console.log("Layouts saved to localStorage");
 			} catch (localStorageError) {
 				console.error(
 					"Failed to save layouts to localStorage:",
@@ -157,7 +151,6 @@ export const useLayoutSettings = () => {
 	// Apply a saved layout
 	const applyLayout = async (layoutId, setVideoPosition, setCameraPosition) => {
 		try {
-			console.log(`Applying layout with ID: ${layoutId}`);
 
 			// Find the layout by ID
 			const layout = savedLayouts.value.find((l) => l.id === layoutId);
@@ -167,16 +160,11 @@ export const useLayoutSettings = () => {
 				return false;
 			}
 
-			console.log(`Found layout: ${layout.name}`);
 
 			// Apply video and camera positions if callbacks are provided
 			try {
 				// Apply video position
 				if (setVideoPosition && layout.settings.videoPosition) {
-					console.log(
-						`Setting video position to:`,
-						layout.settings.videoPosition
-					);
 					setVideoPosition(layout.settings.videoPosition);
 				}
 
@@ -187,10 +175,6 @@ export const useLayoutSettings = () => {
 					// First try to get the direct camera position
 					if (layout.settings.cameraPosition) {
 						cameraPos = layout.settings.cameraPosition;
-						console.log(
-							`Setting camera position from direct cameraPosition:`,
-							cameraPos
-						);
 					}
 					// If not available, try to get it from camera settings
 					else if (
@@ -198,17 +182,12 @@ export const useLayoutSettings = () => {
 						layout.settings.cameraSettings.position
 					) {
 						cameraPos = layout.settings.cameraSettings.position;
-						console.log(
-							`Setting camera position from cameraSettings:`,
-							cameraPos
-						);
 					}
 
 					// Apply the camera position if we found one
 					if (cameraPos) {
 						setCameraPosition(cameraPos);
-						console.log("Camera position applied successfully");
-					} else {
+						} else {
 						console.warn("No camera position found in layout settings");
 					}
 				}
@@ -218,7 +197,6 @@ export const useLayoutSettings = () => {
 
 			// Apply player settings
 			try {
-				console.log("Applying player settings...");
 
 				// Apply basic settings
 				if (layout.settings.mouseSize !== undefined) {
@@ -266,16 +244,11 @@ export const useLayoutSettings = () => {
 
 				// Apply canvas size
 				if (layout.settings.canvasSize && playerSettings.canvasSize) {
-					console.log("Setting canvas size to:", layout.settings.canvasSize);
 					playerSettings.canvasSize.value = layout.settings.canvasSize;
 				}
 
 				// Apply camera settings
 				if (layout.settings.cameraSettings && playerSettings.cameraSettings) {
-					console.log(
-						"Setting camera settings to:",
-						layout.settings.cameraSettings
-					);
 
 					// Make a copy of the camera settings to avoid reference issues
 					const cameraSettingsCopy = JSON.parse(
@@ -295,10 +268,6 @@ export const useLayoutSettings = () => {
 					layout.settings.videoBorderSettings &&
 					playerSettings.videoBorderSettings
 				) {
-					console.log(
-						"Setting video border to:",
-						layout.settings.videoBorderSettings
-					);
 					playerSettings.videoBorderSettings.value =
 						layout.settings.videoBorderSettings;
 				}
@@ -308,17 +277,12 @@ export const useLayoutSettings = () => {
 					layout.settings.mouseCursorSettings &&
 					playerSettings.mouseCursorSettings
 				) {
-					console.log(
-						"Setting mouse cursor to:",
-						layout.settings.mouseCursorSettings
-					);
 					playerSettings.mouseCursorSettings.value =
 						layout.settings.mouseCursorSettings;
 				}
 
 				// Apply zoom settings
 				if (layout.settings.zoomRanges && playerSettings.zoomRanges) {
-					console.log("Setting zoom ranges");
 					// Clear existing zoom ranges
 					playerSettings.zoomRanges.value = [];
 
@@ -337,12 +301,10 @@ export const useLayoutSettings = () => {
 					}
 				}
 
-				console.log("Player settings applied successfully");
 			} catch (settingsError) {
 				console.error("Error applying player settings:", settingsError);
 			}
 
-			console.log(`Layout "${layout.name}" applied successfully`);
 			return true;
 		} catch (error) {
 			console.error("Error applying layout:", error);
@@ -352,7 +314,6 @@ export const useLayoutSettings = () => {
 
 	// Rename a layout
 	const renameLayout = async (layoutId, newName) => {
-		console.log("Renaming layout", layoutId, "to", newName);
 
 		try {
 			const layoutIndex = savedLayouts.value.findIndex(
@@ -371,7 +332,6 @@ export const useLayoutSettings = () => {
 					"sleer-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
-				console.log("Layouts saved to localStorage after rename");
 			} catch (error) {
 				console.error("Failed to save layouts after rename:", error);
 			}
@@ -385,7 +345,6 @@ export const useLayoutSettings = () => {
 
 	// Delete a layout
 	const deleteLayout = async (layoutId) => {
-		console.log("Deleting layout", layoutId);
 
 		try {
 			const layoutIndex = savedLayouts.value.findIndex(
@@ -404,7 +363,6 @@ export const useLayoutSettings = () => {
 					"sleer-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
-				console.log("Layouts saved to localStorage after delete");
 			} catch (error) {
 				console.error("Failed to save layouts after delete:", error);
 			}
@@ -418,7 +376,6 @@ export const useLayoutSettings = () => {
 
 	// Load layouts from localStorage on initialization
 	const loadSavedLayouts = async () => {
-		console.log("Loading saved layouts...");
 
 		try {
 			// Try to load from localStorage
@@ -428,17 +385,12 @@ export const useLayoutSettings = () => {
 					const layouts = JSON.parse(storedLayouts);
 					if (layouts && Array.isArray(layouts)) {
 						savedLayouts.value = layouts;
-						console.log(
-							"Loaded layouts:",
-							savedLayouts.value.map((l) => l.name).join(", ")
-						);
 					}
 				} catch (error) {
 					console.error("Error parsing layouts from localStorage:", error);
 					savedLayouts.value = [];
 				}
 			} else {
-				console.log("No saved layouts found in localStorage");
 				savedLayouts.value = [];
 			}
 		} catch (error) {
@@ -449,14 +401,12 @@ export const useLayoutSettings = () => {
 
 	// Call load on initialization
 	onMounted(() => {
-		console.log("useLayoutSettings mounted, loading saved layouts");
 		loadSavedLayouts();
 	});
 
 	// Düzenleri dışarıdan ayarla (proje yüklenirken kullanılır)
 	const setLayouts = (layouts) => {
 		try {
-			console.log("Setting layouts from external source:", layouts);
 			if (Array.isArray(layouts)) {
 				savedLayouts.value = layouts;
 				// localStorage'a kaydet
@@ -464,7 +414,6 @@ export const useLayoutSettings = () => {
 					"sleer-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
-				console.log("Layouts set successfully:", savedLayouts.value.length);
 				return true;
 			} else {
 				console.error("Invalid layouts format, expected array:", layouts);

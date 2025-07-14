@@ -145,14 +145,6 @@ const segmentStyle = computed(() => {
 		const width = (duration / props.duration) * 100;
 		const left = (timelineStart / props.duration) * 100;
 
-		console.log("[TimelineSegment] Sıkıştırılmış pozisyon:", {
-			timelineStart,
-			timelineEnd,
-			duration,
-			width: `${width}%`,
-			left: `${left}%`,
-			totalDuration: props.duration,
-		});
 
 		return {
 			width: `${width}%`,
@@ -200,8 +192,12 @@ const segmentStyle = computed(() => {
 
 // Format duration for display
 const formattedDuration = computed(() => {
-	const seconds = props.segment.end - props.segment.start;
+	const start = props.segment.start || props.segment.startTime || 0;
+	const end = props.segment.end || props.segment.endTime || 0;
+	const seconds = end - start;
 	const s = Math.floor(seconds);
+	
+	
 	return `${s}s`;
 });
 
@@ -228,7 +224,6 @@ const handleMouseLeave = () => {
 
 const handleResizeStart = (event, edge) => {
 	event.stopPropagation();
-	console.log("[TimelineSegment] Resize start:", { edge, index: props.index });
 
 	const segmentEl = event.currentTarget.closest(".h-full");
 	const rect = segmentEl.getBoundingClientRect();
@@ -289,19 +284,11 @@ const handleResize = (event) => {
 		duration: newEnd - newStart,
 	};
 
-	console.log("[TimelineSegment] Resize update:", {
-		edge: resizeEdge.value,
-		newStart,
-		newEnd,
-		timeChange,
-		index: props.index,
-	});
 
 	emit("resizeUpdate", updatedSegment, props.index);
 };
 
 const handleResizeEnd = (event) => {
-	console.log("[TimelineSegment] Resize end:", { index: props.index });
 
 	// Global event listener'ları kaldır
 	window.removeEventListener("mousemove", handleResize);

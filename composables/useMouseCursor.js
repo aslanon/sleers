@@ -143,7 +143,6 @@ export const useMouseCursor = () => {
 				return new Promise((resolve, reject) => {
 					const img = new Image();
 					img.onload = () => {
-						console.log(`[useMouseCursor] ✅ Loaded cursor image: ${src}`);
 						resolve(img);
 					};
 					img.onerror = (e) => {
@@ -157,7 +156,6 @@ export const useMouseCursor = () => {
 				});
 			};
 
-			console.log("[useMouseCursor] 🔄 Loading cursor images...");
 
 			// Tüm cursor görsellerini paralel olarak yükle
 			const [defaultImg, pointerImg, grabbingImg, textImg] = await Promise.all([
@@ -167,7 +165,6 @@ export const useMouseCursor = () => {
 				loadImage(textCursor),
 			]);
 
-			console.log("[useMouseCursor] ✅ All cursor images loaded successfully");
 
 			// Cursor image mapping'i güncelle
 			cursorImages.value = {
@@ -179,14 +176,6 @@ export const useMouseCursor = () => {
 				resize: defaultImg, // Resize için şimdilik default cursor
 			};
 
-			// Log loaded cursor images
-			console.log("[useMouseCursor] 🖼️ Loaded cursor images:", {
-				default: !!defaultImg,
-				pointer: !!pointerImg,
-				grabbing: !!grabbingImg,
-				text: !!textImg,
-				availableTypes: Object.keys(cursorImages.value),
-			});
 
 			// Cursor canvas'ını oluştur
 			createCursorCanvas();
@@ -226,15 +215,6 @@ export const useMouseCursor = () => {
 
 		// Cursor tipini güncelle
 		if (prevType !== newType) {
-			// Cursor type değişimini logla
-			console.log("[useMouseCursor] 🖱️ Cursor type changed:", {
-				from: prevType,
-				to: newType,
-				eventType: event.type,
-				cursorType: event.cursorType,
-				hasImage: !!cursorImages.value[newType.toLowerCase()],
-				availableImages: Object.keys(cursorImages.value),
-			});
 
 			// Cursor type'ı küçük harfe çevir
 			const normalizedType = newType.toLowerCase();

@@ -252,17 +252,11 @@ const projectNameInput = ref("");
 
 // Toggle project popover
 const toggleProjectPopover = () => {
-	console.log(
-		"Toggle project popover called, current state:",
-		isProjectPopoverOpen.value
-	);
 	isProjectPopoverOpen.value = !isProjectPopoverOpen.value;
-	console.log("New popover state:", isProjectPopoverOpen.value);
 
 	if (isProjectPopoverOpen.value) {
 		// Use nextTick to ensure the popover is rendered before calculating position
 		nextTick(() => {
-			console.log("Updating popover position");
 			updatePopoverPosition();
 			// Add event listener for window resize
 			window.addEventListener("resize", updatePopoverPosition);
@@ -275,7 +269,6 @@ const toggleProjectPopover = () => {
 
 // Update popover position
 const updatePopoverPosition = () => {
-	console.log("updatePopoverPosition called");
 
 	if (!projectButtonRef.value || !projectPopoverRef.value) {
 		console.warn("Missing refs:", {
@@ -286,30 +279,25 @@ const updatePopoverPosition = () => {
 	}
 
 	const buttonRect = projectButtonRef.value.getBoundingClientRect();
-	console.log("Button rect:", buttonRect);
 
 	const popoverWidth = 360; // Width of the popover
 	const windowWidth = window.innerWidth;
-	console.log("Window width:", windowWidth);
 
 	// Calculate left position to ensure popover is positioned to the left of the button
 	// but still visible within the window
 	let leftPosition = buttonRect.left - popoverWidth + buttonRect.width;
-	console.log("Initial left position:", leftPosition);
 
 	// Ensure popover is not positioned off-screen
 	leftPosition = Math.max(
 		10,
 		Math.min(leftPosition, windowWidth - popoverWidth - 10)
 	);
-	console.log("Adjusted left position:", leftPosition);
 
 	// Set position with a slight delay to ensure DOM is updated
 	popoverPosition.value = {
 		top: buttonRect.bottom + 20,
 		left: leftPosition + 100,
 	};
-	console.log("Final popover position:", popoverPosition.value);
 
 	// Force a repaint
 	projectPopoverRef.value.style.display = "none";
@@ -336,7 +324,6 @@ const saveCurrentProject = async () => {
 			currentProjectName.value ||
 			`Proje ${savedProjects.value.length + 1} - ${dateStr}`;
 
-		console.log("Saving project with name:", projectName);
 
 		// Save the project with all settings
 		const result = await saveProject(
@@ -349,7 +336,6 @@ const saveCurrentProject = async () => {
 			props.mousePositions
 		);
 
-		console.log("Project saved:", result);
 		emit("projectSaved", result);
 
 		// Force update popover position after adding a new project
@@ -365,7 +351,6 @@ const saveCurrentProject = async () => {
 // Load a project
 const loadSelectedProject = async (projectId) => {
 	try {
-		console.log("Loading project with ID:", projectId);
 
 		if (!props.mediaPlayer) {
 			console.error("MediaPlayer reference not available");
@@ -400,8 +385,7 @@ const loadSelectedProject = async (projectId) => {
 			},
 			loadMediaFiles: async (mediaFiles) => {
 				try {
-					console.log("Loading media files from project:", mediaFiles);
-					const electron = window.electron;
+						const electron = window.electron;
 
 					// Video dosyasını yükle
 					if (mediaFiles.videoPath) {
@@ -461,8 +445,7 @@ const loadSelectedProject = async (projectId) => {
 							if (videoBlob) {
 								const videoUrl = URL.createObjectURL(videoBlob);
 								emit("update:videoUrl", videoUrl);
-								console.log("Video URL updated:", videoUrl);
-							}
+									}
 						}
 					}
 
@@ -525,8 +508,7 @@ const loadSelectedProject = async (projectId) => {
 							if (audioBlob) {
 								const audioUrl = URL.createObjectURL(audioBlob);
 								emit("update:audioUrl", audioUrl);
-								console.log("Audio URL updated:", audioUrl);
-							}
+									}
 						}
 					}
 
@@ -586,8 +568,7 @@ const loadSelectedProject = async (projectId) => {
 							if (cameraBlob) {
 								const cameraUrl = URL.createObjectURL(cameraBlob);
 								emit("update:cameraUrl", cameraUrl);
-								console.log("Camera URL updated:", cameraUrl);
-							}
+									}
 						}
 					}
 				} catch (error) {
@@ -599,8 +580,7 @@ const loadSelectedProject = async (projectId) => {
 				const { setLayouts } = useLayoutSettings();
 				if (setLayouts) {
 					setLayouts(layouts);
-					console.log("Layouts loaded:", layouts.length);
-				} else {
+					} else {
 					console.warn("setLayouts function not available");
 				}
 			},
@@ -610,7 +590,6 @@ const loadSelectedProject = async (projectId) => {
 		const result = await loadProject(projectId, callbacks);
 
 		if (result) {
-			console.log("Project loaded successfully");
 			emit(
 				"projectLoaded",
 				savedProjects.value.find((p) => p.id === projectId)
@@ -635,11 +614,6 @@ const startEditProjectName = (project) => {
 
 // Save project name
 const saveProjectName = async (projectId) => {
-	console.log(
-		"Saving new name for project:",
-		projectId,
-		editingProjectName.value
-	);
 
 	if (editingProjectName.value.trim()) {
 		try {
@@ -647,7 +621,6 @@ const saveProjectName = async (projectId) => {
 				projectId,
 				editingProjectName.value.trim()
 			);
-			console.log("Project renamed:", result);
 			cancelEditProjectName();
 		} catch (error) {
 			console.error("Error renaming project:", error);
@@ -667,11 +640,8 @@ const cancelEditProjectName = () => {
 // Delete project
 const deleteSelectedProject = async (projectId) => {
 	try {
-		console.log("Deleting project with ID:", projectId);
-
 		// Delete the project directly without confirmation
 		const result = await deleteProject(projectId);
-		console.log("Project deleted:", result);
 
 		// Force update popover position after removing a project
 		nextTick(() => {

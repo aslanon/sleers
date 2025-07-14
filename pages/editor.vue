@@ -155,6 +155,7 @@
 			:current-time="currentTime"
 			:segments="segments"
 			:is-split-mode="isSplitMode"
+			:is-playing="isPlaying"
 			@timeUpdate="handleTimeUpdate"
 			@previewTimeUpdate="handlePreviewTimeUpdate"
 			@segmentUpdate="handleSegmentUpdate"
@@ -232,20 +233,8 @@ const videoSize = ref({
 const videoWidth = computed(() => videoSize.value?.width || 1920);
 const videoHeight = computed(() => videoSize.value?.height || 1080);
 
-// Segment state'i
-const segments = ref([
-	{
-		id: generateId(),
-		startTime: 0,
-		endTime: 0,
-		startPosition: "0%",
-		width: "100%",
-		type: "video",
-		layer: 0,
-		selected: false,
-		locked: false,
-	},
-]);
+// Segment state'i - başlangıçta boş, video yüklendiğinde doldurulacak
+const segments = ref([]);
 
 // Kırpma ve pozisyon state'leri
 const cropState = ref({
@@ -328,22 +317,6 @@ const loadMedia = async (filePath, type = "video") => {
 			throw new Error(`Bilinmeyen dosya türü: ${fileResponse.type}`);
 		}
 
-		console.log(`[editor.vue] ${type} yüklendi:`, {
-			url:
-				type === "video"
-					? videoUrl.value
-					: type === "camera"
-					? cameraUrl.value
-					: audioUrl.value,
-			type:
-				type === "video"
-					? videoType.value
-					: type === "camera"
-					? cameraType.value
-					: audioType.value,
-			size: blob.size,
-			mimeType,
-		});
 
 		if (type === "video") {
 			if (videoBlob.value) URL.revokeObjectURL(videoBlob.value);
@@ -372,10 +345,12 @@ const togglePlayback = () => {
 	isPlaying.value = !isPlaying.value;
 };
 
+// Track whether we've initialized segments for this video session
+const hasInitializedSegments = ref(false);
+
 // Video yüklendiğinde
 const onVideoLoaded = (data) => {
 	try {
-		console.log("[editor.vue] Video yüklendi, gelen data:", data);
 
 		// Video bilgilerini kaydet
 		if (data && typeof data.duration === "number") {
@@ -385,7 +360,7 @@ const onVideoLoaded = (data) => {
 				height: data.height || 1080,
 			};
 
-			// İlk segment'i oluştur veya güncelle
+			// İlk segment'i oluştur - sadece hiç segment yoksa
 			if (segments.value.length === 0) {
 				segments.value = [
 					{
@@ -402,20 +377,37 @@ const onVideoLoaded = (data) => {
 						locked: false,
 					},
 				];
+			} else if (!hasInitializedSegments.value) {
+				// İlk kez çağrılıyor ama segment'ler zaten var (proje load vs.)
+				// Mevcut segment'lerin start/end değerlerini normalize et
+				
+				segments.value = segments.value.map(segment => ({
+					...segment,
+					start: segment.start ?? segment.startTime ?? 0,
+					end: segment.end ?? segment.endTime ?? videoDuration.value,
+					startTime: segment.startTime ?? segment.start ?? 0,
+					endTime: segment.endTime ?? segment.end ?? videoDuration.value,
+				}));
+				
 			} else {
-				segments.value[0] = {
-					...segments.value[0],
-					startTime: 0,
-					endTime: videoDuration.value,
-					start: 0,
-					end: videoDuration.value,
-				};
+				// Sonraki onVideoLoaded çağrıları - segment'leri koru ama duration'ı güncelle
+				
+				// Son segment'in end time'ını video duration'a eşitle (eğer daha büyükse)
+				const lastSegmentIndex = segments.value.length - 1;
+				if (segments.value[lastSegmentIndex] && segments.value[lastSegmentIndex].end > videoDuration.value) {
+					segments.value[lastSegmentIndex] = {
+						...segments.value[lastSegmentIndex],
+						end: videoDuration.value,
+						endTime: videoDuration.value,
+					};
+				}
+				
+				return;
 			}
+			
+			// İlk kez yüklendiği için flag'i set et
+			hasInitializedSegments.value = true;
 
-			console.log("[editor.vue] Segment güncellendi:", {
-				duration: videoDuration.value,
-				segment: segments.value[0],
-			});
 		} else {
 			console.warn("[editor.vue] Video süresi geçersiz:", data);
 		}
@@ -427,15 +419,10 @@ const onVideoLoaded = (data) => {
 // Duration değiştiğinde (virtual trim için)
 const onDurationChanged = (newDuration) => {
 	try {
-		console.log("[editor.vue] Duration değişti (virtual trim):", newDuration);
 
 		// Video duration'ını güncelle ama segment'leri değiştirme
 		videoDuration.value = Math.max(0, newDuration);
 
-		console.log(
-			"[editor.vue] Virtual duration güncellendi:",
-			videoDuration.value
-		);
 	} catch (error) {
 		console.error("[editor.vue] Duration değişikliği hatası:", error);
 	}
@@ -444,18 +431,17 @@ const onDurationChanged = (newDuration) => {
 // Video bittiğinde
 const onVideoEnded = () => {
 	isPlaying.value = false;
+	// Video sonda kalsın - currentTime'ı değiştirme
 };
 
 // Video düzenleme başlatma
 const startEditing = (videoData) => {
-	console.log("[editor.vue] Düzenleme başlatılıyor:", videoData);
 	videoUrl.value = videoData.url;
 };
 
 // Video kaydetme
 const handleExport = async (settings) => {
 	try {
-		console.log("[editor.vue] Export başlatılıyor, ayarlar:", settings);
 
 		// Directory ve filename kontrolü
 		if (!settings.directory) {
@@ -475,7 +461,6 @@ const handleExport = async (settings) => {
 
 		// Dosya yolunu oluştur
 		const filePath = `${settings.directory}/${filename}`;
-		console.log("[editor.vue] Export dosya yolu:", filePath);
 
 		// Kayıt durumu mesajı göster
 		const loadingMessage = document.createElement("div");
@@ -507,14 +492,12 @@ const handleExport = async (settings) => {
 				const percent = Math.round(progress);
 				progressBar.style.width = `${percent}%`;
 				progressText.textContent = `%${percent}`;
-				console.log(`[editor.vue] Export ilerleme: %${percent}`);
 			}
 		};
 
 		// Completion handler
 		const onComplete = async (exportData) => {
 			try {
-				console.log("[editor.vue] Export tamamlandı, verileri kaydediliyor...");
 
 				// Electron'a gönder ve dosyaya kaydet
 				const saveResult = await electron?.ipcRenderer.invoke(
@@ -532,7 +515,6 @@ const handleExport = async (settings) => {
 
 				if (saveResult?.success) {
 					alert(`Video başarıyla kaydedildi: ${filePath}`);
-					console.log("[editor.vue] Video başarıyla kaydedildi:", filePath);
 
 					// Dosyayı Finder/Explorer'da göster
 					electron?.ipcRenderer.send(IPC_EVENTS.SHOW_FILE_IN_FOLDER, filePath);
@@ -562,7 +544,6 @@ const handleExport = async (settings) => {
 		};
 
 		try {
-			console.log("[editor.vue] ExportService ile export başlatılıyor...");
 
 			// Export service'i kullanarak export işlemini başlat
 			ExportService.exportVideo(
@@ -622,11 +603,9 @@ const handleTimeUpdate = (time) => {
 
 // Timeline'dan video bittiği sinyali geldiğinde
 const handleVideoEnded = () => {
-	console.log("[editor.vue] Video segment'leri bitti, oynatmayı durdur");
 	isPlaying.value = false;
-	if (mediaPlayerRef.value) {
-		mediaPlayerRef.value.pause();
-	}
+	// Video sonda kalsın - currentTime'ı 0 yapma
+	// Seek yapma - video olduğu yerde kalsın
 };
 
 // Kesme modunu aç/kapa
@@ -636,7 +615,6 @@ const toggleTrimMode = () => {
 
 // Segment güncellemelerini işle
 const handleSegmentUpdate = async (newSegments) => {
-	console.log("[editor.vue] Segmentler güncellendi:", newSegments);
 
 	// Segment'leri normalize et - start/end ve startTime/endTime tutarlılığını sağla
 	const normalizedSegments = newSegments.map((segment, index) => {
@@ -657,14 +635,10 @@ const handleSegmentUpdate = async (newSegments) => {
 	// Segment'leri güncelle - MediaPlayer otomatik olarak clipping uygulayacak
 	segments.value = normalizedSegments;
 
-	console.log(
-		"[editor.vue] Segments updated, MediaPlayer will handle clipping automatically"
-	);
 };
 
 // Segment seçimi
 const handleSegmentSelect = async (index) => {
-	console.log("[editor.vue] Segment seçildi:", index);
 	activeSegmentIndex.value = index;
 
 	// Seçilen segment'in clipped time'daki başlangıç pozisyonunu hesapla
@@ -688,10 +662,6 @@ const handleSegmentSelect = async (index) => {
 			clippedTimePosition += segEnd - segStart;
 		}
 
-		console.log(
-			"[editor.vue] Seeking to segment at clipped position:",
-			clippedTimePosition
-		);
 
 		// Oynatmayı durdur
 		if (isPlaying.value) {
@@ -707,7 +677,6 @@ const handleSegmentSelect = async (index) => {
 
 // Segment trim işlemi tamamlandığında
 const handleSegmentTrimmed = async (index) => {
-	console.log("[editor.vue] Segment trim tamamlandı:", index);
 
 	// MediaPlayer otomatik olarak segment clipping uygulayacak
 	// Sadece oynatmayı durduralım
@@ -716,16 +685,12 @@ const handleSegmentTrimmed = async (index) => {
 		isPlaying.value = false;
 	}
 
-	console.log(
-		"[editor.vue] Segment trimmed, MediaPlayer will handle clipping automatically"
-	);
 };
 
 // Segmentleri sıkıştır ve boşlukları kaldır
 const compactSegments = () => {
 	if (!segments.value?.length) return;
 
-	console.log("[editor.vue] Compacting segments, before:", segments.value);
 
 	// Segment'leri sadece filtrele, start/end değerlerini değiştirme
 	segments.value = segments.value
@@ -757,25 +722,16 @@ const compactSegments = () => {
 				layer: segment.layer || 0,
 			};
 
-			console.log(`[editor.vue] Segment ${index} preserved:`, {
-				start: originalStart,
-				end: originalEnd,
-				duration: originalDuration,
-				position: startPosition,
-				width,
-			});
 
 			return updatedSegment;
 		});
 
-	console.log("[editor.vue] Segmentler korundu, after:", segments.value);
 
 	// Toplam süreyi güncelle
 	const totalCompactedDuration = segments.value.reduce((total, segment) => {
 		return total + (segment.end - segment.start);
 	}, 0);
 
-	console.log("[editor.vue] Total compacted duration:", totalCompactedDuration);
 };
 
 // Timeline segment'lerini güncelle
@@ -804,7 +760,6 @@ const onCropChange = (cropArea) => {
 			selectedArea.value = null;
 			// Seçilen alanı sıfırla
 			window.electron.ipcRenderer.send("UPDATE_SELECTED_AREA", null);
-			console.log("[editor.vue] Kırpma alanı sıfırlandı");
 			return;
 		}
 
@@ -841,14 +796,12 @@ const onCropChange = (cropArea) => {
 			videoHeight.value - safeArea.height
 		);
 
-		console.log("[editor.vue] Kırpma alanı hazırlandı:", safeArea);
 
 		// State'i güncelle
 		selectedArea.value = safeArea;
 
 		// Main process'e gönder
 		window.electron.ipcRenderer.send("UPDATE_SELECTED_AREA", safeArea);
-		console.log("[editor.vue] Kırpma alanı main process'e gönderildi");
 	} catch (error) {
 		console.error("[editor.vue] Kırpma alanı güncellenirken hata:", error);
 	}
@@ -864,10 +817,6 @@ const onAspectRatioChange = (ratio) => {
 			// Kırpma durumunu güncelle
 			const cropData = mediaPlayerRef.value.getCropData();
 			if (cropData) {
-				console.log(
-					"[editor.vue] Yeni aspect ratio için kırpma verisi:",
-					cropData
-				);
 				onCropChange(cropData);
 			}
 		}
@@ -888,6 +837,7 @@ const handleSegmentSplit = ({
 	splitTime,
 	totalDuration,
 }) => {
+
 	// Orijinal segmentleri kopyala
 	const updatedSegments = [...segments.value];
 
@@ -909,16 +859,19 @@ const handleSegmentSplit = ({
 	}));
 
 	// Tüm segmentleri birleştir
-	segments.value = [...beforeSegments, ...splitSegments, ...afterSegments];
+	const newSegmentsArray = [...beforeSegments, ...splitSegments, ...afterSegments];
+	
+	segments.value = newSegmentsArray;
 
 	// Aktif segmenti güncelle
 	if (currentTime.value >= splitTime) {
-		// Eğer playhead ikinci segmentteyse, onu seçili yap
+		// Eğer playhead ikinci segmentteyse, onu seçili yap (yeni segment)
 		activeSegmentIndex.value = index + 1;
 	} else {
-		// Eğer playhead ilk segmentteyse, onu seçili yap
+		// Eğer playhead ilk segmentteyse, onu seçili yap (ilk yeni segment)
 		activeSegmentIndex.value = index;
 	}
+	
 
 	// MediaPlayer'ı güncelle
 	if (mediaPlayerRef.value) {
@@ -937,6 +890,24 @@ const handleSegmentSplit = ({
 const toggleSplitMode = () => {
 	isSplitMode.value = !isSplitMode.value;
 };
+
+// Segments değişikliklerini izle
+watch(
+	segments,
+	(newSegments, oldSegments) => {
+	},
+	{ deep: true }
+);
+
+// Video URL değiştiğinde segment initialization flag'ini resetle
+watch(
+	videoUrl,
+	(newUrl, oldUrl) => {
+		if (newUrl !== oldUrl && newUrl) {
+			hasInitializedSegments.value = false;
+		}
+	}
+);
 
 // Segment yönetimi
 const handleSegmentsReordered = (newSegments) => {
@@ -975,6 +946,28 @@ let mousePositions = ref([]);
 const handleKeyDown = async (event) => {
 	// Delete veya Backspace tuşu basıldığında
 	if (event.key === "Delete" || event.key === "Backspace") {
+		// Prevent deletion if already deleting
+		if (isDeletingSegment.value) {
+			console.warn("[editor.vue] Keyboard delete iptal edildi - zaten silme işlemi devam ediyor");
+			event.preventDefault();
+			event.stopPropagation();
+			return;
+		}
+
+		// Check if the event originated from timeline component
+		if (event.target && event.target.closest && event.target.closest('.timeline-container')) {
+			console.log("[editor.vue] Keyboard delete ignored - event originated from timeline component");
+			return;
+		}
+
+		// Prevent rapid multiple deletions (within 100ms)
+		const now = Date.now();
+		if (now - lastDeletionTime.value < 100) {
+			console.warn("[editor.vue] Keyboard delete ignored - too soon after last deletion");
+			return;
+		}
+		lastDeletionTime.value = now;
+
 		// Mevcut zamanda hangi segment'te olduğumuzu bul
 		const currentSegment = segments.value.find((segment) => {
 			const start = segment.start || segment.startTime || 0;
@@ -990,6 +983,7 @@ const handleKeyDown = async (event) => {
 		}
 
 		const segmentIndex = segments.value.indexOf(currentSegment);
+		console.log(`[handleKeyDown] Keyboard delete triggered for segment index: ${segmentIndex}`);
 		await handleSegmentDelete(segmentIndex);
 
 		// Event'i durdur
@@ -1001,18 +995,8 @@ const handleKeyDown = async (event) => {
 onMounted(async () => {
 	// Cursor verilerini yükle
 	if (electron.mediaStateManager) {
-		console.log("[editor.vue] 📍 Cursor data yükleniyor...");
 		const cursorData = await electron.mediaStateManager.loadCursorData();
-		console.log("[editor.vue] 📍 Cursor data yüklendi:", {
-			dataCount: cursorData?.length || 0,
-			firstItem: cursorData?.[0],
-			lastItem: cursorData?.[cursorData?.length - 1],
-		});
 		mousePositions.value = cursorData;
-		console.log(
-			"[editor.vue] 📍 mousePositions.value set to:",
-			mousePositions.value?.length
-		);
 	} else {
 		console.warn("[editor.vue] ⚠️ electron.mediaStateManager bulunamadı");
 	}
@@ -1021,7 +1005,6 @@ onMounted(async () => {
 		IPC_EVENTS.GET_EDITOR_SETTINGS
 	);
 
-	console.log("Editor settings:", editorSettings);
 	let isCameraFollowMouse = editorSettings.camera.followMouse;
 
 	updateCameraSettings({
@@ -1029,17 +1012,9 @@ onMounted(async () => {
 	});
 
 	// Mouse settings durumunu kontrol et ve ensure et
-	console.log("[editor.vue] 📍 Player Settings - Mouse durumu:", {
-		mouseVisible: mouseVisible.value,
-		mouseSize: mouseSize.value,
-		mousePositionsCount: mousePositions.value?.length || 0,
-	});
 
 	// Mouse görünürlüğünü manuel olarak true yap (debug için)
 	if (!mouseVisible.value) {
-		console.warn(
-			"[editor.vue] ⚠️ Mouse visible false olduğu için true yapılıyor"
-		);
 		updateMouseVisible(true);
 	}
 
@@ -1079,14 +1054,9 @@ onMounted(async () => {
 		const mediaState = await electron?.ipcRenderer.invoke(
 			IPC_EVENTS.GET_MEDIA_STATE
 		);
-		console.log("[editor.vue] Başlangıç media state:", mediaState);
 
 		if (mediaState) {
 			if (mediaState.videoPath) {
-				console.log(
-					"[editor.vue] Video dosyası yükleniyor:",
-					mediaState.videoPath
-				);
 				await loadMedia(mediaState.videoPath, "video");
 			} else {
 				console.error("[editor.vue] Video dosyası bulunamadı");
@@ -1098,26 +1068,17 @@ onMounted(async () => {
 			}
 
 			if (mediaState.cameraPath) {
-				console.log(
-					"[editor.vue] Kamera dosyası yükleniyor:",
-					mediaState.cameraPath
-				);
 				await loadMedia(mediaState.cameraPath, "camera");
 			}
 
 			if (mediaState.audioPath) {
-				console.log(
-					"[editor.vue] Ses dosyası yükleniyor:",
-					mediaState.audioPath
-				);
 				await loadMedia(mediaState.audioPath, "audio");
 			}
 		}
 
 		// Media state güncellemelerini dinle
 		electron?.ipcRenderer.on(IPC_EVENTS.MEDIA_STATE_UPDATE, async (state) => {
-			console.log("[editor.vue] Media state güncellendi:", state);
-			if (state.videoPath && state.videoPath !== videoUrl.value) {
+				if (state.videoPath && state.videoPath !== videoUrl.value) {
 				await loadMedia(state.videoPath, "video");
 			}
 			if (state.cameraPath && state.cameraPath !== cameraUrl.value) {
@@ -1130,16 +1091,14 @@ onMounted(async () => {
 
 		// Processing complete event'ini dinle
 		electron?.ipcRenderer.on(IPC_EVENTS.PROCESSING_COMPLETE, async (paths) => {
-			console.log("[editor.vue] Processing complete:", paths);
-			if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+				if (paths.videoPath) await loadMedia(paths.videoPath, "video");
 			if (paths.cameraPath) await loadMedia(paths.cameraPath, "camera");
 			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 		});
 
 		// Media paths event'ini dinle
 		electron?.ipcRenderer.on(IPC_EVENTS.MEDIA_PATHS, async (paths) => {
-			console.log("[editor.vue] Media paths güncellendi:", paths);
-			if (paths.videoPath) await loadMedia(paths.videoPath, "video");
+				if (paths.videoPath) await loadMedia(paths.videoPath, "video");
 			if (paths.cameraPath) await loadMedia(paths.cameraPath, "camera");
 			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 		});
@@ -1240,7 +1199,6 @@ const handleCaptureScreenshot = async () => {
 			);
 
 			if (saveResult?.success) {
-				console.log("Ekran görüntüsü başarıyla kaydedildi:", result);
 			} else {
 				console.error("Ekran görüntüsü kaydedilemedi:", saveResult?.error);
 			}
@@ -1257,11 +1215,9 @@ async function loadMediaFromState() {
 			// Medya yollarını al
 			const mediaState = await electron.ipcRenderer.invoke("GET_MEDIA_STATE");
 
-			console.log("Medya durumu alındı:", mediaState);
-
+	
 			// Video dosyası kontrolü
 			if (mediaState.videoPath) {
-				console.log("Video dosyası alındı:", mediaState.videoPath);
 				await loadMedia(mediaState.videoPath, "video");
 			} else {
 				console.warn("[editor.vue] Video path not found in media state");
@@ -1269,25 +1225,15 @@ async function loadMediaFromState() {
 
 			// Audio dosyası kontrolü
 			if (mediaState.audioPath) {
-				console.log("Ses dosyası alındı:", mediaState.audioPath);
 				// Eğer ses dosyası video ile aynı dosya ise, ayrıca yükleme yapma
 				if (mediaState.audioPath === mediaState.videoPath) {
-					console.log("Ses ve video aynı dosyada, ayrıca yüklenmeyecek");
 					// Video'nun ses kanalını kullan
 					audioType.value = videoType.value;
-					console.log(
-						"[editor.vue] Audio type set to video type:",
-						audioType.value
-					);
 
 					// Since audio is in the video file, make sure we're not muting it
 					isMuted.value = false;
-					console.log(
-						"[editor.vue] Unmuting audio since it's in the video file"
-					);
 				} else {
 					// Farklı bir ses dosyası ise ayrıca yükle
-					console.log("[editor.vue] Loading separate audio file");
 					await loadMedia(mediaState.audioPath, "audio");
 				}
 			} else {
@@ -1304,7 +1250,6 @@ async function loadMediaFromState() {
 
 // Proje yüklendiğinde çağrılacak fonksiyon
 const onProjectLoaded = (project) => {
-	console.log("Proje yüklendi:", project);
 
 	// Proje yüklendikten sonra MediaPlayer'ı güncelle
 	nextTick(() => {
@@ -1328,39 +1273,196 @@ const onProjectLoaded = (project) => {
 	});
 };
 
-// Segment silme işlemi
+// Deletion guard to prevent rapid multiple deletions
+const isDeletingSegment = ref(false);
+const lastDeletionTime = ref(0);
+
+// Segment silme işlemi - Tamamen yeniden yazılmış kusursuz versiyon
 const handleSegmentDelete = async (index) => {
-	console.log("[editor.vue] Segment siliniyor:", index);
+	// Prevent multiple simultaneous deletions
+	if (isDeletingSegment.value) {
+		console.warn("[editor.vue] Segment silme işlemi zaten devam ediyor, iptal ediliyor");
+		return;
+	}
 
 	if (segments.value.length <= 1) {
 		console.warn("[editor.vue] Son segment silinemez");
 		return;
 	}
 
-	// Oynatmayı durdur
-	if (isPlaying.value && mediaPlayerRef.value) {
-		await mediaPlayerRef.value.pause();
-		isPlaying.value = false;
+	if (index < 0 || index >= segments.value.length) {
+		console.warn("[editor.vue] Geçersiz segment index:", index);
+		return;
 	}
 
-	// Segment'i sil
-	segments.value.splice(index, 1);
+	// Set deletion guard and timestamp
+	isDeletingSegment.value = true;
+	lastDeletionTime.value = Date.now();
 
-	// Aktif segment index'ini güncelle
-	if (activeSegmentIndex.value >= segments.value.length) {
-		activeSegmentIndex.value = segments.value.length - 1;
+	try {
+		// Oynatmayı durdur
+		if (isPlaying.value && mediaPlayerRef.value) {
+			await mediaPlayerRef.value.pause();
+			isPlaying.value = false;
+		}
+
+	console.log(`[handleSegmentDelete] Silme işlemi başlatıldı - Index: ${index}, Mevcut segments: ${segments.value.length}`);
+	
+	// Tüm mevcut segmentleri logla
+	console.log(`[handleSegmentDelete] Mevcut segmentler:`, segments.value.map((s, i) => `${i}: ${s.start}-${s.end}`));
+
+	// Mevcut durumu kaydet
+	const originalSegments = [...segments.value];
+	const currentPlayerTime = currentTime.value; // Mevcut clipped time
+	const segmentToDelete = originalSegments[index];
+	
+	console.log(`[handleSegmentDelete] Silinecek segment: ${segmentToDelete.start}-${segmentToDelete.end}, Mevcut player time: ${currentPlayerTime}`);
+
+	// 1. ADIM: Clipped timeline'da hangi pozisyonda olduğumuzu hesapla
+	let playerSegmentIndex = -1;
+	let playerPositionInTimeline = 0;
+	let accumulatedTime = 0;
+	
+	// Player'ın hangi segment'te olduğunu bul
+	for (let i = 0; i < originalSegments.length; i++) {
+		const segment = originalSegments[i];
+		const segmentDuration = (segment.end || segment.endTime || 0) - (segment.start || segment.startTime || 0);
+		
+		if (currentPlayerTime >= accumulatedTime && currentPlayerTime < accumulatedTime + segmentDuration) {
+			playerSegmentIndex = i;
+			playerPositionInTimeline = currentPlayerTime - accumulatedTime; // Segment içindeki pozisyon
+			break;
+		}
+		accumulatedTime += segmentDuration;
+	}
+	
+	// Eğer player tam son segment'in sonundaysa
+	if (playerSegmentIndex === -1 && originalSegments.length > 0) {
+		playerSegmentIndex = originalSegments.length - 1;
+		const lastSegment = originalSegments[playerSegmentIndex];
+		const lastSegmentDuration = (lastSegment.end || lastSegment.endTime || 0) - (lastSegment.start || lastSegment.startTime || 0);
+		playerPositionInTimeline = lastSegmentDuration;
 	}
 
-	// MediaPlayer otomatik olarak yeni segment yapısına göre clipping uygulayacak
-	// Timeline'ı başa saralım
-	currentTime.value = 0;
+	console.log(`[handleSegmentDelete] Player segment index: ${playerSegmentIndex}, Position in segment: ${playerPositionInTimeline}`);
+
+	// 2. ADIM: Segment'i sil
+	const newSegments = originalSegments.filter((_, i) => i !== index);
+	
+	// Hiç segment kalmadıysa
+	if (newSegments.length === 0) {
+		segments.value = [];
+		currentTime.value = 0;
+		videoDuration.value = 0;
+		activeSegmentIndex.value = -1;
+		console.log(`[handleSegmentDelete] Tüm segment'ler silindi`);
+		return;
+	}
+
+	// 3. ADIM: Yeni timeline'da player pozisyonunu hesapla
+	let newClippedTime = 0;
+	
+	if (playerSegmentIndex === index) {
+		// Player silinen segment'teydi
+		console.log(`[handleSegmentDelete] Player silinen segment'teydi`);
+		
+		if (index < newSegments.length) {
+			// Aynı index'te yeni bir segment var (sağdaki segment sola kaydı)
+			// O segment'in başına git (player orada değildi çünkü segment silindi)
+			let accTime = 0;
+			for (let i = 0; i < index; i++) {
+				const seg = newSegments[i];
+				accTime += (seg.end || seg.endTime || 0) - (seg.start || seg.startTime || 0);
+			}
+			newClippedTime = accTime;
+			console.log(`[handleSegmentDelete] Sağdaki segment'in başına gidiliyor: ${newClippedTime}`);
+		} else if (index > 0) {
+			// Sağda segment yok, bir önceki segment'in sonuna git
+			let accTime = 0;
+			for (let i = 0; i < newSegments.length; i++) {
+				const seg = newSegments[i];
+				accTime += (seg.end || seg.endTime || 0) - (seg.start || seg.startTime || 0);
+			}
+			newClippedTime = accTime; // Son segment'in sonuna git
+			console.log(`[handleSegmentDelete] Son segment'in sonuna gidiliyor: ${newClippedTime}`);
+		} else {
+			// İlk segment silinmişti, başa git
+			newClippedTime = 0;
+			console.log(`[handleSegmentDelete] İlk segment silindi, başa gidiliyor: ${newClippedTime}`);
+		}
+	} else if (playerSegmentIndex > index) {
+		// Player silinen segment'ten sonra bir segment'teydi
+		// Yeni pozisyon = eski pozisyon - silinen segment'in süresi
+		const deletedSegmentDuration = (segmentToDelete.end || segmentToDelete.endTime || 0) - (segmentToDelete.start || segmentToDelete.startTime || 0);
+		newClippedTime = currentPlayerTime - deletedSegmentDuration;
+		console.log(`[handleSegmentDelete] Player sonraki segment'teydi, yeni pozisyon: ${newClippedTime} (${currentPlayerTime} - ${deletedSegmentDuration})`);
+	} else {
+		// Player silinen segment'ten önce bir segment'teydi
+		// Pozisyon değişmez
+		newClippedTime = currentPlayerTime;
+		console.log(`[handleSegmentDelete] Player önceki segment'teydi, pozisyon aynı: ${newClippedTime}`);
+	}
+
+	// 4. ADIM: Yeni toplam süreyi hesapla ve sınırlandır
+	const newTotalDuration = newSegments.reduce((total, segment) => {
+		const segmentDuration = (segment.end || segment.endTime || 0) - (segment.start || segment.startTime || 0);
+		return total + segmentDuration;
+	}, 0);
+	
+	// Clipped time'ı yeni toplam süre ile sınırlandır
+	newClippedTime = Math.max(0, Math.min(newClippedTime, newTotalDuration));
+
+	// 5. ADIM: Active segment index'ini güncelle
+	let newActiveIndex = activeSegmentIndex.value;
+	
+	if (activeSegmentIndex.value === index) {
+		// Active segment silindi
+		if (index < newSegments.length) {
+			// Aynı pozisyonda yeni segment var
+			newActiveIndex = index;
+		} else if (newSegments.length > 0) {
+			// Son segment'e git
+			newActiveIndex = newSegments.length - 1;
+		} else {
+			newActiveIndex = -1;
+		}
+	} else if (activeSegmentIndex.value > index) {
+		// Active segment silinen segment'ten sonradaydı, index'i azalt
+		newActiveIndex = activeSegmentIndex.value - 1;
+	}
+	// Eğer active segment silinen segment'ten önceydi, değişiklik yok
+
+	// Bounds check
+	if (newActiveIndex >= newSegments.length) {
+		newActiveIndex = newSegments.length - 1;
+	}
+	if (newActiveIndex < 0 && newSegments.length > 0) {
+		newActiveIndex = 0;
+	}
+
+	// 6. ADIM: Tüm değişiklikleri uygula
+	segments.value = newSegments;
+	videoDuration.value = newTotalDuration;
+	activeSegmentIndex.value = newActiveIndex;
+	currentTime.value = newClippedTime;
+
+	console.log(`[handleSegmentDelete] Kalan segmentler:`, newSegments.map((s, i) => `${i}: ${s.start}-${s.end}`));
+	console.log(`[handleSegmentDelete] Sonuç - Yeni segments: ${newSegments.length}, Yeni duration: ${newTotalDuration}, Yeni clipped time: ${newClippedTime}, Yeni active index: ${newActiveIndex}`);
+
+	// 7. ADIM: MediaPlayer'ı yeni pozisyona götür
 	if (mediaPlayerRef.value) {
-		mediaPlayerRef.value.seek(0);
+		await nextTick();
+		if (mediaPlayerRef.value.seek) {
+			mediaPlayerRef.value.seek(newClippedTime);
+		}
 	}
-
-	console.log(
-		"[editor.vue] Segment deleted, MediaPlayer will handle new clipping automatically"
-	);
+	
+	} catch (error) {
+		console.error("[editor.vue] Segment silme hatası:", error);
+	} finally {
+		// Clear deletion guard
+		isDeletingSegment.value = false;
+	}
 };
 
 // VideoClipManager'dan alınan split ve delete fonksiyonları
@@ -1421,11 +1523,5 @@ const handleSplitCurrentSegment = () => {
 	// Segmentleri sıkıştır
 	compactSegments();
 
-	console.log("[editor.vue] Segment bölündü:", {
-		original: currentSegment,
-		left: leftSegment,
-		right: rightSegment,
-		splitPoint,
-	});
 };
 </script>
