@@ -1713,7 +1713,10 @@ function setupIpcHandlers() {
 
 						// Hata durumunda ana pencereyi göster ve kullanıcıya bilgi ver
 						if (mainWindow && !mainWindow.isDestroyed()) {
-							mainWindow.show();
+							// Editor zaten açık değilse ana pencereyi göster
+							if (!editorManager || !editorManager.isEditorWindowOpen()) {
+								mainWindow.show();
+							}
 							mainWindow.webContents.send(
 								IPC_EVENTS.RECORDING_ERROR,
 								"Editor penceresi açılamadı: " + error.message
@@ -1731,7 +1734,10 @@ function setupIpcHandlers() {
 
 					// Sonuç başarısız ise ana pencereyi göster
 					if (mainWindow && !mainWindow.isDestroyed()) {
-						mainWindow.show();
+						// Editor zaten açık değilse ana pencereyi göster
+						if (!editorManager || !editorManager.isEditorWindowOpen()) {
+							mainWindow.show();
+						}
 
 						// Kullanıcıya bilgi ver
 						if (!result) {
@@ -1753,7 +1759,10 @@ function setupIpcHandlers() {
 
 			// Hata durumunda ana pencereyi göster
 			if (mainWindow && !mainWindow.isDestroyed()) {
-				mainWindow.show();
+				// Editor zaten açık değilse ana pencereyi göster
+				if (!editorManager || !editorManager.isEditorWindowOpen()) {
+					mainWindow.show();
+				}
 				event.reply(
 					IPC_EVENTS.RECORDING_ERROR,
 					error.message || "Beklenmeyen bir hata oluştu"
@@ -3533,6 +3542,11 @@ app.on("activate", () => {
 	if (mainWindow === null) {
 		createWindow();
 	} else {
+		// Editor açıkken ana pencereyi gösterme
+		if (editorManager && editorManager.isEditorWindowOpen()) {
+			console.log("[Main] Editor açık, ana pencere gösterilmiyor (app activate)");
+			return;
+		}
 		mainWindow.show();
 	}
 });

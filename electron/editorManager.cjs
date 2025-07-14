@@ -421,6 +421,11 @@ class EditorManager {
 			}
 		});
 	}
+
+	// Editor penceresi açık mı kontrol et
+	isEditorWindowOpen() {
+		return this.editorWindow && !this.editorWindow.isDestroyed() && this.editorWindow.isVisible();
+	}
 }
 
 module.exports = EditorManager;

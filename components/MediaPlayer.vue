@@ -3345,6 +3345,75 @@ defineExpose({
 	// Trimmed video durumunu kontrol et
 	isTrimmed: () => props.segments && props.segments.length > 0,
 	getTrimOffset: () => 0,
+	
+	// Segment bilgilerini export için
+	getSegments: () => props.segments || [],
+	getClippedDuration: () => {
+		if (!props.segments || props.segments.length === 0) {
+			return videoElement?.duration || 0;
+		}
+		return getTotalClippedDuration(props.segments);
+	},
+	
+	// Clipped time'dan real time'a dönüştürme fonksiyonu
+	convertClippedToRealTime: (clippedTime) => {
+		if (!props.segments || props.segments.length === 0) {
+			return clippedTime;
+		}
+		
+		const sortedSegments = getSortedSegments();
+		let accumulatedClippedTime = 0;
+		
+		for (const segment of sortedSegments) {
+			const segmentStart = segment.start || segment.startTime || 0;
+			const segmentEnd = segment.end || segment.endTime || 0;
+			const segmentDuration = segmentEnd - segmentStart;
+			
+			if (clippedTime >= accumulatedClippedTime && clippedTime < accumulatedClippedTime + segmentDuration) {
+				// Bu segment içinde
+				const offsetInSegment = clippedTime - accumulatedClippedTime;
+				return segmentStart + offsetInSegment;
+			}
+			accumulatedClippedTime += segmentDuration;
+		}
+		
+		// Son segment'in sonunda
+		if (sortedSegments.length > 0) {
+			const lastSegment = sortedSegments[sortedSegments.length - 1];
+			return lastSegment.end || lastSegment.endTime || 0;
+		}
+		
+		return clippedTime;
+	},
+	
+	// Export için fare pozisyonu güncelleme
+	handleMousePositionForExport: (realTime) => {
+		if (!props.mousePositions || props.mousePositions.length === 0) {
+			return;
+		}
+		
+		// Verilen real time'a en yakın fare pozisyonunu bul
+		let closestPosition = null;
+		let minDistance = Infinity;
+		
+		for (const position of props.mousePositions) {
+			const distance = Math.abs(position.timestamp - realTime);
+			if (distance < minDistance) {
+				minDistance = distance;
+				closestPosition = position;
+			}
+		}
+		
+		// Eğer yakın bir pozisyon bulunduysa (100ms tolerans)
+		if (closestPosition && minDistance < 0.1) {
+			// Fare pozisyonunu güncelle - daha sonra canvas render'da kullanılacak
+			currentMousePosition.value = {
+				x: closestPosition.x,
+				y: closestPosition.y,
+				timestamp: realTime
+			};
+		}
+	},
 });
 
 // Cleanup on unmount

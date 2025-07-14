@@ -114,6 +114,11 @@ class TrayManager {
 			{
 				label: "Pencereyi Göster",
 				click: () => {
+					// Editor açıkken ana pencereyi gösterme
+					if (this.editorManager && this.editorManager.isEditorWindowOpen()) {
+						console.log("[TrayManager] Editor açık, ana pencere gösterilmiyor");
+						return;
+					}
 					this.mainWindow.show();
 				},
 			},

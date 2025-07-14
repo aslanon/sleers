@@ -51,18 +51,23 @@ const exportVideo = async (
 	onComplete,
 	onError
 ) => {
+	console.log(`[ExportService] exportVideo fonksiyonu çağrıldı`, { settings, mediaPlayer: !!mediaPlayer });
+	
 	try {
 		// Export parametrelerini al
 		const params = getExportParams(settings);
+		console.log(`[ExportService] Export parametreleri:`, params);
 
 		// MediaPlayer'dan video ve ses elementlerini al
 		const videoElement = mediaPlayer.getVideoElement();
+		console.log(`[ExportService] Video element:`, !!videoElement);
 		if (!videoElement) {
 			throw new Error("Video element bulunamadı");
 		}
 
 		// Canvas elementini al
 		const canvas = mediaPlayer.getCanvas();
+		console.log(`[ExportService] Canvas element:`, !!canvas);
 		if (!canvas) {
 			throw new Error("Canvas bulunamadı");
 		}
@@ -112,82 +117,129 @@ const exportVideo = async (
 		// Render loop için değişkenler
 		let startTime = null;
 		let lastFrameTime = 0;
-		const duration = videoElement.duration;
+		let lastProgressTime = Date.now();
+		
+		// Segment sistemi için clipped duration kullan
+		const duration = mediaPlayer.getClippedDuration ? mediaPlayer.getClippedDuration() : videoElement.duration;
 		const frameInterval = 1000 / params.fps; // İstenen FPS'e göre frame aralığı
+		
+		console.log(`[ExportService] Export başlatılıyor - duration: ${duration}, clipped: ${mediaPlayer.getClippedDuration ? true : false}`);
+		
+		// Segment bilgilerini logla
+		if (mediaPlayer.getSegments) {
+			const segments = mediaPlayer.getSegments();
+			console.log(`[ExportService] Segments:`, segments.map(s => `${s.start}-${s.end}`));
+		}
+
+		// MediaRecorder değişkenini önceden tanımla
+		let mediaRecorder;
 
 		// Render loop'u tanımla
 		const renderFrame = async (timestamp) => {
 			// İlk timestamp'i kaydet
 			if (!startTime) startTime = timestamp;
 
-			// Geçen süreyi hesapla
-			const elapsed = timestamp - startTime;
-			const currentTime = elapsed / 1000;
+			try {
+				// Geçen süreyi hesapla (clipped time)
+				const elapsed = timestamp - startTime;
+				const currentClippedTime = elapsed / 1000;
+				
+				// Clipped time'ı real time'a çevir
+				const currentRealTime = mediaPlayer.convertClippedToRealTime 
+					? mediaPlayer.convertClippedToRealTime(currentClippedTime)
+					: currentClippedTime;
+				
+				console.log(`[ExportService] Frame ${Math.floor(currentClippedTime * 30)} - clippedTime: ${currentClippedTime.toFixed(3)}, realTime: ${currentRealTime.toFixed(3)}, duration: ${duration.toFixed(3)}`);
 
-			// FPS sabitlemesi için zaman kontrolü
-			const timeSinceLastFrame = timestamp - lastFrameTime;
-			const timeSinceLastRender = timestamp - optimizedRender.lastTimestamp;
-
-			// İlerleme durumunu güncelle - sadece her 30 frame'de bir
-			if (Math.floor(currentTime * 30) % 5 === 0) {
-				const progress = Math.min(95, (currentTime / duration) * 100);
-				onProgress(progress);
-			}
-
-			// Video bittiyse kaydı durdur
-			if (currentTime >= duration) {
-				mediaRecorder.stop();
-				return;
-			}
-
-			// Export sırasında fare pozisyonunu her frame'de güncelle - export için özel fonksiyon
-			// Bu ekleme fare hareketlerini her frame'de direkt günceller
-			if (mediaPlayer.handleMousePositionForExport) {
-				mediaPlayer.handleMousePositionForExport(currentTime);
-			}
-
-			// FPS kontrolü - istenen frame rate'e göre frame'leri sınırla
-			// Yüksek performans modunda daha agresif render et
-			if (
-				timeSinceLastFrame >= frameInterval ||
-				(optimizedRender.useHighPerformanceMode &&
-					timeSinceLastRender >= optimizedRender.frameThreshold)
-			) {
-				lastFrameTime = timestamp;
-				optimizedRender.lastTimestamp = timestamp;
-
-				// Double buffering - daha verimli implementasyon
-				try {
-					// Video frame'ini yakala
-					const frameData = mediaPlayer.captureFrameWithSize(
-						params.width,
-						params.height
-					);
-
-					if (frameData) {
-						// Yeni yaklaşım: Tek bir Image kullan
-						const img = new Image();
-						img.onload = () => {
-							// Temp canvas'a çiz
-							tempCtx.clearRect(0, 0, params.width, params.height);
-							tempCtx.drawImage(img, 0, 0, params.width, params.height);
-
-							// Sonra export canvas'a aktar - tek bir işlemde
-							exportCtx.clearRect(0, 0, params.width, params.height);
-							exportCtx.drawImage(tempCanvas, 0, 0);
-						};
-
-						// İşlem hızını artırmak için async olarak yükle
-						img.src = frameData;
-					}
-				} catch (renderError) {
-					console.warn("Frame render edilirken hata:", renderError);
+				// Export timeout kontrolü (10 saniye)
+				if (Date.now() - lastProgressTime > 10000) {
+					console.error('[ExportService] Export appears stuck, stopping...');
+					onError(new Error('Export process timed out'));
+					return;
 				}
-			}
 
-			// Sonraki frame için devam et - requestAnimationFrame'in yüksek öncelikli olmasını sağla
-			if (currentTime < duration) {
-				optimizedRender.rafId = requestAnimationFrame(renderFrame);
+				// FPS sabitlemesi için zaman kontrolü
+				const timeSinceLastFrame = timestamp - lastFrameTime;
+				const timeSinceLastRender = timestamp - optimizedRender.lastTimestamp;
+
+				// İlerleme durumunu güncelle - sadece her 30 frame'de bir
+				if (Math.floor(currentClippedTime * 30) % 5 === 0) {
+					lastProgressTime = Date.now();
+					const progress = Math.min(95, (currentClippedTime / duration) * 100);
+					onProgress(progress);
+				}
+
+				// Video bittiyse kaydı durdur
+				if (currentClippedTime >= duration) {
+					if (mediaRecorder && mediaRecorder.state === 'recording') {
+						console.log('[ExportService] Export completed, stopping MediaRecorder');
+						mediaRecorder.stop();
+					}
+					return;
+				}
+
+				// Video pozisyonunu real time'a göre ayarla
+				if (mediaPlayer.seek) {
+					// MediaPlayer'ın seek fonksiyonunu kullan (segment sistemine uygun)
+					await mediaPlayer.seek(currentClippedTime);
+				} else {
+					// Fallback - direkt video element'i kullan
+					videoElement.currentTime = currentRealTime;
+				}
+				
+				// Export sırasında fare pozisyonunu her frame'de güncelle - export için özel fonksiyon
+				// Bu ekleme fare hareketlerini her frame'de direkt günceller
+				if (mediaPlayer.handleMousePositionForExport) {
+					mediaPlayer.handleMousePositionForExport(currentRealTime);
+				}
+
+				// FPS kontrolü - istenen frame rate'e göre frame'leri sınırla
+				// Yüksek performans modunda daha agresif render et
+				if (
+					timeSinceLastFrame >= frameInterval ||
+					(optimizedRender.useHighPerformanceMode &&
+						timeSinceLastRender >= optimizedRender.frameThreshold)
+				) {
+					lastFrameTime = timestamp;
+					optimizedRender.lastTimestamp = timestamp;
+
+					// Double buffering - daha verimli implementasyon
+					try {
+						// Video frame'ini yakala
+						const frameData = mediaPlayer.captureFrameWithSize(
+							params.width,
+							params.height
+						);
+
+						if (frameData) {
+							// Yeni yaklaşım: Tek bir Image kullan
+							const img = new Image();
+							img.onload = () => {
+								// Temp canvas'a çiz
+								tempCtx.clearRect(0, 0, params.width, params.height);
+								tempCtx.drawImage(img, 0, 0, params.width, params.height);
+
+								// Sonra export canvas'a aktar - tek bir işlemde
+								exportCtx.clearRect(0, 0, params.width, params.height);
+								exportCtx.drawImage(tempCanvas, 0, 0);
+							};
+
+							// İşlem hızını artırmak için async olarak yükle
+							img.src = frameData;
+						}
+					} catch (renderError) {
+						console.warn("Frame render edilirken hata:", renderError);
+					}
+				}
+
+				// Sonraki frame için devam et - requestAnimationFrame'in yüksek öncelikli olmasını sağla
+				if (currentClippedTime < duration) {
+					optimizedRender.rafId = requestAnimationFrame(renderFrame);
+				}
+			} catch (error) {
+				console.error('[ExportService] Render frame error:', error);
+				onError(error);
+				return;
 			}
 		};
 
@@ -212,10 +264,9 @@ const exportVideo = async (
 					onProgress(5); // İlerleme göster
 					console.log("Ses olmadan export işlemi devam ediyor...");
 
-					// Devam et, ses eklemeden
-					mediaRecorder.start(1000);
-					requestAnimationFrame(renderFrame);
-					return; // Fonksiyonun geri kalanını çalıştırmamak için erken dön
+					// Devam et, ses eklemeden - MediaRecorder'ı daha sonra başlatacağız
+					console.log("Ses olmadan export işlemi devam ediyor...");
+					// MediaRecorder'ı daha sonra başlatacağız, burada return yapma
 				}
 
 				// Destination oluştur ve bağlantıları kur
@@ -234,10 +285,12 @@ const exportVideo = async (
 		}
 
 		// MediaRecorder oluştur - codec ayarlarını ekle
-		const mediaRecorder = new MediaRecorder(stream, {
+		mediaRecorder = new MediaRecorder(stream, {
 			mimeType: settings.format === "mp4" ? "video/webm" : "video/webm",
 			videoBitsPerSecond: params.bitrate,
 		});
+		
+		console.log(`[ExportService] MediaRecorder oluşturuldu - state: ${mediaRecorder.state}`);
 
 		// Veri parçaları için dizi
 		const chunks = [];
@@ -315,7 +368,10 @@ const exportVideo = async (
 		await mediaPlayer.play();
 
 		// Kayıt başlat ve render loop'u çalıştır
+		console.log(`[ExportService] MediaRecorder başlatılıyor - state: ${mediaRecorder.state}`);
 		mediaRecorder.start(1000); // Her 1 saniyede bir data topla
+		console.log(`[ExportService] MediaRecorder başlatıldı - state: ${mediaRecorder.state}`);
+		console.log(`[ExportService] RenderFrame çağrılıyor...`);
 		requestAnimationFrame(renderFrame);
 	} catch (error) {
 		onError(error);

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Debug Tool</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background-color: #2a2a2a;
+        }
+        
+        .test-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #432af4;
+        }
+        
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .success {
+            background-color: #1a4a2a;
+            border: 1px solid #2a6a3a;
+        }
+        
+        .error {
+            background-color: #4a1a1a;
+            border: 1px solid #6a2a2a;
+        }
+        
+        .warning {
+            background-color: #4a3a1a;
+            border: 1px solid #6a5a2a;
+        }
+        
+        button {
+            background-color: #432af4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background-color: #3821d3;
+        }
+        
+        #testCanvas {
+            border: 1px solid #666;
+            margin: 10px 0;
+        }
+        
+        #progress {
+            width: 100%;
+            height: 20px;
+            background-color: #333;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #progressBar {
+            height: 100%;
+            background-color: #432af4;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .log-area {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Export Debug Tool</h1>
+        <p>This tool helps debug export functionality in Sleer video editor.</p>
+        
+        <div class="test-section">
+            <div class="test-title">1. Browser Compatibility Tests</div>
+            <button onclick="testBrowserCompatibility()">Test Browser Support</button>
+            <div id="compatibilityResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">2. Canvas and MediaRecorder Test</div>
+            <button onclick="testCanvasRecording()">Test Canvas Recording</button>
+            <canvas id="testCanvas" width="320" height="240"></canvas>
+            <div id="progress">
+                <div id="progressBar"></div>
+            </div>
+            <div id="canvasResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">3. Export Service Simulation</div>
+            <button onclick="testExportService()">Test Export Service</button>
+            <div id="exportResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <div class="test-title">4. Debug Log</div>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="debugLog" class="log-area"></div>
+        </div>
+    </div>
+
+    <script>
+        // Debug logging function
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#ff6b6b' : 
+                                 type === 'warning' ? '#ffd93d' : 
+                                 type === 'success' ? '#6bcf7f' : '#ffffff';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logArea.appendChild(logEntry);
+            logArea.scrollTop = logArea.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearLog() {
+            document.getElementById('debugLog').innerHTML = '';
+        }
+        
+        // Test 1: Browser compatibility
+        function testBrowserCompatibility() {
+            log('Starting browser compatibility tests...', 'info');
+            const resultsDiv = document.getElementById('compatibilityResults');
+            resultsDiv.innerHTML = '';
+            
+            const tests = [
+                {
+                    name: 'MediaRecorder API',
+                    test: () => typeof MediaRecorder !== 'undefined',
+                    critical: true
+                },
+                {
+                    name: 'Canvas API',
+                    test: () => {
+                        const canvas = document.createElement('canvas');
+                        return canvas.getContext('2d') !== null;
+                    },
+                    critical: true
+                },
+                {
+                    name: 'captureStream API',
+                    test: () => {
+                        const canvas = document.createElement('canvas');
+                        return typeof canvas.captureStream === 'function';
+                    },
+                    critical: true
+                },
+                {
+                    name: 'WebM Support',
+                    test: () => MediaRecorder.isTypeSupported('video/webm'),
+                    critical: false
+                },
+                {
+                    name: 'MP4 Support',
+                    test: () => MediaRecorder.isTypeSupported('video/mp4'),
+                    critical: false
+                },
+                {
+                    name: 'H.264 Codec',
+                    test: () => MediaRecorder.isTypeSupported('video/webm;codecs=h264'),
+                    critical: false
+                },
+                {
+                    name: 'VP8 Codec',
+                    test: () => MediaRecorder.isTypeSupported('video/webm;codecs=vp8'),
+                    critical: false
+                },
+                {
+                    name: 'VP9 Codec',
+                    test: () => MediaRecorder.isTypeSupported('video/webm;codecs=vp9'),
+                    critical: false
+                }
+            ];
+            
+            let criticalFailed = false;
+            
+            tests.forEach(test => {
+                const result = document.createElement('div');
+                result.className = 'test-result';
+                
+                try {
+                    const passed = test.test();
+                    result.textContent = `${passed ? '✅' : '❌'} ${test.name}: ${passed ? 'PASS' : 'FAIL'}`;
+                    result.className += passed ? ' success' : (test.critical ? ' error' : ' warning');
+                    
+                    if (!passed && test.critical) {
+                        criticalFailed = true;
+                    }
+                    
+                    log(`${test.name}: ${passed ? 'PASS' : 'FAIL'}`, passed ? 'success' : 'error');
+                } catch (error) {
+                    result.textContent = `❌ ${test.name}: ERROR - ${error.message}`;
+                    result.className += ' error';
+                    log(`${test.name}: ERROR - ${error.message}`, 'error');
+                    if (test.critical) criticalFailed = true;
+                }
+                
+                resultsDiv.appendChild(result);
+            });
+            
+            if (criticalFailed) {
+                log('❌ Critical browser compatibility tests failed. Export may not work.', 'error');
+            } else {
+                log('✅ All critical browser compatibility tests passed.', 'success');
+            }
+        }
+        
+        // Test 2: Canvas recording
+        function testCanvasRecording() {
+            log('Starting canvas recording test...', 'info');
+            const canvas = document.getElementById('testCanvas');
+            const ctx = canvas.getContext('2d');
+            const resultsDiv = document.getElementById('canvasResults');
+            const progressBar = document.getElementById('progressBar');
+            
+            resultsDiv.innerHTML = '';
+            progressBar.style.width = '0%';
+            
+            // Draw animated content
+            let frame = 0;
+            const animate = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Background
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Rotating square
+                ctx.save();
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(frame * 0.05);
+                ctx.fillStyle = `hsl(${frame * 2}, 70%, 50%)`;
+                ctx.fillRect(-30, -30, 60, 60);
+                ctx.restore();
+                
+                // Frame counter
+                ctx.fillStyle = 'white';
+                ctx.font = '16px Arial';
+                ctx.fillText(`Frame: ${frame}`, 10, 30);
+                
+                frame++;
+                
+                if (frame < 150) { // 5 seconds at 30fps
+                    requestAnimationFrame(animate);
+                }
+            };
+            
+            animate();
+            
+            try {
+                const stream = canvas.captureStream(30);
+                log('✅ Canvas stream capture successful', 'success');
+                log(`Video tracks: ${stream.getVideoTracks().length}`, 'info');
+                
+                const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm',
+                    videoBitsPerSecond: 2500000
+                });
+                
+                log('✅ MediaRecorder created successfully', 'success');
+                log(`MediaRecorder state: ${mediaRecorder.state}`, 'info');
+                
+                const chunks = [];
+                let startTime = Date.now();
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                        log(`Data chunk received: ${e.data.size} bytes`, 'info');
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const endTime = Date.now();
+                    const duration = (endTime - startTime) / 1000;
+                    
+                    log(`✅ Recording completed in ${duration.toFixed(2)} seconds`, 'success');
+                    log(`Total chunks: ${chunks.length}`, 'info');
+                    
+                    const totalSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+                    log(`Total size: ${totalSize} bytes`, 'info');
+                    
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    log(`Final blob size: ${blob.size} bytes`, 'info');
+                    
+                    // Create download link
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'test-recording.webm';
+                    a.textContent = 'Download Test Recording';
+                    a.style.display = 'block';
+                    a.style.marginTop = '10px';
+                    
+                    const result = document.createElement('div');
+                    result.className = 'test-result success';
+                    result.textContent = '✅ Recording test completed successfully';
+                    result.appendChild(a);
+                    
+                    resultsDiv.appendChild(result);
+                    
+                    progressBar.style.width = '100%';
+                    log('✅ Canvas recording test completed successfully', 'success');
+                };
+                
+                mediaRecorder.onerror = (e) => {
+                    log(`❌ MediaRecorder error: ${e.error}`, 'error');
+                    const result = document.createElement('div');
+                    result.className = 'test-result error';
+                    result.textContent = `❌ Recording failed: ${e.error}`;
+                    resultsDiv.appendChild(result);
+                };
+                
+                // Start recording
+                mediaRecorder.start(1000);
+                log('Recording started...', 'info');
+                
+                // Update progress
+                const progressInterval = setInterval(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const progress = Math.min((elapsed / 5) * 100, 100);
+                        progressBar.style.width = `${progress}%`;
+                    } else {
+                        clearInterval(progressInterval);
+                    }
+                }, 100);
+                
+                // Stop recording after 5 seconds
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                log(`❌ Canvas recording test failed: ${error.message}`, 'error');
+                const result = document.createElement('div');
+                result.className = 'test-result error';
+                result.textContent = `❌ Test failed: ${error.message}`;
+                resultsDiv.appendChild(result);
+            }
+        }
+        
+        // Test 3: Export service simulation
+        function testExportService() {
+            log('Starting export service simulation...', 'info');
+            const resultsDiv = document.getElementById('exportResults');
+            resultsDiv.innerHTML = '';
+            
+            // Create mock MediaPlayer
+            const mockMediaPlayer = {
+                canvas: document.createElement('canvas'),
+                segments: [
+                    { start: 0, end: 3 },
+                    { start: 3, end: 6 }
+                ],
+                currentTime: 0,
+                duration: 6,
+                
+                getVideoElement: function() {
+                    return {
+                        duration: this.duration,
+                        currentTime: this.currentTime,
+                        paused: false
+                    };
+                },
+                
+                getCanvas: function() {
+                    return this.canvas;
+                },
+                
+                getSegments: function() {
+                    return this.segments;
+                },
+                
+                getClippedDuration: function() {
+                    return this.segments.reduce((total, segment) => total + (segment.end - segment.start), 0);
+                },
+                
+                seek: function(time) {
+                    this.currentTime = time;
+                    this.drawFrame();
+                },
+                
+                play: function() {
+                    return Promise.resolve();
+                },
+                
+                pause: function() {
+                    return Promise.resolve();
+                },
+                
+                captureFrameWithSize: function(width, height) {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = width;
+                    tempCanvas.height = height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    
+                    tempCtx.fillStyle = '#1a1a1a';
+                    tempCtx.fillRect(0, 0, width, height);
+                    
+                    tempCtx.fillStyle = 'white';
+                    tempCtx.font = '24px Arial';
+                    tempCtx.textAlign = 'center';
+                    tempCtx.fillText(`Time: ${this.currentTime.toFixed(2)}s`, width / 2, height / 2);
+                    
+                    return tempCanvas.toDataURL();
+                },
+                
+                drawFrame: function() {
+                    const ctx = this.canvas.getContext('2d');
+                    ctx.fillStyle = '#1a1a1a';
+                    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                    
+                    ctx.fillStyle = 'white';
+                    ctx.font = '24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`Time: ${this.currentTime.toFixed(2)}s`, this.canvas.width / 2, this.canvas.height / 2);
+                }
+            };
+            
+            // Initialize mock canvas
+            mockMediaPlayer.canvas.width = 1280;
+            mockMediaPlayer.canvas.height = 720;
+            mockMediaPlayer.drawFrame();
+            
+            const settings = {
+                format: 'mp4',
+                resolution: '720p',
+                quality: 'medium',
+                filename: 'test-export',
+                directory: '/tmp'
+            };
+            
+            log('Mock MediaPlayer created', 'info');
+            log(`Clipped duration: ${mockMediaPlayer.getClippedDuration()}s`, 'info');
+            log(`Segments: ${mockMediaPlayer.getSegments().length}`, 'info');
+            
+            // Test export parameters
+            const resolutionMap = {
+                "480p": { width: 854, height: 480 },
+                "720p": { width: 1280, height: 720 },
+                "1080p": { width: 1920, height: 1080 },
+            };
+            
+            const qualityMap = {
+                low: { bitrate: 2500000, fps: 30 },
+                medium: { bitrate: 5000000, fps: 60 },
+                high: { bitrate: 8000000, fps: 60 },
+            };
+            
+            const params = {
+                format: settings.format || "mp4",
+                width: resolutionMap[settings.resolution]?.width || 1280,
+                height: resolutionMap[settings.resolution]?.height || 720,
+                bitrate: qualityMap[settings.quality]?.bitrate || 5000000,
+                fps: qualityMap[settings.quality]?.fps || 60,
+            };
+            
+            log(`Export parameters: ${JSON.stringify(params)}`, 'info');
+            
+            // Test the export process simulation
+            try {
+                const exportCanvas = document.createElement('canvas');
+                exportCanvas.width = params.width;
+                exportCanvas.height = params.height;
+                const exportCtx = exportCanvas.getContext('2d');
+                
+                const stream = exportCanvas.captureStream(params.fps);
+                log('✅ Export canvas stream created', 'success');
+                
+                const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm',
+                    videoBitsPerSecond: params.bitrate
+                });
+                
+                log('✅ Export MediaRecorder created', 'success');
+                
+                const chunks = [];
+                let progress = 0;
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                        log(`Export chunk: ${e.data.size} bytes`, 'info');
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    log(`✅ Export simulation completed: ${blob.size} bytes`, 'success');
+                    
+                    const result = document.createElement('div');
+                    result.className = 'test-result success';
+                    result.textContent = `✅ Export simulation successful: ${blob.size} bytes`;
+                    resultsDiv.appendChild(result);
+                };
+                
+                mediaRecorder.onerror = (e) => {
+                    log(`❌ Export simulation error: ${e.error}`, 'error');
+                    const result = document.createElement('div');
+                    result.className = 'test-result error';
+                    result.textContent = `❌ Export simulation failed: ${e.error}`;
+                    resultsDiv.appendChild(result);
+                };
+                
+                mediaRecorder.start(1000);
+                log('Export simulation started', 'info');
+                
+                // Simulate export process
+                const duration = mockMediaPlayer.getClippedDuration();
+                const frameInterval = 1000 / params.fps;
+                let currentTime = 0;
+                
+                const exportLoop = () => {
+                    if (currentTime >= duration) {
+                        mediaRecorder.stop();
+                        return;
+                    }
+                    
+                    // Update progress
+                    progress = Math.min(95, (currentTime / duration) * 100);
+                    
+                    // Simulate frame capture
+                    mockMediaPlayer.seek(currentTime);
+                    const frameData = mockMediaPlayer.captureFrameWithSize(params.width, params.height);
+                    
+                    // Draw frame to export canvas
+                    const img = new Image();
+                    img.onload = () => {
+                        exportCtx.clearRect(0, 0, params.width, params.height);
+                        exportCtx.drawImage(img, 0, 0);
+                    };
+                    img.src = frameData;
+                    
+                    currentTime += frameInterval / 1000;
+                    
+                    setTimeout(exportLoop, frameInterval);
+                };
+                
+                exportLoop();
+                
+                // Stop after duration
+                setTimeout(() => {
+                    if (mediaRecorder.state === 'recording') {
+                        mediaRecorder.stop();
+                    }
+                }, duration * 1000 + 1000);
+                
+            } catch (error) {
+                log(`❌ Export simulation failed: ${error.message}`, 'error');
+                const result = document.createElement('div');
+                result.className = 'test-result error';
+                result.textContent = `❌ Export simulation failed: ${error.message}`;
+                resultsDiv.appendChild(result);
+            }
+        }
+        
+        // Initialize
+        log('Export Debug Tool loaded', 'info');
+        log('Run tests to identify export issues', 'info');
+    </script>
+</body>
+</html>
