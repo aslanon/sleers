@@ -46,10 +46,8 @@ export const useCameraRenderer = () => {
 	const updateHoverScale = () => {
 		const targetScale = isMouseOverCamera.value ? HOVER_SCALE : 1;
 		hoverScale.value += (targetScale - hoverScale.value) * TRANSITION_SPEED;
-		const canvas = document.getElementById("canvasID");
-		if (canvas) {
-			canvas.style.cursor = isMouseOverCamera.value ? "grab" : "default";
-		}
+		// Custom cursor sistemi cursor'ı kendisi yönetir
+		// Bu yüzden canvas.style.cursor'ı override etmiyoruz
 	};
 
 	// Toggle background removal

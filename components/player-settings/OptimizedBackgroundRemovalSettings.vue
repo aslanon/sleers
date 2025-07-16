@@ -30,7 +30,7 @@
 					@click="selectQuality('low')"
 				>
 					<span>Düşük</span>
-					<span v-if="isLoading && false && selectedQuality === 'low'">
+					<span v-if="isLoading && selectedQuality === 'low'">
 						<span class="circle-loader"></span>
 					</span>
 				</button>
@@ -44,7 +44,7 @@
 					@click="selectQuality('medium')"
 				>
 					<span>Orta</span>
-					<span v-if="isLoading && false && selectedQuality === 'medium'">
+					<span v-if="isLoading && selectedQuality === 'medium'">
 						<span class="circle-loader"></span>
 					</span>
 				</button>
@@ -58,14 +58,14 @@
 					@click="selectQuality('high')"
 				>
 					<span>Yüksek</span>
-					<span v-if="isLoading && false && selectedQuality === 'high'">
+					<span v-if="isLoading && selectedQuality === 'high'">
 						<span class="circle-loader"></span>
 					</span>
 				</button>
 			</div>
 
-			<!-- Arka Plan Tipi ve Renk Paleti (sadece kalite seçiliyse) -->
-			<div v-if="selectedQuality" class="flex items-center gap-3 mt-2">
+			<!-- Arka Plan Tipi ve Renk Paleti (sadece kalite seçiliyse ve loading bittiyse) -->
+			<div v-if="selectedQuality && !isLoading" class="flex items-center gap-3 mt-2">
 				<button
 					:class="[
 						'px-3 py-1 rounded',
@@ -124,6 +124,8 @@ const {
 	startProcessing,
 } = useTensorFlowWebcam();
 
+// TensorFlow functions initialized
+
 const selectedQuality = ref(null); // 'low', 'medium', 'high'
 const backgroundType = ref("transparent"); // 'transparent' | 'color'
 const backgroundColor = ref("#000000");
@@ -166,26 +168,40 @@ async function selectQuality(quality) {
 					backgroundColor: backgroundColor.value,
 				},
 			});
+			
+			// Camera settings updated with background removal
 
-			if (
-				typeof startProcessing === "function" &&
-				props.mediaPlayerRef?.value?.getVideoElement
-			) {
-				const videoElement = props.mediaPlayerRef.value.getVideoElement();
-				const processLoop = startProcessing(() => {
-					isLoading.value = false;
-					if (
-						props.mediaPlayerRef &&
-						props.mediaPlayerRef.value &&
-						typeof props.mediaPlayerRef.value.updateCanvas === "function"
-					) {
-						props.mediaPlayerRef.value.updateCanvas(performance.now());
-					}
+			// Video element'i doğrudan MediaPlayer'dan al
+			const videoElement = props.mediaPlayerRef?.value?.getVideoElement?.() || 
+								props.mediaPlayerRef?.value?.videoElement ||
+								null;
+			
+			// TensorFlow processing başlatılamıyor, manuel canvas güncelleme yap
+			// Bu geçici çözüm - sadece ayarlar değiştiğinde canvas'ı güncelle
+			
+			// Direkt canvas güncelleme yapmayı dene
+			if (props.mediaPlayerRef?.value?.updateCanvas) {
+				// Canvas'ı birden fazla kez güncelle
+				requestAnimationFrame(() => {
+					props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
 				});
-				if (videoElement) {
-					processLoop(videoElement);
-				}
+				
+				// Biraz bekleyip tekrar güncelle
+				setTimeout(() => {
+					requestAnimationFrame(() => {
+						props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
+					});
+				}, 100);
+				
+				// Son bir deneme
+				setTimeout(() => {
+					requestAnimationFrame(() => {
+						props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
+					});
+				}, 300);
 			}
+			
+			isLoading.value = false;
 		} finally {
 			// loading artık onFirstFrame ile kapanacak
 		}
@@ -206,6 +222,21 @@ function setBackgroundType(type) {
 			backgroundColor: backgroundColor.value,
 		},
 	});
+	
+	// Canvas'ı hemen güncelle - mouse move gibi
+	if (props.mediaPlayerRef?.value?.updateCanvas) {
+		// Anında güncelle
+		requestAnimationFrame(() => {
+			props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
+		});
+		
+		// Biraz bekleyip tekrar
+		setTimeout(() => {
+			requestAnimationFrame(() => {
+				props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
+			});
+		}, 50);
+	}
 }
 
 function onColorInput(e) {
@@ -223,11 +254,38 @@ function onColorInput(e) {
 			backgroundColor: backgroundColor.value,
 		},
 	});
+	
+	// Canvas'ı hemen güncelle - mouse move gibi
+	if (props.mediaPlayerRef?.value?.updateCanvas) {
+		// Anında güncelle
+		requestAnimationFrame(() => {
+			props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
+		});
+		
+		// Biraz bekleyip tekrar
+		setTimeout(() => {
+			requestAnimationFrame(() => {
+				props.mediaPlayerRef.value.updateCanvas(performance.now(), 0, 0);
+			});
+		}, 50);
+	}
 }
 
 watch(
 	() => cameraSettings.value,
 	(newSettings) => {
+		// Arka plan kaldırma aktif mi kontrol et ve enabled state'ini güncelle
+		if (newSettings.optimizedBackgroundRemoval) {
+			enabled.value = true;
+			selectedQuality.value =
+				newSettings.optimizedBackgroundRemovalSettings?.internalResolution ||
+				null;
+		} else {
+			enabled.value = false;
+			selectedQuality.value = null;
+		}
+		
+		// Background type ve color ayarlarını güncelle
 		if (newSettings.optimizedBackgroundRemovalSettings) {
 			backgroundType.value =
 				newSettings.optimizedBackgroundRemovalSettings.backgroundType ||
@@ -235,13 +293,6 @@ watch(
 			backgroundColor.value =
 				newSettings.optimizedBackgroundRemovalSettings.backgroundColor ||
 				"#000000";
-		}
-		if (newSettings.optimizedBackgroundRemoval) {
-			selectedQuality.value =
-				newSettings.optimizedBackgroundRemovalSettings?.internalResolution ||
-				null;
-		} else {
-			selectedQuality.value = null;
 		}
 	},
 	{ deep: true, immediate: true }
@@ -261,12 +312,20 @@ watch(enabled, async (val) => {
 
 onMounted(() => {
 	const settings = cameraSettings.value.optimizedBackgroundRemovalSettings;
+	
+	// Arka plan kaldırma aktif mi kontrol et
+	if (cameraSettings.value.optimizedBackgroundRemoval) {
+		enabled.value = true;
+		selectedQuality.value = settings?.internalResolution || null;
+	} else {
+		enabled.value = false;
+		selectedQuality.value = null;
+	}
+	
+	// Background type ve color ayarlarını yükle
 	if (settings) {
 		backgroundType.value = settings.backgroundType || "transparent";
 		backgroundColor.value = settings.backgroundColor || "#000000";
-	}
-	if (cameraSettings.value.optimizedBackgroundRemoval) {
-		selectedQuality.value = settings?.internalResolution || null;
 	}
 });
 

@@ -140,7 +140,7 @@
 					/>
 
 					<!-- Kamera Ayarları Tab -->
-					<CameraSettings v-if="currentTab === 'camera'" />
+					<CameraSettings v-if="currentTab === 'camera'" :media-player-ref="mediaPlayer" />
 
 					<!-- Optimized Background Removal Settings -->
 					<OptimizedBackgroundRemovalSettings

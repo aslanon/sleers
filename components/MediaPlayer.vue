@@ -2651,12 +2651,9 @@ watch(
 			updateCanvas(performance.now());
 		});
 
-		// Kamera ayarları değiştiğinde kamera pozisyonunu sıfırla
-		if (cameraSettings.value.followMouse) {
-			lastCameraPosition.value = null;
-			lastCameraX.value = 0;
-			lastCameraY.value = 0;
-		}
+		// Kamera ayarları değiştiğinde sadece gerekli durumlarda pozisyonu sıfırla
+		// Yalnızca followMouse false'dan true'ya geçtiğinde sıfırla
+		// Bu sayede settings panelini açınca pozisyon sıfırlanmaz
 	},
 	{ immediate: true, deep: true }
 );

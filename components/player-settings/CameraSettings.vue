@@ -707,7 +707,7 @@ watch(
 			borderOpacity,
 		});
 	},
-	{ immediate: true, deep: true }
+	{ immediate: false, deep: true }
 );
 </script>
 
