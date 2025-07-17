@@ -3179,12 +3179,17 @@ defineExpose({
 				finalHeight
 			);
 			
-			// PNG kullan - tam kalite için
-			return tempCanvas.toDataURL("image/png");
+			// WebP kullan - daha hızlı ve küçük boyut
+			return tempCanvas.toDataURL("image/webp", 0.95);
 		} catch (error) {
 			console.error("[MediaPlayer] Sized screenshot capture error:", error);
 			return null;
 		}
+	},
+
+	// Canvas'ı direkt döndür - export için optimize edilmiş
+	getCanvas: () => {
+		return canvasRef.value;
 	},
 
 	// Audio controls

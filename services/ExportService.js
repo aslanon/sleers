@@ -91,19 +91,7 @@ const exportVideo = async (
 		exportCtx.imageSmoothingEnabled = true;
 		exportCtx.imageSmoothingQuality = "high";
 
-		// İkinci buffer için canvas - orijinal boyutlarda
-		const tempCanvas = document.createElement("canvas");
-		tempCanvas.width = originalWidth;
-		tempCanvas.height = originalHeight;
-		const tempCtx = tempCanvas.getContext("2d", {
-			alpha: true, // Camera transparency için
-			antialias: true,
-			desynchronized: false,
-		});
-
-		// Kalite ayarları
-		tempCtx.imageSmoothingEnabled = true;
-		tempCtx.imageSmoothingQuality = "high";
+		// Temp canvas artık gerekli değil - direkt rendering kullanacağız
 
 		// Export stream'i oluştur
 		const stream = exportCanvas.captureStream(params.fps);
@@ -115,7 +103,7 @@ const exportVideo = async (
 		const optimizedRender = {
 			lastTimestamp: 0,
 			rafId: null,
-			frameThreshold: 1000 / (params.fps + 5), // FPS'den biraz daha hızlı render için tampon
+			frameThreshold: 1000 / params.fps, // Tam FPS'e göre render
 			useHighPerformanceMode: true,
 		};
 
@@ -198,39 +186,18 @@ const exportVideo = async (
 					mediaPlayer.handleMousePositionForExport(currentRealTime);
 				}
 
-				// FPS kontrolü - istenen frame rate'e göre frame'leri sınırla
-				// Yüksek performans modunda daha agresif render et
-				if (
-					timeSinceLastFrame >= frameInterval ||
-					(optimizedRender.useHighPerformanceMode &&
-						timeSinceLastRender >= optimizedRender.frameThreshold)
-				) {
+				// FPS kontrolü - daha hassas timing
+				if (timeSinceLastFrame >= frameInterval) {
 					lastFrameTime = timestamp;
-					optimizedRender.lastTimestamp = timestamp;
 
-					// Double buffering - daha verimli implementasyon
+					// Optimize edilmiş direct canvas rendering - Base64 dönüşümünü bypass et
 					try {
-						// Video frame'ini yakala - orijinal boyutlarda
-						const frameData = mediaPlayer.captureFrameWithSize(
-							originalWidth,
-							originalHeight
-						);
-
-						if (frameData) {
-							// Yeni yaklaşım: Tek bir Image kullan
-							const img = new Image();
-							img.onload = () => {
-								// Temp canvas'a çiz - orijinal boyutlarda
-								tempCtx.clearRect(0, 0, originalWidth, originalHeight);
-								tempCtx.drawImage(img, 0, 0, originalWidth, originalHeight);
-
-								// Sonra export canvas'a aktar - tek bir işlemde
-								exportCtx.clearRect(0, 0, originalWidth, originalHeight);
-								exportCtx.drawImage(tempCanvas, 0, 0);
-							};
-
-							// İşlem hızını artırmak için async olarak yükle
-							img.src = frameData;
+						// Canvas'ı direkt kopyala - Base64 dönüşümü yok
+						const sourceCanvas = mediaPlayer.getCanvas();
+						if (sourceCanvas) {
+							// Direkt canvas-to-canvas copy - çok daha hızlı
+							exportCtx.clearRect(0, 0, originalWidth, originalHeight);
+							exportCtx.drawImage(sourceCanvas, 0, 0, originalWidth, originalHeight);
 						}
 					} catch (renderError) {
 						console.warn("Frame render edilirken hata:", renderError);
@@ -359,8 +326,6 @@ const exportVideo = async (
 				});
 
 				// Geçici kaynakları temizle
-				tempCanvas.width = 1;
-				tempCanvas.height = 1;
 				exportCanvas.width = 1;
 				exportCanvas.height = 1;
 			} catch (error) {
