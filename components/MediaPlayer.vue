@@ -3130,62 +3130,57 @@ defineExpose({
 		if (!canvasRef.value) return null;
 
 		try {
-			// Performans için optimizasyon - export sırasında daha verimli çalışma
-			const tempCanvas = document.createElement("canvas");
-			tempCanvas.width = width;
-			tempCanvas.height = height;
-			const tempCtx = tempCanvas.getContext("2d", {
-				alpha: false,
-				antialias: true,
-				desynchronized: true, // Performans için desynchronized modunu etkinleştir
-				willReadFrequently: true, // Sık okuma için optimize et
-			});
-
-			// En iyi kalite için ayarlar
-			tempCtx.imageSmoothingEnabled = true;
-			tempCtx.imageSmoothingQuality = "high";
-
 			// Orijinal canvas'ın boyutlarını al
 			const originalWidth = canvasRef.value.width;
 			const originalHeight = canvasRef.value.height;
-
-			// En-boy oranını koruyarak çizim yap
-			const aspectRatio = originalWidth / originalHeight;
-			let drawWidth = width;
-			let drawHeight = height;
-
-			if (width / height > aspectRatio) {
-				// Hedef canvas daha geniş, yüksekliği kullan
-				drawWidth = height * aspectRatio;
-				drawHeight = height;
-			} else {
-				// Hedef canvas daha dar, genişliği kullan
-				drawWidth = width;
-				drawHeight = width / aspectRatio;
+			
+			// Canvas'ın gerçek aspect ratio'sunu kullan - siyah çerçeve olmadan
+			let finalWidth = originalWidth;
+			let finalHeight = originalHeight;
+			
+			// Eğer cropRatio ayarlanmışsa o aspect ratio'yu kullan
+			if (cropRatio.value) {
+				const [ratioW, ratioH] = cropRatio.value.split(':').map(Number);
+				const ratioAspect = ratioW / ratioH;
+				
+				// Canvas'ın mevcut boyutlarını kullanarak aspect ratio'yu uygula
+				if (originalWidth / originalHeight > ratioAspect) {
+					// Genişlik fazla, yüksekliği referans al
+					finalWidth = originalHeight * ratioAspect;
+					finalHeight = originalHeight;
+				} else {
+					// Yükseklik fazla, genişliği referans al
+					finalWidth = originalWidth;
+					finalHeight = originalWidth / ratioAspect;
+				}
 			}
-
-			// Ortalama için offset hesapla
-			const offsetX = (width - drawWidth) / 2;
-			const offsetY = (height - drawHeight) / 2;
-
-			// Arka planı siyah yap
-			tempCtx.fillStyle = "#000000";
-			tempCtx.fillRect(0, 0, width, height);
-
-			// Orijinal canvas'ı çiz
+			
+			// Export canvas'ı gerçek boyutlarda oluştur - siyah çerçeve yok
+			const tempCanvas = document.createElement("canvas");
+			tempCanvas.width = finalWidth;
+			tempCanvas.height = finalHeight;
+			const tempCtx = tempCanvas.getContext("2d", {
+				alpha: false,
+				antialias: true,
+				desynchronized: true,
+				willReadFrequently: true,
+			});
+			
+			// En iyi kalite için ayarlar
+			tempCtx.imageSmoothingEnabled = true;
+			tempCtx.imageSmoothingQuality = "high";
+			
+			// Orijinal canvas'ı direkt çiz - tam boyut, siyah çerçeve yok
 			tempCtx.drawImage(
 				canvasRef.value,
-				offsetX,
-				offsetY,
-				drawWidth,
-				drawHeight
+				0,
+				0,
+				finalWidth,
+				finalHeight
 			);
-
-			// Performans optimizasyonu - daha düşük kalite kullan (1.0 yerine 0.85)
-			// Export için PNG yerine JPEG kullan (daha hızlı, ama biraz kalite kaybı olur)
-			// PNG: Tam kalite, yavaş
-			// JPEG: Biraz kayıplı, hızlı
-			return tempCanvas.toDataURL("image/jpeg", 0.85);
+			
+			// PNG kullan - tam kalite için
+			return tempCanvas.toDataURL("image/png");
 		} catch (error) {
 			console.error("[MediaPlayer] Sized screenshot capture error:", error);
 			return null;

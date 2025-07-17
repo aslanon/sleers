@@ -72,10 +72,15 @@ const exportVideo = async (
 			throw new Error("Canvas bulunamadı");
 		}
 
-		// Double buffering için iki canvas kullan
+		// Orijinal canvas boyutlarını kullan - siyah çerçeve olmadan
+		const originalWidth = canvas.width;
+		const originalHeight = canvas.height;
+		console.log(`[ExportService] Original canvas size:`, originalWidth, 'x', originalHeight);
+
+		// Double buffering için iki canvas kullan - orijinal boyutlarda
 		const exportCanvas = document.createElement("canvas");
-		exportCanvas.width = params.width;
-		exportCanvas.height = params.height;
+		exportCanvas.width = originalWidth;
+		exportCanvas.height = originalHeight;
 		const exportCtx = exportCanvas.getContext("2d", {
 			alpha: true, // Camera transparency için
 			antialias: true,
@@ -86,10 +91,10 @@ const exportVideo = async (
 		exportCtx.imageSmoothingEnabled = true;
 		exportCtx.imageSmoothingQuality = "high";
 
-		// İkinci buffer için canvas
+		// İkinci buffer için canvas - orijinal boyutlarda
 		const tempCanvas = document.createElement("canvas");
-		tempCanvas.width = params.width;
-		tempCanvas.height = params.height;
+		tempCanvas.width = originalWidth;
+		tempCanvas.height = originalHeight;
 		const tempCtx = tempCanvas.getContext("2d", {
 			alpha: true, // Camera transparency için
 			antialias: true,
@@ -205,22 +210,22 @@ const exportVideo = async (
 
 					// Double buffering - daha verimli implementasyon
 					try {
-						// Video frame'ini yakala
+						// Video frame'ini yakala - orijinal boyutlarda
 						const frameData = mediaPlayer.captureFrameWithSize(
-							params.width,
-							params.height
+							originalWidth,
+							originalHeight
 						);
 
 						if (frameData) {
 							// Yeni yaklaşım: Tek bir Image kullan
 							const img = new Image();
 							img.onload = () => {
-								// Temp canvas'a çiz
-								tempCtx.clearRect(0, 0, params.width, params.height);
-								tempCtx.drawImage(img, 0, 0, params.width, params.height);
+								// Temp canvas'a çiz - orijinal boyutlarda
+								tempCtx.clearRect(0, 0, originalWidth, originalHeight);
+								tempCtx.drawImage(img, 0, 0, originalWidth, originalHeight);
 
 								// Sonra export canvas'a aktar - tek bir işlemde
-								exportCtx.clearRect(0, 0, params.width, params.height);
+								exportCtx.clearRect(0, 0, originalWidth, originalHeight);
 								exportCtx.drawImage(tempCanvas, 0, 0);
 							};
 
