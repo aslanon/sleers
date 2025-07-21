@@ -469,14 +469,20 @@ export const useMouseCursor = () => {
 			wasBlurActive.value = true;
 			console.log('[MotionBlur] Applying motion blur, speed:', moveSpeed, 'factor:', blurFactor);
 			
+			// Hareket yönünü hesapla (normalize edilmiş)
+			const direction = {
+				x: dx !== 0 ? dx / rawMoveSpeed : 0,
+				y: dy !== 0 ? dy / rawMoveSpeed : 0
+			};
+			
 			// Cursor'ı temp canvas'a çiz
 			const tempCanvas = document.createElement('canvas');
-			tempCanvas.width = cursorWidth + 40;
-			tempCanvas.height = cursorHeight + 40;
+			tempCanvas.width = cursorWidth + 60;  // Directional blur için daha geniş
+			tempCanvas.height = cursorHeight + 60;
 			const tempCtx = tempCanvas.getContext('2d');
 			
 			// Cursor'ı merkeze çiz
-			tempCtx.drawImage(currentImage, 20, 20, cursorWidth, cursorHeight);
+			tempCtx.drawImage(currentImage, 30, 30, cursorWidth, cursorHeight);
 			
 			// Motion blur class'ını oluştur ve init et
 			const blur = new CanvasFastBlur({ blur: 3 });
@@ -484,11 +490,13 @@ export const useMouseCursor = () => {
 			
 			// Stabilize edilmiş distance hesaplaması
 			const distance = Math.min(moveSpeed * motionBlurIntensity.value * blurFactor * 0.01, 0.5);
-			console.log('[MotionBlur] Calculated distance:', distance, 'speed:', moveSpeed, 'factor:', blurFactor);
-			blur.mBlur(distance);
+			console.log('[MotionBlur] Calculated distance:', distance, 'direction:', direction);
+			
+			// Directional blur uygula
+			blur.mBlur(distance, direction);
 			
 			// Blurred cursor'ı ana canvas'a çiz
-			ctx.drawImage(tempCanvas, -hotspot.x - 20, -hotspot.y - 20);
+			ctx.drawImage(tempCanvas, -hotspot.x - 30, -hotspot.y - 30);
 			shouldApplyMotionBlur = true;
 		} else {
 			// Blur aktif değilse state'i güncelle

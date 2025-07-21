@@ -130,7 +130,7 @@ export class CanvasFastBlur {
      * @param {number} distance - Motion blur distance/intensity
      * @param {Object} options - Additional options for cursor motion blur
      */
-    mBlur(distance) {
+    mBlur(distance, direction = { x: 0, y: 0 }) {
         if (!this.isInitialized) {
             console.warn('[CanvasFastBlur] Canvas not initialized');
             return false;
@@ -138,7 +138,7 @@ export class CanvasFastBlur {
         
         distance = Math.max(0, distance);
         if (distance > 0.05) {
-            console.log('[mBlur] Applying with distance:', distance);
+            console.log('[mBlur] Applying directional blur, distance:', distance, 'direction:', direction);
         }
         
         const w = this.canvas.width;
@@ -150,12 +150,17 @@ export class CanvasFastBlur {
         
         const canvas_off = this.canvas_off;
         
-        // Trail daha şeffaf olacak şekilde ayarlanmış
+        // Hareket yönüne göre directional blur
         for(let n = 0; n < 5; n += 0.1) {
-            ctx.globalAlpha = 1 / (3 * n + 1) * 0.6; // Alpha'yı azalttık (0.6 multiplier)
+            ctx.globalAlpha = 1 / (3 * n + 1) * 0.6;
             const scale = distance / 5 * n;
+            
+            // Hareket yönünün tersine doğru offset (trail effect için)
+            const offsetX = -direction.x * distance * n * 8;  // Yön tersine trail
+            const offsetY = -direction.y * distance * n * 8;
+            
             ctx.save();
-            ctx.transform(1 + scale, 0, 0, 1 + scale, 0, 0);
+            ctx.transform(1 + scale, 0, 0, 1 + scale, offsetX, offsetY);
             ctx.drawImage(canvas_off, 0, 0);
             ctx.restore();
         }
