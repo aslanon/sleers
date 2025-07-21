@@ -2,16 +2,16 @@
 	<div class="flex flex-col gap-4">
 		<div v-if="isZoomSettingsActive" class="flex flex-col gap-12">
 			<div class="space-y-2">
-				<h3 class="text-lg font-medium">Zoom Ayarları</h3>
+				<h3 class="text-lg font-medium">Zoom Settings</h3>
 				<p class="text-sm text-gray-400">
-					Zoom görüntüsü için ayarları buradan yapabilirsiniz.
+					You can configure zoom image settings from here.
 				</p>
 			</div>
 
 			<!-- Zoom Level Slider -->
 			<SliderInput
 				v-model="zoomScale"
-				desc="Zoom görüntüsünün büyütme seviyesini ayarlar."
+				desc="Adjusts zoom image magnification level."
 				label="Zoom Level"
 				:min="1"
 				:max="10"
@@ -22,7 +22,7 @@
 			<!-- Zoom Position Selector -->
 			<div class="setting-group pb-4">
 				<label class="setting-label">Zoom Position</label>
-				<p class="setting-desc">Zoom görüntüsünün konumunu ayarlar.</p>
+				<p class="setting-desc">Adjusts zoom image position.</p>
 				<div
 					class="relative w-full max-w-[160px] aspect-video overflow-hidden border border-gray-700 rounded-lg"
 					@mousedown="startDragging"

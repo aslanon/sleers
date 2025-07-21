@@ -5,7 +5,7 @@
 			<div class="text-center space-y-2">
 				<h1 class="text-3xl font-bold">TensorFlow Webcam Test</h1>
 				<p class="text-gray-400">
-					Makaleden optimize edilmiş arka plan kaldırma sistemi
+					Optimized background removal system from article
 				</p>
 			</div>
 
@@ -15,19 +15,19 @@
 					<div class="text-2xl font-bold text-green-400">
 						{{ metrics.actualFps.toFixed(1) }}
 					</div>
-					<div class="text-sm text-gray-400">Gerçek FPS</div>
+					<div class="text-sm text-gray-400">Real FPS</div>
 				</div>
 				<div class="text-center">
 					<div class="text-2xl font-bold text-blue-400">
 						{{ metrics.averageProcessingTime.toFixed(1) }}ms
 					</div>
-					<div class="text-sm text-gray-400">Ortalama İşlem</div>
+					<div class="text-sm text-gray-400">Average Process</div>
 				</div>
 				<div class="text-center">
 					<div class="text-2xl font-bold text-purple-400">
 						{{ metrics.processedFrames }}
 					</div>
-					<div class="text-sm text-gray-400">İşlenen Kare</div>
+					<div class="text-sm text-gray-400">Processed Frame</div>
 				</div>
 				<div class="text-center">
 					<div
@@ -42,13 +42,13 @@
 
 			<!-- Settings Panel -->
 			<div class="bg-zinc-900 rounded-lg p-6 space-y-4">
-				<h3 class="text-xl font-semibold mb-4">Ayarlar</h3>
+				<h3 class="text-xl font-semibold mb-4">Settings</h3>
 
 				<div class="grid grid-cols-2 gap-6">
 					<div class="space-y-4">
 						<div>
 							<label class="block text-sm font-medium mb-2">
-								Segmentasyon Eşiği: {{ currentSettings.segmentationThreshold }}
+								Segmentation Threshold: {{ currentSettings.segmentationThreshold }}
 							</label>
 							<input
 								type="range"
@@ -62,16 +62,16 @@
 						</div>
 
 						<div>
-							<label class="block text-sm font-medium mb-2">Çözünürlük</label>
+							<label class="block text-sm font-medium mb-2">Resolution</label>
 							<select
 								v-model="currentSettings.internalResolution"
 								@change="handleSettingsUpdate"
 								class="w-full bg-zinc-800 text-white rounded px-3 py-2 border border-zinc-700"
 							>
-								<option value="low">Düşük (Hızlı)</option>
-								<option value="medium">Orta (Dengeli)</option>
-								<option value="high">Yüksek (Kaliteli)</option>
-								<option value="full">Tam (En Kaliteli)</option>
+								<option value="low">Low (Fast)</option>
+								<option value="medium">Medium (Balanced)</option>
+								<option value="high">High (Quality)</option>
+								<option value="full">Full (Highest Quality)</option>
 							</select>
 						</div>
 					</div>
@@ -79,7 +79,7 @@
 					<div class="space-y-4">
 						<div>
 							<label class="block text-sm font-medium mb-2">
-								Hedef FPS: {{ currentSettings.targetFps }}
+								Target FPS: {{ currentSettings.targetFps }}
 							</label>
 							<input
 								type="range"
@@ -99,7 +99,7 @@
 								@change="handleSettingsUpdate"
 								class="form-checkbox h-5 w-5 text-blue-600"
 							/>
-							<label class="text-sm font-medium">Yatay Çevir</label>
+							<label class="text-sm font-medium">Flip Horizontal</label>
 						</div>
 					</div>
 				</div>
@@ -109,7 +109,7 @@
 			<div class="grid grid-cols-2 gap-6">
 				<!-- Original Video -->
 				<div class="space-y-3">
-					<h3 class="text-lg font-semibold text-center">Orijinal Kamera</h3>
+					<h3 class="text-lg font-semibold text-center">Original Camera</h3>
 					<div
 						class="relative bg-zinc-900 rounded-lg overflow-hidden aspect-video"
 					>
@@ -126,7 +126,7 @@
 						>
 							<div class="text-gray-400 text-center">
 								<div class="text-6xl mb-4">📷</div>
-								<div>Kamera henüz başlatılmadı</div>
+								<div>Camera not started yet</div>
 							</div>
 						</div>
 					</div>
@@ -135,7 +135,7 @@
 				<!-- Processed Video -->
 				<div class="space-y-3">
 					<h3 class="text-lg font-semibold text-center">
-						Arka Plan Kaldırılmış
+						Background Removed
 					</h3>
 					<div
 						class="relative rounded-lg overflow-hidden aspect-video checkerboard-bg"
@@ -147,7 +147,7 @@
 						>
 							<div class="text-gray-400 text-center">
 								<div class="text-6xl mb-4">🎭</div>
-								<div>İşlem başlatılmadı</div>
+								<div>Processing not started</div>
 							</div>
 						</div>
 					</div>
@@ -161,7 +161,7 @@
 					:disabled="cameraStarted"
 					class="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
 				>
-					{{ cameraStarted ? "Kamera Aktif" : "Kamerayı Başlat" }}
+					{{ cameraStarted ? "Camera Active" : "Start Camera" }}
 				</button>
 
 				<button
@@ -169,7 +169,7 @@
 					:disabled="!cameraStarted || !isInitialized"
 					class="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
 				>
-					{{ isProcessing ? "İşlemi Durdur" : "İşlemi Başlat" }}
+					{{ isProcessing ? "Stop Processing" : "Start Processing" }}
 				</button>
 
 				<button
@@ -177,7 +177,7 @@
 					:disabled="!cameraStarted"
 					class="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
 				>
-					Kamerayı Durdur
+					Stop Camera
 				</button>
 			</div>
 
@@ -186,7 +186,7 @@
 				<div
 					class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"
 				></div>
-				<div class="text-lg">TensorFlow modeli yükleniyor...</div>
+				<div class="text-lg">Loading TensorFlow model...</div>
 			</div>
 		</div>
 	</div>
@@ -267,7 +267,7 @@ const startCamera = async () => {
 		}
 	} catch (error) {
 		console.error("Camera start error:", error);
-		alert("Kamera erişimi sağlanamadı: " + error.message);
+		alert("Camera access could not be provided: " + error.message);
 	}
 };
 

@@ -20,7 +20,7 @@
 					d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
 				/>
 			</svg>
-			{{ currentProjectName || "Proje" }}
+			{{ currentProjectName || "Project" }}
 		</button>
 
 		<!-- Popover Container -->
@@ -42,7 +42,7 @@
 			>
 				<div class="flex flex-col justify-between gap-2 items-start mb-4">
 					<div class="w-full flex justify-between items-center">
-						<h3 class="w-full text-md font-semibold">Proje Yönetimi</h3>
+						<h3 class="w-full text-md font-semibold">Project Management</h3>
 						<button
 							@click="saveCurrentProject"
 							class="w-full text-md mb-2 rounded-lg text-blue-500 flex items-center justify-end gap-2"
@@ -61,12 +61,11 @@
 									d="M12 4v16m8-8H4"
 								/>
 							</svg>
-							Projeyi Kaydet
+							Save Project
 						</button>
 					</div>
 					<p class="text-xs text-gray-400">
-						Tüm proje ayarlarınızı, kamera ve video pozisyonlarınızı, timeline
-						segmentlerinizi ve diğer ayarlarınızı kaydedebilirsiniz.
+						Save all project settings, camera and video positions, timeline segments and other settings.
 					</p>
 				</div>
 
@@ -75,7 +74,7 @@
 						v-if="savedProjects.length === 0"
 						class="text-gray-400 text-center py-4"
 					>
-						Kaydedilmiş proje bulunamadı.
+						No saved projects found.
 					</div>
 					<div
 						v-for="project in savedProjects"
@@ -145,7 +144,7 @@
 								<button
 									@click="startEditProjectName(project)"
 									class="text-gray-400 hover:text-white"
-									title="Projeyi Yeniden Adlandır"
+									title="Rename Project"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -165,7 +164,7 @@
 								<button
 									@click="deleteSelectedProject(project.id)"
 									class="text-gray-400 hover:text-red-500"
-									title="Projeyi Sil"
+									title="Delete Project"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"

@@ -247,7 +247,7 @@ watch(
 		if (isOpen) {
 			filename.value = generateDefaultFilename();
 
-			// Varsayılan dizini ayarla (varsa)
+			// Set default directory (if any)
 			if (!directory.value) {
 				setDefaultDirectory();
 			}
@@ -255,17 +255,17 @@ watch(
 	}
 );
 
-// Varsayılan dizini ayarla
+// Set default directory
 const setDefaultDirectory = async () => {
 	try {
 
-		// Electron API kontrolü
+		// Electron API check
 		if (!window.electron?.ipcRenderer) {
-			console.error("Electron API bulunamadı");
+			console.error("Electron API not found");
 			return;
 		}
 
-		// Önce indirilenler klasörünü almaya çalış
+		// First try to get downloads folder
 		try {
 			const downloadsDir = await window.electron.ipcRenderer.invoke(
 				"GET_PATH",
@@ -277,10 +277,10 @@ const setDefaultDirectory = async () => {
 				return;
 			}
 		} catch (error) {
-			console.warn("İndirilenler dizini alınamadı:", error);
+			console.warn("Could not get downloads directory:", error);
 		}
 
-		// Alternatif olarak ev dizinini al
+		// Alternatively get home directory
 		try {
 			const homeDir = await window.electron.ipcRenderer.invoke("GET_HOME_DIR");
 
@@ -289,31 +289,31 @@ const setDefaultDirectory = async () => {
 				return;
 			}
 		} catch (error) {
-			console.warn("Ev dizini alınamadı:", error);
+			console.warn("Could not get home directory:", error);
 		}
 
-		console.warn("Hiçbir varsayılan dizin ayarlanamadı");
+		console.warn("Could not set any default directory");
 	} catch (error) {
-		console.error("Varsayılan dizin ayarlama hatası:", error);
+		console.error("Error setting default directory:", error);
 	}
 };
 
-// Dizin seçme fonksiyonu
+// Directory selection function
 const selectDirectory = async () => {
 	try {
 
-		// Electron nesnesinin varlığını kontrol et
+		// Check existence of Electron object
 		if (!window.electron || !window.electron.ipcRenderer) {
-			console.error("Electron veya ipcRenderer bulunamadı");
+			console.error("Electron or ipcRenderer not found");
 			return;
 		}
 
-		// Direkt string kullan
+		// Use direct string
 		const result = await window.electron.ipcRenderer.invoke(
 			"SHOW_DIRECTORY_DIALOG",
 			{
-				title: "Kayıt Klasörünü Seçin",
-				buttonLabel: "Seç",
+				title: "Select Save Folder",
+				buttonLabel: "Select",
 				defaultPath: directory.value || undefined,
 			}
 		);
@@ -329,8 +329,8 @@ const selectDirectory = async () => {
 		} else {
 		}
 	} catch (error) {
-		console.error("Dizin seçme hatası:", error);
-		alert("Dizin seçilirken bir hata oluştu: " + error.message);
+		console.error("Directory selection error:", error);
+		alert("An error occurred while selecting directory: " + error.message);
 	}
 };
 

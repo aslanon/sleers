@@ -1,15 +1,15 @@
 <template>
 	<div class="flex flex-col gap-12 pb-12">
 		<!-- <div class="space-y-2">
-			<h3 class="text-lg font-medium">Video Ayarları</h3>
+			<h3 class="text-lg font-medium">Video Settings</h3>
 			<p class="text-sm text-gray-400">
-				Video görüntüsü için ayarları buradan yapabilirsiniz.
+				You can configure video image settings from here.
 			</p>
 		</div> -->
 		<SliderInput
 			v-model="paddingValue"
 			label="Padding"
-			desc="Video'nun kenarlarına eklenen boşluk vererek daha güzel görünmesini sağlar."
+			desc="Adds spacing to video edges for better appearance."
 			:min="0"
 			:max="200"
 			:step="4"
@@ -19,7 +19,7 @@
 		<SliderInput
 			v-model="radiusValue"
 			label="Radius"
-			desc="Video'nun köşelerinin yuvarlaklığını ayarlar."
+			desc="Adjusts video corner roundness."
 			:min="0"
 			:max="320"
 			:step="2"
@@ -29,7 +29,7 @@
 		<SliderInput
 			v-model="shadowValue"
 			label="Shadow"
-			desc="Video'nun gölgesinin opaklığını ayarlar."
+			desc="Adjusts video shadow opacity."
 			:min="0"
 			:max="100"
 			:step="5"
@@ -40,7 +40,7 @@
 		<div class="space-y-4">
 			<div class="w-full">
 				<h4 class="text-base font-semibold text-white mb-2">
-					Arkaplan Ayarları
+					Background Settings
 				</h4>
 				<div class="flex border-b border-zinc-700 mb-4">
 					<button
@@ -52,7 +52,7 @@
 								: 'text-gray-400 hover:text-gray-300',
 						]"
 					>
-						Görsel
+						Image
 					</button>
 					<button
 						@click="activeBackgroundTab = 'color'"
@@ -63,7 +63,7 @@
 								: 'text-gray-400 hover:text-gray-300',
 						]"
 					>
-						Renk
+						Color
 					</button>
 				</div>
 
@@ -109,7 +109,7 @@
 					<SliderInput
 						v-model="blurValue"
 						label="Blur"
-						desc="Video'nun arkaplanının bulanıklığını ayarlar."
+						desc="Adjusts video background blur."
 						:min="0"
 						:max="100"
 						:step="5"
@@ -124,8 +124,8 @@
 			<!-- Border Kalınlığı -->
 			<SliderInput
 				v-model="borderWidthValue"
-				label="Kenarlık Kalınlığı"
-				desc="Video kenarlığının kalınlığını ayarlar."
+				label="Border Thickness"
+				desc="Adjusts video border thickness."
 				:min="0"
 				:max="20"
 				:step="1"
@@ -138,7 +138,7 @@
 				class="flex w-full flex-col gap-2 items-center justify-between"
 			>
 				<div class="w-full">
-					<h4 class="text-base font-semibold text-white">Kenarlık Rengi</h4>
+					<h4 class="text-base font-semibold text-white">Border Color</h4>
 				</div>
 				<div class="flex w-full items-center space-x-2">
 					<input
@@ -161,7 +161,7 @@
 					<SliderInput
 						class="w-full"
 						v-model="borderOpacityValue"
-						desc="Kenarlik opakligi"
+						desc="Border opacity"
 						:min="0"
 						:max="1"
 						:step="0.01"
@@ -175,9 +175,9 @@
 		<div v-if="false" class="space-y-4 border-zinc-700">
 			<div class="flex items-center justify-between">
 				<div>
-					<h4 class="text-base font-semibold text-white">MacOS Dock</h4>
+					<h4 class="text-base font-semibold text-white">macOS Dock</h4>
 					<p class="text-sm text-gray-400">
-						Video'nun altında macOS Dock'u göster
+						Show macOS Dock under video
 						<span v-if="!isDockSupported" class="text-yellow-500"
 							>(Not supported on this platform)</span
 						>
@@ -199,8 +199,8 @@
 			<div v-if="showDockValue" class="mt-4">
 				<SliderInput
 					v-model="dockSizeValue"
-					label="Dock Boyutu"
-					desc="Dock'un boyutunu ayarlar"
+					label="Dock Size"
+					desc="Adjusts dock size"
 					:min="1"
 					:max="6"
 					:step="0.1"

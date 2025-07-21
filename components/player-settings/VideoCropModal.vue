@@ -11,7 +11,7 @@
 			class="relative flex flex-col gap-4 bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 z-[60] shadow-xl p-6 w-[90vw] max-w-4xl"
 		>
 			<div class="flex justify-between items-center">
-				<h3 class="text-lg font-medium">Video Kırpma</h3>
+				<h3 class="text-lg font-medium">Video Crop</h3>
 				<button @click="$emit('close')" class="text-gray-400 hover:text-white">
 					<svg
 						class="w-6 h-6"
@@ -75,13 +75,13 @@
 					@click="$emit('close')"
 					class="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700"
 				>
-					İptal
+					Cancel
 				</button>
 				<button
 					@click="applyCrop"
 					class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500"
 				>
-					Uygula
+					Apply
 				</button>
 			</div>
 		</div>
@@ -109,7 +109,7 @@ let startPos = { x: 0, y: 0 };
 let startSize = { width: 0, height: 0 };
 
 const aspectRatios = [
-	{ label: "Serbest", value: "free" },
+	{ label: "Free", value: "free" },
 	{ label: "16:9", value: "16:9" },
 	{ label: "4:3", value: "4:3" },
 	{ label: "1:1", value: "1:1" },

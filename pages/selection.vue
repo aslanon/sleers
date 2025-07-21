@@ -3,12 +3,12 @@
 		<!-- Aspect Ratio Seçici -->
 		<div class="aspect-ratio-selector">
 			<select v-model="selectedRatio" class="ratio-select">
-				<option value="free">Serbest</option>
-				<option value="1:1">1:1 Kare</option>
-				<option value="4:3">4:3 Yatay</option>
-				<option value="16:9">16:9 Yatay</option>
-				<option value="9:16">9:16 Dikey</option>
-				<option value="3:4">3:4 Dikey</option>
+				<option value="free">Free</option>
+				<option value="1:1">1:1 Square</option>
+				<option value="4:3">4:3 Landscape</option>
+				<option value="16:9">16:9 Landscape</option>
+				<option value="9:16">9:16 Portrait</option>
+				<option value="3:4">3:4 Portrait</option>
 			</select>
 		</div>
 
@@ -61,7 +61,7 @@
 					@mousedown.stop
 					@click.stop="confirmSelection"
 				>
-					Seçimi Onayla
+					Confirm Selection
 				</button>
 			</div>
 		</div>

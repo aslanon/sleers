@@ -1,12 +1,12 @@
 <template>
 	<div class="permission-checker text-white">
-		<h3 class="text-xl font-semibold mb-4">Uygulama İzinleri</h3>
+		<h3 class="text-xl font-semibold mb-4">Application Permissions</h3>
 
 		<div v-if="isLoading" class="flex justify-center items-center py-4">
 			<div
 				class="w-6 h-6 border-t-2 border-blue-500 rounded-full animate-spin"
 			></div>
-			<span class="ml-2">İzinler kontrol ediliyor...</span>
+			<span class="ml-2">Checking permissions...</span>
 		</div>
 
 		<div v-else class="space-y-4">
@@ -32,7 +32,7 @@
 					</svg>
 				</div>
 				<div class="flex-1">
-					<div class="font-medium">Kamera</div>
+					<div class="font-medium">Camera</div>
 					<div class="text-sm">{{ getStatusText(permissions.camera) }}</div>
 				</div>
 				<button
@@ -42,7 +42,7 @@
 					@click="requestPermission('camera')"
 					class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
 				>
-					İzin İste
+					Request Permission
 				</button>
 			</div>
 
@@ -68,7 +68,7 @@
 					</svg>
 				</div>
 				<div class="flex-1">
-					<div class="font-medium">Mikrofon</div>
+					<div class="font-medium">Microphone</div>
 					<div class="text-sm">{{ getStatusText(permissions.microphone) }}</div>
 				</div>
 				<button
@@ -79,7 +79,7 @@
 					@click="requestPermission('microphone')"
 					class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
 				>
-					İzin İste
+					Request Permission
 				</button>
 			</div>
 
@@ -105,7 +105,7 @@
 					</svg>
 				</div>
 				<div class="flex-1">
-					<div class="font-medium">Ekran Kaydı</div>
+					<div class="font-medium">Screen Recording</div>
 					<div class="text-sm">{{ getStatusText(permissions.screen) }}</div>
 				</div>
 				<button
@@ -113,7 +113,7 @@
 					@click="openSettingsForScreen"
 					class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
 				>
-					Ayarlar
+					Settings
 				</button>
 			</div>
 
@@ -137,7 +137,7 @@
 							d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
 						/>
 					</svg>
-					İzinleri Yenile
+					Refresh Permissions
 				</button>
 			</div>
 		</div>
@@ -172,10 +172,10 @@ async function checkPermissions() {
 			const permissionStatus = await window.electron.permissions.check();
 			permissions.value = permissionStatus;
 		} else {
-			console.error("Electron permissions API kullanılamıyor");
+			console.error("Electron permissions API not available");
 		}
 	} catch (error) {
-		console.error("İzinler kontrol edilirken hata:", error);
+		console.error("Error while checking permissions:", error);
 	} finally {
 		isLoading.value = false;
 	}
@@ -198,7 +198,7 @@ async function autoRequestPermissions() {
 			await requestPermission("microphone");
 		}
 	} catch (error) {
-		console.error("İzinler otomatik istenirken hata:", error);
+		console.error("Error while automatically requesting permissions:", error);
 	}
 }
 
@@ -220,17 +220,17 @@ function getStatusClass(status) {
 function getStatusText(status) {
 	switch (status) {
 		case "granted":
-			return "İzin verildi";
+			return "Permission granted";
 		case "denied":
-			return "İzin reddedildi";
+			return "Permission denied";
 		case "prompt":
-			return "İzin sorulacak";
+			return "Permission will be requested";
 		case "restricted":
-			return "Kısıtlanmış";
+			return "Restricted";
 		case "unknown":
-			return "Bilinmiyor";
+			return "Unknown";
 		default:
-			return "Bilinmiyor";
+			return "Unknown";
 	}
 }
 
@@ -252,7 +252,7 @@ async function requestPermission(type) {
 			return result;
 		}
 	} catch (error) {
-		console.error(`${type} izni istenirken hata:`, error);
+		console.error(`Error requesting ${type} permission:`, error);
 		return false;
 	}
 }
@@ -264,7 +264,7 @@ function openSettingsForScreen() {
 			window.electron.permissions.openSettings();
 		}
 	} catch (error) {
-		console.error("Sistem ayarları açılırken hata:", error);
+		console.error("Error opening system settings:", error);
 	}
 }
 </script>

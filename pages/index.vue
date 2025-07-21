@@ -56,7 +56,7 @@
 			<button
 				@click="openEditorMode"
 				class="p-2 hover:bg-gray-700 rounded-lg"
-				title="Kayıt Yapmadan Editöre Geç"
+				title="Go to Editor Without Recording"
 			>
 				<svg
 					width="24"
@@ -87,7 +87,7 @@
 					:key="device.deviceId"
 					:value="device.deviceId"
 				>
-					{{ device.label || `Kamera ${device.deviceId}` }}
+					{{ device.label || `Camera ${device.deviceId}` }}
 				</option>
 			</select>
 			<select
@@ -99,7 +99,7 @@
 					:key="device.deviceId"
 					:value="device.deviceId"
 				>
-					{{ device.label || `Mikrofon ${device.deviceId}` }}
+					{{ device.label || `Microphone ${device.deviceId}` }}
 				</option>
 			</select>
 
@@ -167,7 +167,7 @@
 						d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
 					/>
 				</svg>
-				<span class="text-sm">Sistem Sesi</span>
+				<span class="text-sm">System Audio</span>
 			</button>
 
 			<!-- Cursor tracking butonu kaldırıldı - artık gerçek kayıt sistemiyle entegre -->
@@ -183,7 +183,7 @@
 				"
 			>
 				<span class="w-2 h-2 rounded-full bg-white" v-if="isRecording"></span>
-				<span>{{ isRecording ? "Durdur" : "Kaydet" }}</span>
+				<span>{{ isRecording ? "Stop" : "Record" }}</span>
 			</button>
 		</div>
 	</div>
@@ -205,9 +205,6 @@
 			<div class="border-t border-gray-700 my-4"></div>
 
 			<!-- İzinler Bölümü -->
-			<div class="mb-4">
-				<PermissionChecker />
-			</div>
 		</div>
 	</RecordSettings>
 </template>

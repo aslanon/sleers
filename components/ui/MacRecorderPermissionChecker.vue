@@ -24,11 +24,11 @@
 				</div>
 				<div class="flex-1">
 					<h3 class="text-amber-300 font-semibold text-sm mb-2">
-						Ekran Kaydı İzni Gerekli
+						Screen Recording Permission Required
 					</h3>
 					<p class="text-gray-300 text-sm mb-3">
-						Sleer'in ekran kaydı yapabilmesi için macOS izinleri gerekli. Lütfen
-						sistem ayarlarından gerekli izinleri verin.
+						macOS permissions are required for Sleer to record the screen. Please
+						grant the necessary permissions from system settings.
 					</p>
 					<button
 						@click="openSystemPreferences"
@@ -54,7 +54,7 @@
 								d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
 							/>
 						</svg>
-						Sistem Ayarlarını Aç
+						Open System Settings
 					</button>
 				</div>
 			</div>
@@ -71,7 +71,7 @@
 						class="w-3 h-3 rounded-full"
 						:class="hasCriticalPermissions ? 'bg-green-500' : 'bg-red-500'"
 					></div>
-					<span class="text-sm font-medium text-gray-200"> İzin Durumu </span>
+					<span class="text-sm font-medium text-gray-200"> Permission Status </span>
 					<span
 						class="text-xs px-2 py-1 rounded-full"
 						:class="
@@ -80,7 +80,7 @@
 								: 'bg-red-500/20 text-red-400'
 						"
 					>
-						{{ hasCriticalPermissions ? "Hazır" : "İzin Gerekli" }}
+						{{ hasCriticalPermissions ? "Ready" : "Permission Required" }}
 					</span>
 				</div>
 				<svg
@@ -124,10 +124,10 @@
 								></div>
 								<div>
 									<div class="text-sm font-medium text-gray-200">
-										Ekran Kaydı
+										Screen Recording
 									</div>
 									<div class="text-xs text-gray-400">
-										Ekran içeriğini kaydetmek için gerekli
+										Required to record screen content
 									</div>
 								</div>
 							</div>
@@ -140,9 +140,9 @@
 											: 'bg-red-500/20 text-red-400'
 									"
 								>
-									{{ hasScreenRecordingPermission ? "Verildi" : "Gerekli" }}
+									{{ hasScreenRecordingPermission ? "Granted" : "Required" }}
 								</span>
-								<span class="text-xs text-amber-400 font-medium">KRİTİK</span>
+								<span class="text-xs text-amber-400 font-medium">CRITICAL</span>
 							</div>
 						</div>
 
@@ -158,9 +158,9 @@
 									"
 								></div>
 								<div>
-									<div class="text-sm font-medium text-gray-200">Mikrofon</div>
+									<div class="text-sm font-medium text-gray-200">Microphone</div>
 									<div class="text-xs text-gray-400">
-										Ses kaydı için gerekli
+										Required for audio recording
 									</div>
 								</div>
 							</div>
@@ -170,7 +170,7 @@
 									@click="requestMicrophonePermission"
 									class="text-xs px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
 								>
-									İzin İste
+									Request Permission
 								</button>
 								<span
 									class="text-xs px-2 py-1 rounded-full"
@@ -180,7 +180,7 @@
 											: 'bg-yellow-500/20 text-yellow-400'
 									"
 								>
-									{{ hasMicrophonePermission ? "Verildi" : "İsteğe Bağlı" }}
+									{{ hasMicrophonePermission ? "Granted" : "Optional" }}
 								</span>
 							</div>
 						</div>
@@ -198,10 +198,10 @@
 								></div>
 								<div>
 									<div class="text-sm font-medium text-gray-200">
-										Erişilebilirlik
+										Accessibility
 									</div>
 									<div class="text-xs text-gray-400">
-										Gelişmiş özellikler için
+										For advanced features
 									</div>
 								</div>
 							</div>
@@ -213,7 +213,7 @@
 										: 'bg-gray-500/20 text-gray-400'
 								"
 							>
-								{{ hasAccessibilityPermission ? "Verildi" : "İsteğe Bağlı" }}
+								{{ hasAccessibilityPermission ? "Granted" : "Optional" }}
 							</span>
 						</div>
 					</div>
@@ -223,7 +223,7 @@
 						<div
 							class="flex items-center justify-between text-xs text-gray-400"
 						>
-							<span>Son kontrol: {{ formatDate(lastCheck) }}</span>
+							<span>Last check: {{ formatDate(lastCheck) }}</span>
 							<button
 								@click="checkPermissions"
 								:disabled="isLoading"
@@ -244,7 +244,7 @@
 										d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
 									/>
 								</svg>
-								Yenile
+								Refresh
 							</button>
 						</div>
 					</div>
@@ -280,11 +280,11 @@ const requestMicrophonePermission = async () => {
 		const granted = await requestPermission("microphone");
 		if (granted) {
 		} else {
-			console.warn("[MacRecorderPermissionChecker] Mikrofon izni verilmedi");
+			console.warn("[MacRecorderPermissionChecker] Microphone permission not granted");
 		}
 	} catch (error) {
 		console.error(
-			"[MacRecorderPermissionChecker] Mikrofon izni hatası:",
+			"[MacRecorderPermissionChecker] Microphone permission error:",
 			error
 		);
 	}
@@ -293,7 +293,7 @@ const requestMicrophonePermission = async () => {
 // Format date helper
 const formatDate = (date) => {
 	if (!date) return "";
-	return new Intl.DateTimeFormat("tr-TR", {
+	return new Intl.DateTimeFormat("en-US", {
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",

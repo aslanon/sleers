@@ -1,18 +1,18 @@
 <template>
 	<div class="space-y-12">
 		<!-- <div class="space-y-2">
-			<h3 class="text-lg font-medium">Kamera Ayarları</h3>
+			<h3 class="text-lg font-medium">Camera Settings</h3>
 			<p class="text-sm font-normal text-gray-500">
-				Kamera görüntüsü için ayarları buradan yapabilirsiniz.
+				You can configure camera image settings from here.
 			</p>
 		</div> -->
 
-		<!-- Kamera Görünürlüğü -->
+		<!-- Camera Visibility -->
 		<div class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">Kamera Görünürlüğü</h4>
+				<h4 class="text-base font-semibold text-white">Camera Visibility</h4>
 				<p class="text-sm font-normal text-gray-500">
-					Kamera görüntüsünü canvasta göster/gizle
+					Show/hide camera image on canvas
 				</p>
 			</div>
 			<label class="relative inline-flex items-center cursor-pointer">
@@ -23,12 +23,12 @@
 			</label>
 		</div>
 
-		<!-- Kamera Mouse Takibi -->
+		<!-- Camera Mouse Tracking -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">Mouse İmleci Takibi</h4>
+				<h4 class="text-base font-semibold text-white">Mouse Cursor Tracking</h4>
 				<p class="text-sm font-normal text-gray-500">
-					Kamera görüntüsü mouse imlecini takip etsin
+					Camera image should follow mouse cursor
 				</p>
 			</div>
 			<label class="relative inline-flex items-center cursor-pointer">
@@ -39,18 +39,18 @@
 			</label>
 		</div>
 
-		<!-- Optimize Edilmiş Arkaplan Kaldırma -->
+		<!-- Optimized Background Removal -->
 		<OptimizedBackgroundRemovalSettings
 			v-if="cameraVisible"
 			:media-player-ref="props.mediaPlayerRef"
 		/>
 
-		<!-- Kamera Yatay Çevirme -->
+		<!-- Camera Horizontal Flip -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">Kamerayı Yatay Çevir</h4>
+				<h4 class="text-base font-semibold text-white">Flip Camera Horizontally</h4>
 				<p class="text-sm font-normal text-gray-500">
-					Kamera görüntüsünü yatay olarak aynala
+					Mirror camera image horizontally
 				</p>
 			</div>
 			<label class="relative inline-flex items-center cursor-pointer">
@@ -61,11 +61,11 @@
 			</label>
 		</div>
 
-		<!-- Kamera Boyutu -->
+		<!-- Camera Size -->
 		<SliderInput
 			v-if="cameraVisible"
-			label="Kamera Boyutu"
-			desc="Kamera'nın boyutunu ayarlar."
+			label="Camera Size"
+			desc="Adjusts camera size."
 			v-model="cameraSize"
 			:min="10"
 			:max="100"
@@ -73,18 +73,18 @@
 			unit="%"
 		/>
 
-		<!-- Kamera Crop Ayarı -->
+		<!-- Camera Crop Settings -->
 		<div v-if="cameraVisible" class="space-y-4">
 			<div>
-				<h4 class="text-base font-semibold text-white">Kamera Görüntüsü</h4>
+				<h4 class="text-base font-semibold text-white">Camera Image</h4>
 				<p class="text-sm font-normal text-gray-500">
-					Kamera görüntüsünün görünür alanını ayarlayın.
+					Adjust the visible area of camera image.
 				</p>
 			</div>
 
 			<!-- Aspect Ratio Seçimi -->
 			<div class="flex items-center justify-between">
-				<span class="text-sm text-gray-400">Görüntü Oranı:</span>
+				<span class="text-sm text-gray-400">Aspect Ratio:</span>
 				<div class="flex items-center space-x-2">
 					<select
 						v-model="selectedAspectRatio"
@@ -93,11 +93,11 @@
 					>
 						<!-- <option value="free">Serbest</option> -->
 						<!-- <option value="custom">Özel</option> -->
-						<option value="1:1">1:1 Kare</option>
-						<option value="16:9">16:9 Yatay</option>
-						<option value="9:16">9:16 Dikey</option>
-						<option value="4:3">4:3 Yatay</option>
-						<option value="3:4">3:4 Dikey</option>
+						<option value="1:1">1:1 Square</option>
+						<option value="16:9">16:9 Horizontal</option>
+						<option value="9:16">9:16 Vertical</option>
+						<option value="4:3">4:3 Horizontal</option>
+						<option value="3:4">3:4 Vertical</option>
 					</select>
 
 					<!-- Özel oran seçildiğinde göster -->
@@ -124,7 +124,7 @@
 							@click="applyCustomRatio"
 							class="bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-md px-2 py-1"
 						>
-							Uygula
+							Apply
 						</button>
 					</div>
 				</div>
@@ -178,8 +178,8 @@
 		<!-- Kamera Köşe Yuvarlaklığı -->
 		<SliderInput
 			v-if="cameraVisible"
-			label="Köşe Yuvarlaklığı"
-			desc="Kamera'nın köşelerinin yuvarlaklığını ayarlar."
+			label="Corner Roundness"
+			desc="Adjusts camera corner roundness."
 			v-model="cameraRadius"
 			:min="0"
 			:max="100"
@@ -191,7 +191,7 @@
 		<SliderInput
 			v-if="cameraVisible"
 			label="Shadow"
-			desc="Kameraya gölge efekti ekler."
+			desc="Adds shadow effect to camera."
 			v-model="cameraShadow"
 			:min="0"
 			:max="100"
@@ -203,8 +203,8 @@
 		<div v-if="cameraVisible" class="space-y-4">
 			<!-- Border Kalınlığı -->
 			<SliderInput
-				label="Kenarlık Kalınlığı"
-				desc="Kamera kenarlığının kalınlığını ayarlar."
+				label="Border Thickness"
+				desc="Adjusts camera border thickness."
 				v-model="cameraBorderWidth"
 				:min="0"
 				:max="20"
@@ -218,7 +218,7 @@
 				class="flex w-full flex-col gap-2 items-center justify-between"
 			>
 				<div class="w-full">
-					<h4 class="text-base font-semibold text-white">Kenarlık Rengi</h4>
+					<h4 class="text-base font-semibold text-white">Border Color</h4>
 				</div>
 				<div class="flex w-full items-center space-x-2">
 					<input
@@ -241,7 +241,7 @@
 					<SliderInput
 						class="w-full"
 						v-model="borderOpacityValue"
-						desc="Kenarlik opakligi"
+						desc="Border opacity"
 						:min="0"
 						:max="1"
 						:step="0.01"
@@ -256,7 +256,7 @@
 				@click="applyCurrentCropAsRatio"
 				class="bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-md px-2 py-1 w-full"
 			>
-				Mevcut Kırpmayı Oran Olarak Kaydet
+				Save Current Crop as Aspect Ratio
 			</button>
 		</div>
 	</div>

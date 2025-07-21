@@ -25,7 +25,7 @@
 						d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				Yeni Kayıt
+				New Recording
 			</button>
 
 			<div class="flex flex-row gap-2 items-center">
@@ -77,11 +77,11 @@
 					class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
 					@click="discardChanges()"
 				>
-					Kapat
+					Close
 				</button> -->
 			</div>
 		</div>
-		<!-- Ana İçerik -->
+		<!-- Main Content -->
 		<div class="w-full flex flex-1 h-full">
 			<div class="flex-shrink-0 w-[500px] max-w-[500px] h-full flex flex-col">
 				<div class="flex-1 relative">
@@ -445,7 +445,7 @@ const handleExport = async (settings) => {
 
 		// Directory ve filename kontrolü
 		if (!settings.directory) {
-			throw new Error("Kayıt dizini belirtilmemiş. Lütfen bir dizin seçin.");
+			throw new Error("Save directory not specified. Please select a directory.");
 		}
 
 		// Ensure filename has correct extension and is sanitized for filesystem
@@ -468,8 +468,8 @@ const handleExport = async (settings) => {
 			"fixed inset-0 flex items-center flex-col text-center justify-center bg-black bg-opacity-70 z-50";
 		loadingMessage.innerHTML = `
             <div class="bg-[#1a1a1a] p-8 rounded-xl shadow-3xl text-white max-w-md">
-                <p class="text-xl font-bold mb-2">Video Kaydediliyor</p>
-                <p class="text-gray-300 mb-4">Lütfen bekleyin, bu işlem birkaç dakika sürebilir.</p>
+                <p class="text-xl font-bold mb-2">Saving Video</p>
+                <p class="text-gray-300 mb-4">Please wait, this process may take several minutes.</p>
                 <div class="w-full bg-gray-700 rounded-full h-3 mb-1">
                     <div id="export-progress-bar" class="bg-[#432af4] h-3 rounded-full" style="width: 0%"></div>
                 </div>
@@ -514,16 +514,16 @@ const handleExport = async (settings) => {
 				}
 
 				if (saveResult?.success) {
-					alert(`Video başarıyla kaydedildi: ${filePath}`);
+					alert(`Video saved successfully: ${filePath}`);
 
 					// Dosyayı Finder/Explorer'da göster
 					electron?.ipcRenderer.send(IPC_EVENTS.SHOW_FILE_IN_FOLDER, filePath);
 				} else {
-					throw new Error(saveResult?.error || "Video kaydedilemedi.");
+					throw new Error(saveResult?.error || "Video could not be saved.");
 				}
 			} catch (error) {
 				console.error("[editor.vue] Kayıt tamamlama hatası:", error);
-				alert(`Video kaydedilirken hata oluştu: ${error.message}`);
+				alert(`An error occurred while saving video: ${error.message}`);
 
 				// Loading mesajını kaldır
 				if (loadingMessage.parentNode) {
@@ -535,7 +535,7 @@ const handleExport = async (settings) => {
 		// Error handler
 		const onError = (error) => {
 			console.error("[editor.vue] Video kayıt hatası:", error);
-			alert(`Video kaydedilirken hata oluştu: ${error.message}`);
+			alert(`An error occurred while saving video: ${error.message}`);
 
 			// Loading mesajını kaldır
 			if (loadingMessage.parentNode) {
@@ -559,13 +559,13 @@ const handleExport = async (settings) => {
 		}
 	} catch (error) {
 		console.error("[editor.vue] Export işlemi hatası:", error);
-		alert(`Export işlemi başlatılırken hata oluştu: ${error.message}`);
+		alert(`An error occurred while starting export process: ${error.message}`);
 	}
 };
 
 // Değişiklikleri iptal et
 const discardChanges = () => {
-	if (confirm("Değişiklikleri iptal etmek istediğinize emin misiniz ?")) {
+	if (confirm("Are you sure you want to discard changes?")) {
 		closeWindow();
 	}
 };
@@ -577,7 +577,7 @@ const closeWindow = () => {
 
 // Yeni kayıt başlat
 const startNewRecording = () => {
-	if (confirm("Yeni kayıt başlatmak istediğinize emin misiniz?")) {
+	if (confirm("Are you sure you want to start a new recording?")) {
 		electron?.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 		closeWindow();
 	}

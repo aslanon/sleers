@@ -3,9 +3,9 @@
 		<!-- Enable Switch -->
 		<div class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">Arkaplan Kaldırma</h4>
+				<h4 class="text-base font-semibold text-white">Background Removal</h4>
 				<p class="text-sm font-normal text-gray-500">
-					TensorFlow ile geliştirilmiş arkaplan kaldırma
+					Advanced background removal with TensorFlow
 				</p>
 			</div>
 			<label class="relative inline-flex items-center cursor-pointer">
@@ -29,7 +29,7 @@
 					]"
 					@click="selectQuality('low')"
 				>
-					<span>Düşük</span>
+					<span>Low</span>
 					<span v-if="isLoading && selectedQuality === 'low'">
 						<span class="circle-loader"></span>
 					</span>
@@ -43,7 +43,7 @@
 					]"
 					@click="selectQuality('medium')"
 				>
-					<span>Orta</span>
+					<span>Medium</span>
 					<span v-if="isLoading && selectedQuality === 'medium'">
 						<span class="circle-loader"></span>
 					</span>
@@ -57,7 +57,7 @@
 					]"
 					@click="selectQuality('high')"
 				>
-					<span>Yüksek</span>
+					<span>High</span>
 					<span v-if="isLoading && selectedQuality === 'high'">
 						<span class="circle-loader"></span>
 					</span>
@@ -75,7 +75,7 @@
 					]"
 					@click="setBackgroundType('transparent')"
 				>
-					Saydam
+					Transparent
 				</button>
 				<input
 					type="color"
@@ -86,7 +86,7 @@
 					]"
 					@input="onColorInput"
 				/>
-				<span class="text-xs text-gray-400">Arkaplan rengi</span>
+				<span class="text-xs text-gray-400">Background color</span>
 			</div>
 
 			<!-- Error State -->
@@ -97,7 +97,7 @@
 				<div class="flex items-center space-x-2">
 					<span class="text-red-400">⚠️</span>
 					<span class="text-sm text-red-300"
-						>Model yüklenirken hata oluştu</span
+						>Error loading model</span
 					>
 				</div>
 			</div>
@@ -274,7 +274,7 @@ function onColorInput(e) {
 watch(
 	() => cameraSettings.value,
 	(newSettings) => {
-		// Arka plan kaldırma aktif mi kontrol et ve enabled state'ini güncelle
+		// Check if background removal is active and update enabled state
 		if (newSettings.optimizedBackgroundRemoval) {
 			enabled.value = true;
 			selectedQuality.value =
@@ -300,7 +300,7 @@ watch(
 
 watch(enabled, async (val) => {
 	if (!val) {
-		// Switch kapalıya çekildiğinde arkaplan kaldırmayı tamamen devre dışı bırak
+		// Completely disable background removal when switch is turned off
 		await cleanup();
 		updateCameraSettings({
 			optimizedBackgroundRemoval: false,
@@ -313,7 +313,7 @@ watch(enabled, async (val) => {
 onMounted(() => {
 	const settings = cameraSettings.value.optimizedBackgroundRemovalSettings;
 	
-	// Arka plan kaldırma aktif mi kontrol et
+	// Check if background removal is active
 	if (cameraSettings.value.optimizedBackgroundRemoval) {
 		enabled.value = true;
 		selectedQuality.value = settings?.internalResolution || null;

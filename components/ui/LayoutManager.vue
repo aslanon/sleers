@@ -37,7 +37,7 @@
 				/>
 			</svg>
 
-			Düzen
+			Layout
 		</button>
 
 		<!-- Popover Container -->
@@ -59,7 +59,7 @@
 			>
 				<div class="flex flex-col justify-between gap-2 items-start mb-4">
 					<div class="w-full flex justify-between items-center">
-						<h3 class="w-full text-md font-semibold">Düzen Yönetimi</h3>
+						<h3 class="w-full text-md font-semibold">Layout Management</h3>
 						<button
 							@click="saveCurrentLayout"
 							class="w-full text-md mb-2 rounded-lg text-blue-500 flex items-center justify-end gap-2"
@@ -78,12 +78,11 @@
 									d="M12 4v16m8-8H4"
 								/>
 							</svg>
-							Düzeni Kaydet
+							Save Layout
 						</button>
 					</div>
 					<p class="text-xs text-gray-400">
-						Yerleşim düzeninizi ve bazı ayarlarınızı daha sonradan kullanmak
-						için kaydedebilirsiniz.
+						Save your layout and settings for later use.
 					</p>
 				</div>
 
@@ -92,7 +91,7 @@
 						v-if="savedLayouts.length === 0"
 						class="text-gray-400 text-center py-4"
 					>
-						Kaydedilmiş düzen bulunamadı.
+						No saved layouts found.
 					</div>
 					<div
 						v-for="layout in savedLayouts"
@@ -159,7 +158,7 @@
 								<button
 									@click="startEditLayoutName(layout)"
 									class="text-gray-400 hover:text-white"
-									title="Düzeni Yeniden Adlandır"
+									title="Rename Layout"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -179,7 +178,7 @@
 								<button
 									@click="deleteLayout(layout.id)"
 									class="text-gray-400 hover:text-red-500"
-									title="Düzeni Sil"
+									title="Delete Layout"
 								>
 									<svg
 										xmlns="http://www.w3.org/2000/svg"

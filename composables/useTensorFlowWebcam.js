@@ -203,7 +203,7 @@ export const useTensorFlowWebcam = () => {
 						pixels[pixelIndex] = bgR;
 						pixels[pixelIndex + 1] = bgG;
 						pixels[pixelIndex + 2] = bgB;
-						pixels[pixelIndex + 3] = 128; // Yarı saydamlık
+						pixels[pixelIndex + 3] = 128; // Semi-transparent
 					} else {
 						pixels[pixelIndex + 3] = 0;
 					}
@@ -232,8 +232,8 @@ export const useTensorFlowWebcam = () => {
 	};
 
 	// Start continuous processing with FPS control
-	// onFirstFrame: ilk frame işlenince çağrılacak callback
-	// onFrameProcessed: her frame işlenince çağrılacak callback
+	// onFirstFrame: callback to be called when first frame is processed
+	// onFrameProcessed: callback to be called when each frame is processed
 	const startProcessing = (onFirstFrame, onFrameProcessed) => {
 		if (isProcessing.value) return;
 
@@ -265,7 +265,7 @@ export const useTensorFlowWebcam = () => {
 					if (processedCanvas && callback) {
 						callback(processedCanvas);
 					}
-					// Her frame işlenince canvas güncellemesi için callback çağır
+					// Call callback for canvas update when each frame is processed
 					if (processedCanvas && typeof onFrameProcessed === "function") {
 						onFrameProcessed();
 					}
