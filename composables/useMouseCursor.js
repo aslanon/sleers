@@ -458,16 +458,28 @@ export const useMouseCursor = () => {
 		// Motion blur direkt cursor'a uygula
 		let shouldApplyMotionBlur = false;
 		
-		// Motion blur stability - hysteresis ile smooth açılma/kapanma
-		const minBlurSpeed = wasBlurActive.value ? 1.5 : 2.5; // Hysteresis effect
-		const maxBlurSpeed = 50;
-		const blurFactor = Math.min(Math.max((moveSpeed - minBlurSpeed) / (maxBlurSpeed - minBlurSpeed), 0), 1);
+		// SADECE ÇOK ANİ ve ÇOK HIZLI hareketlerde blur
+		const acceleration = Math.abs(moveSpeed - (speedHistory.value[speedHistory.value.length - 2] || 0));
+		const minBlurSpeed = wasBlurActive.value ? 15 : 25; // ÇOK yüksek threshold
+		const minAcceleration = 8; // ÇOK yüksek ivme eşiği
+		const maxBlurSpeed = 100;
 		
-		const shouldActivateBlur = motionEnabled && enhancedMotionBlur.value && moveSpeed > minBlurSpeed && blurFactor > 0.1;
+		// Sadece ivme + hız kombinasyonunda blur
+		const speedFactor = Math.min(Math.max((moveSpeed - minBlurSpeed) / (maxBlurSpeed - minBlurSpeed), 0), 1);
+		const accelFactor = Math.min(acceleration / 20, 1);
+		const blurFactor = speedFactor * accelFactor;
+		
+		// EXTREME sıkı koşullar: Hem çok yüksek hız HEM çok yüksek ivme
+		const shouldActivateBlur = motionEnabled && 
+			enhancedMotionBlur.value && 
+			moveSpeed > minBlurSpeed && 
+			acceleration > minAcceleration && 
+			blurFactor > 0.3 && // Daha yüksek minimum factor
+			(moveSpeed * acceleration > 120); // Ek koşul: hız*ivme çarpımı
 		
 		if (shouldActivateBlur) {
 			wasBlurActive.value = true;
-			console.log('[MotionBlur] Applying motion blur, speed:', moveSpeed, 'factor:', blurFactor);
+			console.log('[MotionBlur] Applying motion blur, speed:', moveSpeed, 'accel:', acceleration.toFixed(1), 'factor:', blurFactor.toFixed(2));
 			
 			// Hareket yönünü hesapla (normalize edilmiş)
 			const direction = {
