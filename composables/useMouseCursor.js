@@ -17,6 +17,7 @@ import {
 	cubicBezier,
 	setCursorTransitionType,
 } from "~/composables/utils/motionBlur";
+import { CanvasFastBlur, createCursorBlur } from "~/composables/utils/canvasMotionBlur";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const MOUSE_EVENTS = {
@@ -40,7 +41,12 @@ export const CURSOR_TYPES = {
 
 export const useMouseCursor = () => {
 	// Player ayarlarını al
-	const { cursorTransitionType, autoHideCursor } = usePlayerSettings();
+	const { 
+		cursorTransitionType, 
+		autoHideCursor,
+		enhancedMotionBlur,
+		motionBlurIntensity
+	} = usePlayerSettings();
 
 	// Component başlatıldığında transition tipini ayarla
 	onMounted(() => {
@@ -76,6 +82,17 @@ export const useMouseCursor = () => {
 	const cursorCtx = ref(null);
 	const cursorSize = ref(80); // custom-cursor.js'deki gibi 80 değeri
 	const dpr = ref(1);
+
+	// Motion blur system
+	const motionBlur = ref(null);
+	const lastVelocity = ref({ x: 0, y: 0 });
+	const currentSpeed = ref(0);
+	const currentAcceleration = ref(0);
+	
+	// Stabillik için smoothing
+	const speedHistory = ref([]);
+	const smoothedSpeed = ref(0);
+	const wasBlurActive = ref(false);
 
 	// Animasyon için değişkenler - custom-cursor.js'deki gibi
 	const cursorX = ref(0);
@@ -134,6 +151,15 @@ export const useMouseCursor = () => {
 		const size = cursorSize.value * 3;
 		cursorCanvas.value.width = size;
 		cursorCanvas.value.height = size;
+
+		// Motion blur sistemini başlat
+		if (enhancedMotionBlur.value) {
+			console.log('[MotionBlur] Initializing motion blur system...');
+			motionBlur.value = createCursorBlur(cursorCanvas.value, {
+				blur: 3
+			});
+			console.log('[MotionBlur] Motion blur system initialized:', !!motionBlur.value);
+		}
 	};
 
 	// Cursor görsellerini yükle
@@ -180,9 +206,84 @@ export const useMouseCursor = () => {
 			// Cursor canvas'ını oluştur
 			createCursorCanvas();
 		} catch (error) {
-			console.error("[useMouseCursor] ❌ Error loading cursor images:", error);
+			console.error("[useMouseCursor] ❌ Error initializing cursor system:", error);
 		}
 	});
+
+	// Watch for settings changes to reinitialize motion blur if needed
+	watch([enhancedMotionBlur, motionBlurIntensity], () => {
+		if (enhancedMotionBlur.value && !motionBlur.value && cursorCanvas.value) {
+			console.log('[MotionBlur] Reinitializing motion blur system due to settings change...');
+			motionBlur.value = createCursorBlur(cursorCanvas.value, {
+				blur: 3
+			});
+			console.log('[MotionBlur] Motion blur system reinitialized:', !!motionBlur.value);
+		} else if (!enhancedMotionBlur.value && motionBlur.value) {
+			console.log('[MotionBlur] Disabling motion blur system...');
+			motionBlur.value.destroy();
+			motionBlur.value = null;
+		}
+	});
+
+	// Speed smoothing için yardımcı fonksiyon
+	const smoothSpeed = (currentSpeed) => {
+		// Speed history'ye ekle
+		speedHistory.value.push(currentSpeed);
+		
+		// Son 5 speed değerini tut
+		if (speedHistory.value.length > 5) {
+			speedHistory.value.shift();
+		}
+		
+		// Ağırlıklı ortalama hesapla (son değerler daha önemli)
+		let weightedSum = 0;
+		let totalWeight = 0;
+		
+		for (let i = 0; i < speedHistory.value.length; i++) {
+			const weight = (i + 1) / speedHistory.value.length; // Son değerler daha ağır
+			weightedSum += speedHistory.value[i] * weight;
+			totalWeight += weight;
+		}
+		
+		const newSmoothedSpeed = weightedSum / totalWeight;
+		
+		// Ani değişimleri yumuşat
+		smoothedSpeed.value = smoothedSpeed.value * 0.7 + newSmoothedSpeed * 0.3;
+		
+		return smoothedSpeed.value;
+	};
+
+	// Motion data hesaplama
+	const calculateMotionData = (deltaX, deltaY, deltaTime) => {
+		// Velocity hesapla (piksel/saniye)
+		const velocity = {
+			x: deltaTime > 0 ? deltaX / deltaTime : 0,
+			y: deltaTime > 0 ? deltaY / deltaTime : 0
+		};
+
+		// Speed hesapla
+		const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y);
+
+		// Acceleration hesapla
+		const accelerationX = (velocity.x - lastVelocity.value.x) / deltaTime;
+		const accelerationY = (velocity.y - lastVelocity.value.y) / deltaTime;
+		const acceleration = Math.sqrt(accelerationX * accelerationX + accelerationY * accelerationY);
+
+		// Angle hesapla (hareket yönü)
+		const angle = Math.atan2(velocity.y, velocity.x);
+
+		// Değerleri güncelle
+		lastVelocity.value = velocity;
+		currentSpeed.value = speed;
+		currentAcceleration.value = acceleration;
+
+		return {
+			velocity,
+			speed,
+			acceleration,
+			angle
+		};
+	};
 
 	// Tıklama animasyonu
 	const handleClickAnimation = () => {
@@ -303,7 +404,10 @@ export const useMouseCursor = () => {
 		// Hareket hızını hesapla
 		const dx = targetX.value - cursorX.value;
 		const dy = targetY.value - cursorY.value;
-		const moveSpeed = Math.sqrt(dx * dx + dy * dy);
+		const rawMoveSpeed = Math.sqrt(dx * dx + dy * dy);
+		
+		// Speed'i smooth et stabillik için
+		const moveSpeed = smoothSpeed(rawMoveSpeed);
 
 		// Cursor boyutunu hesapla
 		const cursorWidth = cursorSize.value * currentScale.value;
@@ -351,22 +455,58 @@ export const useMouseCursor = () => {
 		ctx.rotate(rotation.value);
 		ctx.scale(warpX.value, warpY.value);
 
-		// Blur efektini sadece cursor çizimi için uygula
-		if (motionEnabled && moveSpeed > 50) {
-			const blurAmount = Math.min(moveSpeed * 0.4, 2.8);
-			ctx.filter = `blur(${blurAmount}px)`;
+		// Motion blur direkt cursor'a uygula
+		let shouldApplyMotionBlur = false;
+		
+		// Motion blur stability - hysteresis ile smooth açılma/kapanma
+		const minBlurSpeed = wasBlurActive.value ? 1.5 : 2.5; // Hysteresis effect
+		const maxBlurSpeed = 50;
+		const blurFactor = Math.min(Math.max((moveSpeed - minBlurSpeed) / (maxBlurSpeed - minBlurSpeed), 0), 1);
+		
+		const shouldActivateBlur = motionEnabled && enhancedMotionBlur.value && moveSpeed > minBlurSpeed && blurFactor > 0.1;
+		
+		if (shouldActivateBlur) {
+			wasBlurActive.value = true;
+			console.log('[MotionBlur] Applying motion blur, speed:', moveSpeed, 'factor:', blurFactor);
+			
+			// Cursor'ı temp canvas'a çiz
+			const tempCanvas = document.createElement('canvas');
+			tempCanvas.width = cursorWidth + 40;
+			tempCanvas.height = cursorHeight + 40;
+			const tempCtx = tempCanvas.getContext('2d');
+			
+			// Cursor'ı merkeze çiz
+			tempCtx.drawImage(currentImage, 20, 20, cursorWidth, cursorHeight);
+			
+			// Motion blur class'ını oluştur ve init et
+			const blur = new CanvasFastBlur({ blur: 3 });
+			blur.initCanvas(tempCanvas);
+			
+			// Stabilize edilmiş distance hesaplaması
+			const distance = Math.min(moveSpeed * motionBlurIntensity.value * blurFactor * 0.01, 0.5);
+			console.log('[MotionBlur] Calculated distance:', distance, 'speed:', moveSpeed, 'factor:', blurFactor);
+			blur.mBlur(distance);
+			
+			// Blurred cursor'ı ana canvas'a çiz
+			ctx.drawImage(tempCanvas, -hotspot.x - 20, -hotspot.y - 20);
+			shouldApplyMotionBlur = true;
 		} else {
-			ctx.filter = "none";
+			// Blur aktif değilse state'i güncelle
+			if (moveSpeed < 1) {
+				wasBlurActive.value = false;
+			}
 		}
 
-		// Cursor'ı çiz
-		ctx.drawImage(
-			currentImage,
-			-hotspot.x,
-			-hotspot.y,
-			cursorWidth,
-			cursorHeight
-		);
+		// Cursor'ı çiz (sadece motion blur uygulanmadıysa)
+		if (!shouldApplyMotionBlur) {
+			ctx.drawImage(
+				currentImage,
+				-hotspot.x,
+				-hotspot.y,
+				cursorWidth,
+				cursorHeight
+			);
+		}
 
 		// Efektleri sıfırla
 		ctx.filter = "none";
@@ -454,10 +594,14 @@ export const useMouseCursor = () => {
 		requestAnimationFrame(animateCursor);
 	};
 
-	// Component unmount olduğunda timeout'u temizle
+	// Component unmount olduğunda cleanup
 	onUnmounted(() => {
 		if (inactivityTimeout.value) {
 			clearTimeout(inactivityTimeout.value);
+		}
+		if (motionBlur.value) {
+			motionBlur.value.destroy();
+			motionBlur.value = null;
 		}
 	});
 
@@ -487,5 +631,8 @@ export const useMouseCursor = () => {
 		updateCursorType,
 		drawMousePosition,
 		handleClickAnimation,
+		// Motion blur status
+		currentSpeed,
+		currentAcceleration,
 	};
 };

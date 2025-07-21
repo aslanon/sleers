@@ -9,6 +9,8 @@ const motionBlurValue = ref(0.5);
 const mouseVisible = ref(true);
 const cursorTransitionType = ref(CURSOR_TRANSITION_TYPES.EASE);
 const autoHideCursor = ref(true);
+const enhancedMotionBlur = ref(true);
+const motionBlurIntensity = ref(0.2);
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
@@ -102,6 +104,14 @@ export const usePlayerSettings = () => {
 
 	const updateAutoHideCursor = (value) => {
 		autoHideCursor.value = value;
+	};
+
+	const updateEnhancedMotionBlur = (value) => {
+		enhancedMotionBlur.value = value;
+	};
+
+	const updateMotionBlurIntensity = (value) => {
+		motionBlurIntensity.value = value;
 	};
 
 	const updateBackgroundColor = (color) => {
@@ -231,6 +241,8 @@ export const usePlayerSettings = () => {
 		mouseVisible,
 		cursorTransitionType,
 		autoHideCursor,
+		enhancedMotionBlur,
+		motionBlurIntensity,
 		backgroundColor,
 		backgroundImage,
 		backgroundBlur,
@@ -253,6 +265,8 @@ export const usePlayerSettings = () => {
 		updateMouseVisible,
 		updateCursorTransitionType,
 		updateAutoHideCursor,
+		updateEnhancedMotionBlur,
+		updateMotionBlurIntensity,
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,

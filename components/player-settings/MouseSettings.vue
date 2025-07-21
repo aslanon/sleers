@@ -57,6 +57,31 @@
 			:step="0.1"
 		/>
 
+		<div v-if="mouseVisible" class="flex items-center justify-between">
+			<div>
+				<h4 class="text-base font-semibold text-white">Gelişmiş Motion Blur</h4>
+				<p class="text-sm font-normal text-gray-500">
+					Hızlı hareket sırasında canvas tabanlı motion blur efekti uygular.
+				</p>
+			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input type="checkbox" v-model="enhancedMotionBlur" class="sr-only peer" />
+				<div
+					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
+				></div>
+			</label>
+		</div>
+
+		<SliderInput
+			v-if="mouseVisible && enhancedMotionBlur"
+			v-model="motionBlurIntensity"
+			label="Motion Blur Yoğunluğu"
+			desc="Canvas tabanlı motion blur efektinin yoğunluğunu ayarlar."
+			:min="0.1"
+			:max="1"
+			:step="0.1"
+		/>
+
 		<!-- Cursor Transition Tipi Seçimi -->
 		<div v-if="mouseVisible" class="flex flex-col gap-3">
 			<div>
@@ -120,12 +145,16 @@ const {
 	mouseVisible: mouseVisibleStore,
 	cursorTransitionType: cursorTransitionTypeStore,
 	autoHideCursor: autoHideCursorStore,
+	enhancedMotionBlur: enhancedMotionBlurStore,
+	motionBlurIntensity: motionBlurIntensityStore,
 	CURSOR_TRANSITION_TYPES: transitionTypes,
 	updateMouseSize,
 	updateMotionBlur,
 	updateMouseVisible,
 	updateCursorTransitionType,
 	updateAutoHideCursor,
+	updateEnhancedMotionBlur,
+	updateMotionBlurIntensity,
 } = usePlayerSettings();
 
 // Local state
@@ -134,6 +163,8 @@ const motionBlurValue = ref(motionBlurStore.value);
 const mouseVisible = ref(mouseVisibleStore.value);
 const selectedTransitionType = ref(cursorTransitionTypeStore.value);
 const autoHide = ref(autoHideCursorStore.value);
+const enhancedMotionBlur = ref(enhancedMotionBlurStore.value);
+const motionBlurIntensity = ref(motionBlurIntensityStore.value);
 
 // Önizleme için state
 const isPreviewActive = ref(false);
@@ -303,6 +334,24 @@ watch(cursorTransitionTypeStore, (newValue) => {
 // Watch autoHide changes
 watch(autoHide, (newValue) => {
 	updateAutoHideCursor(newValue);
+});
+
+// Watch enhanced motion blur changes
+watch(enhancedMotionBlur, (newValue) => {
+	updateEnhancedMotionBlur(newValue);
+});
+
+watch(motionBlurIntensity, (newValue) => {
+	updateMotionBlurIntensity(newValue);
+});
+
+// Watch store changes for new settings
+watch(enhancedMotionBlurStore, (newValue) => {
+	enhancedMotionBlur.value = newValue;
+});
+
+watch(motionBlurIntensityStore, (newValue) => {
+	motionBlurIntensity.value = newValue;
 });
 </script>
 
