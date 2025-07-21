@@ -1522,12 +1522,33 @@ const drawMousePositions = () => {
 			videoElement.currentTime,
 			zoomRanges.value
 		);
-		const dynamicOrigin = {
+		
+		// Raw zoom origin hesapla
+		const rawDynamicOrigin = {
 			x: ((interpolatedX - sourceX) / sourceWidth) * 100,
 			y: ((interpolatedY - sourceY) / sourceHeight) * 100,
 		};
+		
+		// Zoom tracking için smoothing - static global variable
+		if (typeof window.smoothZoomOrigin === 'undefined') {
+			window.smoothZoomOrigin = { x: rawDynamicOrigin.x, y: rawDynamicOrigin.y };
+		}
+		
+		// Zoom movement hızını hesapla
+		const zoomDx = rawDynamicOrigin.x - window.smoothZoomOrigin.x;
+		const zoomDy = rawDynamicOrigin.y - window.smoothZoomOrigin.y;
+		const zoomMoveSpeed = Math.sqrt(zoomDx * zoomDx + zoomDy * zoomDy);
+		
+		// Hızlı hareket = daha az smoothing (daha responsive)
+		// Yavaş hareket = daha fazla smoothing (daha stable)
+		const smoothFactor = Math.max(0.08, Math.min(0.35, 0.2 / (zoomMoveSpeed + 1)));
+		
+		// Smooth zoom origin hesapla
+		window.smoothZoomOrigin.x += (rawDynamicOrigin.x - window.smoothZoomOrigin.x) * smoothFactor;
+		window.smoothZoomOrigin.y += (rawDynamicOrigin.y - window.smoothZoomOrigin.y) * smoothFactor;
+		
 		const zoomOrigin = calculateZoomOrigin(
-			dynamicOrigin,
+			window.smoothZoomOrigin, // Raw yerine smooth kullan
 			displayX,
 			displayY,
 			displayWidth,
@@ -1537,7 +1558,7 @@ const drawMousePositions = () => {
 		);
 		zoomOriginX = zoomOrigin.originX;
 		zoomOriginY = zoomOrigin.originY;
-		lastZoomPosition.value = dynamicOrigin;
+		lastZoomPosition.value = window.smoothZoomOrigin;
 	}
 
 	if (cropArea.value?.isApplied) {
