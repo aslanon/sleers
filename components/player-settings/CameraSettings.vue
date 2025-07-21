@@ -26,7 +26,9 @@
 		<!-- Camera Mouse Tracking -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">Mouse Cursor Tracking</h4>
+				<h4 class="text-base font-semibold text-white">
+					Mouse Cursor Tracking
+				</h4>
 				<p class="text-sm font-normal text-gray-500">
 					Camera image should follow mouse cursor
 				</p>
@@ -48,7 +50,9 @@
 		<!-- Camera Horizontal Flip -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">Flip Camera Horizontally</h4>
+				<h4 class="text-base font-semibold text-white">
+					Flip Camera Horizontally
+				</h4>
 				<p class="text-sm font-normal text-gray-500">
 					Mirror camera image horizontally
 				</p>
@@ -207,7 +211,7 @@
 				desc="Adjusts camera border thickness."
 				v-model="cameraBorderWidth"
 				:min="0"
-				:max="20"
+				:max="50"
 				:step="1"
 				unit="px"
 			/>

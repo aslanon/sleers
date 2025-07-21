@@ -10,8 +10,13 @@ export const useCameraRenderer = () => {
 	const isMouseOverCamera = ref(false);
 	const scaleValue = 3;
 	const hoverScale = ref(1);
-	const HOVER_SCALE = 1.1; // Hover durumunda %10 büyüme
+	const HOVER_SCALE = 1.0; // Scale efektini kaldır
 	const TRANSITION_SPEED = 0.5; // Daha hızlı geçiş
+
+	// Hover border properties
+	const BORDER_WIDTH = 3;
+	const BORDER_COLOR = "#3b82f6"; // Blue color
+	const BORDER_OPACITY = 0.8;
 
 	// Cache ve optimizasyon için yeni referanslar
 	const lastFrameTime = ref(0);
@@ -58,6 +63,90 @@ export const useCameraRenderer = () => {
 			await startBackgroundRemoval();
 		}
 		return isBackgroundRemovalActive.value;
+	};
+
+	// Hover frame çizim fonksiyonu
+	const drawHoverFrame = (ctx, x, y, width, height, radius, dpr) => {
+		ctx.save();
+
+		// Çerçeve stilleri
+		ctx.strokeStyle = BORDER_COLOR;
+		ctx.lineWidth = BORDER_WIDTH * dpr;
+		ctx.globalAlpha = BORDER_OPACITY;
+
+		// Ana çerçeve
+		ctx.beginPath();
+		useRoundRect(ctx, x, y, width, height, radius);
+		ctx.stroke();
+
+		// Köşe işaretleri (snap handles)
+		const handleSize = 12 * dpr;
+		const handleOffset = 4 * dpr;
+
+		ctx.lineWidth = 4 * dpr;
+		ctx.globalAlpha = 1.0;
+
+		// Sol üst köşe
+		drawCornerHandle(ctx, x - handleOffset, y - handleOffset, handleSize, "tl");
+		// Sağ üst köşe
+		drawCornerHandle(
+			ctx,
+			x + width + handleOffset,
+			y - handleOffset,
+			handleSize,
+			"tr"
+		);
+		// Sol alt köşe
+		drawCornerHandle(
+			ctx,
+			x - handleOffset,
+			y + height + handleOffset,
+			handleSize,
+			"bl"
+		);
+		// Sağ alt köşe
+		drawCornerHandle(
+			ctx,
+			x + width + handleOffset,
+			y + height + handleOffset,
+			handleSize,
+			"br"
+		);
+
+		ctx.restore();
+	};
+
+	// Köşe işareti çizim fonksiyonu
+	const drawCornerHandle = (ctx, x, y, size, position) => {
+		ctx.beginPath();
+
+		const half = size / 2;
+
+		// Her köşe için farklı çizgiler
+		switch (position) {
+			case "tl": // Sol üst
+				ctx.moveTo(x, y + half);
+				ctx.lineTo(x, y);
+				ctx.lineTo(x + half, y);
+				break;
+			case "tr": // Sağ üst
+				ctx.moveTo(x - half, y);
+				ctx.lineTo(x, y);
+				ctx.lineTo(x, y + half);
+				break;
+			case "bl": // Sol alt
+				ctx.moveTo(x, y - half);
+				ctx.lineTo(x, y);
+				ctx.lineTo(x + half, y);
+				break;
+			case "br": // Sağ alt
+				ctx.moveTo(x - half, y);
+				ctx.lineTo(x, y);
+				ctx.lineTo(x, y - half);
+				break;
+		}
+
+		ctx.stroke();
 	};
 
 	const drawCamera = async (
@@ -530,6 +619,19 @@ export const useCameraRenderer = () => {
 				ctx.lineWidth = cameraSettings.value.borderWidth * dpr;
 				ctx.stroke();
 				ctx.restore();
+			}
+
+			// Hover çerçevesi çizimi
+			if (isMouseOverCamera.value && !cameraSettings.value?.followMouse) {
+				drawHoverFrame(
+					ctx,
+					cameraX,
+					cameraY,
+					cameraWidth,
+					cameraHeight,
+					safeRadius,
+					dpr
+				);
 			}
 		} catch (error) {
 			// Handle rendering errors gracefully without logging

@@ -140,7 +140,10 @@
 					/>
 
 					<!-- Kamera Ayarları Tab -->
-					<CameraSettings v-if="currentTab === 'camera'" :media-player-ref="mediaPlayer" />
+					<CameraSettings
+						v-if="currentTab === 'camera'"
+						:media-player-ref="mediaPlayer"
+					/>
 
 					<!-- Optimized Background Removal Settings -->
 					<OptimizedBackgroundRemovalSettings
@@ -223,6 +226,11 @@ const tabs = [
 ];
 
 const currentTab = ref("video");
+
+// currentTab'ı expose et
+defineExpose({
+	currentTab,
+});
 
 // currentZoomRange değiştiğinde zoom sekmesine geç
 watch(currentZoomRange, (newRange) => {
