@@ -1,5 +1,7 @@
 <template>
-	<div class="timeline-container h-full max-h-[400px]">
+	<div
+		class="timeline-container h-full min-h-[400px] overflow-auto max-h-[400px]"
+	>
 		<!-- Timeline Header -->
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
@@ -36,7 +38,7 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll h-full overflow-y-hidden"
+			class="overflow-x-scroll h-full overflow-y-hidden min-h-[400px]"
 			@wheel="handleZoom"
 		>
 			<!-- @wheel.prevent="handleContainerWheel" -->
@@ -330,11 +332,11 @@ const props = defineProps({
 		validator: (segments) =>
 			segments.every(
 				(segment) =>
-					typeof segment === 'object' &&
+					typeof segment === "object" &&
 					segment !== null &&
 					(segment.start >= 0 || segment.startTime >= 0) &&
-					(segment.end >= (segment.start || segment.startTime || 0) || 
-					 segment.endTime >= (segment.start || segment.startTime || 0)) &&
+					(segment.end >= (segment.start || segment.startTime || 0) ||
+						segment.endTime >= (segment.start || segment.startTime || 0)) &&
 					typeof (segment.start || segment.startTime) === "number" &&
 					typeof (segment.end || segment.endTime) === "number"
 			),
@@ -422,7 +424,7 @@ const compactedSegments = computed(() => {
 			const start = segment.start || segment.startTime || 0;
 			const end = segment.end || segment.endTime || 0;
 			const duration = end - start;
-			
+
 			return duration > 0 && start >= 0 && end > start;
 		})
 		.map((segment, index) => {
@@ -460,8 +462,10 @@ const maxDuration = computed(() => {
 		return total + (duration > 0 ? duration : 0);
 	}, 0);
 
-	console.log(`[Timeline] maxDuration: totalClippedDuration=${totalClippedDuration}, props.duration=${props.duration}`);
-	
+	console.log(
+		`[Timeline] maxDuration: totalClippedDuration=${totalClippedDuration}, props.duration=${props.duration}`
+	);
+
 	return totalClippedDuration > 0 ? totalClippedDuration : props.duration;
 });
 
@@ -479,12 +483,14 @@ const playheadPosition = computed(() => {
 	// MediaPlayer artık clipped time gönderiyor, direkt kullan
 	const clippedTime = props.currentTime;
 	const totalClippedDuration = maxDuration.value;
-	
+
 	// Clipped time'ı timeline yüzdesi olarak hesapla
 	const position = (clippedTime / totalClippedDuration) * 100;
-	
-	console.log(`[Timeline] Playhead position: clippedTime=${clippedTime}, totalDuration=${totalClippedDuration}, position=${position}%`);
-	
+
+	console.log(
+		`[Timeline] Playhead position: clippedTime=${clippedTime}, totalDuration=${totalClippedDuration}, position=${position}%`
+	);
+
 	return Math.max(0, Math.min(100, position));
 });
 
@@ -781,8 +787,11 @@ const handleTimelineClick = (e) => {
 	const compactedTime = (x / timelineWidth.value) * maxDuration.value;
 
 	// Compacted time zaten clipped time'dır
-	const validClippedTime = Math.max(0, Math.min(maxDuration.value, compactedTime));
-	
+	const validClippedTime = Math.max(
+		0,
+		Math.min(maxDuration.value, compactedTime)
+	);
+
 	// Clipped time olarak emit et (MediaPlayer segment sistemini kullanacak)
 	emit("timeUpdate", validClippedTime);
 };
@@ -877,7 +886,6 @@ const handleResizeStart = (event, index, edge) => {
 const handleResizeUpdate = (updatedSegment, index) => {
 	if (!isResizing.value || resizingSegmentIndex.value !== index) return;
 
-
 	const newSegments = [...props.segments];
 	newSegments[index] = {
 		...newSegments[index], // Mevcut segment özelliklerini koru
@@ -899,7 +907,6 @@ const handleResizeUpdate = (updatedSegment, index) => {
 
 // Resize bitirme
 const handleResizeEnd = (index) => {
-
 	isResizing.value = false;
 	resizingSegmentIndex.value = null;
 	resizingEdge.value = null;
@@ -926,11 +933,14 @@ const handleTimelineMouseMove = (e) => {
 	const compactedTime = (x / timelineWidth.value) * maxDuration.value;
 
 	// Compacted time zaten clipped time'dır
-	const validClippedTime = Math.max(0, Math.min(maxDuration.value, compactedTime));
+	const validClippedTime = Math.max(
+		0,
+		Math.min(maxDuration.value, compactedTime)
+	);
 
 	// Preview pozisyonunu hesapla
 	previewPlayheadPosition.value = (validClippedTime / maxDuration.value) * 100;
-	
+
 	// Preview zamanını MediaPlayer'a gönder (canvas güncellemesi için) - clipped time olarak
 	emit("previewTimeUpdate", validClippedTime);
 };
@@ -938,16 +948,19 @@ const handleTimelineMouseMove = (e) => {
 // Preview playhead'e tıklayınca o pozisyona git - clipped time olarak çalışır
 const handlePreviewPlayheadClick = (e) => {
 	e.stopPropagation();
-	
+
 	// Preview playhead'in bulunduğu zaman pozisyonunu hesapla
 	const container = timelineRef.value;
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const compactedTime = (x / timelineWidth.value) * maxDuration.value;
-	
+
 	// Compacted time zaten clipped time'dır - direkt kullan
-	const validClippedTime = Math.max(0, Math.min(maxDuration.value, compactedTime));
-	
+	const validClippedTime = Math.max(
+		0,
+		Math.min(maxDuration.value, compactedTime)
+	);
+
 	// Clipped time olarak emit et (MediaPlayer segment sistemini kullanacak)
 	emit("timeUpdate", validClippedTime);
 };
@@ -1420,9 +1433,13 @@ const handleKeyDown = (event) => {
 		event.preventDefault();
 		event.stopPropagation(); // Stop event from bubbling to global handler
 		// Active segment ID'sinden index'i bul
-		const activeIndex = props.segments.findIndex(s => s.id === activeSegmentId.value);
+		const activeIndex = props.segments.findIndex(
+			(s) => s.id === activeSegmentId.value
+		);
 		if (activeIndex !== -1) {
-			console.log(`[TimelineComponent] Timeline delete triggered for segment index: ${activeIndex}`);
+			console.log(
+				`[TimelineComponent] Timeline delete triggered for segment index: ${activeIndex}`
+			);
 			emit("deleteSegment", activeIndex);
 		}
 		return;

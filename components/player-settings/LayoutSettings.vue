@@ -1,5 +1,5 @@
 <template>
-	<div class="space-y-12">
+	<div class="space-y-12 min-h-[800px]">
 		<!-- Preset Layouts Section -->
 		<div class="space-y-4">
 			<div>
@@ -322,7 +322,7 @@ const presetLayouts = {
 		},
 		camera: {
 			xPercent: 5,
-			yPercent: 62.5,
+			yPercent: 58,
 			widthPercent: 20,
 			heightPercent: 20,
 			sizePercent: 20,
@@ -343,7 +343,7 @@ const presetLayouts = {
 		},
 		camera: {
 			xPercent: 75,
-			yPercent: 62.5,
+			yPercent: 58,
 			widthPercent: 20,
 			heightPercent: 20,
 			sizePercent: 20,

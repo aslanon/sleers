@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="media-player-settings bg-black w-[435px] w-full min-w-[435px] rounded-lg"
+		class="media-player-settings bg-black min-w-[500px] max-w-[500px] w-full rounded-lg"
 	>
 		<!-- Tab yapısı -->
 		<div class="flex">
@@ -151,7 +151,9 @@
 				<div class="player-settings-blur"></div>
 
 				<div
-					class="relative flex-1 pb-[40px] pt-[20px] pr-8 rounded-2xl min-h-[700px] max-h-[700px] px-8 overflow-y-auto"
+					ref="settingsContainer"
+					:style="{ maxHeight: settingsMaxHeight + 'px' }"
+					class="relative flex-1 pb-[100px] pt-[20px] min-h-[500px] pr-8 rounded-2xl px-8 overflow-y-auto"
 				>
 					<!-- Video Ayarları Tab -->
 					<VideoSettings
@@ -300,6 +302,24 @@ watch(
 	},
 	{ immediate: true }
 );
+
+const settingsMaxHeight = ref(0);
+
+function updateSettingsMaxHeight() {
+	const timeline = document.querySelector(".timeline-container");
+	const timelineHeight = timeline ? timeline.offsetHeight : 0;
+	settingsMaxHeight.value = window.innerHeight - timelineHeight;
+}
+
+onMounted(() => {
+	nextTick(() => {
+		updateSettingsMaxHeight();
+		window.addEventListener("resize", updateSettingsMaxHeight);
+	});
+});
+onUnmounted(() => {
+	window.removeEventListener("resize", updateSettingsMaxHeight);
+});
 </script>
 
 <style scoped>

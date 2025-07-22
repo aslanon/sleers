@@ -1,7 +1,5 @@
 <template>
-	<div
-		class="w-full !select-none grid grid-cols-1 grid-rows-[auto_1fr_400px] bg-black text-white h-screen overflow-hidden"
-	>
+	<div class="w-full !select-none bg-black text-white overflow-hidden h-screen">
 		<div
 			class="editor-header w-full p-3 px-6 pl-24 bg-black border-b border-gray-700 flex justify-between gap-2 flex-shrink-0"
 			:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
@@ -80,52 +78,43 @@
 			</div>
 		</div>
 		<!-- Main Content -->
-		<div class="w-full flex flex-1 h-full">
-			<div class="flex-shrink-0 w-[500px] max-w-[500px] h-full flex flex-col">
-				<div class="flex-1 relative">
-					<MediaPlayerSettings
-						ref="mediaPlayerSettingsRef"
-						:duration="videoDuration"
-						:width="videoWidth"
-						:height="videoHeight"
-						v-model="mouseSize"
-						:media-player="mediaPlayerRef"
-						class="relative"
-					/>
-				</div>
-			</div>
-			<div class="w-full p-4 flex-1 flex flex-col">
-				<div
-					class="flex-1 w-full h-full relative min-h-0 m-auto"
-					style="min-width: 800px; min-height: 500px"
-				>
-					<MediaPlayer
-						ref="mediaPlayerRef"
-						:video-url="videoUrl"
-						:audio-url="audioUrl"
-						:camera-url="cameraUrl"
-						:video-type="videoType"
-						:audio-type="audioType"
-						:camera-type="cameraType"
-						:is-playing="isPlaying"
-						:current-time="currentTime"
-						:preview-time="previewTime"
-						:is-muted="isMuted"
-						:segments="segments"
-						:mouse-positions="mousePositions"
-						:mouse-size="mouseSize"
-						:is-crop-mode="isCropMode"
-						@video-loaded="onVideoLoaded"
-						@video-ended="onVideoEnded"
-						@video-paused="isPlaying = false"
-						@timeUpdate="onTimeUpdate"
-						@mute-change="isMuted = $event"
-						@update:isCropMode="isCropMode = $event"
-						@duration-changed="onDurationChanged"
-						@openCameraSettings="openCameraSettings"
-						class="inset-0 h-full"
-					/>
-				</div>
+		<div class="w-full flex h-auto">
+			<MediaPlayerSettings
+				ref="mediaPlayerSettingsRef"
+				:duration="videoDuration"
+				:width="videoWidth"
+				:height="videoHeight"
+				v-model="mouseSize"
+				:media-player="mediaPlayerRef"
+				class="relative"
+			/>
+			<div class="w-full min-h-[500px] flex-1 py-4 pb-0 flex flex-col">
+				<MediaPlayer
+					ref="mediaPlayerRef"
+					:video-url="videoUrl"
+					:audio-url="audioUrl"
+					:camera-url="cameraUrl"
+					:video-type="videoType"
+					:audio-type="audioType"
+					:camera-type="cameraType"
+					:is-playing="isPlaying"
+					:current-time="currentTime"
+					:preview-time="previewTime"
+					:is-muted="isMuted"
+					:segments="segments"
+					:mouse-positions="mousePositions"
+					:mouse-size="mouseSize"
+					:is-crop-mode="isCropMode"
+					@video-loaded="onVideoLoaded"
+					@video-ended="onVideoEnded"
+					@video-paused="isPlaying = false"
+					@timeUpdate="onTimeUpdate"
+					@mute-change="isMuted = $event"
+					@update:isCropMode="isCropMode = $event"
+					@duration-changed="onDurationChanged"
+					@openCameraSettings="openCameraSettings"
+					class="inset-0 h-full"
+				/>
 				<MediaPlayerControls
 					:is-playing="isPlaying"
 					:current-time="currentTime"

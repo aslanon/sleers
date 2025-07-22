@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-col gap-12">
+	<div class="flex flex-col gap-12 min-h-[800px]">
 		<!-- <div class="space-y-2">
 			<h3 class="text-lg font-medium">İmleç Ayarları</h3>
 			<p class="text-sm text-gray-400">
