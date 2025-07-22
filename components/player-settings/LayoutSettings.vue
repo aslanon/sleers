@@ -277,7 +277,8 @@ const {
 } = useLayoutSettings();
 
 // Player settings composable
-const { updateCameraSettings, cameraSettings } = usePlayerSettings();
+const { updateCameraSettings, cameraSettings, updatePadding, updateCropRatio } =
+	usePlayerSettings();
 
 // Refs
 const error = ref("");
@@ -292,16 +293,23 @@ const originalCameraPosition = ref(null);
 const presetLayouts = {
 	"side-by-side": {
 		video: {
-			xPercent: 0,
-			yPercent: 0,
-			widthPercent: 50,
-			heightPercent: 100,
+			xPercent: 14,
+			yPercent: 1.5,
+			widthPercent: 30,
+			heightPercent: 35,
+			padding: 200,
 		},
 		camera: {
-			xPercent: 52,
-			yPercent: 10,
-			sizePercent: 20,
-			borderRadius: 0,
+			xPercent: 3,
+			yPercent: 11.5,
+			widthPercent: 35,
+			heightPercent: 30,
+			sizePercent: 25,
+			borderRadius: 25,
+			aspectRatio: "9:16",
+		},
+		canvas: {
+			cropRatio: "16:9",
 		},
 	},
 	"camera-bottom-left": {
@@ -310,12 +318,19 @@ const presetLayouts = {
 			yPercent: 0,
 			widthPercent: 100,
 			heightPercent: 100,
+			padding: 160,
 		},
 		camera: {
 			xPercent: 5,
-			yPercent: 70,
+			yPercent: 62.5,
+			widthPercent: 20,
+			heightPercent: 20,
 			sizePercent: 20,
-			borderRadius: 50,
+			borderRadius: 100,
+			aspectRatio: "1:1",
+		},
+		canvas: {
+			cropRatio: "16:9",
 		},
 	},
 	"camera-bottom-right": {
@@ -324,12 +339,19 @@ const presetLayouts = {
 			yPercent: 0,
 			widthPercent: 100,
 			heightPercent: 100,
+			padding: 160,
 		},
 		camera: {
 			xPercent: 75,
-			yPercent: 70,
+			yPercent: 62.5,
+			widthPercent: 20,
+			heightPercent: 20,
 			sizePercent: 20,
-			borderRadius: 50,
+			borderRadius: 100,
+			aspectRatio: "1:1",
+		},
+		canvas: {
+			cropRatio: "16:9",
 		},
 	},
 };
@@ -443,31 +465,65 @@ const applyPresetLayout = (layoutType) => {
 			throw new Error("MediaPlayer reference not available");
 		}
 
+		// Canvas boyutunu al
+		const canvasSize = props.mediaPlayerRef.getCanvasSize?.() || {
+			width: 800,
+			height: 600,
+		};
+		console.log("Canvas size:", canvasSize);
+
 		// Seçili preset'i güncelle
 		selectedPreset.value = layoutType;
 
 		// Camera mouse tracking'i tamamen kapat ve diğer camera ayarlarını uygula
 		updateCameraSettings({
 			followMouse: false,
-			size: (config.camera.width * 100) / 1280, // Canvas genişliğine göre yüzde hesapla
+			size: config.camera.sizePercent || 15,
 			radius: config.camera.borderRadius || 0,
-			position: { x: config.camera.x, y: config.camera.y },
+			aspectRatio: config.camera.aspectRatio || "1:1",
 		});
+
+		// Video padding ayarını uygula (eğer varsa)
+		if (config.video.padding) {
+			updatePadding(config.video.padding);
+		}
+
+		// Canvas crop ratio ayarını uygula (eğer varsa)
+		if (config.canvas && config.canvas.cropRatio) {
+			updateCropRatio(config.canvas.cropRatio);
+		}
+
+		// Canvas boyutuna göre pozisyonları hesapla
+		const cameraX = (config.camera.xPercent * canvasSize.width) / 100;
+		const cameraY = (config.camera.yPercent * canvasSize.height) / 100;
+		const videoX = (config.video.xPercent * canvasSize.width) / 100;
+		const videoY = (config.video.yPercent * canvasSize.height) / 100;
+		const videoWidth = (config.video.widthPercent * canvasSize.width) / 100;
+		const videoHeight = (config.video.heightPercent * canvasSize.height) / 100;
 
 		// Apply video position
 		if (props.mediaPlayerRef.setVideoPosition) {
-			props.mediaPlayerRef.setVideoPosition(config.video);
+			props.mediaPlayerRef.setVideoPosition({
+				x: videoX,
+				y: videoY,
+				width: videoWidth,
+				height: videoHeight,
+			});
 		}
 
 		// Apply camera position
 		if (props.mediaPlayerRef.setCameraPosition) {
 			props.mediaPlayerRef.setCameraPosition({
-				x: config.camera.x,
-				y: config.camera.y,
+				x: cameraX,
+				y: cameraY,
 			});
 		}
 
-		console.log(`Applied preset layout: ${layoutType}`, config);
+		console.log(`Applied preset layout: ${layoutType}`, {
+			canvasSize,
+			video: { x: videoX, y: videoY, width: videoWidth, height: videoHeight },
+			camera: { x: cameraX, y: cameraY },
+		});
 		error.value = "";
 	} catch (err) {
 		error.value = `Failed to apply preset layout: ${err.message}`;
