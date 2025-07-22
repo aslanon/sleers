@@ -47,8 +47,6 @@
 
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
-				<LayoutManager :media-player="mediaPlayerRef" />
-
 				<button
 					class="btn-export bg-[#432af4] rounded-lg p-2 py-1 flex flex-row gap-2 items-center"
 					@click="showExportModal = true"
@@ -185,7 +183,6 @@ import MediaPlayer from "~/components/MediaPlayer.vue";
 import MediaPlayerControls from "~/components/MediaPlayerControls.vue";
 import MediaPlayerSettings from "~/components/MediaPlayerSettings.vue";
 import TimelineComponent from "~/components/TimelineComponent.vue";
-import LayoutManager from "~/components/ui/LayoutManager.vue";
 import ProjectManager from "~/components/ui/ProjectManager.vue";
 import ExportModal from "~/components/ui/ExportModal.vue";
 import ExportService from "~/services/ExportService";
