@@ -374,9 +374,22 @@ export const useMouseCursor = () => {
 		// Find the surrounding positions for current time
 		const totalFrames = mousePositions.length;
 		const normalizedTime = currentTime / videoDuration;
-		const estimatedTimestamp = normalizedTime * mousePositions[totalFrames - 1].timestamp;
+		
+		// Fix timestamp mapping - convert cursor timestamps from milliseconds to seconds
+		const baseTimestampMs = mousePositions[0]?.timestamp || 0;
+		const maxTimestampMs = mousePositions[totalFrames - 1]?.timestamp || 0;
+		const recordingDurationMs = maxTimestampMs - baseTimestampMs;
+		
+		// Convert to seconds to match video currentTime format
+		const baseTimestamp = baseTimestampMs / 1000;
+		const maxTimestamp = maxTimestampMs / 1000;
+		const recordingDuration = recordingDurationMs / 1000;
+		
+		// Map current video time (in seconds) to cursor recording timeline
+		// No need for complex offset calculations - direct time mapping
+		const estimatedTimestamp = baseTimestamp + (normalizedTime * recordingDuration);
 
-		// Find closest positions by timestamp
+		// Find closest positions by timestamp (convert cursor timestamps to seconds)
 		let prevIndex = -1;
 		let nextIndex = -1;
 		let prevTimeDiff = Infinity;
@@ -384,7 +397,8 @@ export const useMouseCursor = () => {
 
 		for (let i = 0; i < totalFrames; i++) {
 			const pos = mousePositions[i];
-			const timeDiff = pos.timestamp - estimatedTimestamp;
+			const posTimestamp = pos.timestamp / 1000; // Convert milliseconds to seconds
+			const timeDiff = posTimestamp - estimatedTimestamp;
 
 			if (timeDiff <= 0 && Math.abs(timeDiff) < prevTimeDiff) {
 				prevTimeDiff = Math.abs(timeDiff);
@@ -409,7 +423,7 @@ export const useMouseCursor = () => {
 		// Calculate movement and timing data from recorded positions
 		const deltaX = nextPos.x - prevPos.x;
 		const deltaY = nextPos.y - prevPos.y;
-		const deltaTime = (nextPos.timestamp - prevPos.timestamp) / 1000; // Convert to seconds
+		const deltaTime = (nextPos.timestamp - prevPos.timestamp) / 1000; // Convert milliseconds to seconds
 		const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
 		// Calculate speed and acceleration from frame data
@@ -421,7 +435,7 @@ export const useMouseCursor = () => {
 			const futurePos = mousePositions[nextIndex + 1];
 			const futureDeltaX = futurePos.x - nextPos.x;
 			const futureDeltaY = futurePos.y - nextPos.y;
-			const futureDeltaTime = (futurePos.timestamp - nextPos.timestamp) / 1000;
+			const futureDeltaTime = (futurePos.timestamp - nextPos.timestamp) / 1000; // Convert milliseconds to seconds
 			const futureDistance = Math.sqrt(futureDeltaX * futureDeltaX + futureDeltaY * futureDeltaY);
 			const futureSpeed = futureDeltaTime > 0 ? futureDistance / futureDeltaTime : 0;
 			
@@ -1036,11 +1050,13 @@ export const useMouseCursor = () => {
 			return;
 		}
 
-		// Interpolate position based on timeline
-		const timeDiff = effects.nextPos.timestamp - effects.prevPos.timestamp;
+		// Interpolate position based on timeline (convert timestamps to seconds)
+		const prevTimestamp = effects.prevPos.timestamp / 1000; // Convert to seconds
+		const nextTimestamp = effects.nextPos.timestamp / 1000; // Convert to seconds
+		const timeDiff = nextTimestamp - prevTimestamp;
 		let fraction = 0;
 		if (timeDiff > 0) {
-			fraction = (effects.estimatedTimestamp - effects.prevPos.timestamp) / timeDiff;
+			fraction = (effects.estimatedTimestamp - prevTimestamp) / timeDiff;
 			fraction = Math.max(0, Math.min(1, fraction));
 		}
 
