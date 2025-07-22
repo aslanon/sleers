@@ -195,6 +195,8 @@ const {
 	lastMouseY,
 	mouseMotionEnabled,
 	motionBlurValue,
+	enhancedMotionBlur,
+	motionBlurIntensity,
 	zoomRanges,
 	currentZoomRange,
 	MOTION_BLUR_CONSTANTS,
@@ -1428,6 +1430,8 @@ const getCropData = () => {
 // Mouse cursor yönetimi
 const {
 	drawMousePosition,
+	drawMousePositionFromTimeline,
+	calculateCursorEffectsFromData,
 	currentCursorType,
 	isMouseDown,
 	isDragging,
@@ -1845,7 +1849,14 @@ const drawMousePositions = () => {
 		}
 	}
 
-	// Mouse cursor'ı çiz
+	// Calculate timeline-based motion effects but keep original positioning
+	const timelineEffects = calculateCursorEffectsFromData(
+		props.mousePositions,
+		effectiveTime,
+		effectiveDuration
+	);
+
+	// Use original positioning with timeline-based motion effects
 	drawMousePosition(ctx, {
 		x: canvasX,
 		y: canvasY,
@@ -1853,12 +1864,20 @@ const drawMousePositions = () => {
 			type: prevPos.type || MOUSE_EVENTS.MOVE,
 			button: prevPos.button,
 			clickCount: prevPos.clickCount,
-			rotation: prevPos.rotation,
+			rotation: timelineEffects?.rotation || 0,
 			direction: prevPos.direction,
-			cursorType: prevPos.cursorType || "default", // Add cursor type from position data
-			speed,
-			dirX,
-			dirY,
+			cursorType: prevPos.cursorType || "default",
+			// Use timeline-calculated effects instead of real-time
+			speed: timelineEffects?.speed || speed,
+			dirX: timelineEffects?.nextPos ? 
+				(timelineEffects.nextPos.x - timelineEffects.prevPos.x) / Math.max(1, timelineEffects.nextPos.timestamp - timelineEffects.prevPos.timestamp) : dirX,
+			dirY: timelineEffects?.nextPos ? 
+				(timelineEffects.nextPos.y - timelineEffects.prevPos.y) / Math.max(1, timelineEffects.nextPos.timestamp - timelineEffects.prevPos.timestamp) : dirY,
+			// Motion blur from timeline data
+			motionPhase: timelineEffects?.motionPhase || 'idle',
+			blurIntensity: timelineEffects?.blurIntensity || 0,
+			tiltAngle: timelineEffects?.tiltAngle || 0,
+			skewX: timelineEffects?.skewX || 0,
 		},
 		size: mouseSize.value,
 		dpr,

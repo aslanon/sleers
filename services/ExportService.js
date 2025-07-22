@@ -180,10 +180,10 @@ const exportVideo = async (
 					videoElement.currentTime = currentRealTime;
 				}
 				
-				// Export sırasında fare pozisyonunu her frame'de güncelle - export için özel fonksiyon
-				// Bu ekleme fare hareketlerini her frame'de direkt günceller
-				if (mediaPlayer.handleMousePositionForExport) {
-					mediaPlayer.handleMousePositionForExport(currentRealTime);
+				// Export sırasında fare pozisyonunu her frame'de güncelle
+				// Timeline-based cursor effects için updateCanvas yeterli - o zaten doğru zamanı kullanıyor
+				if (mediaPlayer.updateCanvas) {
+					mediaPlayer.updateCanvas(currentRealTime * 1000); // Convert to milliseconds for timestamp
 				}
 
 				// FPS kontrolü - daha hassas timing

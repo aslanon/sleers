@@ -150,12 +150,13 @@ export class CanvasFastBlur {
         
         const canvas_off = this.canvas_off;
         
-        // Hareket yönüne göre directional blur - gölgelenme azaltılmış
+        // Hareket yönüne göre directional blur - gölgelenme azaltılmış, scale olmadan
         for(let n = 0; n < 5; n += 0.15) { // Daha büyük step = daha az overlap
             const alpha = 1 / (4 * n + 1) * 0.4; // Daha düşük alpha (0.6→0.4) ve daha hızlı fade (3→4)
             ctx.globalAlpha = Math.max(alpha, 0.05); // Minimum alpha limiti
             
-            const scale = distance / 5 * n;
+            // Scale efektini kaldır - cursor aynı boyutta kalır
+            // const scale = distance / 5 * n;
             
             // Hareket yönünün tersine doğru offset
             const offsetX = -direction.x * distance * n * 6;  // 8→6 daha az uzaklık
@@ -163,7 +164,8 @@ export class CanvasFastBlur {
             
             ctx.save();
             ctx.globalCompositeOperation = 'source-over'; // Normal blending
-            ctx.transform(1 + scale, 0, 0, 1 + scale, offsetX, offsetY);
+            // Scale olmadan sadece position offset uygula
+            ctx.transform(1, 0, 0, 1, offsetX, offsetY);
             ctx.drawImage(canvas_off, 0, 0);
             ctx.restore();
         }
