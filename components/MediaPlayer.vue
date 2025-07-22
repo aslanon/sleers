@@ -1920,14 +1920,14 @@ const drawMousePositions = () => {
 		const text =
 			"Camera is currently following the mouse cursor, you can disable this in settings";
 		ctx.save();
-		ctx.font = `${48 * dpr}px Inter, Arial, sans-serif`;
+		ctx.font = `${64 * dpr}px Inter, Arial, sans-serif`;
 		const textMetrics = ctx.measureText(text);
 		const textWidth = textMetrics.width;
-		const paddingX = 24 * dpr;
-		const paddingY = 8 * dpr;
-		const radius = 8 * dpr;
+		const paddingX = 32 * dpr;
+		const paddingY = 16 * dpr;
+		const radius = 16 * dpr;
 		const boxWidth = textWidth + paddingX * 2;
-		const boxHeight = 80 * dpr;
+		const boxHeight = 128 * dpr;
 		// Tooltip'i cameraRect'in üstünde ve ortalanmış şekilde, 12px yukarıda göster
 		const boxX = cameraRect.x + cameraRect.width / 2 - boxWidth / 2;
 		const boxY = cameraRect.y - boxHeight - 12 * dpr;
@@ -1954,7 +1954,7 @@ const drawMousePositions = () => {
 		ctx.lineTo(boxX, boxY + radius);
 		ctx.quadraticCurveTo(boxX, boxY, boxX + radius, boxY);
 		ctx.closePath();
-		ctx.fillStyle = "rgba(0,0,0,0.92)";
+		ctx.fillStyle = "rgba(0,0,0,0.8)";
 		ctx.fill();
 
 		// Yazı (beyaz)

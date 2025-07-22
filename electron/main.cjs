@@ -2290,27 +2290,43 @@ function setupIpcHandlers() {
 			);
 			fs.writeFileSync(tempWebmPath, inputBuffer);
 
-			// FFmpeg ile MP4'e dönüştür ve kaliteyi ayarla
+			// WebM dosyasının varlığını ve boyutunu kontrol et
+			const stats = fs.statSync(tempWebmPath);
+			console.log(`[main] WebM dosya boyutu: ${stats.size} bytes`);
+			
+			if (stats.size === 0) {
+				fs.unlinkSync(tempWebmPath);
+				throw new Error("WebM dosyası boş - kayıt işlemi başarısız");
+			}
+
+			// FFmpeg ile MP4'e dönüştür - minimal ayarlar
 			return new Promise((resolve, reject) => {
-				ffmpeg(tempWebmPath)
+				const ffmpegCommand = ffmpeg(tempWebmPath)
 					.outputOptions([
 						"-c:v libx264", // H.264 codec
+						"-crf 28", // Orta kalite
 						"-preset fast", // Hızlı encoding
-						"-crf 18", // Yüksek kalite (0-51, düşük değer = yüksek kalite)
-						"-movflags +faststart", // Web playback için optimize
-						"-profile:v high", // Yüksek profil
-						"-level 4.2", // Uyumluluk seviyesi
-						"-pix_fmt yuv420p", // Renk formatı
-						"-r 60", // 60 FPS
+						"-pix_fmt yuv420p", // Uyumlu renk formatı
 					])
+					.on("start", (commandLine) => {
+						console.log("[main] FFmpeg başlatıldı:", commandLine);
+					})
+					.on("progress", (progress) => {
+						console.log(`[main] FFmpeg ilerleme: ${progress.percent}%`);
+					})
 					.on("end", () => {
 						// Geçici dosyayı temizle
 						fs.unlinkSync(tempWebmPath);
 						console.log("[main] Video başarıyla kaydedildi:", outputPath);
 						resolve({ success: true });
 					})
-					.on("error", (err) => {
+					.on("error", (err, stdout, stderr) => {
 						console.error("[main] Video dönüştürme hatası:", err);
+						console.error("[main] FFmpeg stderr:", stderr);
+						// Geçici dosyayı temizle
+						if (fs.existsSync(tempWebmPath)) {
+							fs.unlinkSync(tempWebmPath);
+						}
 						reject(new Error("Video dönüştürülemedi: " + err.message));
 					})
 					.save(outputPath);

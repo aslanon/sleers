@@ -256,9 +256,8 @@ const exportVideo = async (
 			}
 		}
 
-		// MediaRecorder oluştur - codec ayarlarını ekle
+		// MediaRecorder oluştur - basit ve güvenilir ayarlar
 		mediaRecorder = new MediaRecorder(stream, {
-			mimeType: settings.format === "mp4" ? "video/webm" : "video/webm",
 			videoBitsPerSecond: params.bitrate,
 		});
 		
