@@ -20,7 +20,7 @@ export default defineNuxtConfig({
 		baseURL: "/",
 		buildAssetsDir: "assets",
 		head: {
-			title: "Sleer - Ekran Kayıt Uygulaması",
+			title: "Creavit Studio - Ekran Kayıt Uygulaması",
 			meta: [
 				{ charset: "utf-8" },
 				{ name: "viewport", content: "width=device-width, initial-scale=1" },

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Sleer uygulamasını ad-hoc imzalama scripti
+# Creavit Studio uygulamasını ad-hoc imzalama scripti
 # Bu script, uygulamayı geliştirici sertifikası olmadan imzalar
 
 set -e
@@ -10,7 +10,7 @@ ENTITLEMENTS_PATH="build/entitlements.mac.plist"
 
 if [ -z "$APP_PATH" ]; then
     echo "Kullanım: $0 <app_path>"
-    echo "Örnek: $0 dist/mac-arm64/Sleer.app"
+    echo "Örnek: $0 dist/mac-arm64/Creavit Studio.app"
     exit 1
 fi
 
@@ -24,7 +24,7 @@ if [ ! -f "$ENTITLEMENTS_PATH" ]; then
     exit 1
 fi
 
-echo "🔐 Sleer uygulaması ad-hoc imzalanıyor..."
+echo "🔐 Creavit Studio uygulaması ad-hoc imzalanıyor..."
 echo "📁 Uygulama yolu: $APP_PATH"
 echo "📄 Entitlements: $ENTITLEMENTS_PATH"
 

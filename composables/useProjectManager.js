@@ -20,7 +20,6 @@ export const useProjectManager = () => {
 		mousePositions
 	) => {
 		try {
-
 			// Benzersiz bir ID oluştur
 			const projectId = `project_${Date.now()}_${Math.floor(
 				Math.random() * 1000
@@ -129,7 +128,7 @@ export const useProjectManager = () => {
 			// localStorage'a kaydet
 			try {
 				localStorage.setItem(
-					"sleer-projects",
+					"creavit-studio-projects",
 					JSON.stringify(savedProjects.value)
 				);
 			} catch (localStorageError) {
@@ -152,14 +151,12 @@ export const useProjectManager = () => {
 	// Projeyi yükle
 	const loadProject = async (projectId, callbacks) => {
 		try {
-
 			// Projeyi ID'ye göre bul
 			const project = savedProjects.value.find((p) => p.id === projectId);
 			if (!project) {
 				console.error("Project not found with ID:", projectId);
 				return false;
 			}
-
 
 			// Electron API'sini al
 			const electron = window.electron;
@@ -169,7 +166,7 @@ export const useProjectManager = () => {
 				for (const filePath of project.protectedFiles) {
 					if (filePath) {
 						await electron?.ipcRenderer?.invoke("PROTECT_FILE", filePath);
-							}
+					}
 				}
 			}
 
@@ -287,7 +284,6 @@ export const useProjectManager = () => {
 	// Projeyi sil
 	const deleteProject = async (projectId) => {
 		try {
-
 			// Projeyi ID'ye göre bul ve sil
 			const projectIndex = savedProjects.value.findIndex(
 				(p) => p.id === projectId
@@ -326,7 +322,7 @@ export const useProjectManager = () => {
 			// localStorage'a kaydet
 			try {
 				localStorage.setItem(
-					"sleer-projects",
+					"creavit-studio-projects",
 					JSON.stringify(savedProjects.value)
 				);
 			} catch (localStorageError) {
@@ -351,7 +347,6 @@ export const useProjectManager = () => {
 	// Projeyi yeniden adlandır
 	const renameProject = async (projectId, newName) => {
 		try {
-	
 			// Projeyi ID'ye göre bul
 			const project = savedProjects.value.find((p) => p.id === projectId);
 			if (!project) {
@@ -368,7 +363,7 @@ export const useProjectManager = () => {
 			// localStorage'a kaydet
 			try {
 				localStorage.setItem(
-					"sleer-projects",
+					"creavit-studio-projects",
 					JSON.stringify(savedProjects.value)
 				);
 			} catch (localStorageError) {
@@ -393,7 +388,7 @@ export const useProjectManager = () => {
 	// Kaydedilmiş projeleri yükle
 	const loadSavedProjects = () => {
 		try {
-			const projectsJson = localStorage.getItem("sleer-projects");
+			const projectsJson = localStorage.getItem("creavit-studio-projects");
 			if (projectsJson) {
 				const parsedProjects = JSON.parse(projectsJson);
 				if (Array.isArray(parsedProjects)) {

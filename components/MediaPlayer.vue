@@ -206,6 +206,9 @@ const {
 	mouseVisible,
 	showDock, // Dock görünürlük ayarı
 	dockSize,
+	synchronizedTimestamps,
+	getSynchronizedTimestamp,
+	setSynchronizedTimestamps,
 } = usePlayerSettings();
 
 // Dock ayarlarını al
@@ -214,6 +217,9 @@ const { isSupported: isDockSupported, visibleDockItems } = useDockSettings();
 // Kamera renderer'ı al
 const { drawCamera, isMouseOverCamera, lastCameraPosition } =
 	useCameraRenderer();
+
+// Kamera pozisyon bilgisini saklamak için
+const currentCameraRect = ref({ x: 0, y: 0, width: 0, height: 0 });
 
 // Video hover state
 const isMouseOverVideo = ref(false);
@@ -657,9 +663,14 @@ const synchronizeAllElements = async (realTime, clippedTime) => {
 		// Video'yu pozisyona getir
 		videoElement.currentTime = realTime;
 
-		// Kamerayı senkronize et
-		if (cameraElement) {
-			cameraElement.currentTime = realTime;
+		// Kamerayı senkronize et (synchronized timestamp kullan)
+		if (cameraElement && synchronizedTimestamps.value) {
+			const synchronizedCameraTime = getSynchronizedTimestamp('camera', realTime * 1000) / 1000;
+			cameraElement.currentTime = synchronizedCameraTime;
+		} else if (cameraElement) {
+			// Fallback to original timing
+			const { cursorOffset } = usePlayerSettings();
+			cameraElement.currentTime = realTime + cursorOffset.value;
 		}
 
 		// Sesi senkronize et
@@ -1011,7 +1022,14 @@ const onTimeUpdate = () => {
 
 						// Video element'i sonraki segment'e taşı
 						videoElement.currentTime = nextStart;
-						if (cameraElement) cameraElement.currentTime = nextStart;
+						if (cameraElement && synchronizedTimestamps.value) {
+							const synchronizedCameraTime = getSynchronizedTimestamp('camera', nextStart * 1000) / 1000;
+							cameraElement.currentTime = synchronizedCameraTime;
+						} else if (cameraElement) {
+							// Fallback to original timing
+							const { cursorOffset } = usePlayerSettings();
+							cameraElement.currentTime = nextStart + cursorOffset.value;
+						}
 						if (audioRef.value) audioRef.value.currentTime = nextStart;
 
 						console.log(
@@ -1454,6 +1472,7 @@ const drawMousePositions = () => {
 	// Mouse görünürlüğü kapalıysa çizme
 	if (!mouseVisible.value) {
 		if (drawMousePositions.debugCounter % 60 === 0) {
+			console.log("[MediaPlayer] Mouse cursor visibility disabled - skipping draw");
 		}
 		return;
 	}
@@ -1491,6 +1510,11 @@ const drawMousePositions = () => {
 	// Find closest positions by timestamp
 	// First, convert video time to timestamp in the recorded data
 	const frameTime = videoDuration / totalFrames;
+	
+	// Use synchronized timestamp if available (with performance optimization)
+	const synchronizedVideoTime = synchronizedTimestamps.value 
+		? getSynchronizedTimestamp('mouse', currentVideoTime * 1000) / 1000 
+		: currentVideoTime;
 
 	// Find the two closest points in time
 	let prevIndex = -1;
@@ -1498,29 +1522,81 @@ const drawMousePositions = () => {
 	let prevTimeDiff = Infinity;
 	let nextTimeDiff = Infinity;
 
-	// Segment sisteminde clipped time kullan
-	const effectiveTime =
-		props.segments && props.segments.length > 0
-			? videoState.value.currentTime // Clipped time
-			: currentVideoTime; // Normal time
+	// EMERGENCY: Try direct video time mapping
+	// Skip all complex calculations and map directly
+	const directVideoTimeMapping = true;
 
-	// Segment sisteminde toplam süreyi hesapla
-	const effectiveDuration =
-		props.segments && props.segments.length > 0
-			? getTotalClippedDuration(props.segments)
-			: videoDuration;
+	let effectiveTime, effectiveDuration;
+
+	if (directVideoTimeMapping) {
+		// Use current video time directly
+		effectiveTime = currentVideoTime;
+		effectiveDuration = videoDuration;
+		console.log("[DIRECT VIDEO TIME]", { currentVideoTime, videoDuration });
+	} else {
+		// Original complex calculation
+		effectiveTime = currentVideoTime;
+		effectiveDuration = videoDuration;
+	}
 
 	// Calculate normalized time (0-1 scale) for current video position
 	// Ensure effectiveTime doesn't exceed effectiveDuration
 	const constrainedEffectiveTime = Math.min(effectiveTime, effectiveDuration);
 	const normalizedTime = constrainedEffectiveTime / effectiveDuration;
-	const estimatedTimestamp =
-		normalizedTime * props.mousePositions[totalFrames - 1].timestamp;
+
+	// DIRECT VIDEO-TO-CURSOR MAPPING APPROACH
+	// Tamamen farklı yaklaşım: Video duration ile cursor duration arasında direct mapping
+	const firstCursorTime = props.mousePositions[0]?.timestamp || 0;
+	const lastCursorTime = props.mousePositions[props.mousePositions.length - 1]?.timestamp || 0;
+	const cursorDurationMs = lastCursorTime - firstCursorTime;
+	const cursorDurationSeconds = cursorDurationMs / 1000;
+	
+	// Video'nun toplam süresini al
+	const totalVideoDuration = videoElement.duration || 1;
+	
+	// Current video time'a göre cursor time'ı hesapla
+	const mappedCursorTime = (currentVideoTime / totalVideoDuration) * cursorDurationSeconds;
+	
+	// Use synchronized timestamp instead of manual cursor offset (with fallback)
+	const baseCursorTime = (firstCursorTime / 1000) + mappedCursorTime;
+	const estimatedTimestamp = synchronizedTimestamps.value 
+		? getSynchronizedTimestamp('mouse', baseCursorTime * 1000) / 1000
+		: baseCursorTime;
+	
+	// console.log('[DIRECT MAPPING]', {
+	// 	currentVideoTime: currentVideoTime.toFixed(3),
+	// 	totalVideoDuration: totalVideoDuration.toFixed(3),
+	// 	firstCursorTime: firstCursorTime,
+	// 	lastCursorTime: lastCursorTime,
+	// 	cursorDurationMs: cursorDurationMs,
+	// 	cursorDurationSeconds: cursorDurationSeconds.toFixed(3),
+	// 	mappedCursorTime: mappedCursorTime.toFixed(3),
+	// 	estimatedTimestamp: estimatedTimestamp.toFixed(3),
+	// 	mousePositionsLength: props.mousePositions.length
+	// });
+	
+	// EMERGENCY: Check if we have any cursor data at all
+	if (cursorDurationMs <= 0 || !totalVideoDuration) {
+		console.error('[CURSOR ERROR]', 'Invalid duration values', {
+			cursorDurationMs,
+			totalVideoDuration,
+			firstCursorTime,
+			lastCursorTime
+		});
+		return;
+	}
+
+	// Eski complex logic kaldırıldı - artık yukarıdaki direct mapping kullanılıyor
 
 	// Find the two points surrounding the current time
 	for (let i = 0; i < totalFrames; i++) {
 		const pos = props.mousePositions[i];
-		const timeDiff = pos.timestamp - estimatedTimestamp;
+		// Use synchronized timestamp for mouse position comparison (with performance check)
+		const posTimestampMs = synchronizedTimestamps.value 
+			? getSynchronizedTimestamp('mouse', pos.timestamp)
+			: pos.timestamp;
+		const posTimestamp = posTimestampMs / 1000; // Always use seconds
+		const timeDiff = posTimestamp - estimatedTimestamp;
 
 		if (timeDiff <= 0 && Math.abs(timeDiff) < prevTimeDiff) {
 			prevTimeDiff = Math.abs(timeDiff);
@@ -1537,9 +1613,56 @@ const drawMousePositions = () => {
 	if (prevIndex === -1) prevIndex = 0;
 	if (nextIndex === -1 || nextIndex === prevIndex)
 		nextIndex = Math.min(prevIndex + 1, totalFrames - 1);
+	
+	console.log('[CURSOR POSITION FINDING]', {
+		estimatedTimestamp: estimatedTimestamp.toFixed(3),
+		prevIndex,
+		nextIndex,
+		totalFrames,
+		prevTimeDiff: prevTimeDiff.toFixed(3),
+		nextTimeDiff: nextTimeDiff.toFixed(3)
+	});
 
 	const prevPos = props.mousePositions[prevIndex];
 	const nextPos = props.mousePositions[nextIndex];
+
+	// Debug selected cursor positions with synchronized timestamps (performance optimized)
+	const getSyncTimestamp = (pos) => synchronizedTimestamps.value 
+		? getSynchronizedTimestamp('mouse', pos.timestamp) 
+		: pos.timestamp;
+		
+	const debugPrevPos = prevPos
+		? {
+				x: prevPos.x,
+				y: prevPos.y,
+				originalTimestamp: prevPos.timestamp,
+				synchronizedTimestamp: getSyncTimestamp(prevPos),
+				timestampSeconds: (getSyncTimestamp(prevPos) / 1000).toFixed(3),
+				timeDiffFromEstimated: (getSyncTimestamp(prevPos) / 1000 - estimatedTimestamp).toFixed(3),
+		  }
+		: null;
+
+	const debugNextPos = nextPos
+		? {
+				x: nextPos.x,
+				y: nextPos.y,
+				originalTimestamp: nextPos.timestamp,
+				synchronizedTimestamp: getSyncTimestamp(nextPos),
+				timestampSeconds: (getSyncTimestamp(nextPos) / 1000).toFixed(3),
+				timeDiffFromEstimated: (getSyncTimestamp(nextPos) / 1000 - estimatedTimestamp).toFixed(3),
+		  }
+		: null;
+
+	// console.log("[CURSOR POSITION DEBUG]", {
+	// 	videoCurrentTime: currentVideoTime,
+	// 	estimatedTimestamp: estimatedTimestamp.toFixed(3),
+	// 	estimatedTimestampUnit: "seconds",
+	// 	prevIndex,
+	// 	nextIndex,
+	// 	prevPos: debugPrevPos,
+	// 	nextPos: debugNextPos,
+	// 	totalFrames,
+	// });
 
 	// Update cursor type based on current position
 	if (prevPos.cursorType) {
@@ -1554,8 +1677,10 @@ const drawMousePositions = () => {
 		Math.pow(nextPos.x - prevPos.x, 2) + Math.pow(nextPos.y - prevPos.y, 2)
 	);
 
-	// Calculate time difference between frames in milliseconds
-	const timeDiff = nextPos.timestamp - prevPos.timestamp;
+	// Calculate time difference between frames using synchronized timestamps (performance optimized)
+	const syncPrevTimestamp = getSyncTimestamp(prevPos);
+	const syncNextTimestamp = getSyncTimestamp(nextPos);
+	const timeDiff = syncNextTimestamp - syncPrevTimestamp;
 
 	// Define thresholds for stationary detection - daha kararlı eşikler
 	const MOVEMENT_THRESHOLD = 8; // pixels - düşürüldü, daha duyarlı olması için
@@ -1602,12 +1727,17 @@ const drawMousePositions = () => {
 		);
 	}
 
-	// Calculate interpolation factor (how far between prev and next)
+	// Calculate interpolation factor using synchronized timestamps
 	let fraction = 0;
 	if (timeDiff > 0) {
-		fraction = (estimatedTimestamp - prevPos.timestamp) / timeDiff;
+		fraction = (estimatedTimestamp * 1000 - syncPrevTimestamp) / timeDiff;
 		// Clamp fraction between 0 and 1 and smooth it out
 		fraction = Math.max(0, Math.min(1, fraction));
+
+		// Apply forward bias to make cursor slightly more responsive
+		// Slightly favor next position (0.15 bias toward 1.0)
+		fraction = Math.min(1, fraction + 0.15);
+
 		fraction = smoothstep(0, 1, fraction);
 	}
 
@@ -1618,6 +1748,7 @@ const drawMousePositions = () => {
 		x: lerp(prevPos.x, nextPos.x, fraction),
 		y: lerp(prevPos.y, nextPos.y, fraction),
 		timestamp: estimatedTimestamp,
+		synchronizedTimestamp: estimatedTimestamp * 1000, // Keep in milliseconds for consistency
 		cursorType: prevPos.cursorType,
 	};
 
@@ -1856,25 +1987,51 @@ const drawMousePositions = () => {
 		effectiveDuration
 	);
 
+	// Debug cursor position
+	console.log("[CURSOR DRAW DEBUG]", {
+		prevPos: prevPos
+			? { x: prevPos.x, y: prevPos.y, timestamp: prevPos.timestamp }
+			: null,
+		nextPos: nextPos
+			? { x: nextPos.x, y: nextPos.y, timestamp: nextPos.timestamp }
+			: null,
+		interpolatedX: interpolatedX,
+		interpolatedY: interpolatedY,
+		canvasX: canvasX,
+		canvasY: canvasY,
+		visible: !!prevPos && !!nextPos,
+	});
+
 	// Use original positioning with timeline-based motion effects
 	drawMousePosition(ctx, {
 		x: canvasX,
 		y: canvasY,
 		event: {
-			type: prevPos.type || MOUSE_EVENTS.MOVE,
-			button: prevPos.button,
-			clickCount: prevPos.clickCount,
+			type: prevPos?.type || "move",
+			button: prevPos?.button || 0,
+			clickCount: prevPos?.clickCount || 1,
 			rotation: timelineEffects?.rotation || 0,
-			direction: prevPos.direction,
-			cursorType: prevPos.cursorType || "default",
+			direction: prevPos?.direction || { x: 1, y: 0 },
+			cursorType: prevPos?.cursorType || "default",
 			// Use timeline-calculated effects instead of real-time
-			speed: timelineEffects?.speed || speed,
-			dirX: timelineEffects?.nextPos ? 
-				(timelineEffects.nextPos.x - timelineEffects.prevPos.x) / Math.max(1, timelineEffects.nextPos.timestamp - timelineEffects.prevPos.timestamp) : dirX,
-			dirY: timelineEffects?.nextPos ? 
-				(timelineEffects.nextPos.y - timelineEffects.prevPos.y) / Math.max(1, timelineEffects.nextPos.timestamp - timelineEffects.prevPos.timestamp) : dirY,
-			// Motion blur from timeline data
-			motionPhase: timelineEffects?.motionPhase || 'idle',
+			speed: timelineEffects?.speed || 0,
+			dirX: timelineEffects?.nextPos
+				? (timelineEffects.nextPos.x - timelineEffects.prevPos.x) /
+				  Math.max(
+						1,
+						timelineEffects.nextPos.timestamp -
+							timelineEffects.prevPos.timestamp
+				  )
+				: 0,
+			dirY: timelineEffects?.nextPos
+				? (timelineEffects.nextPos.y - timelineEffects.prevPos.y) /
+				  Math.max(
+						1,
+						timelineEffects.nextPos.timestamp -
+							timelineEffects.prevPos.timestamp
+				  )
+				: 0,
+			motionPhase: timelineEffects?.motionPhase || "idle",
 			blurIntensity: timelineEffects?.blurIntensity || 0,
 			tiltAngle: timelineEffects?.tiltAngle || 0,
 			skewX: timelineEffects?.skewX || 0,
@@ -1936,50 +2093,155 @@ const drawMousePositions = () => {
 
 	// Tooltip çizim fonksiyonu
 	function drawCameraFollowTooltip(ctx, cameraRect, dpr) {
-		const text =
-			"Camera is currently following the mouse cursor, you can disable this in settings";
+		const lines = [
+			"Camera is currently following",
+			"the mouse cursor, you can",
+			"disable this in settings"
+		];
+		
 		ctx.save();
 		ctx.font = `${64 * dpr}px Inter, Arial, sans-serif`;
-		const textMetrics = ctx.measureText(text);
-		const textWidth = textMetrics.width;
+		
+		// En uzun satırın genişliğini bul
+		let maxWidth = 0;
+		lines.forEach(line => {
+			const textMetrics = ctx.measureText(line);
+			maxWidth = Math.max(maxWidth, textMetrics.width);
+		});
+		
 		const paddingX = 32 * dpr;
-		const paddingY = 16 * dpr;
+		const paddingY = 24 * dpr;
+		const lineHeight = 80 * dpr;
 		const radius = 16 * dpr;
-		const boxWidth = textWidth + paddingX * 2;
-		const boxHeight = 128 * dpr;
-		// Tooltip'i cameraRect'in üstünde ve ortalanmış şekilde, 12px yukarıda göster
-		const boxX = cameraRect.x + cameraRect.width / 2 - boxWidth / 2;
-		const boxY = cameraRect.y - boxHeight - 12 * dpr;
+		const boxWidth = maxWidth + paddingX * 2;
+		const boxHeight = (lines.length * lineHeight) + paddingY * 2;
+		
+		// Tooltip pozisyonunu dinamik olarak hesapla
+		let boxX = cameraRect.x + cameraRect.width / 2 - boxWidth / 2;
+		let boxY = cameraRect.y - boxHeight - 12 * dpr;
+		
+		// Canvas sınırlarını al (canvasRef'den)
+		const canvasWidth = ctx.canvas.width;
+		const canvasHeight = ctx.canvas.height;
+		const margin = 20 * dpr; // Sınırlardan minimum mesafe
+		
+		// Yatay pozisyon kontrolü - sol/sağ sınır kontrolü
+		if (boxX < margin) {
+			// Sol sınıra çok yakınsa sağa kaydır
+			boxX = margin;
+		} else if (boxX + boxWidth > canvasWidth - margin) {
+			// Sağ sınıra çok yakınsa sola kaydır
+			boxX = canvasWidth - boxWidth - margin;
+		}
+		
+		// Dikey pozisyon kontrolü - üst sınır kontrolü
+		if (boxY < margin) {
+			// Üst sınıra çok yakınsa kameranın altına yerleştir
+			boxY = cameraRect.y + cameraRect.height + 12 * dpr;
+			
+			// Alt sınır kontrolü de yap
+			if (boxY + boxHeight > canvasHeight - margin) {
+				// Hem üstte hem altta yer yoksa kameranın yanına yerleştir
+				if (cameraRect.x + cameraRect.width + boxWidth + 12 * dpr < canvasWidth - margin) {
+					// Sağ tarafa yerleştir
+					boxX = cameraRect.x + cameraRect.width + 12 * dpr;
+					boxY = cameraRect.y + cameraRect.height / 2 - boxHeight / 2;
+				} else if (cameraRect.x - boxWidth - 12 * dpr > margin) {
+					// Sol tarafa yerleştir
+					boxX = cameraRect.x - boxWidth - 12 * dpr;
+					boxY = cameraRect.y + cameraRect.height / 2 - boxHeight / 2;
+				} else {
+					// Hiçbir yere sığmıyorsa kameranın üzerine bindirmeyi göze al ama margin'i koru
+					boxY = Math.max(margin, Math.min(cameraRect.y - boxHeight - 12 * dpr, canvasHeight - boxHeight - margin));
+				}
+			}
+		}
 
-		// Arka plan (siyah, radiuslu)
+		// Ok işareti pozisyonunu belirle (tooltip kameranın hangi tarafında)
+		const arrowSize = 8 * dpr;
+		let arrowPosition = 'top'; // 'top', 'bottom', 'left', 'right'
+		let arrowX = cameraRect.x + cameraRect.width / 2;
+		let arrowY = cameraRect.y + cameraRect.height / 2;
+		
+		// Tooltip'in kameraya göre pozisyonuna bakarak ok yönünü belirle
+		if (boxY > cameraRect.y + cameraRect.height) {
+			// Tooltip kameranın altında
+			arrowPosition = 'top';
+			arrowX = Math.max(boxX + arrowSize, Math.min(boxX + boxWidth - arrowSize, cameraRect.x + cameraRect.width / 2));
+			arrowY = boxY;
+		} else if (boxY + boxHeight < cameraRect.y) {
+			// Tooltip kameranın üstünde
+			arrowPosition = 'bottom';
+			arrowX = Math.max(boxX + arrowSize, Math.min(boxX + boxWidth - arrowSize, cameraRect.x + cameraRect.width / 2));
+			arrowY = boxY + boxHeight;
+		} else if (boxX > cameraRect.x + cameraRect.width) {
+			// Tooltip kameranın sağında
+			arrowPosition = 'left';
+			arrowX = boxX;
+			arrowY = Math.max(boxY + arrowSize, Math.min(boxY + boxHeight - arrowSize, cameraRect.y + cameraRect.height / 2));
+		} else if (boxX + boxWidth < cameraRect.x) {
+			// Tooltip kameranın solunda
+			arrowPosition = 'right';
+			arrowX = boxX + boxWidth;
+			arrowY = Math.max(boxY + arrowSize, Math.min(boxY + boxHeight - arrowSize, cameraRect.y + cameraRect.height / 2));
+		}
+
+		// Arka planı ok ile birlikte çiz
 		ctx.beginPath();
+		
+		// Ana kutu köşeleri
 		ctx.moveTo(boxX + radius, boxY);
+		
+		// Üst kenar - ok varsa kesinti yap
+		if (arrowPosition === 'top') {
+			ctx.lineTo(arrowX - arrowSize, boxY);
+			ctx.lineTo(arrowX, boxY - arrowSize);
+			ctx.lineTo(arrowX + arrowSize, boxY);
+		}
 		ctx.lineTo(boxX + boxWidth - radius, boxY);
 		ctx.quadraticCurveTo(boxX + boxWidth, boxY, boxX + boxWidth, boxY + radius);
+		
+		// Sağ kenar - ok varsa kesinti yap
+		if (arrowPosition === 'right') {
+			ctx.lineTo(boxX + boxWidth, arrowY - arrowSize);
+			ctx.lineTo(boxX + boxWidth + arrowSize, arrowY);
+			ctx.lineTo(boxX + boxWidth, arrowY + arrowSize);
+		}
 		ctx.lineTo(boxX + boxWidth, boxY + boxHeight - radius);
-		ctx.quadraticCurveTo(
-			boxX + boxWidth,
-			boxY + boxHeight,
-			boxX + boxWidth - radius,
-			boxY + boxHeight
-		);
+		ctx.quadraticCurveTo(boxX + boxWidth, boxY + boxHeight, boxX + boxWidth - radius, boxY + boxHeight);
+		
+		// Alt kenar - ok varsa kesinti yap
+		if (arrowPosition === 'bottom') {
+			ctx.lineTo(arrowX + arrowSize, boxY + boxHeight);
+			ctx.lineTo(arrowX, boxY + boxHeight + arrowSize);
+			ctx.lineTo(arrowX - arrowSize, boxY + boxHeight);
+		}
 		ctx.lineTo(boxX + radius, boxY + boxHeight);
-		ctx.quadraticCurveTo(
-			boxX,
-			boxY + boxHeight,
-			boxX,
-			boxY + boxHeight - radius
-		);
+		ctx.quadraticCurveTo(boxX, boxY + boxHeight, boxX, boxY + boxHeight - radius);
+		
+		// Sol kenar - ok varsa kesinti yap
+		if (arrowPosition === 'left') {
+			ctx.lineTo(boxX, arrowY + arrowSize);
+			ctx.lineTo(boxX - arrowSize, arrowY);
+			ctx.lineTo(boxX, arrowY - arrowSize);
+		}
 		ctx.lineTo(boxX, boxY + radius);
 		ctx.quadraticCurveTo(boxX, boxY, boxX + radius, boxY);
+		
 		ctx.closePath();
 		ctx.fillStyle = "rgba(0,0,0,0.8)";
 		ctx.fill();
 
-		// Yazı (beyaz)
+		// Metinleri çiz (beyaz)
 		ctx.fillStyle = "#fff";
+		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
-		ctx.fillText(text, boxX + paddingX, boxY + boxHeight / 2);
+		
+		lines.forEach((line, index) => {
+			const textY = boxY + paddingY + (index * lineHeight) + lineHeight / 2;
+			ctx.fillText(line, boxX + boxWidth / 2, textY);
+		});
+		
 		ctx.restore();
 	}
 
@@ -2576,7 +2838,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					}
 				}
 
-				drawCamera(
+				const cameraResult = drawCamera(
 					ctx,
 					cameraElement,
 					canvasRef.value.width,
@@ -2590,12 +2852,20 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					cameraSettings.value.optimizedBackgroundRemovalSettings
 						?.backgroundType || "transparent",
 					cameraSettings.value.optimizedBackgroundRemovalSettings
-						?.backgroundColor || "#000000"
+						?.backgroundColor || "#000000",
+					videoRef.value?.currentTime || 0,
+					videoRef.value?.duration || 0
 				);
 
+				// Kamera pozisyon bilgisini güncelle
+				if (cameraResult?.rect) {
+					currentCameraRect.value = cameraResult.rect;
+					isMouseOverCamera.value = cameraResult.isMouseOver;
+				}
+
 				// Kamera followMouse aktifse ve mouse kamera üstündeyse tooltip çiz
-				if (cameraSettings.value.followMouse && isMouseOverCamera.value) {
-					const cameraRect = getCameraDisplayRect();
+				if (cameraSettings.value.followMouse && cameraResult?.isMouseOver) {
+					const cameraRect = cameraResult.rect;
 					drawCameraFollowTooltip(ctx, cameraRect, dpr);
 				}
 			} catch (error) {
@@ -3294,8 +3564,13 @@ watch(
 		// Sadece video oynatılmıyorsa ve preview yapılmıyorsa zamanı güncelle
 		if (!videoState.value.isPlaying && props.previewTime === null) {
 			videoElement.currentTime = newValue;
-			if (cameraElement) {
-				cameraElement.currentTime = newValue;
+			if (cameraElement && synchronizedTimestamps.value) {
+				const synchronizedCameraTime = getSynchronizedTimestamp('camera', newValue * 1000) / 1000;
+				cameraElement.currentTime = synchronizedCameraTime;
+			} else if (cameraElement) {
+				// Fallback to original timing
+				const { cursorOffset } = usePlayerSettings();
+				cameraElement.currentTime = newValue + cursorOffset.value;
 			}
 			if (audioRef.value) {
 				audioRef.value.currentTime = newValue;
@@ -3338,8 +3613,13 @@ watch(
 
 		// Preview zamanını güncelle
 		videoElement.currentTime = newValue;
-		if (cameraElement) {
-			cameraElement.currentTime = newValue;
+		if (cameraElement && synchronizedTimestamps.value) {
+			const synchronizedCameraTime = getSynchronizedTimestamp('camera', newValue * 1000) / 1000;
+			cameraElement.currentTime = synchronizedCameraTime;
+		} else if (cameraElement) {
+			// Fallback to original timing
+			const { cursorOffset } = usePlayerSettings();
+			cameraElement.currentTime = newValue + cursorOffset.value;
 		}
 		videoState.value.currentTime = newValue;
 
@@ -3420,7 +3700,14 @@ defineExpose({
 
 			// Real video time'a seek et
 			videoElement.currentTime = realVideoTime;
-			if (cameraElement) cameraElement.currentTime = realVideoTime;
+			if (cameraElement && synchronizedTimestamps.value) {
+				const synchronizedCameraTime = getSynchronizedTimestamp('camera', realVideoTime * 1000) / 1000;
+				cameraElement.currentTime = synchronizedCameraTime;
+			} else if (cameraElement) {
+				// Fallback to original timing
+				const { cursorOffset } = usePlayerSettings();
+				cameraElement.currentTime = realVideoTime + cursorOffset.value;
+			}
 			if (audioRef.value) audioRef.value.currentTime = realVideoTime;
 
 			// State'i güncelle
@@ -3438,7 +3725,14 @@ defineExpose({
 
 		// Normal video seek işlemi (segment yoksa)
 		videoElement.currentTime = clippedTime;
-		if (cameraElement) cameraElement.currentTime = clippedTime;
+		if (cameraElement && synchronizedTimestamps.value) {
+			const synchronizedCameraTime = getSynchronizedTimestamp('camera', clippedTime * 1000) / 1000;
+			cameraElement.currentTime = synchronizedCameraTime;
+		} else if (cameraElement) {
+			// Fallback to original timing
+			const { cursorOffset } = usePlayerSettings();
+			cameraElement.currentTime = clippedTime + cursorOffset.value;
+		}
 		if (audioRef.value) audioRef.value.currentTime = clippedTime;
 		videoState.value.currentTime = clippedTime;
 
@@ -3772,7 +4066,10 @@ defineExpose({
 		let minDistance = Infinity;
 
 		for (const position of props.mousePositions) {
-			const distance = Math.abs(position.timestamp - realTime);
+			const syncTimestamp = synchronizedTimestamps.value 
+				? getSynchronizedTimestamp('mouse', position.timestamp)
+				: position.timestamp;
+			const distance = Math.abs(syncTimestamp - realTime * 1000);
 			if (distance < minDistance) {
 				minDistance = distance;
 				closestPosition = position;

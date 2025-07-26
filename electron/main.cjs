@@ -59,6 +59,95 @@ const MediaStateManager = require("./mediaStateManager.cjs");
 const DockManager = require("./dockManager.cjs");
 const PortManager = require("./portManager.cjs");
 
+// Synchronized Recording Service
+class SynchronizedRecordingService {
+	constructor() {
+		this.masterStartTime = null;
+		this.recordingStartTimes = {
+			screen: null,
+			camera: null,
+			mouse: null,
+		};
+		this.offsets = {
+			screen: 0,
+			camera: 0,
+			mouse: 0,
+		};
+		this.isRecording = false;
+		this.recordingId = null;
+		this.syncTolerance = 50;
+	}
+
+	startRecordingSession() {
+		this.masterStartTime = Date.now();
+		this.recordingId = `rec_${this.masterStartTime}`;
+		this.isRecording = true;
+
+		this.offsets = { screen: 0, camera: 0, mouse: 0 };
+		this.recordingStartTimes = { screen: null, camera: null, mouse: null };
+
+		console.log(
+			`[SynchronizedRecording] Kayıt oturumu başlatıldı: ${this.recordingId}, master time: ${this.masterStartTime}`
+		);
+
+		return {
+			recordingId: this.recordingId,
+			masterStartTime: this.masterStartTime,
+		};
+	}
+
+	recordStartTime(recordingType, customStartTime = null) {
+		if (!this.isRecording) {
+			throw new Error("Kayıt oturumu başlatılmamış");
+		}
+
+		const startTime = customStartTime || Date.now();
+		this.recordingStartTimes[recordingType] = startTime;
+		this.offsets[recordingType] = startTime - this.masterStartTime;
+
+		console.log(
+			`[SynchronizedRecording] ${recordingType} başlangıç zamanı kaydedildi:`,
+			{
+				startTime: new Date(startTime).toISOString(),
+				offset: this.offsets[recordingType],
+				masterTime: new Date(this.masterStartTime).toISOString(),
+			}
+		);
+
+		return {
+			startTime,
+			offset: this.offsets[recordingType],
+			masterStartTime: this.masterStartTime,
+		};
+	}
+
+	getSynchronizedTimestamp(recordingType, relativeTime) {
+		if (!this.isRecording || !this.recordingStartTimes[recordingType]) {
+			return relativeTime;
+		}
+		const synchronizedTime = relativeTime - this.offsets[recordingType];
+		return Math.max(0, synchronizedTime);
+	}
+
+	stopRecordingSession() {
+		const finalSyncData = {
+			recordingId: this.recordingId,
+			masterStartTime: this.masterStartTime,
+			recordingStartTimes: { ...this.recordingStartTimes },
+			offsets: { ...this.offsets },
+		};
+
+		this.isRecording = false;
+		this.masterStartTime = null;
+		this.recordingId = null;
+
+		console.log("[SynchronizedRecording] Kayıt oturumu sonlandırıldı");
+		return finalSyncData;
+	}
+}
+
+const synchronizedRecording = new SynchronizedRecordingService();
+
 // Express ve HTTP server değişkenleri
 let expressApp = null;
 let httpServer = null;
@@ -662,7 +751,7 @@ OLD_safeHandle(
 							"[Main] ❌ Ekran kaydı izni yok! macOS System Preferences'den izin verin"
 						);
 						console.error(
-							"[Main] Sistem Ayarları > Gizlilik ve Güvenlik > Ekran Kaydı > Sleer'i etkinleştirin"
+							"[Main] Sistem Ayarları > Gizlilik ve Güvenlik > Ekran Kaydı > Creavit Studio'yu etkinleştirin"
 						);
 						return false;
 					}
@@ -960,21 +1049,24 @@ OLD_safeHandle(
 );
 */
 
-// Downloads/.sleer/temp_screen_TIMESTAMP.mov path'ini oluştur
+// Downloads/.creavit-studio/temp_screen_TIMESTAMP.mov path'ini oluştur
 function createScreenRecordingPath() {
 	const homeDir = os.homedir();
 	const downloadDir = path.join(homeDir, "Downloads");
-	const sleerDir = path.join(downloadDir, ".sleer");
+	const creavitStudioDir = path.join(downloadDir, ".creavit-studio");
 
-	// .sleer klasörünü oluştur
-	if (!fs.existsSync(sleerDir)) {
-		fs.mkdirSync(sleerDir, { recursive: true });
-		console.log("[Main] .sleer klasörü oluşturuldu:", sleerDir);
+	// .creavit-studio klasörünü oluştur
+	if (!fs.existsSync(creavitStudioDir)) {
+		fs.mkdirSync(creavitStudioDir, { recursive: true });
+		console.log(
+			"[Main] .creavit-studio klasörü oluşturuldu:",
+			creavitStudioDir
+		);
 	}
 
 	// Timestamp ile temp dosya adı oluştur
 	const timestamp = Date.now();
-	return path.join(sleerDir, `temp_screen_${timestamp}.mov`);
+	return path.join(creavitStudioDir, `temp_screen_${timestamp}.mov`);
 }
 
 // START_MAC_RECORDING handler - MacRecorder başlatır
@@ -1077,9 +1169,15 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 
 		console.log("[Main] Final MacRecorder options:", recordingOptions);
 
+		// Start synchronized recording session
+		const syncSession = synchronizedRecording.startRecordingSession();
+
 		const result = await recorder.startRecording(outputPath, recordingOptions);
 
 		if (result) {
+			// Record screen recording start time
+			synchronizedRecording.recordStartTime("screen");
+
 			// Start cursor capture with new API
 			try {
 				const timestamp = Date.now();
@@ -1096,8 +1194,19 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 				cursorTrackingState.outputPath = cursorFilePath;
 				cursorTrackingState.startTime = Date.now();
 
+				// Record mouse tracking start time
+				synchronizedRecording.recordStartTime(
+					"mouse",
+					cursorTrackingState.startTime
+				);
+
 				if (mediaStateManager) {
-					mediaStateManager.updateState({ cursorPath: cursorFilePath });
+					mediaStateManager.updateState({
+						cursorPath: cursorFilePath,
+						recordingId: syncSession.recordingId,
+						masterStartTime: syncSession.masterStartTime,
+						synchronizedTimestamps: synchronizedRecording.offsets,
+					});
 				}
 
 				console.log("[Main] ✅ Cursor capture başlatıldı:", cursorFilePath);
@@ -1106,6 +1215,11 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 					"[Main] Cursor capture hatası (devam ediliyor):",
 					cursorError.message
 				);
+			}
+
+			// Update camera manager with synchronized recording
+			if (cameraManager) {
+				cameraManager.setRecordingStatus(true, synchronizedRecording);
 			}
 
 			// RECORDING_STATUS_CHANGED event'ini tetikle
@@ -1166,7 +1280,11 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 						const enhanced = {
 							x: position.x,
 							y: position.y,
-							timestamp: position.timestamp,
+							timestamp: synchronizedRecording.getSynchronizedTimestamp(
+								"mouse",
+								position.timestamp
+							),
+							originalTimestamp: position.timestamp,
 							cursorType: position.cursorType || "default",
 							type: position.type || "move",
 							button: position.button,
@@ -1239,6 +1357,16 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 			cursorTrackingState.isTracking = false;
 			cursorTrackingState.outputPath = null;
 			cursorTrackingState.startTime = null;
+
+			// Stop synchronized recording session
+			const finalSyncData = synchronizedRecording.stopRecordingSession();
+
+			// Save final synchronization data to state manager
+			if (mediaStateManager) {
+				mediaStateManager.updateState({
+					finalSynchronizationData: finalSyncData,
+				});
+			}
 
 			console.log("[Main] ✅ Cursor capture durduruldu");
 		} catch (cursorError) {
@@ -2293,7 +2421,7 @@ function setupIpcHandlers() {
 			// WebM dosyasının varlığını ve boyutunu kontrol et
 			const stats = fs.statSync(tempWebmPath);
 			console.log(`[main] WebM dosya boyutu: ${stats.size} bytes`);
-			
+
 			if (stats.size === 0) {
 				fs.unlinkSync(tempWebmPath);
 				throw new Error("WebM dosyası boş - kayıt işlemi başarısız");
@@ -3457,7 +3585,7 @@ function loadApplication() {
 					<html>
 						<head>
 							<meta charset="utf-8">
-							<title>Sleer - Hata</title>
+							<title>Creavit Studio - Hata</title>
 							<style>
 								body {
 									font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -3560,7 +3688,9 @@ app.on("activate", () => {
 	} else {
 		// Editor açıkken ana pencereyi gösterme
 		if (editorManager && editorManager.isEditorWindowOpen()) {
-			console.log("[Main] Editor açık, ana pencere gösterilmiyor (app activate)");
+			console.log(
+				"[Main] Editor açık, ana pencere gösterilmiyor (app activate)"
+			);
 			return;
 		}
 		mainWindow.show();
@@ -3831,7 +3961,7 @@ async function startExpressServer() {
 						<html>
 						<head>
 							<meta charset="utf-8">
-							<title>Sleer</title>
+							<title>Creavit Studio</title>
 							<meta name="viewport" content="width=device-width, initial-scale=1">
 							<style>
 								body { 
@@ -3852,7 +3982,7 @@ async function startExpressServer() {
 							</style>
 						</head>
 						<body>
-							<h1>Sleer Başlatılıyor</h1>
+							<h1>Creavit Studio Başlatılıyor</h1>
 							<p>Uygulama kaynak dosyaları bulunamadı. Lütfen uygulamayı yeniden yükleyin veya geliştirici ile iletişime geçin.</p>
 							<pre>
 Aranılan yollar:

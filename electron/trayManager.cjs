@@ -58,7 +58,7 @@ class TrayManager {
 			}
 
 			this.store = new Store({
-				name: "sleer-settings",
+				name: "creavit-studio-settings",
 				defaults: {
 					recordingSettings: {
 						audioEnabled: true,
@@ -135,25 +135,46 @@ class TrayManager {
 	updateTrayIcon() {
 		if (!this.tray) return;
 
-		const iconName = this.isRecording ? "recording.png" : "default.png";
+		// Yeni logo-sample.png dosyasını kullan
 		let iconPath;
 
-		// Dosyanın varlığını kontrol et, yoksa alternatif yolları dene
-		if (fs.existsSync(path.join(__dirname, `../public/icons/${iconName}`))) {
-			iconPath = path.join(__dirname, `../public/icons/${iconName}`);
-		} else if (
-			fs.existsSync(path.join(__dirname, `../.output/public/icons/${iconName}`))
-		) {
-			iconPath = path.join(__dirname, `../.output/public/icons/${iconName}`);
+		// Assets klasöründeki logo-sample.png dosyasını kontrol et
+		const logoPngPath = path.join(__dirname, "../assets/logo-sample.png");
+		const publicLogoPath = path.join(
+			__dirname,
+			"../public/assets/logo-sample.png"
+		);
+		const outputLogoPath = path.join(
+			__dirname,
+			"../.output/public/assets/logo-sample.png"
+		);
+
+		if (fs.existsSync(logoPngPath)) {
+			iconPath = logoPngPath;
+		} else if (fs.existsSync(publicLogoPath)) {
+			iconPath = publicLogoPath;
+		} else if (fs.existsSync(outputLogoPath)) {
+			iconPath = outputLogoPath;
 		} else {
-			// Fallback: İkon oluştur
-			iconPath = path.join(__dirname, `../.output/public/icons/default.png`);
+			// Fallback: Eski default.png kullan
+			const fallbackPath = path.join(__dirname, "../public/icons/default.png");
+			if (fs.existsSync(fallbackPath)) {
+				iconPath = fallbackPath;
+			} else {
+				console.warn(
+					"[TrayManager] Logo dosyası bulunamadı, boş ikon kullanılıyor"
+				);
+				iconPath = nativeImage.createEmpty();
+			}
 		}
 
 		try {
-			const trayIcon = nativeImage
-				.createFromPath(iconPath)
-				.resize({ width: 16, height: 16 });
+			const trayIcon =
+				typeof iconPath === "string"
+					? nativeImage
+							.createFromPath(iconPath)
+							.resize({ width: 16, height: 16 })
+					: iconPath;
 
 			this.tray.setImage(trayIcon);
 			this.tray.setContextMenu(this.createTrayMenu());
@@ -163,17 +184,37 @@ class TrayManager {
 	}
 
 	createTray() {
-		// İkon yolunu kontrol et ve mevcut olanı kullan
+		// Yeni logo-sample.png dosyasını kullan
 		let iconPath;
-		if (fs.existsSync(path.join(__dirname, "../public/icons/default.png"))) {
-			iconPath = path.join(__dirname, "../public/icons/default.png");
-		} else if (
-			fs.existsSync(path.join(__dirname, "../.output/public/icons/default.png"))
-		) {
-			iconPath = path.join(__dirname, "../.output/public/icons/default.png");
+
+		// Assets klasöründeki logo-sample.png dosyasını kontrol et
+		const logoPngPath = path.join(__dirname, "../assets/logo-sample.png");
+		const publicLogoPath = path.join(
+			__dirname,
+			"../public/assets/logo-sample.png"
+		);
+		const outputLogoPath = path.join(
+			__dirname,
+			"../.output/public/assets/logo-sample.png"
+		);
+
+		if (fs.existsSync(logoPngPath)) {
+			iconPath = logoPngPath;
+		} else if (fs.existsSync(publicLogoPath)) {
+			iconPath = publicLogoPath;
+		} else if (fs.existsSync(outputLogoPath)) {
+			iconPath = outputLogoPath;
 		} else {
-			// Fallback - boş ikon
-			iconPath = nativeImage.createEmpty();
+			// Fallback: Eski default.png kullan
+			const fallbackPath = path.join(__dirname, "../public/icons/default.png");
+			if (fs.existsSync(fallbackPath)) {
+				iconPath = fallbackPath;
+			} else {
+				console.warn(
+					"[TrayManager] Logo dosyası bulunamadı, boş ikon kullanılıyor"
+				);
+				iconPath = nativeImage.createEmpty();
+			}
 		}
 
 		try {
@@ -186,7 +227,7 @@ class TrayManager {
 
 			if (!this.tray) {
 				this.tray = new Tray(trayIcon);
-				this.tray.setToolTip("Sleer Screen Recorder");
+				this.tray.setToolTip("Creavit Studio Screen Recorder");
 				this.tray.setContextMenu(this.createTrayMenu());
 			} else {
 				this.tray.setImage(trayIcon);

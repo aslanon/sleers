@@ -1,4 +1,4 @@
-# Sleer - Uygulama Yapısı
+# Creavit Studio - Uygulama Yapısı
 
 ## 1. Modüler Yapı
 
@@ -94,7 +94,7 @@ genişlet.
 ## 4. Dosya Yapısı
 
 ```
-sleer/
+creavit-studio/
 ├── electron/
 │   ├── main.cjs
 │   ├── cameraManager.cjs

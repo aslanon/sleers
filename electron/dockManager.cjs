@@ -15,7 +15,7 @@ class DockManager {
 		this.cachedItems = null;
 		this.cacheTime = null;
 		this.cacheDuration = 60000; // 1 dakika
-		this.tempDir = path.join(os.tmpdir(), "sleer-dock-icons");
+		this.tempDir = path.join(os.tmpdir(), "creavit-studio-dock-icons");
 
 		// Temp dizini oluştur
 		if (this.isSupported) {

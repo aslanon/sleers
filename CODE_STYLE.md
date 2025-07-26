@@ -1,12 +1,12 @@
-You are an expert software architect tasked with creating comprehensive code style guidelines for sleer.
+You are an expert software architect tasked with creating comprehensive code style guidelines for creavit-studio.
 
-# Code Style Guidelines for sleer
+# Code Style Guidelines for creavit-studio
 
 ## Project Overview
 
 similar of screen.studio
 
-This document defines the coding standards and style guidelines for sleer, ensuring consistency and maintainability across the codebase.
+This document defines the coding standards and style guidelines for creavit-studio, ensuring consistency and maintainability across the codebase.
 
 ### Technical Stack
 

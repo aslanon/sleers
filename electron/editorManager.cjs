@@ -40,7 +40,7 @@ class EditorManager {
 					preload: path.join(__dirname, "preload.cjs"),
 				},
 				icon: path.join(__dirname, "../build/icon.png"),
-				title: "Sleer - Video Editor",
+				title: "Creavit Studio - Video Editor",
 				backgroundColor: "#121212",
 				titleBarOverlay: false,
 				titleBarStyle: "hidden",
@@ -102,7 +102,7 @@ class EditorManager {
 								<html>
 								<head>
 									<meta charset="utf-8">
-									<title>Sleer - Video Editor</title>
+									<title>Creavit Studio - Video Editor</title>
 									<style>
 										body {
 											font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -132,7 +132,7 @@ class EditorManager {
 									</style>
 								</head>
 								<body>
-									<h1>Sleer Video Düzenleyici</h1>
+									<h1>Creavit Studio Video Düzenleyici</h1>
 									<p>Düzenleyici yüklenirken bir sorun oluştu. Lütfen kaydedilmiş videoyu kullanarak devam edin.</p>
 									<button class="btn" id="closeBtn">Pencereyi Kapat</button>
 									<script>
@@ -216,7 +216,7 @@ class EditorManager {
 						<html>
 						<head>
 							<meta charset="utf-8">
-							<title>Sleer - Video Editor</title>
+							<title>Creavit Studio - Video Editor</title>
 							<style>
 								body {
 									font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -424,7 +424,11 @@ class EditorManager {
 
 	// Editor penceresi açık mı kontrol et
 	isEditorWindowOpen() {
-		return this.editorWindow && !this.editorWindow.isDestroyed() && this.editorWindow.isVisible();
+		return (
+			this.editorWindow &&
+			!this.editorWindow.isDestroyed() &&
+			this.editorWindow.isVisible()
+		);
 	}
 }
 

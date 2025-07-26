@@ -1,4 +1,4 @@
-# Sleer Geliştirici Kılavuzu
+# Creavit Studio Geliştirici Kılavuzu
 
 ## Otomatik Dokümantasyon Güncelleme
 

@@ -1,6 +1,6 @@
-# Sleer
+# Creavit Studio
 
-Sleer, ekran kayıtlarınızı kolayca yapmanızı ve düzenlemenizi sağlayan bir masaüstü uygulamasıdır.
+Creavit Studio, ekran kayıtlarınızı kolayca yapmanızı ve düzenlemenizi sağlayan bir masaüstü uygulamasıdır.
 
 ## Özellikler
 
@@ -63,7 +63,7 @@ npm run build:signed
 
 ## Geliştirme
 
-Sleer, aşağıdaki teknolojileri kullanır:
+Creavit Studio, aşağıdaki teknolojileri kullanır:
 
 - Electron
 - Vue.js / Nuxt.js
@@ -74,16 +74,16 @@ Sleer, aşağıdaki teknolojileri kullanır:
 
 ### macOS "Damaged" Hatası
 
-Eğer macOS'ta "Sleer is damaged and can't be opened" hatası alıyorsanız:
+Eğer macOS'ta "Creavit Studio is damaged and can't be opened" hatası alıyorsanız:
 
 #### Yöntem 1: Terminal ile Çözüm (En Kolay)
 
 ```bash
 # DMG dosyası için
-sudo xattr -rd com.apple.quarantine /path/to/Sleer-1.0.0-arm64.dmg
+sudo xattr -rd com.apple.quarantine /path/to/Creavit-Studio-1.0.0-arm64.dmg
 
 # Veya kurulu uygulama için
-sudo xattr -rd com.apple.quarantine /Applications/Sleer.app
+sudo xattr -rd com.apple.quarantine /Applications/Creavit Studio.app
 ```
 
 #### Yöntem 2: Sistem Ayarları
@@ -110,7 +110,7 @@ npm run electron:build:dmg
 Uygulama kamera, mikrofon veya ekran kaydı izni istiyorsa:
 
 1. **Sistem Ayarları** > **Gizlilik ve Güvenlik** > **Kamera/Mikrofon/Ekran Kaydı**
-2. Sleer uygulamasını listede bulun ve etkinleştirin
+2. Creavit Studio uygulamasını listede bulun ve etkinleştirin
 3. Uygulamayı yeniden başlatın
 
 ## Lisans

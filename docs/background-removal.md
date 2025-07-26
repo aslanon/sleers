@@ -1,6 +1,6 @@
 # Arkaplan Kaldırma Özelliği
 
-Sleer uygulamasında kamera görüntüsünden arkaplanı kaldırma özelliği, TensorFlow.js ve BodyPix modeli kullanılarak gerçekleştirilmiştir. Bu özellik, kamera görüntüsündeki kişiyi tespit ederek arkaplanı şeffaf hale getirir.
+Creavit Studio uygulamasında kamera görüntüsünden arkaplanı kaldırma özelliği, TensorFlow.js ve BodyPix modeli kullanılarak gerçekleştirilmiştir. Bu özellik, kamera görüntüsündeki kişiyi tespit ederek arkaplanı şeffaf hale getirir.
 
 ## Özellikler
 

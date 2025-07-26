@@ -1,6 +1,6 @@
-You are an expert product manager tasked with creating a detailed Product Requirements Document (PRD) for sleer.
+You are an expert product manager tasked with creating a detailed Product Requirements Document (PRD) for creavit-studio.
 
-# sleer - Product Requirements Document
+# creavit-studio - Product Requirements Document
 
 ## Project Overview
 

@@ -161,7 +161,9 @@ export const useCameraRenderer = () => {
 		zoomScale = 1,
 		videoPosition = { x: 0, y: 0 },
 		backgroundType = "transparent",
-		backgroundColor = "#000000"
+		backgroundColor = "#000000",
+		currentTime = 0,
+		videoDuration = 0
 	) => {
 		// Check if camera should be visible
 		if (!cameraSettings.value.visible) return false;
@@ -341,12 +343,32 @@ export const useCameraRenderer = () => {
 		// Calculate camera position with fallbacks
 		let cameraX, cameraY;
 
+		// Oynatma zamanına göre offset hesapla (cursor mantığı gibi)
+		let timeBasedOffsetX = 0;
+		let timeBasedOffsetY = 0;
+		
+		if (videoDuration > 0 && currentTime >= 0) {
+			// Video süresine göre normalized time (0-1)
+			const normalizedTime = Math.min(currentTime / videoDuration, 1);
+			
+			// Cursor'daki gibi timeline-based offset hesapla
+			// Kayıt süresi boyunca kamera pozisyonunun geriden gelmesini düzelt
+			const recordingDelay = 0.5; // 0.5 saniye gecikme varsayımı
+			const adjustedTime = Math.max(0, currentTime - recordingDelay);
+			const adjustedNormalizedTime = Math.min(adjustedTime / videoDuration, 1);
+			
+			// Offset miktarını hesapla - video başında daha fazla, sonunda azalır
+			const maxOffset = 20 * dpr; // Maksimum offset miktarı
+			timeBasedOffsetX = maxOffset * (1 - adjustedNormalizedTime);
+			timeBasedOffsetY = maxOffset * (1 - adjustedNormalizedTime);
+		}
+
 		// Consider zoom scale when calculating camera position
 		if (dragPosition && !cameraSettings.value.followMouse) {
 			// If camera is being dragged and not following mouse, use drag position
 			// When zoomed, account for the zoom scale in positioning
-			cameraX = dragPosition.x;
-			cameraY = dragPosition.y;
+			cameraX = dragPosition.x + timeBasedOffsetX;
+			cameraY = dragPosition.y + timeBasedOffsetY;
 		} else if (cameraSettings.value.followMouse) {
 			// For mouse following, consider the zoom scale when applying offsets
 			const minOffset = 80; // Daha küçük minimum mesafe
@@ -355,16 +377,16 @@ export const useCameraRenderer = () => {
 
 			if (dragPosition) {
 				// Sürükleme sırasında video pozisyonunu ekleyerek kamera pozisyonunu güncelle
-				cameraX = dragPosition.x;
-				cameraY = dragPosition.y;
+				cameraX = dragPosition.x + timeBasedOffsetX;
+				cameraY = dragPosition.y + timeBasedOffsetY;
 			} else {
 				// İmleç pozisyonuna göre kamera pozisyonunu hesapla
 				// Video pozisyonunu çıkararak mouse pozisyonunu normalize et
 				const normalizedMouseX = mouseX - videoPosition.x;
 				const normalizedMouseY = mouseY - videoPosition.y;
 
-				const targetX = normalizedMouseX + offsetX - cameraWidth / 2;
-				const targetY = normalizedMouseY + offsetY - cameraHeight / 2;
+				const targetX = normalizedMouseX + offsetX - cameraWidth / 2 + timeBasedOffsetX;
+				const targetY = normalizedMouseY + offsetY - cameraHeight / 2 + timeBasedOffsetY;
 
 				// Daha hızlı takip için lerp faktörünü artır
 				const lerpFactor = 0.3; // Daha hızlı takip için lerp faktörünü artırdık
@@ -380,9 +402,9 @@ export const useCameraRenderer = () => {
 		} else {
 			// When not following mouse or being dragged, maintain fixed position
 			cameraX =
-				lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr;
+				(lastCameraPosition.value?.x || canvasWidth - cameraWidth - 20 * dpr) + timeBasedOffsetX;
 			cameraY =
-				lastCameraPosition.value?.y || canvasHeight - cameraHeight - 20 * dpr;
+				(lastCameraPosition.value?.y || canvasHeight - cameraHeight - 20 * dpr) + timeBasedOffsetY;
 		}
 
 		// Apply zoom adjustments if needed
@@ -653,7 +675,18 @@ export const useCameraRenderer = () => {
 			isMouseOverCamera.value = ctx.isPointInPath(mouseX, mouseY);
 		}
 
-		return isMouseOverCamera.value;
+		// Kamera pozisyon bilgisini de döndür
+		const cameraRect = {
+			x: cameraX,
+			y: cameraY,
+			width: cameraWidth,
+			height: cameraHeight
+		};
+
+		return {
+			isMouseOver: isMouseOverCamera.value,
+			rect: cameraRect
+		};
 	};
 
 	return {

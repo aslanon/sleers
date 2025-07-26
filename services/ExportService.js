@@ -183,7 +183,8 @@ const exportVideo = async (
 				// Export sırasında fare pozisyonunu her frame'de güncelle
 				// Timeline-based cursor effects için updateCanvas yeterli - o zaten doğru zamanı kullanıyor
 				if (mediaPlayer.updateCanvas) {
-					mediaPlayer.updateCanvas(currentRealTime * 1000); // Convert to milliseconds for timestamp
+					// Use performance timestamp for proper FPS control in updateCanvas
+					mediaPlayer.updateCanvas(performance.now());
 				}
 
 				// FPS kontrolü - daha hassas timing

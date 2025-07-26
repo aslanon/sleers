@@ -170,6 +170,7 @@
 					<ZoomSettings
 						v-if="currentTab === 'zoom'"
 						:media-player="mediaPlayer"
+						class="min-h-[500px]"
 					/>
 
 					<!-- Kamera Ayarları Tab -->

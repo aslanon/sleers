@@ -12,7 +12,7 @@ class TempFileManager {
 			camera: null,
 		};
 		this.activeStreams = new Map();
-		this.appDir = path.join(app.getPath("downloads"), ".sleer");
+		this.appDir = path.join(app.getPath("downloads"), ".creavit-studio");
 		this.protectedFiles = new Set();
 		this.ensureAppDir();
 	}

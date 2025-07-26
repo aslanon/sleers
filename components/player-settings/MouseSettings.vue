@@ -86,6 +86,17 @@
 			:step="0.1"
 		/>
 
+		<SliderInput
+			v-if="mouseVisible"
+			v-model="cursorOffset"
+			label="Cursor Offset"
+			desc="Adjusts the timing offset of the cursor relative to video. Negative values make cursor appear earlier, positive values make it appear later."
+			:min="-2"
+			:max="2"
+			:step="0.1"
+			unit="s"
+		/>
+
 		<!-- <SliderInput
 			v-if="mouseVisible"
 			v-model="cursorSmoothness"
@@ -111,6 +122,7 @@ const {
 	enhancedMotionBlur: enhancedMotionBlurStore,
 	motionBlurIntensity: motionBlurIntensityStore,
 	cursorSmoothness: cursorSmoothnessStore,
+	cursorOffset: cursorOffsetStore,
 	updateMouseSize,
 	updateMotionBlur,
 	updateMouseVisible,
@@ -118,6 +130,7 @@ const {
 	updateEnhancedMotionBlur,
 	updateMotionBlurIntensity,
 	updateCursorSmoothness,
+	updateCursorOffset,
 } = usePlayerSettings();
 
 // Local state
@@ -128,6 +141,7 @@ const autoHide = ref(autoHideCursorStore.value);
 const enhancedMotionBlur = ref(enhancedMotionBlurStore.value);
 const motionBlurIntensity = ref(motionBlurIntensityStore.value);
 const cursorSmoothness = ref(cursorSmoothnessStore.value);
+const cursorOffset = ref(cursorOffsetStore.value);
 
 // Watch local changes
 watch(mouseSize, (newValue) => {
@@ -173,6 +187,10 @@ watch(cursorSmoothness, (newValue) => {
 	updateCursorSmoothness(newValue);
 });
 
+watch(cursorOffset, (newValue) => {
+	updateCursorOffset(newValue);
+});
+
 // Watch store changes for new settings
 watch(enhancedMotionBlurStore, (newValue) => {
 	enhancedMotionBlur.value = newValue;
@@ -184,5 +202,9 @@ watch(motionBlurIntensityStore, (newValue) => {
 
 watch(cursorSmoothnessStore, (newValue) => {
 	cursorSmoothness.value = newValue;
+});
+
+watch(cursorOffsetStore, (newValue) => {
+	cursorOffset.value = newValue;
 });
 </script>

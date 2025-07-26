@@ -5,26 +5,34 @@
 			:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
 			@mousedown="startDrag"
 		>
-			<button
-				class="btn-new-record flex flex-row gap-2 items-center"
-				@click="startNewRecording()"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
+			<div class="flex flex-row gap-4 items-center">
+				<img
+					src="~/assets/logo-text-white.png"
+					alt="logo"
+					class="object-cover h-7"
+				/>
+				<div class="w-[2px] h-6 bg-white/20 rounded-full"></div>
+				<button
+					class="btn-new-record flex flex-row gap-2 items-center"
+					@click="startNewRecording()"
 				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
-					/>
-				</svg>
-				New Recording
-			</button>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
+					</svg>
+					New Recording
+				</button>
+			</div>
 
 			<div class="flex flex-row gap-2 items-center">
 				<ProjectManager

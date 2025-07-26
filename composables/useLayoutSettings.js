@@ -12,12 +12,7 @@ export const useLayoutSettings = () => {
 	const currentLayout = ref("camera-full"); // Default layout type
 
 	// Watch for layout range changes
-	watch(
-		layoutRanges,
-		(newRanges) => {
-		},
-		{ deep: true }
-	);
+	watch(layoutRanges, (newRanges) => {}, { deep: true });
 
 	// Save current settings as a layout
 	const saveLayout = async (
@@ -26,7 +21,6 @@ export const useLayoutSettings = () => {
 		cameraPos,
 		additionalSettings = {}
 	) => {
-
 		try {
 			// Generate a unique ID
 			const layoutId = `layout_${Date.now()}_${Math.floor(
@@ -131,7 +125,7 @@ export const useLayoutSettings = () => {
 			// Save to localStorage for web
 			try {
 				localStorage.setItem(
-					"sleer-layouts",
+					"creavit-studio-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
 			} catch (localStorageError) {
@@ -151,7 +145,6 @@ export const useLayoutSettings = () => {
 	// Apply a saved layout
 	const applyLayout = async (layoutId, setVideoPosition, setCameraPosition) => {
 		try {
-
 			// Find the layout by ID
 			const layout = savedLayouts.value.find((l) => l.id === layoutId);
 
@@ -159,7 +152,6 @@ export const useLayoutSettings = () => {
 				console.error(`Layout with ID ${layoutId} not found`);
 				return false;
 			}
-
 
 			// Apply video and camera positions if callbacks are provided
 			try {
@@ -187,7 +179,7 @@ export const useLayoutSettings = () => {
 					// Apply the camera position if we found one
 					if (cameraPos) {
 						setCameraPosition(cameraPos);
-						} else {
+					} else {
 						console.warn("No camera position found in layout settings");
 					}
 				}
@@ -197,7 +189,6 @@ export const useLayoutSettings = () => {
 
 			// Apply player settings
 			try {
-
 				// Apply basic settings
 				if (layout.settings.mouseSize !== undefined) {
 					playerSettings.mouseSize.value = layout.settings.mouseSize;
@@ -249,7 +240,6 @@ export const useLayoutSettings = () => {
 
 				// Apply camera settings
 				if (layout.settings.cameraSettings && playerSettings.cameraSettings) {
-
 					// Make a copy of the camera settings to avoid reference issues
 					const cameraSettingsCopy = JSON.parse(
 						JSON.stringify(layout.settings.cameraSettings)
@@ -300,7 +290,6 @@ export const useLayoutSettings = () => {
 							layout.settings.currentZoomRange;
 					}
 				}
-
 			} catch (settingsError) {
 				console.error("Error applying player settings:", settingsError);
 			}
@@ -314,7 +303,6 @@ export const useLayoutSettings = () => {
 
 	// Rename a layout
 	const renameLayout = async (layoutId, newName) => {
-
 		try {
 			const layoutIndex = savedLayouts.value.findIndex(
 				(l) => l.id === layoutId
@@ -329,7 +317,7 @@ export const useLayoutSettings = () => {
 			// Update localStorage
 			try {
 				localStorage.setItem(
-					"sleer-layouts",
+					"creavit-studio-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
 			} catch (error) {
@@ -345,7 +333,6 @@ export const useLayoutSettings = () => {
 
 	// Delete a layout
 	const deleteLayout = async (layoutId) => {
-
 		try {
 			const layoutIndex = savedLayouts.value.findIndex(
 				(l) => l.id === layoutId
@@ -360,7 +347,7 @@ export const useLayoutSettings = () => {
 			// Update localStorage
 			try {
 				localStorage.setItem(
-					"sleer-layouts",
+					"creavit-studio-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
 			} catch (error) {
@@ -376,10 +363,9 @@ export const useLayoutSettings = () => {
 
 	// Load layouts from localStorage on initialization
 	const loadSavedLayouts = async () => {
-
 		try {
 			// Try to load from localStorage
-			const storedLayouts = localStorage.getItem("sleer-layouts");
+			const storedLayouts = localStorage.getItem("creavit-studio-layouts");
 			if (storedLayouts) {
 				try {
 					const layouts = JSON.parse(storedLayouts);
@@ -411,7 +397,7 @@ export const useLayoutSettings = () => {
 				savedLayouts.value = layouts;
 				// localStorage'a kaydet
 				localStorage.setItem(
-					"sleer-layouts",
+					"creavit-studio-layouts",
 					JSON.stringify(savedLayouts.value)
 				);
 				return true;

@@ -27,8 +27,8 @@
 						Screen Recording Permission Required
 					</h3>
 					<p class="text-gray-300 text-sm mb-3">
-						macOS permissions are required for Sleer to record the screen. Please
-						grant the necessary permissions from system settings.
+						macOS permissions are required for Creavit Studio to record the
+						screen. Please grant the necessary permissions from system settings.
 					</p>
 					<button
 						@click="openSystemPreferences"
@@ -71,7 +71,9 @@
 						class="w-3 h-3 rounded-full"
 						:class="hasCriticalPermissions ? 'bg-green-500' : 'bg-red-500'"
 					></div>
-					<span class="text-sm font-medium text-gray-200"> Permission Status </span>
+					<span class="text-sm font-medium text-gray-200">
+						Permission Status
+					</span>
 					<span
 						class="text-xs px-2 py-1 rounded-full"
 						:class="
@@ -158,7 +160,9 @@
 									"
 								></div>
 								<div>
-									<div class="text-sm font-medium text-gray-200">Microphone</div>
+									<div class="text-sm font-medium text-gray-200">
+										Microphone
+									</div>
 									<div class="text-xs text-gray-400">
 										Required for audio recording
 									</div>
@@ -200,9 +204,7 @@
 									<div class="text-sm font-medium text-gray-200">
 										Accessibility
 									</div>
-									<div class="text-xs text-gray-400">
-										For advanced features
-									</div>
+									<div class="text-xs text-gray-400">For advanced features</div>
 								</div>
 							</div>
 							<span
@@ -280,7 +282,9 @@ const requestMicrophonePermission = async () => {
 		const granted = await requestPermission("microphone");
 		if (granted) {
 		} else {
-			console.warn("[MacRecorderPermissionChecker] Microphone permission not granted");
+			console.warn(
+				"[MacRecorderPermissionChecker] Microphone permission not granted"
+			);
 		}
 	} catch (error) {
 		console.error(

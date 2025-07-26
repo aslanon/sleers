@@ -660,11 +660,17 @@ class CameraManager {
 	}
 
 	// Kayıt durumunu ayarla
-	setRecordingStatus(status) {
+	setRecordingStatus(status, synchronizedRecording = null) {
 		this.isRecording = status;
 		if (status) {
 			this.showCameraWindow();
 			this.startMouseTracking();
+			
+			// Record camera start time for synchronization
+			if (synchronizedRecording && synchronizedRecording.isRecording) {
+				synchronizedRecording.recordStartTime('camera');
+				console.log('[CameraManager] Camera başlangıç zamanı senkronizasyon servisine kaydedildi');
+			}
 		} else {
 			this.closeCameraWindow();
 		}

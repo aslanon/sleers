@@ -124,7 +124,7 @@ async function findAvailablePort(preferredPort = 3002) {
 
 async function startDevelopment() {
 	try {
-		console.log("🚀 Sleer geliştirme ortamı başlatılıyor...");
+		console.log("🚀 Creavit Studio geliştirme ortamı başlatılıyor...");
 		console.log(
 			"📍 Akıllı port seçimi kullanılıyor (önce 3002, sonra alternatifler)"
 		);

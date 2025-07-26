@@ -18,12 +18,12 @@ ctx.fillStyle = gradient;
 ctx.arc(256, 256, 200, 0, Math.PI * 2);
 ctx.fill();
 
-// Draw a simplified "S" letter for Sleer
+// Draw a simplified "C" letter for Creavit Studio
 ctx.fillStyle = "#ffffff";
 ctx.font = "bold 280px Arial";
 ctx.textAlign = "center";
 ctx.textBaseline = "middle";
-ctx.fillText("S", 256, 256);
+ctx.fillText("C", 256, 256);
 
 // Save the image to build/icon.png
 const buffer = canvas.toBuffer("image/png");

@@ -1,4 +1,4 @@
-# Sleer Geliştirici Kılavuzu
+# Creavit Studio Geliştirici Kılavuzu
 
 ## Otomatik Dokümantasyon Güncelleme
 
@@ -289,7 +289,7 @@ npm run electron:build
 
 ### Native Cursor Tracking
 
-Sleer artık cursor tracking için node-mac-recorder paketinin native cursor tracking özelliğini kullanır:
+Creavit Studio artık cursor tracking için node-mac-recorder paketinin native cursor tracking özelliğini kullanır:
 
 ```javascript
 // main.cjs içinde cursor tracking başlatma

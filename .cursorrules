@@ -1,6 +1,7 @@
 // Screen Studio .cursorrules
 
 // Genel İlkeler
+
 - Uygulamanın masaüstü sürümü için Electron framework'ünü kullanın.
 - Web sürümü için Nuxt.js framework'ünü kullanın.
 - Kodlama standartları olarak ES6+ özelliklerini tercih edin.
@@ -10,6 +11,7 @@
 - Kodunuzu anlamlı ve açıklayıcı yorumlarla belgeleyin.
 
 // Electron Uygulaması
+
 - Electron'un en son kararlı sürümünü kullanın.
 - Electron'un `BrowserWindow` özelliklerini kullanarak ana pencereyi oluşturun.
 - Electron'un `ipcRenderer` ve `ipcMain` modüllerini kullanarak ana süreç ve renderer süreçleri arasında iletişimi sağlayın.
@@ -64,19 +66,20 @@
 - Electron'un `app` ve `BrowserWindow` nesnelerini doğru şekilde yöneterek uygulamanın yaşam döngüsünü yönetin.
 - Electron'un `Menu` ve `MenuItem` modüllerini kullanarak uygulama menüsünü oluşturun.
 
- 
+You are an expert software architect tasked with creating comprehensive rules for Cursor AI to follow when working with creavit-studio.
 
-You are an expert software architect tasked with creating comprehensive rules for Cursor AI to follow when working with sleer. 
-
-# Cursor AI Rules for sleer
+# Cursor AI Rules for creavit-studio
 
 ## Project Overview
+
 similar of screen.studio
 
 ## Project Context
-This document defines the rules and guidelines for Cursor AI when working with sleer.
+
+This document defines the rules and guidelines for Cursor AI when working with creavit-studio.
 
 ### Technical Stack
+
 - Platform: desktop
 - Framework: electron
 - Key Dependencies:
@@ -121,11 +124,12 @@ This document defines the rules and guidelines for Cursor AI when working with s
 
 - electron-debug
 
-
 ## Code Generation Rules
 
 ### 1. Project Structure
+
 Follow these directory and file organization rules:
+
 - Maintain the established project structure
 - Place components in appropriate directories
 - Follow file naming conventions
@@ -133,7 +137,9 @@ Follow these directory and file organization rules:
 - Keep related files together
 
 ### 2. Code Style
+
 Adhere to these formatting rules:
+
 - Use consistent indentation
 - Follow line length limits
 - Apply proper spacing
@@ -142,7 +148,9 @@ Adhere to these formatting rules:
 - Follow TypeScript best practices
 
 ### 3. Component Guidelines
+
 When generating components:
+
 - Follow component composition patterns
 - Implement proper prop typing
 - Use appropriate state management
@@ -152,7 +160,9 @@ When generating components:
 - Optimize rendering performance
 
 ### 4. Type System
+
 For TypeScript implementation:
+
 - Use strict type checking
 - Create proper interfaces
 - Implement generics correctly
@@ -162,7 +172,9 @@ For TypeScript implementation:
 - Avoid any type
 
 ### 5. API Integration
+
 When working with APIs:
+
 - Follow RESTful conventions
 - Implement proper error handling
 - Use type-safe requests
@@ -172,7 +184,9 @@ When working with APIs:
 - Implement proper caching
 
 ### 6. State Management
+
 For managing application state:
+
 - Use appropriate state solutions
 - Follow immutability principles
 - Implement proper actions/reducers
@@ -182,7 +196,9 @@ For managing application state:
 - Implement proper selectors
 
 ### 7. Testing Requirements
+
 Generate tests following these rules:
+
 - Write comprehensive unit tests
 - Implement integration tests
 - Follow testing best practices
@@ -192,7 +208,9 @@ Generate tests following these rules:
 - Document test cases
 
 ### 8. Security Guidelines
+
 Enforce security practices:
+
 - Validate all inputs
 - Sanitize data output
 - Handle authentication properly
@@ -202,7 +220,9 @@ Enforce security practices:
 - Use secure dependencies
 
 ### 9. Performance Rules
+
 Optimize for performance:
+
 - Implement code splitting
 - Use lazy loading
 - Optimize bundle size
@@ -212,7 +232,9 @@ Optimize for performance:
 - Follow performance best practices
 
 ### 10. Documentation
+
 Generate documentation that:
+
 - Is clear and concise
 - Includes JSDoc comments
 - Provides usage examples
@@ -221,12 +243,10 @@ Generate documentation that:
 - Includes type information
 - Follows documentation standards
 
-
-
-
 ## Best Practices
 
 ### 1. Code Quality
+
 - Write self-documenting code
 - Keep functions small and focused
 - Follow DRY principles
@@ -235,6 +255,7 @@ Generate documentation that:
 - Write maintainable code
 
 ### 2. Performance
+
 - Optimize bundle size
 - Implement code splitting
 - Use proper caching
@@ -242,6 +263,7 @@ Generate documentation that:
 - Follow lazy loading patterns
 
 ### 3. Security
+
 - Validate user input
 - Sanitize data output
 - Use proper authentication

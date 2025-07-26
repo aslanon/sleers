@@ -12,6 +12,8 @@ const autoHideCursor = ref(true);
 const enhancedMotionBlur = ref(true);
 const motionBlurIntensity = ref(0.8);
 const cursorSmoothness = ref(0);
+const cursorOffset = ref(1); // Cursor timing offset in seconds (-2 to +2)
+const synchronizedTimestamps = ref(null); // Synchronized recording timestamps
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
@@ -84,6 +86,20 @@ const activeZoomPosition = computed(
 );
 
 export const usePlayerSettings = () => {
+	// Synchronized recording service integration
+	const getSynchronizedTimestamp = (recordingType, timestamp) => {
+		if (synchronizedTimestamps.value && synchronizedTimestamps.value.offsets) {
+			const offset = synchronizedTimestamps.value.offsets[recordingType] || 0;
+			return Math.max(0, timestamp - offset);
+		}
+		return timestamp; // Fallback
+	};
+
+	const setSynchronizedTimestamps = (timestamps) => {
+		synchronizedTimestamps.value = timestamps;
+		console.log('[usePlayerSettings] Synchronized timestamps set:', timestamps);
+	};
+
 	const updateMouseSize = (size) => {
 		mouseSize.value = size;
 	};
@@ -117,6 +133,10 @@ export const usePlayerSettings = () => {
 
 	const updateCursorSmoothness = (value) => {
 		cursorSmoothness.value = value;
+	};
+
+	const updateCursorOffset = (value) => {
+		cursorOffset.value = value;
 	};
 
 	const updateBackgroundColor = (color) => {
@@ -249,6 +269,8 @@ export const usePlayerSettings = () => {
 		enhancedMotionBlur,
 		motionBlurIntensity,
 		cursorSmoothness,
+		cursorOffset,
+		synchronizedTimestamps,
 		backgroundColor,
 		backgroundImage,
 		backgroundBlur,
@@ -274,6 +296,7 @@ export const usePlayerSettings = () => {
 		updateEnhancedMotionBlur,
 		updateMotionBlurIntensity,
 		updateCursorSmoothness,
+		updateCursorOffset,
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,
@@ -289,6 +312,8 @@ export const usePlayerSettings = () => {
 		updateVideoBorderSettings,
 		updateShowDock,
 		updateDockSize,
+		getSynchronizedTimestamp,
+		setSynchronizedTimestamps,
 		CURSOR_TRANSITION_TYPES,
 	};
 };

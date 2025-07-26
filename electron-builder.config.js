@@ -3,8 +3,8 @@
  * @see https://www.electron.build/configuration/configuration
  */
 module.exports = {
-	appId: "com.sleer.app",
-	productName: "Sleer",
+	appId: "com.creavit.studio",
+	productName: "Creavit Studio",
 	asar: true,
 	directories: {
 		output: "dist",
@@ -52,11 +52,11 @@ module.exports = {
 		artifactName: "${productName}-${version}-arm64.${ext}",
 		extendInfo: {
 			NSCameraUsageDescription:
-				"Sleer, ekran kayıtlarınıza kamera görüntünüzü eklemek için kameranıza erişim gerektirir.",
+				"Creavit Studio, ekran kayıtlarınıza kamera görüntünüzü eklemek için kameranıza erişim gerektirir.",
 			NSMicrophoneUsageDescription:
-				"Sleer, sesli anlatım kaydetmek için mikrofonunuza erişim gerektirir.",
+				"Creavit Studio, sesli anlatım kaydetmek için mikrofonunuza erişim gerektirir.",
 			NSScreenCaptureUsageDescription:
-				"Sleer, ekranınızı kaydetmek için bu izne ihtiyaç duyar.",
+				"Creavit Studio, ekranınızı kaydetmek için bu izne ihtiyaç duyar.",
 		},
 	},
 	dmg: {
@@ -80,7 +80,7 @@ module.exports = {
 			height: 380,
 		},
 		backgroundColor: "#1e293b",
-		title: "Sleer Installer",
+		title: "Creavit Studio Installer",
 	},
 	// Bağımlılıkları daha iyi derlemek için
 	nodeGypRebuild: true,
