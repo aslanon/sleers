@@ -3362,6 +3362,24 @@ function setupIpcHandlers() {
 			mainWindow.webContents.send(IPC_EVENTS.RESET_FOR_NEW_RECORDING);
 		}
 	});
+
+	// Tray'den gelen kayıt başlatma isteği
+	ipcMain.on("START_RECORDING_FROM_TRAY", () => {
+		console.log("[Main] Tray'den kayıt başlatma isteği alındı");
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			// Frontend'e direkt event gönder (zaten dinleniyor)
+			mainWindow.webContents.send("START_RECORDING_FROM_TRAY");
+		}
+	});
+
+	// Tray'den gelen kayıt durdurma isteği
+	ipcMain.on("STOP_RECORDING_FROM_TRAY", () => {
+		console.log("[Main] Tray'den kayıt durdurma isteği alındı");
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			// Frontend'e direkt event gönder (zaten dinleniyor)
+			mainWindow.webContents.send("STOP_RECORDING_FROM_TRAY");
+		}
+	});
 }
 
 async function createWindow() {

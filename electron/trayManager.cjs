@@ -132,103 +132,84 @@ class TrayManager {
 		]);
 	}
 
-	updateTrayIcon() {
-		if (!this.tray) return;
+	getIconPath(isRecording = false) {
+		// Kayıt durumuna göre farklı logo dosyası seç
+		const logoFileName = isRecording
+			? "logo-sample-red.png"
+			: "logo-sample.png";
 
-		// Yeni logo-sample.png dosyasını kullan
-		let iconPath;
+		// Farklı klasörlerde logo dosyasını ara
+		const possiblePaths = [
+			path.join(__dirname, `../assets/${logoFileName}`),
+			path.join(__dirname, `../public/assets/${logoFileName}`),
+			path.join(__dirname, `../.output/public/assets/${logoFileName}`),
+		];
 
-		// Assets klasöründeki logo-sample.png dosyasını kontrol et
-		const logoPngPath = path.join(__dirname, "../assets/logo-sample.png");
-		const publicLogoPath = path.join(
-			__dirname,
-			"../public/assets/logo-sample.png"
-		);
-		const outputLogoPath = path.join(
-			__dirname,
-			"../.output/public/assets/logo-sample.png"
-		);
-
-		if (fs.existsSync(logoPngPath)) {
-			iconPath = logoPngPath;
-		} else if (fs.existsSync(publicLogoPath)) {
-			iconPath = publicLogoPath;
-		} else if (fs.existsSync(outputLogoPath)) {
-			iconPath = outputLogoPath;
-		} else {
-			// Fallback: Eski default.png kullan
-			const fallbackPath = path.join(__dirname, "../public/icons/default.png");
-			if (fs.existsSync(fallbackPath)) {
-				iconPath = fallbackPath;
-			} else {
-				console.warn(
-					"[TrayManager] Logo dosyası bulunamadı, boş ikon kullanılıyor"
+		// İlk bulunan dosyayı kullan
+		for (const filePath of possiblePaths) {
+			if (fs.existsSync(filePath)) {
+				console.log(
+					`[TrayManager] ${
+						isRecording ? "Recording" : "Normal"
+					} icon found: ${filePath}`
 				);
-				iconPath = nativeImage.createEmpty();
+				return filePath;
 			}
 		}
 
+		// Kayıt iconunu bulamazsa normal iconu dene
+		if (isRecording) {
+			console.warn(
+				"[TrayManager] Recording icon not found, falling back to normal icon"
+			);
+			return this.getIconPath(false);
+		}
+
+		// Hiçbir logo bulunamazsa fallback
+		const fallbackPath = path.join(__dirname, "../public/icons/default.png");
+		if (fs.existsSync(fallbackPath)) {
+			console.warn("[TrayManager] Using fallback icon:", fallbackPath);
+			return fallbackPath;
+		}
+
+		console.warn("[TrayManager] No icon found, using empty icon");
+		return null;
+	}
+
+	updateTrayIcon() {
+		if (!this.tray) return;
+
+		const iconPath = this.getIconPath(this.isRecording);
+
 		try {
-			const trayIcon =
-				typeof iconPath === "string"
-					? nativeImage
-							.createFromPath(iconPath)
-							.resize({ width: 16, height: 16 })
-					: iconPath;
+			const trayIcon = iconPath
+				? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+				: nativeImage.createEmpty();
 
 			this.tray.setImage(trayIcon);
 			this.tray.setContextMenu(this.createTrayMenu());
+
+			console.log(
+				`[TrayManager] Tray icon updated - Recording: ${this.isRecording}`
+			);
 		} catch (error) {
 			console.error("Tray ikonunu güncellerken hata:", error);
 		}
 	}
 
 	createTray() {
-		// Yeni logo-sample.png dosyasını kullan
-		let iconPath;
-
-		// Assets klasöründeki logo-sample.png dosyasını kontrol et
-		const logoPngPath = path.join(__dirname, "../assets/logo-sample.png");
-		const publicLogoPath = path.join(
-			__dirname,
-			"../public/assets/logo-sample.png"
-		);
-		const outputLogoPath = path.join(
-			__dirname,
-			"../.output/public/assets/logo-sample.png"
-		);
-
-		if (fs.existsSync(logoPngPath)) {
-			iconPath = logoPngPath;
-		} else if (fs.existsSync(publicLogoPath)) {
-			iconPath = publicLogoPath;
-		} else if (fs.existsSync(outputLogoPath)) {
-			iconPath = outputLogoPath;
-		} else {
-			// Fallback: Eski default.png kullan
-			const fallbackPath = path.join(__dirname, "../public/icons/default.png");
-			if (fs.existsSync(fallbackPath)) {
-				iconPath = fallbackPath;
-			} else {
-				console.warn(
-					"[TrayManager] Logo dosyası bulunamadı, boş ikon kullanılıyor"
-				);
-				iconPath = nativeImage.createEmpty();
-			}
-		}
+		const iconPath = this.getIconPath(this.isRecording);
 
 		try {
-			const trayIcon =
-				typeof iconPath === "string"
-					? nativeImage
-							.createFromPath(iconPath)
-							.resize({ width: 16, height: 16 })
-					: iconPath;
+			const trayIcon = iconPath
+				? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+				: nativeImage.createEmpty();
 
 			if (!this.tray) {
 				this.tray = new Tray(trayIcon);
 				this.tray.setToolTip("Creavit Studio Screen Recorder");
 				this.tray.setContextMenu(this.createTrayMenu());
+				console.log("[TrayManager] Tray created successfully");
 			} else {
 				this.tray.setImage(trayIcon);
 			}
