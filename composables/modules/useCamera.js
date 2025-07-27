@@ -403,11 +403,12 @@ export const useCamera = () => {
 
 		updateHoverScale();
 
-		// Zoom durumunda kamera boyutlarını daha büyük tut
-		const baseCanvasWidth = (canvasWidth / zoomScale) * 2;
+		// Zoom durumunda kamera boyutlarını size'a göre ayarla ve aspect ratio'yu koru
+		const baseCanvasWidth = canvasWidth;
 		let cameraWidth = (baseCanvasWidth * cameraSettings.value.size) / 100;
 		let cameraHeight;
 
+		// Aspect ratio'yu her zaman koru
 		if (
 			cameraSettings.value?.aspectRatio &&
 			cameraSettings.value.aspectRatio !== "free"
@@ -566,9 +567,9 @@ export const useCamera = () => {
 			cameraX = dragPosition.x + timeBasedOffsetX;
 			cameraY = dragPosition.y + timeBasedOffsetY;
 		} else if (cameraSettings.value.followMouse) {
-			// Zoom durumunda daha büyük offset kullan
-			const baseOffset = 80;
-			const zoomMultiplier = zoomScale > 1 ? 1.5 : 1; // Zoom varsa offset'i artır
+			// Zoom durumunda daha küçük offset kullan
+			const baseOffset = 60; // Azaltıldı (80 -> 40)
+			const zoomMultiplier = zoomScale > 1 ? 1.8 : 1; // Azaltıldı (1.5 -> 1.2)
 			const minOffset = baseOffset * zoomMultiplier;
 			const offsetX = minOffset * dpr;
 			const offsetY = minOffset * dpr;
@@ -579,10 +580,18 @@ export const useCamera = () => {
 				cameraY = dragPosition.y + timeBasedOffsetY;
 			} else {
 				// Mouse pozisyonunu doğrudan kullan (video pozisyonunu çıkarma)
-				const targetX = mouseX + offsetX - cameraWidth / 2 + timeBasedOffsetX;
-				const targetY = mouseY + offsetY - cameraHeight / 2 + timeBasedOffsetY;
+				// Edge detection MediaPlayer'da yapılıyor, burada sadece basit pozisyonlama
+				let targetX = mouseX - cameraWidth / 2;
+				let targetY = mouseY + 100 * dpr; // Default offset
 
-				const lerpFactor = 0.3;
+				// Video pozisyonunu ekle
+				targetX += videoPosition.x;
+				targetY += videoPosition.y;
+
+				// Smooth lerp - zoom'a göre hız ayarı
+				const baseLerpFactor = 0.3;
+				const zoomSpeedMultiplier = zoomScale > 1.01 ? 2.5 : 1; // Zoom'da daha hızlı
+				const lerpFactor = baseLerpFactor * zoomSpeedMultiplier;
 
 				const lastX = lastCameraPosition.value?.x || targetX;
 				const lastY = lastCameraPosition.value?.y || targetY;
@@ -593,14 +602,14 @@ export const useCamera = () => {
 		} else {
 			// Sabit pozisyon durumunda da zoom'a göre offset ayarla
 			const basePadding = 20;
-			const zoomMultiplier = zoomScale > 1 ? 1.5 : 1;
+			const zoomMultiplier = zoomScale > 1 ? 1.2 : 1; // Azaltıldı (1.5 -> 1.2)
 			const padding = basePadding * zoomMultiplier * dpr;
 
 			cameraX =
-				(lastCameraPosition.value?.x || canvasWidth - cameraWidth - padding) +
+				(lastCameraPosition.value?.x || 30 * dpr) + // Daha solda (canvasWidth - cameraWidth - padding -> 30 * dpr)
 				timeBasedOffsetX;
 			cameraY =
-				(lastCameraPosition.value?.y || canvasHeight - cameraHeight - padding) +
+				(lastCameraPosition.value?.y || 80 * dpr) + // Daha aşağıda (canvasHeight - cameraHeight - padding -> 80 * dpr)
 				timeBasedOffsetY;
 		}
 

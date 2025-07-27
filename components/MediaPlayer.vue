@@ -1907,30 +1907,59 @@ const drawMousePositions = (customCtx = null) => {
 		visible: mouseVisible.value,
 	});
 
-	// Kamera pozisyonunu güncelle
+	// Kamera pozisyonunu güncelle - CameraManager sistemi uygula
 	if (cameraElement && cameraSettings.value.followMouse) {
 		// 📏 Zoom'a göre ayarlanmış offset değerleri (zoom arttıkça offset küçülsün)
 		const zoomAdjustment =
 			canvasZoomScale.value > 1.01 ? 1 / Math.sqrt(canvasZoomScale.value) : 1;
-		const offsetX = 100 * dpr * zoomAdjustment; // Zoom'a göre ayarlanmış yatay mesafe
-		const offsetY = 100 * dpr * zoomAdjustment; // Zoom'a göre ayarlanmış dikey mesafe
 		const PADDING = 20 * dpr * zoomAdjustment; // Zoom'a göre ayarlanmış padding
 
 		// Mouse pozisyonunu video pozisyonuna göre normalize et
 		const normalizedMouseX = canvasX - position.value.x;
 		const normalizedMouseY = canvasY - position.value.y;
 
-		// Hedef pozisyonu hesapla (normalize edilmiş mouse pozisyonuna göre)
-		let targetX = normalizedMouseX + offsetX;
-		let targetY = normalizedMouseY + offsetY;
-
-		// 📏 Zoom'a göre ayarlanmış kamera boyutlarını al (%50 daha küçük)
+		// 📏 Zoom'a göre ayarlanmış kamera boyutlarını al (size'a göre)
 		const baseCameraWidth =
 			(canvasRef.value.width * cameraSettings.value.size) / 100;
-		const cameraWidth = baseCameraWidth * zoomAdjustment * 0.5; // %50 daha küçük (0.5 = 50%)
+		const cameraWidth = baseCameraWidth * zoomAdjustment; // Size'a göre, %50 ekstra küçültme yok
 		const cameraHeight = cameraWidth;
 
-		// Canvas sınırları içinde kal
+		// CameraManager'daki edge detection sistemi - DAHA GÜÇLÜ
+		const EDGE_THRESHOLD = 300 * dpr; // Daha büyük threshold
+		const isNearTop = normalizedMouseY < EDGE_THRESHOLD;
+		const isNearBottom =
+			normalizedMouseY > canvasRef.value.height - EDGE_THRESHOLD;
+		const isNearLeft = normalizedMouseX < EDGE_THRESHOLD;
+		const isNearRight =
+			normalizedMouseX > canvasRef.value.width - EDGE_THRESHOLD;
+
+		// CameraManager'daki pozisyonlama mantığını uygula - camera kenarlardan KAÇSIN
+		// Camera size'a göre offset ayarla
+		const sizeBasedOffset = Math.max(100 * dpr, cameraWidth * 0.3); // En az 100px, camera genişliğinin %30'u
+		let targetX = normalizedMouseX - cameraWidth / 2;
+		let targetY = normalizedMouseY + sizeBasedOffset; // Size'a göre ayarlanmış offset
+
+		// Edge-based positioning (CameraManager'daki gibi) - camera kenarlardan KAÇSIN - DAHA GÜÇLÜ
+		// Camera size'a göre edge offset ayarla
+		const edgeOffset = Math.max(150 * dpr, cameraWidth * 0.4); // En az 150px, camera genişliğinin %40'ı
+
+		if (isNearRight) {
+			// Sağ kenar: Camera'yı solda tut - mouse'dan uzaklaştır
+			targetX = normalizedMouseX - cameraWidth - edgeOffset; // Size'a göre ayarlanmış
+		} else if (isNearLeft) {
+			// Sol kenar: Camera'yı sağda tut - mouse'dan uzaklaştır
+			targetX = normalizedMouseX + edgeOffset; // Size'a göre ayarlanmış
+		}
+
+		if (isNearBottom) {
+			// Alt kenar: Camera'yı yukarıda tut - mouse'dan uzaklaştır
+			targetY = normalizedMouseY - cameraHeight - edgeOffset; // Size'a göre ayarlanmış
+		} else if (isNearTop) {
+			// Üst kenar: Camera'yı aşağıda tut - mouse'dan uzaklaştır
+			targetY = normalizedMouseY + edgeOffset; // Size'a göre ayarlanmış
+		}
+
+		// CameraManager'daki gibi bounds kontrolü
 		targetX = Math.max(
 			PADDING,
 			Math.min(targetX, canvasRef.value.width - cameraWidth - PADDING)
@@ -1940,8 +1969,10 @@ const drawMousePositions = (customCtx = null) => {
 			Math.min(targetY, canvasRef.value.height - cameraHeight - PADDING)
 		);
 
-		// Smooth geçiş için lerp faktörü
-		const lerpFactor = 0.2;
+		// CameraManager'daki gibi smooth lerp - zoom'a göre hız ayarı
+		const baseLerpFactor = 0.15; // CameraManager'daki gibi
+		const zoomSpeedMultiplier = canvasZoomScale.value > 1.01 ? 2.5 : 1; // Zoom'da daha hızlı
+		const lerpFactor = baseLerpFactor * zoomSpeedMultiplier;
 
 		// İlk pozisyonu ayarla
 		if (!lastCameraX.value) lastCameraX.value = targetX;
