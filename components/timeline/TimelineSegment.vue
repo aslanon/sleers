@@ -1,15 +1,24 @@
 <template>
 	<div
-		class="h-full ring-inset relative transition-all duration-200 group"
+		ref="segmentRef"
+		class="h-full ring-inset relative group"
 		:class="{
 			'ring-[1px] ring-white z-30': isActive,
 			'hover:!ring-[1px] hover:!ring-white hover:z-30':
-				!isResizing && !isActive && !isDragging,
-			'z-10': !isResizing && !isActive && !isHovered && !isDragging,
-			'cursor-grabbing': isDragging,
-			'cursor-grab': !isDragging && !isSplitMode && !isResizing,
+				!isResizing && !isActive && !isDragging && !isDraggingLocal,
+			'z-10':
+				!isResizing &&
+				!isActive &&
+				!isHovered &&
+				!isDragging &&
+				!isDraggingLocal,
+			'cursor-grabbing': isDragging || isDraggingLocal,
+			'cursor-grab':
+				!isDragging && !isDraggingLocal && !isSplitMode && !isResizing,
+			'transition-all duration-200': !isDragging && !isDraggingLocal, // Hem local hem prop state kontrolü
 		}"
 		:style="segmentStyle"
+		:data-segment-id="segment.id"
 		@click.stop="handleClick"
 		@mousemove="handleMouseMove"
 		@mouseleave="handleMouseLeave"
@@ -162,7 +171,8 @@ const segmentStyle = computed(() => {
 			width: `${width}%`,
 			left: `${left}%`,
 			position: "absolute",
-			transition: isResizing.value ? "none" : "all 0.2s ease",
+			transition:
+				isResizing.value || props.isDragging ? "none" : "all 0.2s ease", // Sürükleme sırasında da transition yok
 			zIndex: props.isActive ? "10" : "1",
 			borderRadius: "10px",
 			backgroundColor: "rgb(140,91,7)",
@@ -188,7 +198,10 @@ const segmentStyle = computed(() => {
 		width: `${width}%`,
 		left: `${left}%`,
 		position: "absolute",
-		transition: isResizing.value ? "none" : "all 0.2s ease",
+		transition:
+			isResizing.value || props.isDragging || isDraggingLocal.value
+				? "none"
+				: "all 0.2s ease", // Hem local hem prop state kontrolü
 		zIndex: props.isActive ? "10" : "1",
 		borderRadius: "10px",
 		backgroundColor: "rgb(140,91,7)",
@@ -199,7 +212,10 @@ const segmentStyle = computed(() => {
 			? "1px solid rgba(255, 255, 255, 0.3)"
 			: "0.25px solid rgba(255, 255, 255, 0.1)",
 		height: "100%",
-		cursor: "pointer",
+		cursor: props.isDragging || isDraggingLocal.value ? "grabbing" : "grab", // Hem local hem prop state kontrolü
+		transform: "translate3d(0,0,0)", // Hardware acceleration - zoom segmenti gibi
+		willChange:
+			props.isDragging || isDraggingLocal.value ? "transform" : "auto", // Hem local hem prop state kontrolü
 	};
 });
 
@@ -392,6 +408,7 @@ const handleSplit = (event) => {
 const isDraggingLocal = ref(false);
 const dragStartX = ref(0);
 const dragStartTime = ref(0);
+const segmentRef = ref(null); // Segment element'ini ref ile tut
 
 const handleDragStart = (event) => {
 	if (props.isResizing || props.isSplitMode) return;
@@ -402,6 +419,11 @@ const handleDragStart = (event) => {
 	isDraggingLocal.value = true;
 	dragStartX.value = event.clientX;
 	dragStartTime.value = props.segment.timelineStart || props.segment.start || 0;
+
+	// Performance için style güncellemesi - zoom segmenti gibi
+	const segmentEl = event.currentTarget;
+	segmentEl.style.willChange = "transform";
+	segmentEl.style.transition = "none";
 
 	emit("dragStart", {
 		index: props.index,
@@ -434,6 +456,25 @@ const handleDragEnd = (event) => {
 	if (!isDraggingLocal.value) return;
 
 	isDraggingLocal.value = false;
+
+	// Performance style'larını resetle - güvenli yaklaşım
+	// Önce ref'ten dene, sonra data-segment-id ile bul
+	let segmentEl = segmentRef.value;
+	if (!segmentEl) {
+		segmentEl = document.querySelector(
+			`[data-segment-id="${props.segment.id}"]`
+		);
+	}
+	if (!segmentEl) {
+		// Son çare olarak tüm segment element'lerini bul ve ilkini al
+		const allSegments = document.querySelectorAll(".h-full.ring-inset");
+		segmentEl = allSegments[0];
+	}
+
+	if (segmentEl) {
+		segmentEl.style.willChange = "auto";
+		segmentEl.style.transition = null;
+	}
 
 	emit("dragEnd", {
 		index: props.index,

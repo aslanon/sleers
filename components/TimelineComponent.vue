@@ -824,6 +824,13 @@ const handleSegmentSplit = (event, index, ratio) => {
 
 // Sürükleme bittiğinde
 const handleSegmentDragEnd = () => {
+	// Performance style'larını resetle - zoom segmenti gibi
+	const segments = document.querySelectorAll(".timeline-layer-bar > div > div");
+	segments.forEach((segment) => {
+		segment.style.willChange = "auto";
+		segment.style.transition = null;
+	});
+
 	draggedSegmentIndex.value = null;
 	dropTargetInfo.value = {
 		segmentIndex: null,
