@@ -4,14 +4,16 @@
 		:class="{
 			'ring-[1px] ring-white z-30': isActive,
 			'hover:!ring-[1px] hover:!ring-white hover:z-30':
-				!isResizing && !isActive,
-			'z-10': !isResizing && !isActive && !isHovered,
+				!isResizing && !isActive && !isDragging,
+			'z-10': !isResizing && !isActive && !isHovered && !isDragging,
+			'cursor-grabbing': isDragging,
+			'cursor-grab': !isDragging && !isSplitMode && !isResizing,
 		}"
 		:style="segmentStyle"
 		@click.stop="handleClick"
 		@mousemove="handleMouseMove"
 		@mouseleave="handleMouseLeave"
-		@mousedown.stop="isSplitMode ? handleSplit($event) : null"
+		@mousedown.stop="handleMouseDown"
 	>
 		<!-- Split Indicator -->
 		<div
@@ -94,7 +96,15 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	isDragging: {
+		type: Boolean,
+		default: false,
+	},
 	duration: {
+		type: Number,
+		required: true,
+	},
+	originalVideoDuration: {
 		type: Number,
 		required: true,
 	},
@@ -116,6 +126,9 @@ const emit = defineEmits([
 	"resizeUpdate",
 	"resizeEnd",
 	"split",
+	"dragStart",
+	"drag",
+	"dragEnd",
 ]);
 
 // Mouse position for split mode
@@ -145,7 +158,6 @@ const segmentStyle = computed(() => {
 		const width = (duration / props.duration) * 100;
 		const left = (timelineStart / props.duration) * 100;
 
-
 		return {
 			width: `${width}%`,
 			left: `${left}%`,
@@ -165,11 +177,12 @@ const segmentStyle = computed(() => {
 		};
 	}
 
-	// Fallback - eski yöntem
-	const start = props.segment.start || props.segment.startTime || 0;
-	const duration = (props.segment.end || props.segment.endTime || 0) - start;
+	// Normal timeline pozisyonu - timelineStart/timelineEnd değerlerini kullan
+	const timelineStart = props.segment.timelineStart || props.segment.start || 0;
+	const timelineEnd = props.segment.timelineEnd || props.segment.end || 0;
+	const duration = timelineEnd - timelineStart;
 	const width = (duration / props.duration) * 100;
-	const left = (start / props.duration) * 100;
+	const left = (timelineStart / props.duration) * 100;
 
 	return {
 		width: `${width}%`,
@@ -192,12 +205,12 @@ const segmentStyle = computed(() => {
 
 // Format duration for display
 const formattedDuration = computed(() => {
-	const start = props.segment.start || props.segment.startTime || 0;
-	const end = props.segment.end || props.segment.endTime || 0;
-	const seconds = end - start;
+	// Timeline süresini göster (timelineStart/timelineEnd)
+	const timelineStart = props.segment.timelineStart || props.segment.start || 0;
+	const timelineEnd = props.segment.timelineEnd || props.segment.end || 0;
+	const seconds = timelineEnd - timelineStart;
 	const s = Math.floor(seconds);
-	
-	
+
 	return `${s}s`;
 });
 
@@ -233,8 +246,15 @@ const handleResizeStart = (event, edge) => {
 	resizeStartX.value = event.clientX;
 	resizeStartWidth.value = rect.width;
 	resizeStartLeft.value = rect.left;
-	resizeStartTime.value =
-		edge === "start" ? props.segment.start : props.segment.end;
+
+	// Resize başlangıç zamanını video content pozisyonlarından al
+	if (edge === "start") {
+		resizeStartTime.value =
+			props.segment.videoStart || props.segment.startTime || 0;
+	} else {
+		resizeStartTime.value =
+			props.segment.videoEnd || props.segment.endTime || 0;
+	}
 
 	// Resize durumunu güncelle
 	emit("resizeStart", event, props.index, edge);
@@ -258,38 +278,75 @@ const handleResize = (event) => {
 	// Zaman değişimini hesapla
 	const timeChange = dx / pixelsPerSecond;
 
-	// Yeni segment zamanlarını hesapla
-	let newStart = props.segment.start;
-	let newEnd = props.segment.end;
+	// Video content pozisyonlarını hesapla (videoStart/videoEnd)
+	let newVideoStart = props.segment.videoStart || props.segment.startTime || 0;
+	let newVideoEnd = props.segment.videoEnd || props.segment.endTime || 0;
 
 	if (resizeEdge.value === "start") {
-		newStart = Math.max(
-			0,
-			Math.min(props.segment.end - 0.1, resizeStartTime.value + timeChange)
-		);
+		// Start edge resize: videoStart'ı değişim miktarına göre güncelle
+		const newVideoStartValue = Math.max(0, resizeStartTime.value + timeChange);
+		newVideoStart = Math.min(newVideoStartValue, newVideoEnd - 0.1);
+		newVideoEnd = props.segment.videoEnd || props.segment.endTime || 0; // videoEnd aynı kalır
 	} else {
-		newEnd = Math.max(
-			props.segment.start + 0.1,
-			Math.min(props.duration, resizeStartTime.value + timeChange)
+		// End edge resize: videoEnd'ı değişim miktarına göre güncelle
+		const newVideoEndValue = resizeStartTime.value + timeChange;
+		newVideoEnd = Math.max(
+			newVideoStart + 0.1,
+			Math.min(newVideoEndValue, props.originalVideoDuration)
 		);
+		newVideoStart = props.segment.videoStart || props.segment.startTime || 0; // videoStart aynı kalır
 	}
 
-	// Segment güncellemesini emit et
+	// Video content pozisyonlarının original video duration'ı geçmemesini sağla
+	if (newVideoStart >= props.originalVideoDuration) {
+		newVideoStart = props.originalVideoDuration - 0.1;
+	}
+	if (newVideoEnd > props.originalVideoDuration) {
+		newVideoEnd = props.originalVideoDuration;
+	}
+
+	// Timeline pozisyonlarını video content pozisyonlarına göre hesapla
+	const videoContentDuration = newVideoEnd - newVideoStart;
+	const originalVideoStart =
+		props.segment.videoStart || props.segment.startTime || 0;
+	const originalVideoEnd = props.segment.videoEnd || props.segment.endTime || 0;
+	const originalVideoDuration = originalVideoEnd - originalVideoStart;
+
+	// Timeline pozisyonlarını koru, sadece video content değişsin
+	const newTimelineStart =
+		props.segment.timelineStart || props.segment.start || 0;
+	const newTimelineEnd = newTimelineStart + videoContentDuration;
+
+	// Debug log
+	console.log(`[TimelineSegment] Resize ${resizeEdge.value}:`, {
+		original: {
+			timelineStart: props.segment.timelineStart || props.segment.start,
+			timelineEnd: props.segment.timelineEnd || props.segment.end,
+			videoStart: props.segment.videoStart || props.segment.startTime,
+			videoEnd: props.segment.videoEnd || props.segment.endTime,
+		},
+		new: {
+			timelineStart: newTimelineStart,
+			timelineEnd: newTimelineEnd,
+			videoStart: newVideoStart,
+			videoEnd: newVideoEnd,
+		},
+		originalVideoDuration: props.originalVideoDuration,
+	});
+
 	const updatedSegment = {
 		...props.segment,
-		start: newStart,
-		end: newEnd,
-		startTime: newStart,
-		endTime: newEnd,
-		duration: newEnd - newStart,
+		timelineStart: newTimelineStart,
+		timelineEnd: newTimelineEnd,
+		videoStart: newVideoStart,
+		videoEnd: newVideoEnd,
+		duration: newTimelineEnd - newTimelineStart,
 	};
-
 
 	emit("resizeUpdate", updatedSegment, props.index);
 };
 
 const handleResizeEnd = (event) => {
-
 	// Global event listener'ları kaldır
 	window.removeEventListener("mousemove", handleResize);
 	window.removeEventListener("mouseup", handleResizeEnd);
@@ -302,6 +359,24 @@ const handleResizeEnd = (event) => {
 	emit("resizeEnd", props.index);
 };
 
+// Mouse down handler - handles both split and drag
+const handleMouseDown = (event) => {
+	if (props.isSplitMode) {
+		handleSplit(event);
+		return;
+	}
+
+	// Check if clicking on resize handles
+	const target = event.target;
+	if (target.closest(".cursor-ew-resize")) {
+		// Resize handle clicked, let resize handler take over
+		return;
+	}
+
+	// Start drag operation
+	handleDragStart(event);
+};
+
 const handleSplit = (event) => {
 	if (!props.isSplitMode) return;
 
@@ -311,5 +386,63 @@ const handleSplit = (event) => {
 	const ratio = x / rect.width;
 
 	emit("split", event, props.index, ratio);
+};
+
+// Drag functionality
+const isDraggingLocal = ref(false);
+const dragStartX = ref(0);
+const dragStartTime = ref(0);
+
+const handleDragStart = (event) => {
+	if (props.isResizing || props.isSplitMode) return;
+
+	event.preventDefault();
+	event.stopPropagation();
+
+	isDraggingLocal.value = true;
+	dragStartX.value = event.clientX;
+	dragStartTime.value = props.segment.timelineStart || props.segment.start || 0;
+
+	emit("dragStart", {
+		index: props.index,
+		segment: props.segment,
+		startX: event.clientX,
+		startTime: props.segment.timelineStart || props.segment.start || 0,
+	});
+
+	// Add global event listeners
+	window.addEventListener("mousemove", handleDragMove, { passive: false });
+	window.addEventListener("mouseup", handleDragEnd);
+};
+
+const handleDragMove = (event) => {
+	if (!isDraggingLocal.value) return;
+
+	event.preventDefault();
+
+	const deltaX = event.clientX - dragStartX.value;
+
+	emit("drag", {
+		index: props.index,
+		segment: props.segment,
+		deltaX: deltaX,
+		currentX: event.clientX,
+	});
+};
+
+const handleDragEnd = (event) => {
+	if (!isDraggingLocal.value) return;
+
+	isDraggingLocal.value = false;
+
+	emit("dragEnd", {
+		index: props.index,
+		segment: props.segment,
+		endX: event.clientX,
+	});
+
+	// Remove global event listeners
+	window.removeEventListener("mousemove", handleDragMove);
+	window.removeEventListener("mouseup", handleDragEnd);
 };
 </script>

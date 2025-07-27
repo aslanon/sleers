@@ -156,6 +156,10 @@ const props = defineProps({
 		type: Array,
 		default: () => [],
 	},
+	totalCanvasDuration: {
+		type: Number,
+		default: 0,
+	},
 	mousePositions: {
 		type: Array,
 		default: () => [],
@@ -410,24 +414,31 @@ const updateVideoHoverState = (mouseX, mouseY) => {
 const getSortedSegments = () => {
 	if (!props.segments || props.segments.length === 0) return [];
 	const sorted = [...props.segments].sort((a, b) => {
-		const startA = a.start || a.startTime || 0;
-		const startB = b.start || b.startTime || 0;
-		return startA - startB;
+		// Timeline pozisyonlarına göre sırala (timelineStart/timelineEnd)
+		const timelineStartA = a.timelineStart || a.start || 0;
+		const timelineStartB = b.timelineStart || b.start || 0;
+		return timelineStartA - timelineStartB;
 	});
 
 	// Debug log
 	console.log(
 		`[MediaPlayer] getSortedSegments:`,
-		sorted.map((s, i) => `${i}: ${s.start}-${s.end}`)
+		sorted.map(
+			(s, i) =>
+				`${i}: timeline(${s.timelineStart || s.start}-${
+					s.timelineEnd || s.end
+				}) video(${s.videoStart || s.startTime}-${s.videoEnd || s.endTime})`
+		)
 	);
 	return sorted;
 };
 
 const findSegmentAtTime = (time, segments) => {
 	for (const segment of segments) {
-		const start = segment.start || segment.startTime || 0;
-		const end = segment.end || segment.endTime || 0;
-		if (time >= start && time <= end) {
+		// Timeline pozisyonlarını kullan (timelineStart/timelineEnd)
+		const timelineStart = segment.timelineStart || segment.start || 0;
+		const timelineEnd = segment.timelineEnd || segment.end || 0;
+		if (time >= timelineStart && time <= timelineEnd) {
 			return segment;
 		}
 	}
@@ -439,32 +450,38 @@ const calculateClippedTime = (realTime, segments) => {
 
 	console.log(
 		`[MediaPlayer] calculateClippedTime: realTime=${realTime}, segments:`,
-		segments.map((s) => `${s.start}-${s.end}`)
+		segments.map(
+			(s) =>
+				`timeline(${s.timelineStart || s.start}-${
+					s.timelineEnd || s.end
+				}) video(${s.videoStart || s.startTime}-${s.videoEnd || s.endTime})`
+		)
 	);
 
 	for (const segment of segments) {
-		const start = segment.start || segment.startTime || 0;
-		const end = segment.end || segment.endTime || 0;
+		// Timeline pozisyonlarını kullan (timelineStart/timelineEnd)
+		const timelineStart = segment.timelineStart || segment.start || 0;
+		const timelineEnd = segment.timelineEnd || segment.end || 0;
 
-		if (realTime >= start && realTime <= end) {
+		if (realTime >= timelineStart && realTime <= timelineEnd) {
 			// We're in this segment
-			clippedTime += realTime - start;
+			clippedTime += realTime - timelineStart;
 			console.log(
-				`[MediaPlayer] calculateClippedTime: Found in segment ${start}-${end}, clipped=${clippedTime}`
+				`[MediaPlayer] calculateClippedTime: Found in segment ${timelineStart}-${timelineEnd}, clipped=${clippedTime}`
 			);
 			break;
-		} else if (realTime > end) {
+		} else if (realTime > timelineEnd) {
 			// We've passed this segment completely
-			clippedTime += end - start;
+			clippedTime += timelineEnd - timelineStart;
 			console.log(
-				`[MediaPlayer] calculateClippedTime: Passed segment ${start}-${end}, clipped+=${
-					end - start
+				`[MediaPlayer] calculateClippedTime: Passed segment ${timelineStart}-${timelineEnd}, clipped+=${
+					timelineEnd - timelineStart
 				} -> ${clippedTime}`
 			);
 		} else {
 			// We haven't reached this segment yet
 			console.log(
-				`[MediaPlayer] calculateClippedTime: Haven't reached segment ${start}-${end} yet`
+				`[MediaPlayer] calculateClippedTime: Haven't reached segment ${timelineStart}-${timelineEnd} yet`
 			);
 			break;
 		}
@@ -481,9 +498,10 @@ const getTotalClippedDuration = (segments) => {
 	if (!segments || segments.length === 0) return 0;
 
 	return segments.reduce((total, segment) => {
-		const start = segment.start || segment.startTime || 0;
-		const end = segment.end || segment.endTime || 0;
-		return total + (end - start);
+		// Video content pozisyonlarını kullan (videoStart/videoEnd)
+		const videoStart = segment.videoStart || segment.startTime || 0;
+		const videoEnd = segment.videoEnd || segment.endTime || 0;
+		return total + (videoEnd - videoStart);
 	}, 0);
 };
 
@@ -491,9 +509,10 @@ const checkIfTimeInValidSegment = (time) => {
 	if (!props.segments || props.segments.length === 0) return true;
 
 	return props.segments.some((segment) => {
-		const start = segment.start || segment.startTime || 0;
-		const end = segment.end || segment.endTime || 0;
-		return time >= start && time <= end;
+		// Timeline pozisyonlarını kullan (timelineStart/timelineEnd)
+		const timelineStart = segment.timelineStart || segment.start || 0;
+		const timelineEnd = segment.timelineEnd || segment.end || 0;
+		return time >= timelineStart && time <= timelineEnd;
 	});
 };
 
@@ -526,119 +545,31 @@ const togglePlay = async (e) => {
 const play = async () => {
 	if (!videoElement) return;
 	try {
-		// Segment sistemi varsa özel logic
-		if (props.segments && props.segments.length > 0) {
-			const sortedSegments = getSortedSegments();
-			const totalClippedDuration = getTotalClippedDuration(sortedSegments);
-			const currentRealTime = videoElement.currentTime;
-			const currentClippedTime = videoState.value.currentTime;
+		if (isTimelinePlaying.value) return;
 
+		// Eğer timeline sonundaysa başa dön
+		if (
+			props.totalCanvasDuration > 0 &&
+			videoState.value.currentTime >= props.totalCanvasDuration
+		) {
 			console.log(
-				`[MediaPlayer] Play başlatılıyor - currentClippedTime: ${currentClippedTime}, totalClippedDuration: ${totalClippedDuration}, currentRealTime: ${currentRealTime}`
+				`[MediaPlayer] Timeline sonunda, başa dönülüyor: ${videoState.value.currentTime} -> 0`
 			);
-			console.log(
-				`[MediaPlayer] Segments:`,
-				sortedSegments.map((s) => `${s.start}-${s.end}`)
-			);
-
-			// Eğer clipped time sonda ise başa sar (ancak sadece tamamen sonda ise)
-			if (currentClippedTime >= totalClippedDuration - 0.01) {
-				const firstSegment = sortedSegments[0];
-				const firstSegmentStart =
-					firstSegment.start || firstSegment.startTime || 0;
-				console.log(
-					`[MediaPlayer] Clipped time tamamen sonda, başa sarılıyor: ${firstSegmentStart}`
-				);
-				await synchronizeAllElements(firstSegmentStart, 0);
-			} else {
-				// Mevcut clipped time'a karşılık gelen segment ve pozisyonu bul
-				let targetRealTime = 0;
-				let accumulatedClippedTime = 0;
-				let targetSegment = null;
-
-				console.log(
-					`[MediaPlayer] Clipped time'dan real time hesaplama: ${currentClippedTime}`
-				);
-
-				// Clipped time'dan real time'ı hesapla
-				for (let i = 0; i < sortedSegments.length; i++) {
-					const segment = sortedSegments[i];
-					const segmentStart = segment.start || segment.startTime || 0;
-					const segmentEnd = segment.end || segment.endTime || 0;
-					const segmentDuration = segmentEnd - segmentStart;
-
-					console.log(
-						`[MediaPlayer] Segment ${i}: ${segmentStart}-${segmentEnd}, duration: ${segmentDuration}, accumulated: ${accumulatedClippedTime}`
-					);
-
-					if (
-						currentClippedTime >= accumulatedClippedTime &&
-						currentClippedTime < accumulatedClippedTime + segmentDuration
-					) {
-						// Bu segment içinde
-						const offsetInSegment = currentClippedTime - accumulatedClippedTime;
-						targetRealTime = segmentStart + offsetInSegment;
-						targetSegment = segment;
-						console.log(
-							`[MediaPlayer] Target segment bulundu: ${i}, offset: ${offsetInSegment}, targetRealTime: ${targetRealTime}`
-						);
-						break;
-					}
-					accumulatedClippedTime += segmentDuration;
-				}
-
-				// Eğer target segment bulunamadıysa (son segment'in sonunda)
-				if (!targetSegment && sortedSegments.length > 0) {
-					targetSegment = sortedSegments[sortedSegments.length - 1];
-					targetRealTime = targetSegment.end || targetSegment.endTime || 0;
-					console.log(
-						`[MediaPlayer] Target segment bulunamadı, son segment'in sonuna gidiliyor: ${targetRealTime}`
-					);
-				}
-
-				console.log(
-					`[MediaPlayer] Target segment: ${
-						targetSegment
-							? `${targetSegment.start}-${targetSegment.end}`
-							: "none"
-					}, targetRealTime: ${targetRealTime}`
-				);
-
-				// Eğer mevcut real time ile target real time arasında fark varsa senkronize et
-				if (Math.abs(currentRealTime - targetRealTime) > 0.1) {
-					console.log(
-						`[MediaPlayer] Real time senkronize ediliyor: ${currentRealTime} -> ${targetRealTime}`
-					);
-					await synchronizeAllElements(targetRealTime, currentClippedTime);
-				} else {
-					console.log(`[MediaPlayer] Real time zaten senkronize`);
-				}
-			}
+			videoState.value.currentTime = 0;
+			emit("timeUpdate", 0);
 		}
 
-		// Oynatmayı başlat
+		console.log(
+			`[MediaPlayer] Timeline oynatma başlatılıyor - position: ${videoState.value.currentTime}`
+		);
+
+		// Timeline'ı başlat - video element'lerden tamamen bağımsız
+		isTimelinePlaying.value = true;
 		videoState.value.isPlaying = true;
 		videoState.value.isPaused = false;
 
-		try {
-			await videoElement.play();
-			if (cameraElement) {
-				await cameraElement.play();
-			}
-			if (audioRef.value && audioRef.value.paused) {
-				await audioRef.value.play();
-			}
-		} catch (error) {
-			console.error("[MediaPlayer] Play error:", error);
-			videoState.value.isPlaying = false;
-			videoState.value.isPaused = true;
-			throw error;
-		}
-
-		// Segment sistemi varsa sync kontrolü başlat
-		if (props.segments && props.segments.length > 0) {
-			startSyncCheck();
-		}
+		// Timeline sync'ini başlat (playhead'i hareket ettirir)
+		startSyncCheck();
 
 		// Canvas animasyonunu başlat
 		if (!animationFrame) {
@@ -647,7 +578,8 @@ const play = async () => {
 
 		emit("play");
 	} catch (error) {
-		console.error("[MediaPlayer] Play error:", error);
+		console.error("[MediaPlayer] Timeline play error:", error);
+		isTimelinePlaying.value = false;
 		videoState.value.isPlaying = false;
 		videoState.value.isPaused = true;
 	}
@@ -665,7 +597,8 @@ const synchronizeAllElements = async (realTime, clippedTime) => {
 
 		// Kamerayı senkronize et (synchronized timestamp kullan)
 		if (cameraElement && synchronizedTimestamps.value) {
-			const synchronizedCameraTime = getSynchronizedTimestamp('camera', realTime * 1000) / 1000;
+			const synchronizedCameraTime =
+				getSynchronizedTimestamp("camera", realTime * 1000) / 1000;
 			cameraElement.currentTime = synchronizedCameraTime;
 		} else if (cameraElement) {
 			// Fallback to original timing
@@ -696,135 +629,139 @@ const synchronizeAllElements = async (realTime, clippedTime) => {
 // Sync interval için değişken
 let syncInterval = null;
 
-// Sync kontrolü başlat - daha agresif segment kontrolü
+// Timeline-based playback with immediate video sync
 const startSyncCheck = () => {
 	if (syncInterval) {
 		clearInterval(syncInterval);
 	}
 
-	// Her 25ms'de bir senkronizasyon kontrolü yap (daha sık)
+	// Her 33ms'de timeline'ı ilerlet (30fps) - daha smooth, daha az aggressive
 	syncInterval = setInterval(() => {
-		if (!videoState.value.isPlaying) {
+		if (!isTimelinePlaying.value) {
 			clearInterval(syncInterval);
 			syncInterval = null;
 			return;
 		}
 
-		// Segment sistemi varsa senkronizasyon kontrolü
-		if (props.segments && props.segments.length > 0) {
-			const currentRealTime = videoElement.currentTime;
-			const sortedSegments = getSortedSegments();
-			const currentSegment = findSegmentAtTime(currentRealTime, sortedSegments);
-			const totalClippedDuration = getTotalClippedDuration(sortedSegments);
+		// Timeline pozisyonunu sürekli ilerlet (hiçbir şeye bakma)
+		videoState.value.currentTime += 33 / 1000; // 33ms = 1/30 second
 
-			if (currentSegment) {
-				// Normal segment içinde
-				const segmentEnd = currentSegment.end || currentSegment.endTime || 0;
+		// Timeline position'ı emit et
+		emit("timeUpdate", videoState.value.currentTime);
 
-				// Segment sonuna yaklaştıysak bir sonraki segment'e hazırlan
-				if (currentRealTime >= segmentEnd - 0.05) {
-					// Segment ID'si ile index bul (daha güvenli)
-					let currentIndex = -1;
-					for (let i = 0; i < sortedSegments.length; i++) {
-						if (sortedSegments[i].id === currentSegment.id) {
-							currentIndex = i;
-							break;
-						}
-					}
+		// Canvas sonuna gelince durdur
+		if (
+			props.totalCanvasDuration > 0 &&
+			videoState.value.currentTime >= props.totalCanvasDuration
+		) {
+			console.log(
+				`[MediaPlayer] Canvas sonuna gelindi, oynatma durduruluyor: ${videoState.value.currentTime} >= ${props.totalCanvasDuration}`
+			);
+			// Timeline'ı durdur
+			isTimelinePlaying.value = false;
+			videoState.value.isPlaying = false;
+			videoState.value.isPaused = true;
 
-					console.log(
-						`[MediaPlayer] Current segment index: ${currentIndex} (ID: ${currentSegment.id})`
-					);
+			// Sync interval'ı durdur
+			clearInterval(syncInterval);
+			syncInterval = null;
 
-					if (currentIndex >= 0) {
-						const nextSegment = sortedSegments[currentIndex + 1];
-
-						if (nextSegment) {
-							// Jump to next segment
-							const nextStart = nextSegment.start || nextSegment.startTime || 0;
-							console.log(
-								`[MediaPlayer] Segment geçişi: ${segmentEnd} -> ${nextStart} (Next ID: ${nextSegment.id})`
-							);
-							jumpToTime(nextStart);
-							return;
-						} else {
-							// No more segments - end playback
-							console.log(
-								`[MediaPlayer] Son segment tamamlandı, oynatma bitiyor`
-							);
-							clearInterval(syncInterval);
-							syncInterval = null;
-							jumpToSegmentEnd();
-							return;
-						}
-					} else {
-						console.error(
-							`[MediaPlayer] Current segment index not found! Segment ID: ${currentSegment.id}`
-						);
-					}
-				}
-
-				// Clipped time güncellemesi
-				const calculatedClippedTime = calculateClippedTime(
-					currentRealTime,
-					sortedSegments
-				);
-				const constrainedClippedTime = Math.min(
-					calculatedClippedTime,
-					totalClippedDuration
-				);
-
-				if (
-					Math.abs(videoState.value.currentTime - constrainedClippedTime) > 0.05
-				) {
-					videoState.value.currentTime = constrainedClippedTime;
-					emit("timeUpdate", constrainedClippedTime);
-				}
-			} else {
-				// Video segment dışında - acil müdahale
-				console.log(
-					`[MediaPlayer] Video segment dışında (${currentRealTime}), sıradaki segment'e geçiliyor`
-				);
-				const nextSegment = sortedSegments.find((segment) => {
-					const start = segment.start || segment.startTime || 0;
-					return start > currentRealTime;
-				});
-
-				if (nextSegment) {
-					// Force jump to next segment
-					const nextStart = nextSegment.start || nextSegment.startTime || 0;
-					console.log(
-						`[MediaPlayer] Sıradaki segment'e geçiliyor: ${nextStart}`
-					);
-					jumpToTime(nextStart);
-					return;
-				} else {
-					// No more segments - force end
-					console.log(`[MediaPlayer] Sıradaki segment yok, oynatma bitiyor`);
-					clearInterval(syncInterval);
-					syncInterval = null;
-					jumpToSegmentEnd();
-					return;
-				}
+			// Video element'leri de durdur
+			try {
+				if (!videoElement.paused) videoElement.pause();
+				if (cameraElement && !cameraElement.paused) cameraElement.pause();
+				if (audioRef.value && !audioRef.value.paused) audioRef.value.pause();
+			} catch (error) {
+				console.warn("[MediaPlayer] Error pausing at end:", error);
 			}
+
+			// Video ended event'ini emit et
+			emit("videoEnded");
+			return;
 		}
-	}, 25); // Çok daha sık kontrol (25ms) - segment geçişi için
+
+		// Video element sync'i ayrı olarak yap
+		syncVideoToTimeline();
+	}, 33); // 30fps - daha smooth
+};
+
+// Video element'leri timeline'a sync et
+const syncVideoToTimeline = () => {
+	if (!isTimelinePlaying.value) return;
+
+	const canvasTime = videoState.value.currentTime;
+	const segmentInfo = getSegmentVideoTime(canvasTime);
+
+	if (segmentInfo !== null) {
+		// Segment aktif - video element'leri immediate oynat
+		try {
+			// Segment geçişinde immediate play (responsive)
+			if (segmentInfo.isNewSegment || videoElement.paused) {
+				if (videoElement.paused) videoElement.play();
+				if (cameraElement && cameraElement.paused) cameraElement.play();
+				if (audioRef.value && audioRef.value.paused) audioRef.value.play();
+			}
+		} catch (error) {
+			console.warn("[MediaPlayer] Video element play error:", error);
+		}
+
+		const requiredVideoTime = segmentInfo.videoTime;
+		const timeDiff = Math.abs(videoElement.currentTime - requiredVideoTime);
+
+		// Segment geçişi: immediate sync, Normal sync: tolerance
+		if (segmentInfo.isNewSegment) {
+			// Segment değişimi - immediate sync (responsive geçiş)
+			videoElement.currentTime = requiredVideoTime;
+			if (cameraElement) cameraElement.currentTime = requiredVideoTime;
+			if (audioRef.value) audioRef.value.currentTime = requiredVideoTime;
+
+			console.log(
+				`[MediaPlayer] Segment geçiş (immediate): ${segmentInfo.segmentId}, video time: ${requiredVideoTime}`
+			);
+		} else if (timeDiff > 0.05) {
+			// Normal sync - daha agresif tolerance (responsive geçiş)
+			videoElement.currentTime = requiredVideoTime;
+			if (cameraElement) cameraElement.currentTime = requiredVideoTime;
+		}
+	} else {
+		// Boş alan - video element'leri durdur ama timeline ilerler
+		// Sadece gerekiyorsa pause et (performance için)
+		try {
+			if (!videoElement.paused) {
+				videoElement.pause();
+			}
+			if (cameraElement && !cameraElement.paused) {
+				cameraElement.pause();
+			}
+			// Audio'yu boş alanlarda durdurma (kesik ses önlemi)
+			// Audio timeline ile birlikte çalmaya devam etsin
+		} catch (error) {
+			console.warn("[MediaPlayer] Video element pause error:", error);
+		}
+	}
 };
 
 const pause = async () => {
 	if (!videoElement) return;
 	try {
-		if (!videoState.value.isPlaying) return;
+		if (!isTimelinePlaying.value) return;
 
+		console.log(
+			`[MediaPlayer] Timeline oynatma durduruluyor - position: ${videoState.value.currentTime}`
+		);
+
+		// Timeline'ı durdur
+		isTimelinePlaying.value = false;
 		videoState.value.isPlaying = false;
 		videoState.value.isPaused = true;
 
-		// Sync interval'ı durdur
+		// Timeline sync interval'ı durdur
 		if (syncInterval) {
 			clearInterval(syncInterval);
 			syncInterval = null;
 		}
 
+		// Tüm video element'leri durdur
 		try {
 			await videoElement.pause();
 			if (cameraElement) {
@@ -834,10 +771,7 @@ const pause = async () => {
 				await audioRef.value.pause();
 			}
 		} catch (error) {
-			console.error("[MediaPlayer] Pause error:", error);
-			videoState.value.isPlaying = true;
-			videoState.value.isPaused = false;
-			throw error;
+			console.error("[MediaPlayer] Video elements pause error:", error);
 		}
 
 		// Canvas animasyonunu durdur
@@ -850,7 +784,7 @@ const pause = async () => {
 		updateCanvas(performance.now());
 		emit("pause");
 	} catch (error) {
-		console.error("[MediaPlayer] Pause error:", error);
+		console.error("[MediaPlayer] Timeline pause error:", error);
 	}
 };
 
@@ -913,159 +847,70 @@ watch(
 	{ deep: true, immediate: false, flush: "post" }
 );
 
-// Video zamanı güncellendiğinde
+// Timeline = Playhead = Canvas Time
+// videoState.currentTime artık timeline pozisyonunu temsil eder
+
+// Timeline state - video element'lerden tamamen bağımsız
+const isTimelinePlaying = ref(false);
+
+// Aktif segment tracking
+const currentActiveSegment = ref(null);
+
+// Segment content mapping - canvas rendering için
+const getSegmentVideoTime = (canvasTime) => {
+	if (!props.segments || props.segments.length === 0) {
+		return canvasTime; // Segment yoksa normal video time
+	}
+
+	// Hangi segment aktif?
+	const sortedSegments = [...props.segments].sort((a, b) => {
+		// Timeline pozisyonlarına göre sırala
+		const timelineStartA = a.timelineStart || a.start || 0;
+		const timelineStartB = b.timelineStart || b.start || 0;
+		return timelineStartA - timelineStartB;
+	});
+
+	for (const segment of sortedSegments) {
+		// Timeline pozisyonlarını kullan
+		const timelineStart = segment.timelineStart || segment.start || 0;
+		const timelineEnd = segment.timelineEnd || segment.end || 0;
+
+		if (canvasTime >= timelineStart && canvasTime <= timelineEnd) {
+			// Bu segment aktif - segment içindeki offset'i hesapla
+			const offsetInSegment = canvasTime - timelineStart;
+
+			// Video content pozisyonlarını kullan
+			const videoStart = segment.videoStart || segment.startTime || 0;
+			const videoEnd = segment.videoEnd || segment.endTime || 0;
+			const videoDuration = videoEnd - videoStart;
+
+			// Video content içindeki pozisyonu hesapla
+			const segmentVideoTime = videoStart + (offsetInSegment % videoDuration);
+
+			// Segment değişikliği kontrolü
+			const isNewSegment = currentActiveSegment.value !== segment.id;
+			if (isNewSegment) {
+				currentActiveSegment.value = segment.id;
+			}
+
+			return {
+				videoTime: segmentVideoTime,
+				segmentId: segment.id,
+				isNewSegment: isNewSegment,
+			};
+		}
+	}
+
+	// Hiçbir segment aktif değil - null dön (siyah ekran)
+	currentActiveSegment.value = null;
+	return null;
+};
+
+// Video zamanı güncellendiğinde - artık sadece canvas update için kullanılıyor
 const onTimeUpdate = () => {
 	if (!videoElement) return;
 
-	const realVideoTime = videoElement.currentTime;
-
-	// YENİ KUSURSUZ SEGMENT SİSTEMİ
-	if (props.segments && props.segments.length > 0) {
-		const sortedSegments = getSortedSegments();
-		const totalClippedDuration = getTotalClippedDuration(sortedSegments);
-
-		// Her zaman clipped time hesapla ve emit et
-		const clippedTime = calculateClippedTime(realVideoTime, sortedSegments);
-		const constrainedClippedTime = Math.min(clippedTime, totalClippedDuration);
-		videoState.value.currentTime = constrainedClippedTime;
-		emit("timeUpdate", constrainedClippedTime);
-
-		// SADECE OYNATMA SIRASINDA segment geçiş kontrolü
-		if (videoState.value.isPlaying) {
-			// Hangi segment'te olduğumuzu clipped time ile bulalım
-			let currentSegmentIndex = -1;
-			let accumulatedClippedTime = 0;
-
-			console.log(
-				`[MediaPlayer] Finding segment for clipped time: ${constrainedClippedTime.toFixed(
-					3
-				)}`
-			);
-
-			for (let i = 0; i < sortedSegments.length; i++) {
-				const segment = sortedSegments[i];
-				const segmentDuration =
-					(segment.end || segment.endTime || 0) -
-					(segment.start || segment.startTime || 0);
-
-				console.log(
-					`[MediaPlayer] Segment ${i}: ${segment.start}-${
-						segment.end
-					}, duration: ${segmentDuration.toFixed(
-						3
-					)}, accumulated: ${accumulatedClippedTime.toFixed(3)}-${(
-						accumulatedClippedTime + segmentDuration
-					).toFixed(3)}`
-				);
-
-				// Normal range check VEYA son segment'in sonunda
-				const isInRange =
-					constrainedClippedTime >= accumulatedClippedTime &&
-					constrainedClippedTime < accumulatedClippedTime + segmentDuration;
-				const isAtEnd =
-					i === sortedSegments.length - 1 &&
-					constrainedClippedTime >= accumulatedClippedTime &&
-					constrainedClippedTime <=
-						accumulatedClippedTime + segmentDuration + 0.001; // 1ms tolerance
-
-				if (isInRange || isAtEnd) {
-					currentSegmentIndex = i;
-					console.log(
-						`[MediaPlayer] FOUND! Segment index: ${i} (${
-							isAtEnd ? "at end" : "in range"
-						})`
-					);
-					break;
-				}
-				accumulatedClippedTime += segmentDuration;
-			}
-
-			console.log(
-				`[MediaPlayer] Final result - Real: ${realVideoTime.toFixed(
-					3
-				)}, Clipped: ${constrainedClippedTime.toFixed(
-					3
-				)}, Segment index: ${currentSegmentIndex}`
-			);
-
-			if (currentSegmentIndex >= 0) {
-				// Mevcut segment'te segment sonuna yaklaştık mı kontrol et
-				let segmentAccumulatedTime = 0;
-				for (let i = 0; i < currentSegmentIndex; i++) {
-					const seg = sortedSegments[i];
-					segmentAccumulatedTime +=
-						(seg.end || seg.endTime || 0) - (seg.start || seg.startTime || 0);
-				}
-
-				const currentSegment = sortedSegments[currentSegmentIndex];
-				const segmentDuration =
-					(currentSegment.end || currentSegment.endTime || 0) -
-					(currentSegment.start || currentSegment.startTime || 0);
-				const positionInSegment =
-					constrainedClippedTime - segmentAccumulatedTime;
-
-				console.log(
-					`[MediaPlayer] Segment ${currentSegmentIndex}: ${
-						currentSegment.start
-					}-${currentSegment.end}, duration=${segmentDuration.toFixed(
-						3
-					)}, position=${positionInSegment.toFixed(3)}`
-				);
-
-				// BASIT VE GÜÇLÜ SEGMENT GEÇİŞİ
-				if (positionInSegment >= segmentDuration - 0.1) {
-					// Son 0.1 saniyede sonraki segment'e geç
-					if (currentSegmentIndex + 1 < sortedSegments.length) {
-						// Sonraki segment var - geç
-						const nextSegment = sortedSegments[currentSegmentIndex + 1];
-						const nextStart = nextSegment.start || nextSegment.startTime || 0;
-
-						// Video element'i sonraki segment'e taşı
-						videoElement.currentTime = nextStart;
-						if (cameraElement && synchronizedTimestamps.value) {
-							const synchronizedCameraTime = getSynchronizedTimestamp('camera', nextStart * 1000) / 1000;
-							cameraElement.currentTime = synchronizedCameraTime;
-						} else if (cameraElement) {
-							// Fallback to original timing
-							const { cursorOffset } = usePlayerSettings();
-							cameraElement.currentTime = nextStart + cursorOffset.value;
-						}
-						if (audioRef.value) audioRef.value.currentTime = nextStart;
-
-						console.log(
-							`[MediaPlayer] SEGMENT JUMP: ${currentSegmentIndex} → ${
-								currentSegmentIndex + 1
-							} (${nextStart})`
-						);
-						return;
-					} else {
-						// Son segment - bitir
-						jumpToSegmentEnd();
-						return;
-					}
-				}
-			} else {
-				// Hiçbir segment'te değiliz - bu durumda end
-				console.log(
-					`[MediaPlayer] Clipped time ${constrainedClippedTime.toFixed(
-						3
-					)} hiçbir segment'te değil - toplam segment: ${sortedSegments.length}`
-				);
-				console.log(
-					`[MediaPlayer] Segment'ler:`,
-					sortedSegments.map((s) => `${s.start}-${s.end}`)
-				);
-				jumpToSegmentEnd();
-				return;
-			}
-		}
-	} else {
-		// No segments - normal playback
-		videoState.value.currentTime = realVideoTime;
-		emit("timeUpdate", realVideoTime);
-	}
-
-	// Canvas update
+	// Canvas update (startSyncCheck zaten timeline güncellemeyi yapıyor)
 	if (videoState.value.isPlaying && !animationFrame) {
 		animationFrame = requestAnimationFrame(updateCanvas);
 	}
@@ -1080,26 +925,18 @@ const jumpToTime = async (targetTime) => {
 	);
 
 	try {
-		// Segment sistemi için clipped time hesapla
-		if (props.segments && props.segments.length > 0) {
-			const sortedSegments = getSortedSegments();
-			const clippedTime = calculateClippedTime(targetTime, sortedSegments);
-			const totalClippedDuration = getTotalClippedDuration(sortedSegments);
-			const constrainedClippedTime = Math.min(
-				clippedTime,
-				totalClippedDuration
-			);
-			await synchronizeAllElements(targetTime, constrainedClippedTime);
-		} else {
-			// Segment yoksa normal sync
-			await synchronizeAllElements(targetTime, targetTime);
-		}
+		// Artık sadece real time jump - segment clipping yok
+		const constrainedTime = Math.max(
+			0,
+			Math.min(targetTime, props.totalCanvasDuration || videoElement.duration)
+		);
+		await synchronizeAllElements(constrainedTime, constrainedTime);
 	} catch (error) {
 		console.error("[MediaPlayer] jumpToTime error:", error);
 	}
 };
 
-// Helper function to end segment playback
+// Helper function to stop playback (used by error handlers)
 const jumpToSegmentEnd = async () => {
 	try {
 		console.log(
@@ -1118,15 +955,19 @@ const jumpToSegmentEnd = async () => {
 			console.log(`[MediaPlayer] Sync interval durduruldu`);
 		}
 
-		// Pause all media elements
-		if (videoElement && !videoElement.paused) {
-			videoElement.pause();
-		}
-		if (cameraElement && !cameraElement.paused) {
-			cameraElement.pause();
-		}
-		if (audioRef.value && !audioRef.value.paused) {
-			audioRef.value.pause();
+		// Pause all media elements with proper await
+		try {
+			if (videoElement && !videoElement.paused) {
+				await videoElement.pause();
+			}
+			if (cameraElement && !cameraElement.paused) {
+				await cameraElement.pause();
+			}
+			if (audioRef.value && !audioRef.value.paused) {
+				await audioRef.value.pause();
+			}
+		} catch (error) {
+			console.error("[MediaPlayer] Error pausing media elements:", error);
 		}
 
 		// Stop animation
@@ -1135,13 +976,10 @@ const jumpToSegmentEnd = async () => {
 			animationFrame = null;
 		}
 
-		// Video bitince başa dön (kullanıcı isteği)
-		if (props.segments && props.segments.length > 0) {
-			// Başa dön
-			videoState.value.currentTime = 0;
-			emit("timeUpdate", 0);
-			console.log(`[MediaPlayer] Video bitince başa dönülüyor: 0`);
-		}
+		// Başa dön (loop logic artık timeline'da)
+		videoState.value.currentTime = 0;
+		emit("timeUpdate", 0);
+		console.log(`[MediaPlayer] Playback durduruldu, başa dönüldü: 0`);
 
 		// Final canvas update
 		updateCanvas(performance.now());
@@ -1360,7 +1198,7 @@ const onVideoError = (error) => {
 		message: videoElement?.error?.message,
 		src: videoElement?.src,
 		readyState: videoElement?.readyState,
-		networkState: videoElement?.networkState,
+		networkState: videoElement.networkState,
 	});
 
 	// Video error durumunda playback'i durdur
@@ -1472,7 +1310,9 @@ const drawMousePositions = () => {
 	// Mouse görünürlüğü kapalıysa çizme
 	if (!mouseVisible.value) {
 		if (drawMousePositions.debugCounter % 60 === 0) {
-			console.log("[MediaPlayer] Mouse cursor visibility disabled - skipping draw");
+			console.log(
+				"[MediaPlayer] Mouse cursor visibility disabled - skipping draw"
+			);
 		}
 		return;
 	}
@@ -1510,10 +1350,10 @@ const drawMousePositions = () => {
 	// Find closest positions by timestamp
 	// First, convert video time to timestamp in the recorded data
 	const frameTime = videoDuration / totalFrames;
-	
+
 	// Use synchronized timestamp if available (with performance optimization)
-	const synchronizedVideoTime = synchronizedTimestamps.value 
-		? getSynchronizedTimestamp('mouse', currentVideoTime * 1000) / 1000 
+	const synchronizedVideoTime = synchronizedTimestamps.value
+		? getSynchronizedTimestamp("mouse", currentVideoTime * 1000) / 1000
 		: currentVideoTime;
 
 	// Find the two closest points in time
@@ -1547,22 +1387,24 @@ const drawMousePositions = () => {
 	// DIRECT VIDEO-TO-CURSOR MAPPING APPROACH
 	// Tamamen farklı yaklaşım: Video duration ile cursor duration arasında direct mapping
 	const firstCursorTime = props.mousePositions[0]?.timestamp || 0;
-	const lastCursorTime = props.mousePositions[props.mousePositions.length - 1]?.timestamp || 0;
+	const lastCursorTime =
+		props.mousePositions[props.mousePositions.length - 1]?.timestamp || 0;
 	const cursorDurationMs = lastCursorTime - firstCursorTime;
 	const cursorDurationSeconds = cursorDurationMs / 1000;
-	
+
 	// Video'nun toplam süresini al
 	const totalVideoDuration = videoElement.duration || 1;
-	
+
 	// Current video time'a göre cursor time'ı hesapla
-	const mappedCursorTime = (currentVideoTime / totalVideoDuration) * cursorDurationSeconds;
-	
+	const mappedCursorTime =
+		(currentVideoTime / totalVideoDuration) * cursorDurationSeconds;
+
 	// Use synchronized timestamp instead of manual cursor offset (with fallback)
-	const baseCursorTime = (firstCursorTime / 1000) + mappedCursorTime;
-	const estimatedTimestamp = synchronizedTimestamps.value 
-		? getSynchronizedTimestamp('mouse', baseCursorTime * 1000) / 1000
+	const baseCursorTime = firstCursorTime / 1000 + mappedCursorTime;
+	const estimatedTimestamp = synchronizedTimestamps.value
+		? getSynchronizedTimestamp("mouse", baseCursorTime * 1000) / 1000
 		: baseCursorTime;
-	
+
 	// console.log('[DIRECT MAPPING]', {
 	// 	currentVideoTime: currentVideoTime.toFixed(3),
 	// 	totalVideoDuration: totalVideoDuration.toFixed(3),
@@ -1574,14 +1416,14 @@ const drawMousePositions = () => {
 	// 	estimatedTimestamp: estimatedTimestamp.toFixed(3),
 	// 	mousePositionsLength: props.mousePositions.length
 	// });
-	
+
 	// EMERGENCY: Check if we have any cursor data at all
 	if (cursorDurationMs <= 0 || !totalVideoDuration) {
-		console.error('[CURSOR ERROR]', 'Invalid duration values', {
+		console.error("[CURSOR ERROR]", "Invalid duration values", {
 			cursorDurationMs,
 			totalVideoDuration,
 			firstCursorTime,
-			lastCursorTime
+			lastCursorTime,
 		});
 		return;
 	}
@@ -1592,8 +1434,8 @@ const drawMousePositions = () => {
 	for (let i = 0; i < totalFrames; i++) {
 		const pos = props.mousePositions[i];
 		// Use synchronized timestamp for mouse position comparison (with performance check)
-		const posTimestampMs = synchronizedTimestamps.value 
-			? getSynchronizedTimestamp('mouse', pos.timestamp)
+		const posTimestampMs = synchronizedTimestamps.value
+			? getSynchronizedTimestamp("mouse", pos.timestamp)
 			: pos.timestamp;
 		const posTimestamp = posTimestampMs / 1000; // Always use seconds
 		const timeDiff = posTimestamp - estimatedTimestamp;
@@ -1613,24 +1455,25 @@ const drawMousePositions = () => {
 	if (prevIndex === -1) prevIndex = 0;
 	if (nextIndex === -1 || nextIndex === prevIndex)
 		nextIndex = Math.min(prevIndex + 1, totalFrames - 1);
-	
-	console.log('[CURSOR POSITION FINDING]', {
+
+	console.log("[CURSOR POSITION FINDING]", {
 		estimatedTimestamp: estimatedTimestamp.toFixed(3),
 		prevIndex,
 		nextIndex,
 		totalFrames,
 		prevTimeDiff: prevTimeDiff.toFixed(3),
-		nextTimeDiff: nextTimeDiff.toFixed(3)
+		nextTimeDiff: nextTimeDiff.toFixed(3),
 	});
 
 	const prevPos = props.mousePositions[prevIndex];
 	const nextPos = props.mousePositions[nextIndex];
 
 	// Debug selected cursor positions with synchronized timestamps (performance optimized)
-	const getSyncTimestamp = (pos) => synchronizedTimestamps.value 
-		? getSynchronizedTimestamp('mouse', pos.timestamp) 
-		: pos.timestamp;
-		
+	const getSyncTimestamp = (pos) =>
+		synchronizedTimestamps.value
+			? getSynchronizedTimestamp("mouse", pos.timestamp)
+			: pos.timestamp;
+
 	const debugPrevPos = prevPos
 		? {
 				x: prevPos.x,
@@ -1638,7 +1481,10 @@ const drawMousePositions = () => {
 				originalTimestamp: prevPos.timestamp,
 				synchronizedTimestamp: getSyncTimestamp(prevPos),
 				timestampSeconds: (getSyncTimestamp(prevPos) / 1000).toFixed(3),
-				timeDiffFromEstimated: (getSyncTimestamp(prevPos) / 1000 - estimatedTimestamp).toFixed(3),
+				timeDiffFromEstimated: (
+					getSyncTimestamp(prevPos) / 1000 -
+					estimatedTimestamp
+				).toFixed(3),
 		  }
 		: null;
 
@@ -1649,7 +1495,10 @@ const drawMousePositions = () => {
 				originalTimestamp: nextPos.timestamp,
 				synchronizedTimestamp: getSyncTimestamp(nextPos),
 				timestampSeconds: (getSyncTimestamp(nextPos) / 1000).toFixed(3),
-				timeDiffFromEstimated: (getSyncTimestamp(nextPos) / 1000 - estimatedTimestamp).toFixed(3),
+				timeDiffFromEstimated: (
+					getSyncTimestamp(nextPos) / 1000 -
+					estimatedTimestamp
+				).toFixed(3),
 		  }
 		: null;
 
@@ -2096,35 +1945,35 @@ const drawMousePositions = () => {
 		const lines = [
 			"Camera is currently following",
 			"the mouse cursor, you can",
-			"disable this in settings"
+			"disable this in settings",
 		];
-		
+
 		ctx.save();
 		ctx.font = `${64 * dpr}px Inter, Arial, sans-serif`;
-		
+
 		// En uzun satırın genişliğini bul
 		let maxWidth = 0;
-		lines.forEach(line => {
+		lines.forEach((line) => {
 			const textMetrics = ctx.measureText(line);
 			maxWidth = Math.max(maxWidth, textMetrics.width);
 		});
-		
+
 		const paddingX = 32 * dpr;
 		const paddingY = 24 * dpr;
 		const lineHeight = 80 * dpr;
 		const radius = 16 * dpr;
 		const boxWidth = maxWidth + paddingX * 2;
-		const boxHeight = (lines.length * lineHeight) + paddingY * 2;
-		
+		const boxHeight = lines.length * lineHeight + paddingY * 2;
+
 		// Tooltip pozisyonunu dinamik olarak hesapla
 		let boxX = cameraRect.x + cameraRect.width / 2 - boxWidth / 2;
 		let boxY = cameraRect.y - boxHeight - 12 * dpr;
-		
+
 		// Canvas sınırlarını al (canvasRef'den)
 		const canvasWidth = ctx.canvas.width;
 		const canvasHeight = ctx.canvas.height;
 		const margin = 20 * dpr; // Sınırlardan minimum mesafe
-		
+
 		// Yatay pozisyon kontrolü - sol/sağ sınır kontrolü
 		if (boxX < margin) {
 			// Sol sınıra çok yakınsa sağa kaydır
@@ -2133,16 +1982,19 @@ const drawMousePositions = () => {
 			// Sağ sınıra çok yakınsa sola kaydır
 			boxX = canvasWidth - boxWidth - margin;
 		}
-		
+
 		// Dikey pozisyon kontrolü - üst sınır kontrolü
 		if (boxY < margin) {
 			// Üst sınıra çok yakınsa kameranın altına yerleştir
 			boxY = cameraRect.y + cameraRect.height + 12 * dpr;
-			
+
 			// Alt sınır kontrolü de yap
 			if (boxY + boxHeight > canvasHeight - margin) {
 				// Hem üstte hem altta yer yoksa kameranın yanına yerleştir
-				if (cameraRect.x + cameraRect.width + boxWidth + 12 * dpr < canvasWidth - margin) {
+				if (
+					cameraRect.x + cameraRect.width + boxWidth + 12 * dpr <
+					canvasWidth - margin
+				) {
 					// Sağ tarafa yerleştir
 					boxX = cameraRect.x + cameraRect.width + 12 * dpr;
 					boxY = cameraRect.y + cameraRect.height / 2 - boxHeight / 2;
@@ -2152,82 +2004,122 @@ const drawMousePositions = () => {
 					boxY = cameraRect.y + cameraRect.height / 2 - boxHeight / 2;
 				} else {
 					// Hiçbir yere sığmıyorsa kameranın üzerine bindirmeyi göze al ama margin'i koru
-					boxY = Math.max(margin, Math.min(cameraRect.y - boxHeight - 12 * dpr, canvasHeight - boxHeight - margin));
+					boxY = Math.max(
+						margin,
+						Math.min(
+							cameraRect.y - boxHeight - 12 * dpr,
+							canvasHeight - boxHeight - margin
+						)
+					);
 				}
 			}
 		}
 
 		// Ok işareti pozisyonunu belirle (tooltip kameranın hangi tarafında)
 		const arrowSize = 8 * dpr;
-		let arrowPosition = 'top'; // 'top', 'bottom', 'left', 'right'
+		let arrowPosition = "top"; // 'top', 'bottom', 'left', 'right'
 		let arrowX = cameraRect.x + cameraRect.width / 2;
 		let arrowY = cameraRect.y + cameraRect.height / 2;
-		
+
 		// Tooltip'in kameraya göre pozisyonuna bakarak ok yönünü belirle
 		if (boxY > cameraRect.y + cameraRect.height) {
 			// Tooltip kameranın altında
-			arrowPosition = 'top';
-			arrowX = Math.max(boxX + arrowSize, Math.min(boxX + boxWidth - arrowSize, cameraRect.x + cameraRect.width / 2));
+			arrowPosition = "top";
+			arrowX = Math.max(
+				boxX + arrowSize,
+				Math.min(
+					boxX + boxWidth - arrowSize,
+					cameraRect.x + cameraRect.width / 2
+				)
+			);
 			arrowY = boxY;
 		} else if (boxY + boxHeight < cameraRect.y) {
 			// Tooltip kameranın üstünde
-			arrowPosition = 'bottom';
-			arrowX = Math.max(boxX + arrowSize, Math.min(boxX + boxWidth - arrowSize, cameraRect.x + cameraRect.width / 2));
+			arrowPosition = "bottom";
+			arrowX = Math.max(
+				boxX + arrowSize,
+				Math.min(
+					boxX + boxWidth - arrowSize,
+					cameraRect.x + cameraRect.width / 2
+				)
+			);
 			arrowY = boxY + boxHeight;
 		} else if (boxX > cameraRect.x + cameraRect.width) {
 			// Tooltip kameranın sağında
-			arrowPosition = 'left';
+			arrowPosition = "left";
 			arrowX = boxX;
-			arrowY = Math.max(boxY + arrowSize, Math.min(boxY + boxHeight - arrowSize, cameraRect.y + cameraRect.height / 2));
+			arrowY = Math.max(
+				boxY + arrowSize,
+				Math.min(
+					boxY + boxHeight - arrowSize,
+					cameraRect.y + cameraRect.height / 2
+				)
+			);
 		} else if (boxX + boxWidth < cameraRect.x) {
 			// Tooltip kameranın solunda
-			arrowPosition = 'right';
+			arrowPosition = "right";
 			arrowX = boxX + boxWidth;
-			arrowY = Math.max(boxY + arrowSize, Math.min(boxY + boxHeight - arrowSize, cameraRect.y + cameraRect.height / 2));
+			arrowY = Math.max(
+				boxY + arrowSize,
+				Math.min(
+					boxY + boxHeight - arrowSize,
+					cameraRect.y + cameraRect.height / 2
+				)
+			);
 		}
 
 		// Arka planı ok ile birlikte çiz
 		ctx.beginPath();
-		
+
 		// Ana kutu köşeleri
 		ctx.moveTo(boxX + radius, boxY);
-		
+
 		// Üst kenar - ok varsa kesinti yap
-		if (arrowPosition === 'top') {
+		if (arrowPosition === "top") {
 			ctx.lineTo(arrowX - arrowSize, boxY);
 			ctx.lineTo(arrowX, boxY - arrowSize);
 			ctx.lineTo(arrowX + arrowSize, boxY);
 		}
 		ctx.lineTo(boxX + boxWidth - radius, boxY);
 		ctx.quadraticCurveTo(boxX + boxWidth, boxY, boxX + boxWidth, boxY + radius);
-		
+
 		// Sağ kenar - ok varsa kesinti yap
-		if (arrowPosition === 'right') {
+		if (arrowPosition === "right") {
 			ctx.lineTo(boxX + boxWidth, arrowY - arrowSize);
 			ctx.lineTo(boxX + boxWidth + arrowSize, arrowY);
 			ctx.lineTo(boxX + boxWidth, arrowY + arrowSize);
 		}
 		ctx.lineTo(boxX + boxWidth, boxY + boxHeight - radius);
-		ctx.quadraticCurveTo(boxX + boxWidth, boxY + boxHeight, boxX + boxWidth - radius, boxY + boxHeight);
-		
+		ctx.quadraticCurveTo(
+			boxX + boxWidth,
+			boxY + boxHeight,
+			boxX + boxWidth - radius,
+			boxY + boxHeight
+		);
+
 		// Alt kenar - ok varsa kesinti yap
-		if (arrowPosition === 'bottom') {
+		if (arrowPosition === "bottom") {
 			ctx.lineTo(arrowX + arrowSize, boxY + boxHeight);
 			ctx.lineTo(arrowX, boxY + boxHeight + arrowSize);
 			ctx.lineTo(arrowX - arrowSize, boxY + boxHeight);
 		}
 		ctx.lineTo(boxX + radius, boxY + boxHeight);
-		ctx.quadraticCurveTo(boxX, boxY + boxHeight, boxX, boxY + boxHeight - radius);
-		
+		ctx.quadraticCurveTo(
+			boxX,
+			boxY + boxHeight,
+			boxX,
+			boxY + boxHeight - radius
+		);
+
 		// Sol kenar - ok varsa kesinti yap
-		if (arrowPosition === 'left') {
+		if (arrowPosition === "left") {
 			ctx.lineTo(boxX, arrowY + arrowSize);
 			ctx.lineTo(boxX - arrowSize, arrowY);
 			ctx.lineTo(boxX, arrowY - arrowSize);
 		}
 		ctx.lineTo(boxX, boxY + radius);
 		ctx.quadraticCurveTo(boxX, boxY, boxX + radius, boxY);
-		
+
 		ctx.closePath();
 		ctx.fillStyle = "rgba(0,0,0,0.8)";
 		ctx.fill();
@@ -2236,12 +2128,12 @@ const drawMousePositions = () => {
 		ctx.fillStyle = "#fff";
 		ctx.textAlign = "center";
 		ctx.textBaseline = "middle";
-		
+
 		lines.forEach((line, index) => {
-			const textY = boxY + paddingY + (index * lineHeight) + lineHeight / 2;
+			const textY = boxY + paddingY + index * lineHeight + lineHeight / 2;
 			ctx.fillText(line, boxX + boxWidth / 2, textY);
 		});
-		
+
 		ctx.restore();
 	}
 
@@ -2358,6 +2250,18 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 	lastFrameTime = timestamp;
 
+	// Canvas time'a göre segment kontrolü - responsive segment detection
+	const canvasTime = videoState.value.currentTime;
+	const segmentInfo = getSegmentVideoTime(canvasTime);
+	let isInActiveSegment = segmentInfo !== null;
+
+	// Segment information'ı store et (debugging için)
+	if (segmentInfo) {
+		// Active segment'te video content göster
+	} else {
+		// Boş alanda siyah ekran göster
+	}
+
 	try {
 		// DPR'ı al
 		const dpr = window.devicePixelRatio || 1;
@@ -2367,16 +2271,10 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			position.value = videoPosition.value;
 		}
 
-		// Canvas'ı sadece gerektiğinde temizle
-		if (
-			!videoState.value.isPlaying &&
-			!isZoomTransitioning.value &&
-			!isCameraDragging.value
-		) {
-			ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-		}
+		// Canvas'ı temizle
+		ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
-		// Arkaplan
+		// Arkaplan - her zaman çiz (segment olmasa da)
 		if (bgImageLoaded.value && bgImageElement.value) {
 			try {
 				// Resmi canvas'a sığacak şekilde ölçekle
@@ -2549,8 +2447,30 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				-(transformOriginY + offsetY)
 			);
 
-			// Draw shadow if enabled
-			if (shadowSize.value > 0) {
+			// Video çizimi - sadece aktif segment varsa TÜM video alanını çiz
+			if (isInActiveSegment) {
+				// Draw shadow if enabled
+				if (shadowSize.value > 0) {
+					ctx.save();
+					ctx.beginPath();
+					useRoundRect(
+						ctx,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight,
+						radius.value * dpr
+					);
+					ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+					ctx.shadowBlur = shadowSize.value * dpr;
+					ctx.shadowOffsetX = 0;
+					ctx.shadowOffsetY = 0;
+					ctx.fillStyle = backgroundColor.value;
+					ctx.fill();
+					ctx.restore();
+				}
+
+				// Video alanını kırp ve radius uygula
 				ctx.save();
 				ctx.beginPath();
 				useRoundRect(
@@ -2561,79 +2481,23 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawHeight,
 					radius.value * dpr
 				);
-				ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-				ctx.shadowBlur = shadowSize.value * dpr;
-				ctx.shadowOffsetX = 0;
-				ctx.shadowOffsetY = 0;
-				ctx.fillStyle = backgroundColor.value;
-				ctx.fill();
-				ctx.restore();
-			}
+				ctx.clip();
 
-			// Video alanını kırp ve radius uygula
-			ctx.save();
-			ctx.beginPath();
-			useRoundRect(
-				ctx,
-				drawX,
-				drawY,
-				drawWidth,
-				drawHeight,
-				radius.value * dpr
-			);
-			ctx.clip();
-
-			// Video çizimi - segment'lere göre
-			if (cropArea.value?.isApplied === true) {
-				// Crop uygulanmışsa kırpılmış alanı çiz
-				ctx.drawImage(
-					videoElement,
-					cropArea.value.x,
-					cropArea.value.y,
-					cropArea.value.width,
-					cropArea.value.height,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight
-				);
-			} else {
-				// Segment'ler varsa sadece aktif segment'i çiz
-				if (props.segments && props.segments.length > 0) {
-					// Mevcut video zamanında hangi segment aktif olduğunu bul
-					const realVideoTime = videoElement.currentTime;
-					const sortedSegments = [...props.segments].sort((a, b) => {
-						const startA = a.start || a.startTime || 0;
-						const startB = b.start || b.startTime || 0;
-						return startA - startB;
-					});
-
-					const currentSegment = sortedSegments.find((segment) => {
-						const segmentStart = segment.start || segment.startTime || 0;
-						const segmentEnd = segment.end || segment.endTime || 0;
-						return realVideoTime >= segmentStart && realVideoTime <= segmentEnd;
-					});
-
-					if (currentSegment) {
-						// Aktif segment varsa normal video çizimi yap
-						ctx.drawImage(
-							videoElement,
-							0,
-							0,
-							videoElement.videoWidth,
-							videoElement.videoHeight,
-							drawX,
-							drawY,
-							drawWidth,
-							drawHeight
-						);
-					} else {
-						// Aktif segment yoksa siyah ekran göster
-						ctx.fillStyle = "#000000";
-						ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
-					}
+				if (cropArea.value?.isApplied === true) {
+					// Crop uygulanmışsa kırpılmış alanı çiz
+					ctx.drawImage(
+						videoElement,
+						cropArea.value.x,
+						cropArea.value.y,
+						cropArea.value.width,
+						cropArea.value.height,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight
+					);
 				} else {
-					// Segment yoksa tüm videoyu çiz
+					// Normal video çizimi
 					ctx.drawImage(
 						videoElement,
 						0,
@@ -2646,7 +2510,9 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 						drawHeight
 					);
 				}
+				ctx.restore();
 			}
+			// Segment yoksa hiçbir video alanı çizme (tamamen gizli)
 			ctx.restore();
 
 			// Video border çizimi - draw after the video
@@ -2667,8 +2533,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				ctx.restore();
 			}
 
-			// --- Video hover border çizimi ---
-			if (isMouseOverVideo.value) {
+			// --- Video hover border çizimi - sadece aktif segment varsa ---
+			if (isInActiveSegment && isMouseOverVideo.value) {
 				const { x, y, width, height, dpr } = getVideoDisplayRect();
 				drawVideoHoverFrame(ctx, x, y, width, height, dpr);
 			}
@@ -2682,8 +2548,30 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				// ... existing zoom transition code ...
 			}
 		} else {
-			// Normal video çizimi için shadow ve radius
-			if (shadowSize.value > 0) {
+			// Normal video çizimi - sadece aktif segment varsa TÜM video alanını çiz
+			if (isInActiveSegment) {
+				// Shadow ve radius
+				if (shadowSize.value > 0) {
+					ctx.save();
+					ctx.beginPath();
+					useRoundRect(
+						ctx,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight,
+						radius.value * dpr
+					);
+					ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+					ctx.shadowBlur = shadowSize.value * dpr;
+					ctx.shadowOffsetX = 0;
+					ctx.shadowOffsetY = 0;
+					ctx.fillStyle = backgroundColor.value;
+					ctx.fill();
+					ctx.restore();
+				}
+
+				// Video alanını kırp ve radius uygula
 				ctx.save();
 				ctx.beginPath();
 				useRoundRect(
@@ -2694,79 +2582,23 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawHeight,
 					radius.value * dpr
 				);
-				ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-				ctx.shadowBlur = shadowSize.value * dpr;
-				ctx.shadowOffsetX = 0;
-				ctx.shadowOffsetY = 0;
-				ctx.fillStyle = backgroundColor.value;
-				ctx.fill();
-				ctx.restore();
-			}
+				ctx.clip();
 
-			// Video alanını kırp ve radius uygula
-			ctx.save();
-			ctx.beginPath();
-			useRoundRect(
-				ctx,
-				drawX,
-				drawY,
-				drawWidth,
-				drawHeight,
-				radius.value * dpr
-			);
-			ctx.clip();
-
-			// Video çizimi - segment'lere göre
-			if (cropArea.value?.isApplied === true) {
-				// Crop uygulanmışsa kırpılmış alanı çiz
-				ctx.drawImage(
-					videoElement,
-					cropArea.value.x,
-					cropArea.value.y,
-					cropArea.value.width,
-					cropArea.value.height,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight
-				);
-			} else {
-				// Segment'ler varsa sadece aktif segment'i çiz
-				if (props.segments && props.segments.length > 0) {
-					// Mevcut video zamanında hangi segment aktif olduğunu bul
-					const realVideoTime = videoElement.currentTime;
-					const sortedSegments = [...props.segments].sort((a, b) => {
-						const startA = a.start || a.startTime || 0;
-						const startB = b.start || b.startTime || 0;
-						return startA - startB;
-					});
-
-					const currentSegment = sortedSegments.find((segment) => {
-						const segmentStart = segment.start || segment.startTime || 0;
-						const segmentEnd = segment.end || segment.endTime || 0;
-						return realVideoTime >= segmentStart && realVideoTime <= segmentEnd;
-					});
-
-					if (currentSegment) {
-						// Aktif segment varsa normal video çizimi yap
-						ctx.drawImage(
-							videoElement,
-							0,
-							0,
-							videoElement.videoWidth,
-							videoElement.videoHeight,
-							drawX,
-							drawY,
-							drawWidth,
-							drawHeight
-						);
-					} else {
-						// Aktif segment yoksa siyah ekran göster
-						ctx.fillStyle = "#000000";
-						ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
-					}
+				if (cropArea.value?.isApplied === true) {
+					// Crop uygulanmışsa kırpılmış alanı çiz
+					ctx.drawImage(
+						videoElement,
+						cropArea.value.x,
+						cropArea.value.y,
+						cropArea.value.width,
+						cropArea.value.height,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight
+					);
 				} else {
-					// Segment yoksa tüm videoyu çiz
+					// Normal video çizimi
 					ctx.drawImage(
 						videoElement,
 						0,
@@ -2779,11 +2611,13 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 						drawHeight
 					);
 				}
+				ctx.restore();
 			}
+			// Segment yoksa hiçbir video alanı çizme (tamamen gizli)
 			ctx.restore();
 
-			// Video border çizimi
-			if (videoBorderSettings.value?.width > 0) {
+			// Video border çizimi - sadece aktif segment varsa
+			if (isInActiveSegment && videoBorderSettings.value?.width > 0) {
 				ctx.save();
 				ctx.beginPath();
 				useRoundRect(
@@ -2920,29 +2754,24 @@ watch(
 	{ deep: true, immediate: true }
 );
 
-// Preview zamanı değişikliğini izle - SADECE CANVAS RENDER, VIDEO CURRENTTIME ETKİLEME
+// Preview zamanı değişikliğini izle - timeline pozisyonunu set et
 watch(
 	() => props.previewTime,
 	(newValue) => {
 		if (!videoElement || newValue === null) return;
 
-		// Sadece canvas'ı preview zamanında render et
-		// Video'nun currentTime'ını geçici değiştir, canvas çiz, hemen geri al
-		if (videoElement.readyState >= 2) {
-			const originalTime = videoElement.currentTime;
+		// Preview timeline pozisyonunu set et
+		const originalTime = videoState.value.currentTime;
+		videoState.value.currentTime = newValue;
 
-			// Geçici olarak preview zamanına git
-			videoElement.currentTime = newValue;
-
-			// Canvas'ı güncelle
-			requestAnimationFrame(() => {
-				updateCanvas(performance.now());
-				// Hemen eski zaman pozisyonuna geri dön
-				if (videoElement) {
-					videoElement.currentTime = originalTime;
-				}
-			});
-		}
+		// Canvas'ı güncelle (video mapping burada yapılır)
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+			// Preview bitince orijinal pozisyona dön
+			if (props.previewTime === null) {
+				videoState.value.currentTime = originalTime;
+			}
+		});
 	}
 );
 
@@ -3561,20 +3390,11 @@ watch(
 	(newValue) => {
 		if (!videoElement) return;
 
-		// Sadece video oynatılmıyorsa ve preview yapılmıyorsa zamanı güncelle
+		// Sadece video oynatılmıyorsa ve preview yapılmıyorsa timeline pozisyonunu güncelle
 		if (!videoState.value.isPlaying && props.previewTime === null) {
-			videoElement.currentTime = newValue;
-			if (cameraElement && synchronizedTimestamps.value) {
-				const synchronizedCameraTime = getSynchronizedTimestamp('camera', newValue * 1000) / 1000;
-				cameraElement.currentTime = synchronizedCameraTime;
-			} else if (cameraElement) {
-				// Fallback to original timing
-				const { cursorOffset } = usePlayerSettings();
-				cameraElement.currentTime = newValue + cursorOffset.value;
-			}
-			if (audioRef.value) {
-				audioRef.value.currentTime = newValue;
-			}
+			videoState.value.currentTime = newValue;
+			// Video mapping canvas update'te yapılır
+			requestAnimationFrame(() => updateCanvas(performance.now()));
 		}
 	}
 );
@@ -3614,7 +3434,8 @@ watch(
 		// Preview zamanını güncelle
 		videoElement.currentTime = newValue;
 		if (cameraElement && synchronizedTimestamps.value) {
-			const synchronizedCameraTime = getSynchronizedTimestamp('camera', newValue * 1000) / 1000;
+			const synchronizedCameraTime =
+				getSynchronizedTimestamp("camera", newValue * 1000) / 1000;
 			cameraElement.currentTime = synchronizedCameraTime;
 		} else if (cameraElement) {
 			// Fallback to original timing
@@ -3657,92 +3478,28 @@ defineExpose({
 	updateCanvas,
 	play,
 	pause,
-	seek: (clippedTime) => {
+	seek: (timelinePosition) => {
 		if (!videoElement) return;
 
-		// Segment clipping sistemi - clipped time'ı real video time'a çevir
-		if (props.segments && props.segments.length > 0) {
-			// Segment'leri sırala
-			const sortedSegments = [...props.segments].sort((a, b) => {
-				const startA = a.start || a.startTime || 0;
-				const startB = b.start || b.startTime || 0;
-				return startA - startB;
-			});
+		// Basit timeline pozisyon ayarla
+		const targetTime = Math.max(
+			0,
+			Math.min(
+				timelinePosition,
+				props.totalCanvasDuration || videoElement.duration
+			)
+		);
 
-			// Clipped time'ı toplam clipped duration ile sınırlandır
-			const totalClippedDuration = getTotalClippedDuration(sortedSegments);
-			const constrainedClippedTime = Math.max(
-				0,
-				Math.min(clippedTime, totalClippedDuration)
-			);
+		// Timeline pozisyonunu set et
+		videoState.value.currentTime = targetTime;
 
-			// Clipped time'ı real video time'a çevir
-			let realVideoTime = 0;
-			let accumulatedClippedTime = 0;
-
-			for (const segment of sortedSegments) {
-				const segmentStart = segment.start || segment.startTime || 0;
-				const segmentEnd = segment.end || segment.endTime || 0;
-				const segmentDuration = segmentEnd - segmentStart;
-
-				if (
-					constrainedClippedTime <=
-					accumulatedClippedTime + segmentDuration
-				) {
-					// Bu segment içinde seek yapılacak
-					const offsetInSegment =
-						constrainedClippedTime - accumulatedClippedTime;
-					realVideoTime = segmentStart + offsetInSegment;
-					break;
-				}
-				accumulatedClippedTime += segmentDuration;
-			}
-
-			// Real video time'a seek et
-			videoElement.currentTime = realVideoTime;
-			if (cameraElement && synchronizedTimestamps.value) {
-				const synchronizedCameraTime = getSynchronizedTimestamp('camera', realVideoTime * 1000) / 1000;
-				cameraElement.currentTime = synchronizedCameraTime;
-			} else if (cameraElement) {
-				// Fallback to original timing
-				const { cursorOffset } = usePlayerSettings();
-				cameraElement.currentTime = realVideoTime + cursorOffset.value;
-			}
-			if (audioRef.value) audioRef.value.currentTime = realVideoTime;
-
-			// State'i güncelle
-			videoState.value.currentTime = constrainedClippedTime;
-
-			// Canvas'ı güncelle
-			requestAnimationFrame(() => {
-				updateCanvas(performance.now());
-			});
-
-			// Clipped time'ı emit et
-			emit("timeUpdate", constrainedClippedTime);
-			return;
-		}
-
-		// Normal video seek işlemi (segment yoksa)
-		videoElement.currentTime = clippedTime;
-		if (cameraElement && synchronizedTimestamps.value) {
-			const synchronizedCameraTime = getSynchronizedTimestamp('camera', clippedTime * 1000) / 1000;
-			cameraElement.currentTime = synchronizedCameraTime;
-		} else if (cameraElement) {
-			// Fallback to original timing
-			const { cursorOffset } = usePlayerSettings();
-			cameraElement.currentTime = clippedTime + cursorOffset.value;
-		}
-		if (audioRef.value) audioRef.value.currentTime = clippedTime;
-		videoState.value.currentTime = clippedTime;
-
-		// Canvas'ı güncelle
+		// Canvas'ı güncelle (video mapping burada yapılır)
 		requestAnimationFrame(() => {
 			updateCanvas(performance.now());
 		});
 
-		// Time update event'ini emit et
-		emit("timeUpdate", clippedTime);
+		// Timeline position'ı emit et
+		emit("timeUpdate", targetTime);
 	},
 
 	// Video element access
@@ -4031,8 +3788,9 @@ defineExpose({
 		let accumulatedClippedTime = 0;
 
 		for (const segment of sortedSegments) {
-			const segmentStart = segment.start || segment.startTime || 0;
-			const segmentEnd = segment.end || segment.endTime || 0;
+			// Video content pozisyonlarını kullan (startTime/endTime)
+			const segmentStart = segment.startTime || 0;
+			const segmentEnd = segment.endTime || 0;
 			const segmentDuration = segmentEnd - segmentStart;
 
 			if (
@@ -4049,7 +3807,7 @@ defineExpose({
 		// Son segment'in sonunda
 		if (sortedSegments.length > 0) {
 			const lastSegment = sortedSegments[sortedSegments.length - 1];
-			return lastSegment.end || lastSegment.endTime || 0;
+			return lastSegment.endTime || 0;
 		}
 
 		return clippedTime;
@@ -4066,8 +3824,8 @@ defineExpose({
 		let minDistance = Infinity;
 
 		for (const position of props.mousePositions) {
-			const syncTimestamp = synchronizedTimestamps.value 
-				? getSynchronizedTimestamp('mouse', position.timestamp)
+			const syncTimestamp = synchronizedTimestamps.value
+				? getSynchronizedTimestamp("mouse", position.timestamp)
 				: position.timestamp;
 			const distance = Math.abs(syncTimestamp - realTime * 1000);
 			if (distance < minDistance) {
