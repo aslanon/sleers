@@ -26,8 +26,8 @@ const currentZoomRange = ref(null);
 const showDock = ref(false);
 const dockSize = ref(4);
 const cameraSettings = ref({
-	size: 15,
-	radius: 50,
+	size: 7.5, // Yarı yarıya düşürüldü (15 -> 7.5)
+	radius: 100, // Arttırıldı (50 -> 100)
 	shadow: 10,
 	followMouse: true,
 	mirror: true,
@@ -97,7 +97,7 @@ export const usePlayerSettings = () => {
 
 	const setSynchronizedTimestamps = (timestamps) => {
 		synchronizedTimestamps.value = timestamps;
-		console.log('[usePlayerSettings] Synchronized timestamps set:', timestamps);
+		console.log("[usePlayerSettings] Synchronized timestamps set:", timestamps);
 	};
 
 	const updateMouseSize = (size) => {

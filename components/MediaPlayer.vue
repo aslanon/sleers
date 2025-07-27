@@ -76,8 +76,7 @@ import { useVideoZoom } from "~/composables/useVideoZoom";
 import { useCanvasZoom } from "~/composables/useCanvasZoom";
 import { useMouseCursor } from "~/composables/useMouseCursor";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
-import { useCameraRenderer } from "~/composables/useCameraRenderer";
-import { useCameraDrag } from "~/composables/useCameraDrag";
+import { useCamera } from "~/composables/modules/useCamera";
 import { useVideoDrag } from "~/composables/useVideoDrag";
 import useDockSettings from "~/composables/useDockSettings";
 import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
@@ -219,27 +218,56 @@ const {
 // Dock ayarlarını al
 const { isSupported: isDockSupported, visibleDockItems } = useDockSettings();
 
-// Kamera renderer'ı al
-const { drawCamera, isMouseOverCamera, lastCameraPosition } =
-	useCameraRenderer();
+// Kamera yönetimi (birleştirilmiş)
+const {
+	// Kamera cihaz yönetimi
+	videoDevices,
+	selectedVideoDevice,
+	isCameraActive,
+	cameraPath,
+	config,
+	updateConfig,
+	getVideoDevices,
+	startCameraStream,
+	startCameraRecording,
+	stopCameraRecording,
+
+	// Kamera render ve etkileşim
+	drawCamera,
+	isMouseOverCamera,
+	isCameraSelected,
+	lastCameraPosition,
+	hoverScale,
+	toggleBackgroundRemoval,
+	isBackgroundRemovalLoading,
+	isBackgroundRemovalActive,
+
+	// Drag ve resize sistemi
+	isDragging: isCameraDragging,
+	isResizing: isCameraResizing,
+	resizeHandle,
+	cameraPosition,
+	startDrag: startCameraDrag,
+	handleDrag: handleCameraDrag,
+	stopDrag: stopCameraDrag,
+	startResize: startCameraResize,
+	handleResize: handleCameraResize,
+	stopResize: stopCameraResize,
+	detectHandle,
+} = useCamera();
 
 // Kamera pozisyon bilgisini saklamak için
 const currentCameraRect = ref({ x: 0, y: 0, width: 0, height: 0 });
 
 // Video hover state
 const isMouseOverVideo = ref(false);
-const {
-	isDragging: isCameraDragging,
-	cameraPosition,
-	startDrag: startCameraDrag,
-	stopDrag: stopCameraDrag,
-} = useCameraDrag();
 
 // Video sürükleme yönetimi
 const {
 	isDragging: isVideoDragging,
 	videoPosition,
 	startDrag: startVideoDrag,
+	handleDrag: handleVideoDrag,
 	stopDrag: stopVideoDrag,
 } = useVideoDrag();
 
@@ -415,12 +443,9 @@ const updateVideoHoverState = (mouseX, mouseY) => {
 		return;
 	}
 	const { x, y, width, height } = getVideoDisplayRect();
+	const wasOverVideo = isMouseOverVideo.value;
 	isMouseOverVideo.value =
-		mouseX >= x &&
-		mouseX <= x + width &&
-		mouseY >= y &&
-		mouseY <= y + height &&
-		!isMouseOverCamera.value;
+		mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
 };
 
 // Helper function to check if current time is in a valid segment
@@ -560,6 +585,9 @@ const play = async () => {
 	if (!videoElement) return;
 	try {
 		if (isTimelinePlaying.value) return;
+
+		// Oynatma başladığında seçimi kapat
+		isCameraSelected.value = false;
 
 		// Eğer timeline sonundaysa başa dön
 		if (
@@ -3630,6 +3658,9 @@ defineExpose({
 	captureFrameWithSize: (width, height) => {
 		if (!canvasRef.value) return null;
 
+		// Export sırasında seçimi kapat
+		isCameraSelected.value = false;
+
 		try {
 			// Orijinal canvas'ın boyutlarını al
 			const originalWidth = canvasRef.value.width;
@@ -4038,17 +4069,92 @@ const handleMouseDown = (e) => {
 
 	// Kamera üzerinde tıklandıysa
 	if (isMouseOverCamera.value) {
-		// Eğer followMouse aktifse camera ayarları sekmesini aç
-		if (cameraSettings.value.followMouse) {
+		// Camera'ya tıklandı - seçim durumunu aç
+		isCameraSelected.value = true;
+
+		// Eğer followMouse aktifse ve seçim durumunda değilse camera ayarları sekmesini aç
+		if (cameraSettings.value.followMouse && !isCameraSelected.value) {
 			emit("openCameraSettings");
 			return;
 		}
-		// Takip modu kapalıysa kamerayı sürükle
-		const currentCameraPos = lastCameraPosition.value ||
-			cameraPosition.value || { x: 0, y: 0 };
-		startCameraDrag(e, currentCameraPos, mouseX, mouseY);
-	} else {
-		// Değilse videoyu sürükle
+
+		// Seçim durumunda handle detection yap
+		const cameraWidth =
+			((canvasRef.value?.width || 0) * (cameraSettings.value.size || 20)) / 100;
+		let cameraHeight = cameraWidth; // Default square
+
+		// Aspect ratio'ya göre height hesapla
+		if (
+			cameraSettings.value?.aspectRatio &&
+			cameraSettings.value.aspectRatio !== "free"
+		) {
+			switch (cameraSettings.value.aspectRatio) {
+				case "1:1":
+					cameraHeight = cameraWidth;
+					break;
+				case "16:9":
+					cameraHeight = cameraWidth * (9 / 16);
+					break;
+				case "9:16":
+					cameraHeight = cameraWidth * (16 / 9);
+					break;
+				case "4:3":
+					cameraHeight = cameraWidth * (3 / 4);
+					break;
+				case "3:4":
+					cameraHeight = cameraWidth * (4 / 3);
+					break;
+				default:
+					cameraHeight = cameraWidth;
+			}
+		}
+
+		const currentCameraRect = {
+			x:
+				(lastCameraPosition.value?.x || cameraPosition.value?.x || 0) +
+				videoPosition.value.x,
+			y:
+				(lastCameraPosition.value?.y || cameraPosition.value?.y || 0) +
+				videoPosition.value.y,
+			width: cameraWidth,
+			height: cameraHeight,
+		};
+
+		// Handle detection (sadece seçim durumunda)
+		const handle = detectHandle(
+			mouseX,
+			mouseY,
+			currentCameraRect,
+			dpr,
+			scaleValue
+		);
+
+		if (handle) {
+			// Handle'a tıklandıysa resize başlat
+			const currentCameraPos = lastCameraPosition.value ||
+				cameraPosition.value || { x: 0, y: 0 };
+			const currentCameraSize = {
+				width: currentCameraRect.width,
+				height: currentCameraRect.height,
+			};
+			startCameraResize(e, currentCameraPos, currentCameraSize, mouseX, mouseY);
+		} else {
+			// Handle'a tıklanmadıysa drag başlat
+			const currentCameraPos = lastCameraPosition.value ||
+				cameraPosition.value || { x: 0, y: 0 };
+			startCameraDrag(e, currentCameraPos, mouseX, mouseY);
+		}
+	}
+
+	// Camera dışına tıklandıysa seçimi kapat
+	if (!isMouseOverCamera.value) {
+		isCameraSelected.value = false;
+		// Canvas'ı hemen güncelle (seçim kaybolması için)
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	}
+
+	// Video area'ya tıklandıysa videoyu sürükle (sadece kamera üzerinde değilse)
+	if (!isMouseOverCamera.value) {
 		startVideoDrag(
 			e,
 			{ x: position.value.x, y: position.value.y },
@@ -4070,6 +4176,28 @@ const handleMouseMove = (e) => {
 	// Mouse pozisyonlarını güncelle
 	mousePosition.value = { x: mouseX, y: mouseY };
 
+	// Resize sırasında handle resize işlemini yap
+	if (isCameraResizing.value) {
+		const resizeResult = handleCameraResize(e);
+		if (resizeResult) {
+			// Camera size'ı güncelle
+			const newSizePercent =
+				(resizeResult.size.width / canvasRef.value.width) * 100;
+			cameraSettings.value.size = Math.max(5, Math.min(50, newSizePercent)); // 5-50% arası
+
+			// Camera pozisyonunu güncelle (merkez origin için)
+			if (resizeResult.position) {
+				lastCameraPosition.value = resizeResult.position;
+				cameraPosition.value = resizeResult.position;
+			}
+		}
+	}
+
+	// Video drag sırasında handle drag işlemini yap
+	if (isVideoDragging.value) {
+		handleVideoDrag(e);
+	}
+
 	// Video hover detection
 	updateVideoHoverState(mouseX, mouseY);
 
@@ -4083,8 +4211,16 @@ const handleMouseUp = () => {
 	if (isCameraDragging.value) {
 		stopCameraDrag();
 	}
+	if (isCameraResizing.value) {
+		stopCameraResize();
+	}
 	if (isVideoDragging.value) {
 		stopVideoDrag();
+	}
+
+	// Mouse up'ta seçimi kapat (eğer camera'ya tıklanmadıysa)
+	if (!isMouseOverCamera.value) {
+		isCameraSelected.value = false;
 	}
 };
 
