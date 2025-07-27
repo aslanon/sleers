@@ -238,6 +238,47 @@ const videoHeight = computed(() => videoSize.value?.height || 1080);
 // Segment state'i - başlangıçta boş, video yüklendiğinde doldurulacak
 const segments = ref([]);
 
+// Mouse pozisyonları state'i
+const mousePositions = ref([]);
+
+// Otomatik zoom segmentleri state'i
+const autoZoomRanges = ref([]);
+
+// Mouse pozisyonları değiştiğinde zoom segmentlerini oluştur
+watch(
+	mousePositions,
+	(newMousePositions) => {
+		if (
+			newMousePositions &&
+			newMousePositions.length > 0 &&
+			videoDuration.value > 0
+		) {
+			console.log(
+				`[Auto Zoom] Mouse pozisyonları güncellendi: ${newMousePositions.length}`
+			);
+			const autoZoomSegments = createAutoZoomSegments(
+				newMousePositions,
+				videoDuration.value
+			);
+
+			// Otomatik zoom segmentlerini usePlayerSettings'e ekle
+			const { addZoomRange } = usePlayerSettings();
+			autoZoomSegments.forEach((segment) => {
+				addZoomRange(segment);
+			});
+
+			console.log(
+				`[Auto Zoom] Watch ile ${autoZoomSegments.length} zoom segmenti usePlayerSettings'e eklendi`
+			);
+		}
+	},
+	{ deep: true }
+);
+
+// Ekran boyutları
+const screenWidth = ref(1920);
+const screenHeight = ref(1080);
+
 // Kırpma ve pozisyon state'leri
 const cropState = ref({
 	position: { x: 0, y: 0 },
@@ -349,6 +390,66 @@ const togglePlayback = () => {
 // Track whether we've initialized segments for this video session
 const hasInitializedSegments = ref(false);
 
+// Mouse tıklama verilerinden otomatik zoom segmentleri oluştur
+const createAutoZoomSegments = (mousePositions, videoDuration) => {
+	if (!mousePositions || mousePositions.length === 0 || !videoDuration) {
+		return [];
+	}
+
+	const zoomSegments = [];
+	const CLICK_THRESHOLD = 2000; // 2 saniye (milisaniye)
+	const ZOOM_SCALE = 2; // 2x zoom
+
+	// Mouse tıklama verilerini filtrele (mousedown eventleri)
+	const clickEvents = mousePositions.filter((pos) => pos.type === "mousedown");
+
+	console.log(`[Auto Zoom] ${clickEvents.length} tıklama bulundu`);
+
+	clickEvents.forEach((click, index) => {
+		// Tıklama zamanını saniyeye çevir
+		const clickTimeSeconds = click.timestamp / 1000;
+
+		// Video süresini kontrol et
+		if (clickTimeSeconds >= videoDuration) {
+			return; // Video süresini aşan tıklamaları atla
+		}
+
+		// Zoom segment başlangıç ve bitiş zamanlarını hesapla
+		const segmentStart = Math.max(0, clickTimeSeconds - 2); // 2 saniye önce
+		const segmentEnd = Math.min(videoDuration, clickTimeSeconds + 2); // 2 saniye sonra
+
+		// Minimum segment süresi kontrolü (en az 1 saniye)
+		if (segmentEnd - segmentStart < 1) {
+			return;
+		}
+
+		// Diğer zoom segmentleriyle çakışma kontrolü
+		const hasOverlap = zoomSegments.some(
+			(existing) => segmentStart < existing.end && segmentEnd > existing.start
+		);
+
+		if (!hasOverlap) {
+			zoomSegments.push({
+				id: generateId(),
+				start: segmentStart,
+				end: segmentEnd,
+				scale: ZOOM_SCALE,
+				type: "zoom",
+				layer: 1, // Zoom segmentleri üst katmanda
+				isAutoZoom: true, // Otomatik oluşturulan zoom segmenti
+			});
+
+			console.log(
+				`[Auto Zoom] Segment ${index + 1}: ${segmentStart.toFixed(
+					2
+				)}s - ${segmentEnd.toFixed(2)}s (${ZOOM_SCALE}x)`
+			);
+		}
+	});
+
+	return zoomSegments;
+};
+
 // Video yüklendiğinde
 const onVideoLoaded = (data) => {
 	try {
@@ -442,6 +543,42 @@ const onVideoLoaded = (data) => {
 
 			// İlk kez yüklendiği için flag'i set et
 			hasInitializedSegments.value = true;
+
+			// Mouse tıklama verilerinden otomatik zoom segmentleri oluştur
+			console.log(
+				`[Auto Zoom] Video yüklendi, mouse pozisyonları: ${
+					mousePositions.value?.length || 0
+				}`
+			);
+
+			if (mousePositions.value && mousePositions.value.length > 0) {
+				const autoZoomSegments = createAutoZoomSegments(
+					mousePositions.value,
+					videoDuration.value
+				);
+				console.log(
+					`[Auto Zoom] ${autoZoomSegments.length} otomatik zoom segmenti oluşturuldu:`,
+					autoZoomSegments.map(
+						(seg) => `${seg.start.toFixed(1)}s-${seg.end.toFixed(1)}s`
+					)
+				);
+
+				// Otomatik zoom segmentlerini usePlayerSettings'e ekle
+				const { addZoomRange } = usePlayerSettings();
+				autoZoomSegments.forEach((segment) => {
+					addZoomRange(segment);
+				});
+
+				console.log(
+					`[Auto Zoom] Otomatik zoom segmentleri usePlayerSettings'e eklendi`
+				);
+			} else {
+				console.warn(
+					`[Auto Zoom] Mouse pozisyonları yok veya boş: ${
+						mousePositions.value?.length || 0
+					}`
+				);
+			}
 		} else {
 			console.warn("[editor.vue] Video süresi geçersiz:", data);
 		}
@@ -1057,8 +1194,6 @@ const handlePreviewTimeUpdate = (time) => {
 	previewTime.value = time;
 };
 
-let mousePositions = ref([]);
-
 // Klavye event handler'ı
 const handleKeyDown = async (event) => {
 	// Zoom segmenti seçiliyse, clip segmenti silme işlemini yapma
@@ -1129,87 +1264,80 @@ const handleKeyDown = async (event) => {
 };
 
 onMounted(async () => {
-	// Cursor verilerini yükle
-	if (electron.mediaStateManager) {
-		const cursorData = await electron.mediaStateManager.loadCursorData();
-		mousePositions.value = cursorData;
-	} else {
-		console.warn("[editor.vue] ⚠️ electron.mediaStateManager bulunamadı");
-	}
-
-	let editorSettings = await electron?.ipcRenderer.invoke(
-		IPC_EVENTS.GET_EDITOR_SETTINGS
-	);
-
-	let isCameraFollowMouse = editorSettings.camera.followMouse;
-
-	updateCameraSettings({
-		followMouse: isCameraFollowMouse,
-	});
-
-	// Mouse settings durumunu kontrol et ve ensure et
-
-	// Mouse görünürlüğünü manuel olarak true yap (debug için)
-	if (!mouseVisible.value) {
-		updateMouseVisible(true);
-	}
-
-	// Mevcut kaydedicileri temizle (mediaRecorder tanımlı değilse atla)
-	// if (mediaRecorder.value) {
-	// 	mediaRecorder.value = null;
-	// }
-
-	// Ekran boyutlarını alıp saklayalım
-	if (window?.electron?.screen) {
-		const displaySize = await window.electron.screen.getPrimaryDisplay();
-		if (displaySize) {
-			screenWidth.value = displaySize.bounds.width;
-			screenHeight.value = displaySize.bounds.height;
-		}
-	}
-
-	// Klavye event listener'ı ekle
-	window.addEventListener("keydown", handleKeyDown);
-
-	// Medya dosyalarını yenileştirilmiş loadMediaFromState() fonksiyonu ile yükle
-	await loadMediaFromState();
-
-	// ... rest of the existing code ...
-});
-
-onUnmounted(() => {
-	// Clean up listener
-	electron.ipcRenderer.removeAllListeners(
-		electron.ipcRenderer.IPC_EVENTS.MOUSE_POSITION_UPDATED
-	);
-});
-
-onMounted(async () => {
 	try {
-		// İlk olarak mevcut media state'i al
+		// Cursor verilerini yükle
+		if (electron?.mediaStateManager) {
+			const cursorData = await electron.mediaStateManager.loadCursorData();
+			mousePositions.value = cursorData;
+			console.log(`[editor.vue] ${cursorData.length} mouse pozisyonu yüklendi`);
+		} else {
+			console.warn("[editor.vue] ⚠️ electron.mediaStateManager bulunamadı");
+
+			// Test verisi ekle
+			mousePositions.value = [
+				{ x: 100, y: 100, timestamp: 1000, type: "mousedown" },
+				{ x: 200, y: 200, timestamp: 3000, type: "mousedown" },
+				{ x: 300, y: 300, timestamp: 5000, type: "mousedown" },
+			];
+			console.log(
+				`[editor.vue] Test mouse pozisyonları eklendi: ${mousePositions.value.length}`
+			);
+		}
+
+		// Editor settings'i yükle
+		let editorSettings = await electron?.ipcRenderer.invoke(
+			IPC_EVENTS.GET_EDITOR_SETTINGS
+		);
+
+		let isCameraFollowMouse = editorSettings?.camera?.followMouse || false;
+
+		updateCameraSettings({
+			followMouse: isCameraFollowMouse,
+		});
+
+		// Mouse görünürlüğünü manuel olarak true yap
+		if (!mouseVisible.value) {
+			updateMouseVisible(true);
+		}
+
+		// Ekran boyutlarını alıp saklayalım
+		if (window?.electron?.screen) {
+			const displaySize = await window.electron.screen.getPrimaryDisplay();
+			if (displaySize) {
+				screenWidth.value = displaySize.bounds.width;
+				screenHeight.value = displaySize.bounds.height;
+			}
+		}
+
+		// Klavye event listener'ı ekle
+		window.addEventListener("keydown", handleKeyDown);
+
+		// Media state'i al ve dosyaları yükle
 		const mediaState = await electron?.ipcRenderer.invoke(
 			IPC_EVENTS.GET_MEDIA_STATE
 		);
 
 		if (mediaState) {
+			console.log("[editor.vue] Media state alındı:", mediaState);
+
 			if (mediaState.videoPath) {
 				await loadMedia(mediaState.videoPath, "video");
+				console.log("[editor.vue] Video yüklendi");
 			} else {
 				console.error("[editor.vue] Video dosyası bulunamadı");
-				electron?.ipcRenderer.send(
-					IPC_EVENTS.EDITOR_LOAD_ERROR,
-					"Video dosyası bulunamadı"
-				);
-				return;
 			}
 
 			if (mediaState.cameraPath) {
 				await loadMedia(mediaState.cameraPath, "camera");
+				console.log("[editor.vue] Kamera yüklendi");
 			}
 
 			if (mediaState.audioPath) {
 				await loadMedia(mediaState.audioPath, "audio");
+				console.log("[editor.vue] Ses yüklendi");
 			}
+		} else {
+			console.warn("[editor.vue] Media state bulunamadı");
 		}
 
 		// Media state güncellemelerini dinle
@@ -1238,10 +1366,19 @@ onMounted(async () => {
 			if (paths.cameraPath) await loadMedia(paths.cameraPath, "camera");
 			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 		});
+
+		console.log("[editor.vue] Editor başlatıldı");
 	} catch (error) {
 		console.error("[editor.vue] Başlangıç hatası:", error);
 		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
 	}
+});
+
+onUnmounted(() => {
+	// Clean up listener
+	electron.ipcRenderer.removeAllListeners(
+		electron.ipcRenderer.IPC_EVENTS.MOUSE_POSITION_UPDATED
+	);
 });
 
 onUnmounted(() => {
@@ -1344,45 +1481,6 @@ const handleCaptureScreenshot = async () => {
 	}
 };
 
-// Medya dosyalarını yükleme fonksiyonu
-async function loadMediaFromState() {
-	try {
-		if (electron?.ipcRenderer) {
-			// Medya yollarını al
-			const mediaState = await electron.ipcRenderer.invoke("GET_MEDIA_STATE");
-
-			// Video dosyası kontrolü
-			if (mediaState.videoPath) {
-				await loadMedia(mediaState.videoPath, "video");
-			} else {
-				console.warn("[editor.vue] Video path not found in media state");
-			}
-
-			// Audio dosyası kontrolü
-			if (mediaState.audioPath) {
-				// Eğer ses dosyası video ile aynı dosya ise, ayrıca yükleme yapma
-				if (mediaState.audioPath === mediaState.videoPath) {
-					// Video'nun ses kanalını kullan
-					audioType.value = videoType.value;
-
-					// Since audio is in the video file, make sure we're not muting it
-					isMuted.value = false;
-				} else {
-					// Farklı bir ses dosyası ise ayrıca yükle
-					await loadMedia(mediaState.audioPath, "audio");
-				}
-			} else {
-				console.warn("[editor.vue] Audio path not found in media state");
-			}
-		} else {
-			console.error("[editor.vue] Electron IPC not available");
-		}
-	} catch (error) {
-		console.error("Medya durumu yükleme hatası:", error);
-		electron?.ipcRenderer.send(IPC_EVENTS.EDITOR_LOAD_ERROR, error.message);
-	}
-}
-
 // Proje yüklendiğinde çağrılacak fonksiyon
 const onProjectLoaded = (project) => {
 	// Proje yüklendikten sonra MediaPlayer'ı güncelle
@@ -1400,6 +1498,23 @@ const onProjectLoaded = (project) => {
 
 			// Canvas'ı güncelle
 			mediaPlayerRef.value.updateCanvas(performance.now());
+		}
+
+		// Mouse pozisyonları yüklendiğinde otomatik zoom segmentleri oluştur
+		if (project.mousePositions && Array.isArray(project.mousePositions)) {
+			mousePositions.value = project.mousePositions;
+
+			// Video duration varsa otomatik zoom segmentleri oluştur
+			if (videoDuration.value > 0) {
+				const autoZoomSegments = createAutoZoomSegments(
+					mousePositions.value,
+					videoDuration.value
+				);
+				autoZoomRanges.value = autoZoomSegments;
+				console.log(
+					`[Auto Zoom] Proje yüklendiğinde ${autoZoomSegments.length} otomatik zoom segmenti oluşturuldu`
+				);
+			}
 		}
 
 		// Kullanıcıya bilgi ver

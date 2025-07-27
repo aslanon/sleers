@@ -183,6 +183,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	zoomRanges: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 // Player settings'i al
@@ -2468,9 +2472,12 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 		}
 
+		// usePlayerSettings'deki zoomRanges'i kullan
+		const activeZoomRanges = zoomRanges.value;
+
 		const activeZoom = checkAndApplyCanvasZoom(
 			currentTime,
-			zoomRanges.value,
+			activeZoomRanges,
 			cursorPosition
 		);
 

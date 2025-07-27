@@ -173,6 +173,7 @@ export const usePlayerSettings = () => {
 			...range,
 			scale: range.scale || 1.25,
 			position: range.position || "center",
+			isAutoZoom: range.isAutoZoom !== undefined ? range.isAutoZoom : false, // Gelen flag'i koru
 		};
 
 		// Aynı start-end aralığında başka bir range varsa güncelle

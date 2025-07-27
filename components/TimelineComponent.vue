@@ -377,6 +377,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	zoomRanges: {
+		type: Array,
+		default: () => [],
+	},
 });
 
 const emit = defineEmits([
@@ -394,12 +398,20 @@ const emit = defineEmits([
 ]);
 
 const {
-	zoomRanges,
+	zoomRanges: defaultZoomRanges,
 	addZoomRange,
 	removeZoomRange,
 	updateZoomRange,
 	setCurrentZoomRange,
 } = usePlayerSettings();
+
+// usePlayerSettings'deki zoomRanges'i kullan
+const zoomRanges = computed(() => {
+	console.log(
+		`[Timeline] Zoom ranges: ${defaultZoomRanges.value.length} segment`
+	);
+	return defaultZoomRanges.value;
+});
 
 const {
 	layoutRanges,
@@ -1085,7 +1097,9 @@ const handleZoomTrackClick = (event) => {
 	let availableEnd = nextSegment ? nextSegment.start : maxDuration.value;
 
 	// Tıklanan nokta bu aralıkta değilse çık
-	if (clickedTime < availableStart || clickedTime > availableEnd) return;
+	if (clickedTime < availableStart || clickedTime > availableEnd) {
+		return;
+	}
 
 	// Tıklanan noktadan sonraki kullanılabilir alanı hesapla
 	const availableSpace = availableEnd - clickedTime;
@@ -1093,11 +1107,12 @@ const handleZoomTrackClick = (event) => {
 	// Yeni zoom segmentinin boyutunu hesapla (maksimum 1 saniye)
 	const zoomDuration = Math.min(1, availableSpace);
 
-	// Zoom range'i oluştur
+	// Zoom range'i oluştur - manuel olarak işaretle
 	const zoomRange = {
 		start: clickedTime,
 		end: clickedTime + zoomDuration,
 		scale: 2,
+		isAutoZoom: false, // Manuel zoom segmenti
 	};
 
 	addZoomRange(zoomRange);
@@ -1110,12 +1125,13 @@ const handleZoomDragStart = (event, index) => {
 
 	event.stopPropagation();
 
+	const segment = zoomRanges.value[index];
+
 	const timeline = timelineRef.value;
 	const rect = timeline.getBoundingClientRect();
 	const clickX = event.clientX - rect.left + timeline.scrollLeft;
 	const clickTime = (clickX / timelineWidth.value) * maxDuration.value;
 
-	const segment = zoomRanges.value[index];
 	const clickOffset = clickTime - segment.start;
 
 	isZoomDragging.value = true;
@@ -1251,10 +1267,13 @@ const handleZoomRangeLeave = () => {
 // Zoom range yeniden boyutlandırma
 const handleZoomResizeStart = (event, index, edge) => {
 	event.stopPropagation();
+
+	const segment = zoomRanges.value[index];
+
 	isZoomResizing.value = true;
 	activeZoomIndex.value = index;
 	resizingZoomEdge.value = edge;
-	initialZoomRange.value = { ...zoomRanges.value[index] };
+	initialZoomRange.value = { ...segment };
 	initialClientX.value = event.clientX;
 
 	// Performance için style güncellemesi
@@ -1471,12 +1490,15 @@ const selectedZoomIndex = ref(null);
 // Zoom segmentine tıklama
 const handleZoomSegmentClick = (event, index) => {
 	event.stopPropagation();
+
+	const zoomRange = zoomRanges.value[index];
+
 	if (selectedZoomIndex.value === index) {
 		selectedZoomIndex.value = null;
 		setCurrentZoomRange(null);
 	} else {
 		selectedZoomIndex.value = index;
-		setCurrentZoomRange(zoomRanges.value[index]);
+		setCurrentZoomRange(zoomRange);
 	}
 	emit("zoomSegmentSelect");
 };
@@ -1489,7 +1511,7 @@ const handleKeyDown = (event) => {
 		(event.key === "Delete" || event.key === "Backspace")
 	) {
 		console.log(
-			`[TimelineComponent] Zoom segment silme: index ${selectedZoomIndex.value}`
+			`[TimelineComponent] Zoom segmenti silme: index ${selectedZoomIndex.value}`
 		);
 		removeZoomRange(selectedZoomIndex.value);
 		selectedZoomIndex.value = null;
