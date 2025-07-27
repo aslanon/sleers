@@ -17,7 +17,10 @@ import {
 	cubicBezier,
 	setCursorTransitionType,
 } from "~/composables/utils/motionBlur";
-import { CanvasFastBlur, createCursorBlur } from "~/composables/utils/canvasMotionBlur";
+import {
+	CanvasFastBlur,
+	createCursorBlur,
+} from "~/composables/utils/canvasMotionBlur";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 export const MOUSE_EVENTS = {
@@ -41,13 +44,13 @@ export const CURSOR_TYPES = {
 
 export const useMouseCursor = () => {
 	// Player ayarlarını al
-	const { 
-		cursorTransitionType, 
+	const {
+		cursorTransitionType,
 		autoHideCursor,
 		enhancedMotionBlur,
 		motionBlurIntensity,
 		cursorSmoothness,
-		activeZoomScale
+		activeZoomScale,
 	} = usePlayerSettings();
 
 	// Component başlatıldığında transition tipini ayarla
@@ -94,7 +97,7 @@ export const useMouseCursor = () => {
 	const lastRealMouseSpeed = ref(0);
 	const speedSamples = ref([]);
 	const blurCooldown = ref(0);
-	const motionPhase = ref('idle'); // 'idle', 'accelerating', 'peak', 'decelerating'
+	const motionPhase = ref("idle"); // 'idle', 'accelerating', 'peak', 'decelerating'
 	const phaseStability = ref(0); // Phase değişimi için stabilite sayacı
 	const currentBlurIntensity = ref(0); // Yumuşak geçiş için mevcut blur intensity
 	const blurActiveFrames = ref(0); // Blur'un kaç frame aktif olduğu
@@ -102,13 +105,15 @@ export const useMouseCursor = () => {
 
 	// Cursor tipi değişimi için bekleme listesi - efekt aktifken kullanılacak
 	const pendingCursorType = ref(null);
-	
+
 	// Efekt aktiflik durumunu kontrol eden computed
 	const isEffectActive = computed(() => {
-		return realMouseSpeed.value > 3 || 
-			   currentBlurIntensity.value > 0.1 || 
-			   motionPhase.value !== 'idle' ||
-			   blurActiveFrames.value > 0;
+		return (
+			realMouseSpeed.value > 3 ||
+			currentBlurIntensity.value > 0.1 ||
+			motionPhase.value !== "idle" ||
+			blurActiveFrames.value > 0
+		);
 	});
 
 	// Animasyon için değişkenler - custom-cursor.js'deki gibi
@@ -172,11 +177,14 @@ export const useMouseCursor = () => {
 
 		// Motion blur sistemini başlat
 		if (enhancedMotionBlur.value) {
-			console.log('[MotionBlur] Initializing motion blur system...');
+			console.log("[MotionBlur] Initializing motion blur system...");
 			motionBlur.value = createCursorBlur(cursorCanvas.value, {
-				blur: 3
+				blur: 3,
 			});
-			console.log('[MotionBlur] Motion blur system initialized:', !!motionBlur.value);
+			console.log(
+				"[MotionBlur] Motion blur system initialized:",
+				!!motionBlur.value
+			);
 		}
 	};
 
@@ -200,7 +208,6 @@ export const useMouseCursor = () => {
 				});
 			};
 
-
 			// Tüm cursor görsellerini paralel olarak yükle
 			const [defaultImg, pointerImg, grabbingImg, textImg] = await Promise.all([
 				loadImage(defaultCursor),
@@ -208,7 +215,6 @@ export const useMouseCursor = () => {
 				loadImage(grabbingCursor),
 				loadImage(textCursor),
 			]);
-
 
 			// Cursor image mapping'i güncelle
 			cursorImages.value = {
@@ -220,36 +226,42 @@ export const useMouseCursor = () => {
 				resize: defaultImg, // Resize için şimdilik default cursor
 			};
 
-
 			// Cursor canvas'ını oluştur
 			createCursorCanvas();
 		} catch (error) {
-			console.error("[useMouseCursor] ❌ Error initializing cursor system:", error);
+			console.error(
+				"[useMouseCursor] ❌ Error initializing cursor system:",
+				error
+			);
 		}
 	});
 
 	// Watch for settings changes to reinitialize motion blur if needed
 	watch([enhancedMotionBlur, motionBlurIntensity], () => {
 		if (enhancedMotionBlur.value && !motionBlur.value && cursorCanvas.value) {
-			console.log('[MotionBlur] Reinitializing motion blur system due to settings change...');
+			console.log(
+				"[MotionBlur] Reinitializing motion blur system due to settings change..."
+			);
 			motionBlur.value = createCursorBlur(cursorCanvas.value, {
-				blur: 3
+				blur: 3,
 			});
-			console.log('[MotionBlur] Motion blur system reinitialized:', !!motionBlur.value);
+			console.log(
+				"[MotionBlur] Motion blur system reinitialized:",
+				!!motionBlur.value
+			);
 		} else if (!enhancedMotionBlur.value && motionBlur.value) {
-			console.log('[MotionBlur] Disabling motion blur system...');
+			console.log("[MotionBlur] Disabling motion blur system...");
 			motionBlur.value.destroy();
 			motionBlur.value = null;
 		}
 	});
-
 
 	// Motion data hesaplama
 	const calculateMotionData = (deltaX, deltaY, deltaTime) => {
 		// Velocity hesapla (piksel/saniye)
 		const velocity = {
 			x: deltaTime > 0 ? deltaX / deltaTime : 0,
-			y: deltaTime > 0 ? deltaY / deltaTime : 0
+			y: deltaTime > 0 ? deltaY / deltaTime : 0,
 		};
 
 		// Speed hesapla
@@ -258,7 +270,9 @@ export const useMouseCursor = () => {
 		// Acceleration hesapla
 		const accelerationX = (velocity.x - lastVelocity.value.x) / deltaTime;
 		const accelerationY = (velocity.y - lastVelocity.value.y) / deltaTime;
-		const acceleration = Math.sqrt(accelerationX * accelerationX + accelerationY * accelerationY);
+		const acceleration = Math.sqrt(
+			accelerationX * accelerationX + accelerationY * accelerationY
+		);
 
 		// Angle hesapla (hareket yönü)
 		const angle = Math.atan2(velocity.y, velocity.x);
@@ -272,7 +286,7 @@ export const useMouseCursor = () => {
 			velocity,
 			speed,
 			acceleration,
-			angle
+			angle,
 		};
 	};
 
@@ -314,7 +328,9 @@ export const useMouseCursor = () => {
 			if (isEffectActive.value) {
 				// Bekleyen cursor tipini kaydet
 				pendingCursorType.value = normalizedType;
-				console.log(`[useMouseCursor] Cursor change delayed due to active effect: ${prevType} -> ${normalizedType}`);
+				console.log(
+					`[useMouseCursor] Cursor change delayed due to active effect: ${prevType} -> ${normalizedType}`
+				);
 				return;
 			}
 
@@ -345,49 +361,56 @@ export const useMouseCursor = () => {
 	const applyPendingCursorType = () => {
 		if (pendingCursorType.value && !isEffectActive.value) {
 			const normalizedType = pendingCursorType.value;
-			
+
 			if (cursorImages.value[normalizedType]) {
 				const prevType = currentCursorType.value;
 				currentCursorType.value = normalizedType;
-				console.log(`[useMouseCursor] Applied pending cursor change: ${prevType} -> ${normalizedType}`);
+				console.log(
+					`[useMouseCursor] Applied pending cursor change: ${prevType} -> ${normalizedType}`
+				);
 			}
-			
+
 			pendingCursorType.value = null;
 		}
 	};
 
 	// Timeline-based cursor effect calculation for export/playback
-	const calculateCursorEffectsFromData = (mousePositions, currentTime, videoDuration) => {
+	const calculateCursorEffectsFromData = (
+		mousePositions,
+		currentTime,
+		videoDuration
+	) => {
 		if (!mousePositions || mousePositions.length < 2) {
 			return {
-				motionPhase: 'idle',
+				motionPhase: "idle",
 				blurIntensity: 0,
 				rotation: 0,
 				tiltAngle: 0,
 				skewX: 0,
 				scale: 1,
 				speed: 0,
-				acceleration: 0
+				acceleration: 0,
 			};
 		}
 
 		// Find the surrounding positions for current time
 		const totalFrames = mousePositions.length;
 		const normalizedTime = currentTime / videoDuration;
-		
+
 		// Fix timestamp mapping - convert cursor timestamps from milliseconds to seconds
 		const baseTimestampMs = mousePositions[0]?.timestamp || 0;
 		const maxTimestampMs = mousePositions[totalFrames - 1]?.timestamp || 0;
 		const recordingDurationMs = maxTimestampMs - baseTimestampMs;
-		
+
 		// Convert to seconds to match video currentTime format
 		const baseTimestamp = baseTimestampMs / 1000;
 		const maxTimestamp = maxTimestampMs / 1000;
 		const recordingDuration = recordingDurationMs / 1000;
-		
+
 		// Map current video time (in seconds) to cursor recording timeline
 		// No need for complex offset calculations - direct time mapping
-		const estimatedTimestamp = baseTimestamp + (normalizedTime * recordingDuration);
+		const estimatedTimestamp =
+			baseTimestamp + normalizedTime * recordingDuration;
 
 		// Find closest positions by timestamp (convert cursor timestamps to seconds)
 		let prevIndex = -1;
@@ -428,7 +451,7 @@ export const useMouseCursor = () => {
 
 		// Calculate speed and acceleration from frame data
 		const speed = deltaTime > 0 ? distance / deltaTime : 0;
-		
+
 		// Look ahead for acceleration calculation
 		let acceleration = 0;
 		if (nextIndex < totalFrames - 1) {
@@ -436,48 +459,56 @@ export const useMouseCursor = () => {
 			const futureDeltaX = futurePos.x - nextPos.x;
 			const futureDeltaY = futurePos.y - nextPos.y;
 			const futureDeltaTime = (futurePos.timestamp - nextPos.timestamp) / 1000; // Convert milliseconds to seconds
-			const futureDistance = Math.sqrt(futureDeltaX * futureDeltaX + futureDeltaY * futureDeltaY);
-			const futureSpeed = futureDeltaTime > 0 ? futureDistance / futureDeltaTime : 0;
-			
-			acceleration = futureDeltaTime > 0 ? (futureSpeed - speed) / futureDeltaTime : 0;
+			const futureDistance = Math.sqrt(
+				futureDeltaX * futureDeltaX + futureDeltaY * futureDeltaY
+			);
+			const futureSpeed =
+				futureDeltaTime > 0 ? futureDistance / futureDeltaTime : 0;
+
+			acceleration =
+				futureDeltaTime > 0 ? (futureSpeed - speed) / futureDeltaTime : 0;
 		}
 
 		// Motion phase detection based on recorded data
 		const speedThreshold = 100; // pixels per second
-		const accelThreshold = 50;  // pixels per second²
-		
-		let motionPhase = 'idle';
+		const accelThreshold = 50; // pixels per second²
+
+		let motionPhase = "idle";
 		if (speed < 20) {
-			motionPhase = 'idle';
+			motionPhase = "idle";
 		} else if (speed > speedThreshold && acceleration > accelThreshold) {
-			motionPhase = 'accelerating';
+			motionPhase = "accelerating";
 		} else if (speed > speedThreshold && Math.abs(acceleration) < 20) {
-			motionPhase = 'peak';
+			motionPhase = "peak";
 		} else if (speed > speedThreshold && acceleration < -accelThreshold) {
-			motionPhase = 'decelerating';
+			motionPhase = "decelerating";
 		}
 
 		// Skip effects for short distance movements - no need for effects on small movements
 		const isShortMovement = distance < 20 || speed < 50;
-		
+
 		// Calculate blur intensity based on motion phase and speed (skip for short movements)
 		let blurIntensity = 0;
 		const speedRatio = speed / speedThreshold;
-		
+
 		// No blur for short movements - keeps cursor clean for small adjustments
-		if (!isShortMovement && speed > 60) { // Higher threshold for blur
-			if (motionPhase === 'accelerating' && speed > speedThreshold * 0.8) {
+		if (!isShortMovement && speed > 60) {
+			// Higher threshold for blur
+			if (motionPhase === "accelerating" && speed > speedThreshold * 0.8) {
 				blurIntensity = Math.min(0.3 * speedRatio, 0.6); // Further reduced intensity
-			} else if (motionPhase === 'peak' && speed > speedThreshold * 0.7) {
+			} else if (motionPhase === "peak" && speed > speedThreshold * 0.7) {
 				blurIntensity = Math.min(0.4 * speedRatio, 0.7); // Further reduced intensity
-			} else if (motionPhase === 'decelerating' && speed > speedThreshold * 0.6) {
+			} else if (
+				motionPhase === "decelerating" &&
+				speed > speedThreshold * 0.6
+			) {
 				blurIntensity = Math.min(0.25 * speedRatio, 0.5); // Further reduced intensity
 			} else if (speed > speedThreshold * 0.6) {
 				// General movement blur for smooth transitions (higher threshold)
 				blurIntensity = Math.min(0.15 * speedRatio, 0.4);
 			}
 		}
-		
+
 		// Calculate rotation based on movement direction (only for longer movements)
 		let rotation = 0;
 		if (!isShortMovement && distance > 25 && speed > 60) {
@@ -491,9 +522,10 @@ export const useMouseCursor = () => {
 		if (!isShortMovement && Math.abs(deltaX) > 30 && speed > 70) {
 			// Only tilt for significant horizontal movement
 			const horizontalRatio = Math.abs(deltaX) / Math.max(Math.abs(deltaY), 1);
-			if (horizontalRatio > 2.0) { // More predominantly horizontal movement required
+			if (horizontalRatio > 2.0) {
+				// More predominantly horizontal movement required
 				const normalizedSpeed = Math.min(speed / speedThreshold, 1.0);
-				tiltAngle = (deltaX / 300) * Math.PI / 18 * normalizedSpeed; // Further reduced tilt
+				tiltAngle = (((deltaX / 300) * Math.PI) / 18) * normalizedSpeed; // Further reduced tilt
 			}
 		}
 
@@ -519,7 +551,7 @@ export const useMouseCursor = () => {
 			acceleration,
 			prevPos,
 			nextPos,
-			estimatedTimestamp
+			estimatedTimestamp,
 		};
 	};
 
@@ -573,27 +605,33 @@ export const useMouseCursor = () => {
 		// Gerçek mouse movement'ı hesapla (blur için) - zoom normalize edilmiş
 		const realMouseMovement = {
 			x: x - lastRealMousePos.value.x,
-			y: y - lastRealMousePos.value.y
+			y: y - lastRealMousePos.value.y,
 		};
-		const rawDistance = Math.sqrt(realMouseMovement.x * realMouseMovement.x + realMouseMovement.y * realMouseMovement.y);
-		
+		const rawDistance = Math.sqrt(
+			realMouseMovement.x * realMouseMovement.x +
+				realMouseMovement.y * realMouseMovement.y
+		);
+
 		// Zoom factor ile normalize et - zoom arttığında movement daha büyük görünür
 		const zoomFactor = activeZoomScale.value || 1.25;
 		const normalizedDistance = rawDistance / zoomFactor;
-		
+
 		// Speed samples ile smoothing yap (normalized distance kullan)
 		speedSamples.value.push(normalizedDistance);
 		if (speedSamples.value.length > 10) {
 			speedSamples.value.shift();
 		}
-		
+
 		// Smoothed speed hesapla
-		const avgSpeed = speedSamples.value.reduce((a, b) => a + b, 0) / speedSamples.value.length;
+		const avgSpeed =
+			speedSamples.value.reduce((a, b) => a + b, 0) / speedSamples.value.length;
 		realMouseSpeed.value = avgSpeed;
-		
+
 		// İvme hesapla (smoothed)
-		realMouseAcceleration.value = Math.abs(realMouseSpeed.value - lastRealMouseSpeed.value);
-		
+		realMouseAcceleration.value = Math.abs(
+			realMouseSpeed.value - lastRealMouseSpeed.value
+		);
+
 		// Blur cooldown'u azalt
 		if (blurCooldown.value > 0) {
 			blurCooldown.value--;
@@ -608,7 +646,7 @@ export const useMouseCursor = () => {
 			cursorX.value = x;
 			cursorY.value = y;
 		}
-		
+
 		// Son pozisyonu güncelle
 		lastRealMousePos.value = { x, y };
 		lastRealMouseSpeed.value = realMouseSpeed.value;
@@ -665,37 +703,41 @@ export const useMouseCursor = () => {
 		ctx.translate(cursorX.value - offsetX, cursorY.value - offsetY);
 
 		// Check if timeline effects are provided in event data
-		const hasTimelineEffects = event && event.motionPhase && event.blurIntensity !== undefined;
+		const hasTimelineEffects =
+			event && event.motionPhase && event.blurIntensity !== undefined;
 
 		// Transform origin'i cursor'ın üst ortasına ayarla (eğim için)
-		ctx.translate(cursorWidth/2, 0);
-		
+		ctx.translate(cursorWidth / 2, 0);
+
 		// Apply rotation and tilt effects - use timeline data if available with smoothing
 		if (hasTimelineEffects) {
 			// Smooth timeline-based rotation and tilt effects
 			const targetRotation = event.rotation || 0;
 			const targetTilt = event.tiltAngle || 0;
 			const targetSkew = event.skewX || 0;
-			
+
 			// Apply smooth transitions for stability
 			const rotationSpeed = 0.2;
 			const tiltSpeed = 0.2;
 			const skewSpeed = 0.25;
-			
+
 			// Limit extreme values to prevent jarring movements
 			const maxRotation = Math.PI / 8; // 22.5 degrees max
-			const maxTilt = Math.PI / 12;     // 15 degrees max
-			const maxSkew = 0.15;             // Reasonable skew limit
-			
-			const clampedRotation = Math.max(-maxRotation, Math.min(maxRotation, targetRotation));
+			const maxTilt = Math.PI / 12; // 15 degrees max
+			const maxSkew = 0.15; // Reasonable skew limit
+
+			const clampedRotation = Math.max(
+				-maxRotation,
+				Math.min(maxRotation, targetRotation)
+			);
 			const clampedTilt = Math.max(-maxTilt, Math.min(maxTilt, targetTilt));
 			const clampedSkew = Math.max(-maxSkew, Math.min(maxSkew, targetSkew));
-			
+
 			// Smooth transitions
 			rotation.value += (clampedRotation - rotation.value) * rotationSpeed;
 			tiltAngle.value += (clampedTilt - tiltAngle.value) * tiltSpeed;
 			skewX.value += (clampedSkew - skewX.value) * skewSpeed;
-			
+
 			// Apply smoothed values
 			ctx.rotate(rotation.value);
 			ctx.rotate(tiltAngle.value);
@@ -706,25 +748,25 @@ export const useMouseCursor = () => {
 			ctx.rotate(tiltAngle.value);
 			ctx.transform(1, 0, skewX.value, 1, 0, 0);
 		}
-		
+
 		// Scale efekti sadece tıklama anında (currentScale)
 		ctx.scale(currentScale.value, currentScale.value);
-		
+
 		// Transform origin'i geri al
-		ctx.translate(-cursorWidth/2, 0);
-		
+		ctx.translate(-cursorWidth / 2, 0);
+
 		// Motion phase detection - use timeline data if available
 		let shouldApplyMotionBlur = false;
 		let currentMotionPhase;
 		let targetBlurIntensity = 0;
 		let shouldTriggerBlur = false;
-		
+
 		if (hasTimelineEffects) {
 			// Use timeline-based effects with smoothing
 			currentMotionPhase = event.motionPhase;
 			targetBlurIntensity = event.blurIntensity;
 			shouldTriggerBlur = targetBlurIntensity > 0;
-			
+
 			// Update motion phase for consistency with stability check
 			if (event.motionPhase !== motionPhase.value) {
 				// Only change phase if it's stable for a few frames
@@ -732,7 +774,7 @@ export const useMouseCursor = () => {
 					motionPhase.timelinePhaseStability = 0;
 				}
 				motionPhase.timelinePhaseStability++;
-				
+
 				if (motionPhase.timelinePhaseStability > 3) {
 					motionPhase.value = currentMotionPhase;
 					motionPhase.timelinePhaseStability = 0;
@@ -740,35 +782,54 @@ export const useMouseCursor = () => {
 			} else {
 				motionPhase.timelinePhaseStability = 0;
 			}
-			
+
 			// Smooth blur intensity transitions
-			const blurTransitionSpeed = targetBlurIntensity > currentBlurIntensity.value ? 0.15 : 0.25;
-			currentBlurIntensity.value += (targetBlurIntensity - currentBlurIntensity.value) * blurTransitionSpeed;
-			
-			console.log('[TimelineEffects] Using timeline data - Phase:', currentMotionPhase, 'Target:', targetBlurIntensity.toFixed(2), 'Current:', currentBlurIntensity.value.toFixed(2));
+			const blurTransitionSpeed =
+				targetBlurIntensity > currentBlurIntensity.value ? 0.15 : 0.25;
+			currentBlurIntensity.value +=
+				(targetBlurIntensity - currentBlurIntensity.value) *
+				blurTransitionSpeed;
+
+			console.log(
+				"[TimelineEffects] Using timeline data - Phase:",
+				currentMotionPhase,
+				"Target:",
+				targetBlurIntensity.toFixed(2),
+				"Current:",
+				currentBlurIntensity.value.toFixed(2)
+			);
 		} else {
 			// Original real-time motion detection logic
 			const speedThreshold = 4 * zoomFactor; // Zoom arttıkça threshold da artar
 			const accelThreshold = 2 * zoomFactor; // Zoom arttıkça threshold da artar
-			
+
 			let newPhase = motionPhase.value;
-			
+
 			// Daha stabil phase detection ile stabilite kontrolü
 			let suggestedPhase;
-			
+
 			if (realMouseSpeed.value < 1.5) {
-				suggestedPhase = 'idle';
-			} else if (realMouseSpeed.value > speedThreshold && realMouseAcceleration.value > accelThreshold) {
-				suggestedPhase = 'accelerating';
-			} else if (realMouseSpeed.value > speedThreshold && Math.abs(realMouseAcceleration.value) < 2) {
-				suggestedPhase = 'peak';
-			} else if (realMouseSpeed.value > speedThreshold && realMouseAcceleration.value < -accelThreshold) {
-				suggestedPhase = 'decelerating';
+				suggestedPhase = "idle";
+			} else if (
+				realMouseSpeed.value > speedThreshold &&
+				realMouseAcceleration.value > accelThreshold
+			) {
+				suggestedPhase = "accelerating";
+			} else if (
+				realMouseSpeed.value > speedThreshold &&
+				Math.abs(realMouseAcceleration.value) < 2
+			) {
+				suggestedPhase = "peak";
+			} else if (
+				realMouseSpeed.value > speedThreshold &&
+				realMouseAcceleration.value < -accelThreshold
+			) {
+				suggestedPhase = "decelerating";
 			} else {
 				// Belirsiz durum - mevcut phase'i koru
 				suggestedPhase = motionPhase.value;
 			}
-			
+
 			// Phase değişimi için stabilite kontrolü
 			if (suggestedPhase === motionPhase.value) {
 				// Aynı phase - stability counter'ı artır
@@ -777,42 +838,66 @@ export const useMouseCursor = () => {
 				// Farklı phase önerisi - stability counter'ı azalt
 				phaseStability.value = Math.max(phaseStability.value - 1, 0);
 			}
-			
+
 			// Sadece yeterli stabilite varsa phase değiştir
 			if (phaseStability.value <= 2 && suggestedPhase !== motionPhase.value) {
-				console.log('[MotionPhase] Stable transition:', motionPhase.value, '->', suggestedPhase, 'Speed:', realMouseSpeed.value.toFixed(1), 'Accel:', realMouseAcceleration.value.toFixed(1));
+				console.log(
+					"[MotionPhase] Stable transition:",
+					motionPhase.value,
+					"->",
+					suggestedPhase,
+					"Speed:",
+					realMouseSpeed.value.toFixed(1),
+					"Accel:",
+					realMouseAcceleration.value.toFixed(1)
+				);
 				motionPhase.value = suggestedPhase;
 				phaseStability.value = 5; // Reset stability
 			}
-			
+
 			currentMotionPhase = motionPhase.value;
 		}
-		
+
 		// Only calculate blur if not using timeline effects
 		if (!hasTimelineEffects) {
 			// Distance threshold'u da zoom'a göre ayarla
 			const distanceThreshold = 3 * zoomFactor;
 			const speedThreshold = 4 * zoomFactor;
-			
+
 			// Blur tetikleme koşulları - daha gevşek
-			if (currentMotionPhase === 'accelerating' && realMouseSpeed.value > speedThreshold * 0.8 && normalizedDistance > distanceThreshold * 0.7) {
+			if (
+				currentMotionPhase === "accelerating" &&
+				realMouseSpeed.value > speedThreshold * 0.8 &&
+				normalizedDistance > distanceThreshold * 0.7
+			) {
 				targetBlurIntensity = 0.5;
 				shouldTriggerBlur = true;
-			} else if (currentMotionPhase === 'peak' && realMouseSpeed.value > speedThreshold * 0.7 && normalizedDistance > distanceThreshold * 0.6) {
+			} else if (
+				currentMotionPhase === "peak" &&
+				realMouseSpeed.value > speedThreshold * 0.7 &&
+				normalizedDistance > distanceThreshold * 0.6
+			) {
 				targetBlurIntensity = 0.7;
 				shouldTriggerBlur = true;
-			} else if (currentMotionPhase === 'decelerating' && realMouseSpeed.value > speedThreshold * 0.6 && normalizedDistance > distanceThreshold * 0.5) {
+			} else if (
+				currentMotionPhase === "decelerating" &&
+				realMouseSpeed.value > speedThreshold * 0.6 &&
+				normalizedDistance > distanceThreshold * 0.5
+			) {
 				targetBlurIntensity = 0.6;
 				shouldTriggerBlur = true;
 			}
 		}
-		
+
 		// Blur aktif frame sayısını takip et
 		if (shouldTriggerBlur) {
 			blurActiveFrames.value++;
 		} else {
 			// Blur tetiklenmiyor ama minimum süre dolmadıysa devam ettir
-			if (blurActiveFrames.value > 0 && blurActiveFrames.value < minActiveFrames) {
+			if (
+				blurActiveFrames.value > 0 &&
+				blurActiveFrames.value < minActiveFrames
+			) {
 				// Minimum süre boyunca blur'u sürdür
 				targetBlurIntensity = Math.max(currentBlurIntensity.value * 0.9, 0.3);
 				blurActiveFrames.value++;
@@ -820,58 +905,77 @@ export const useMouseCursor = () => {
 				blurActiveFrames.value = Math.max(0, blurActiveFrames.value - 2);
 			}
 		}
-		
+
 		// Yumuşak geçiş için current blur intensity'yi güncelle - daha stabil
-		const blurTransitionSpeed = targetBlurIntensity > currentBlurIntensity.value ? 0.12 : 0.18;
-		currentBlurIntensity.value += (targetBlurIntensity - currentBlurIntensity.value) * blurTransitionSpeed;
-		
+		const blurTransitionSpeed =
+			targetBlurIntensity > currentBlurIntensity.value ? 0.12 : 0.18;
+		currentBlurIntensity.value +=
+			(targetBlurIntensity - currentBlurIntensity.value) * blurTransitionSpeed;
+
 		// Motion blur sadece intensity > 0.1 olduğunda uygula
-		const shouldActivateBlur = motionEnabled && 
-			enhancedMotionBlur.value && 
+		const shouldActivateBlur =
+			motionEnabled &&
+			enhancedMotionBlur.value &&
 			currentBlurIntensity.value > 0.1;
-		
+
 		if (shouldActivateBlur) {
-			console.log('[MotionBlur] Smooth blur in phase:', motionPhase.value, 'Intensity:', currentBlurIntensity.value.toFixed(2), 'Speed:', realMouseSpeed.value.toFixed(1));
-			
+			console.log(
+				"[MotionBlur] Smooth blur in phase:",
+				motionPhase.value,
+				"Intensity:",
+				currentBlurIntensity.value.toFixed(2),
+				"Speed:",
+				realMouseSpeed.value.toFixed(1)
+			);
+
 			// Smooth blur intensity'ye göre radius hesapla
-			const blurRadius = Math.max(2, Math.round(currentBlurIntensity.value * 4));
+			const blurRadius = Math.max(
+				2,
+				Math.round(currentBlurIntensity.value * 4)
+			);
 			const blurIntensity = currentBlurIntensity.value;
-			
+
 			// Mouse hareket yönünü hesapla - timeline data varsa oradan al
 			let realDirection;
-			if (hasTimelineEffects && event.dirX !== undefined && event.dirY !== undefined) {
+			if (
+				hasTimelineEffects &&
+				event.dirX !== undefined &&
+				event.dirY !== undefined
+			) {
 				// Use timeline-based direction
 				realDirection = {
 					x: event.dirX,
-					y: event.dirY
+					y: event.dirY,
 				};
 			} else {
 				// Use real-time movement direction
 				realDirection = {
 					x: realMouseMovement.x !== 0 ? realMouseMovement.x / rawDistance : 0,
-					y: realMouseMovement.y !== 0 ? realMouseMovement.y / rawDistance : 0
+					y: realMouseMovement.y !== 0 ? realMouseMovement.y / rawDistance : 0,
 				};
 			}
-			
+
 			// Only update tilt/skew effects if not using timeline data
 			if (!hasTimelineEffects) {
 				// Hareket yönüne göre cursor eğimi hesapla
 				const horizontalMovement = Math.abs(realDirection.x);
 				const verticalMovement = Math.abs(realDirection.y);
-				
+
 				// Sadece yatay hareket yoğun olduğunda eğim uygula
 				if (horizontalMovement > 0.3 && horizontalMovement > verticalMovement) {
 					// Sağa hareket = cursor sola eğilir (negatif açı)
-					// Sola hareket = cursor sağa eğilir (pozitif açı)  
+					// Sola hareket = cursor sağa eğilir (pozitif açı)
 					const maxTiltAngle = 0.1; // ~6 derece max eğim
-					const targetTilt = -realDirection.x * maxTiltAngle * currentBlurIntensity.value;
-					
+					const targetTilt =
+						-realDirection.x * maxTiltAngle * currentBlurIntensity.value;
+
 					// Yumuşak eğim geçişi
 					tiltAngle.value += (targetTilt - tiltAngle.value) * 0.3;
-					
+
 					// Skew efekti de ekle
 					const maxSkew = 0.15;
-					const targetSkew = realDirection.x * maxSkew * currentBlurIntensity.value;
+					const targetSkew =
+						realDirection.x * maxSkew * currentBlurIntensity.value;
 					skewX.value += (targetSkew - skewX.value) * 0.3;
 				} else {
 					// Hareket yoksa veya dikey hareket dominant ise eğimi sıfırla
@@ -879,35 +983,36 @@ export const useMouseCursor = () => {
 					skewX.value *= 0.85;
 				}
 			}
-			
+
 			// Blur için temp canvas
-			const tempCanvas = document.createElement('canvas');
+			const tempCanvas = document.createElement("canvas");
 			tempCanvas.width = cursorWidth + 60;
 			tempCanvas.height = cursorHeight + 60;
-			const tempCtx = tempCanvas.getContext('2d');
-			
+			const tempCtx = tempCanvas.getContext("2d");
+
 			// Cursor'ı merkeze çiz
 			tempCtx.drawImage(currentImage, 30, 30, cursorWidth, cursorHeight);
-			
+
 			// Motion blur uygula - yönlü blur
 			const blur = new CanvasFastBlur({ blur: blurRadius });
 			blur.initCanvas(tempCanvas);
-			
+
 			// Yönlü distance hesapla
 			const speedFactor = Math.min(realMouseSpeed.value / 20, 1);
-			const baseDistance = speedFactor * motionBlurIntensity.value * blurIntensity;
-			
+			const baseDistance =
+				speedFactor * motionBlurIntensity.value * blurIntensity;
+
 			// Hareket yönüne göre blur yönünü ayarla - trail hareket yönünün tersinde olmalı
 			const directionalDistance = Math.min(baseDistance, 1.2);
-			
+
 			// Trail efekti için direction'ı ters çevir
 			const trailDirection = {
 				x: -realDirection.x, // Hareket yönünün tersi
-				y: -realDirection.y  // Hareket yönünün tersi
+				y: -realDirection.y, // Hareket yönünün tersi
 			};
-			
+
 			blur.mBlur(directionalDistance, trailDirection);
-			
+
 			// Blurred cursor'ı çiz
 			ctx.drawImage(tempCanvas, -hotspot.x - 30, -hotspot.y - 30);
 			shouldApplyMotionBlur = true;
@@ -965,7 +1070,7 @@ export const useMouseCursor = () => {
 		// cursorSmoothness: 0-1 range, yüksek değer daha responsive
 		const smoothnessFactor = cursorSmoothness.value;
 		let adaptiveSpeed;
-		
+
 		if (distanceToTarget < 0.5) {
 			// Çok yakın mesafede anında hareket et
 			cursorX.value = targetX.value;
@@ -980,13 +1085,16 @@ export const useMouseCursor = () => {
 
 		// Smoothness'e göre max speed - yüksek smoothness = daha yüksek max
 		const maxSpeed = Math.max(smoothnessFactor * 0.8, 0.1);
-		const normalizedSpeed = Math.min(adaptiveSpeed * (60 * deltaTime), maxSpeed);
+		const normalizedSpeed = Math.min(
+			adaptiveSpeed * (60 * deltaTime),
+			maxSpeed
+		);
 
 		// Pozisyonu güncelle - daha stabil
 		if (distanceToTarget >= 0.5) {
 			const moveX = (targetX.value - cursorX.value) * normalizedSpeed;
 			const moveY = (targetY.value - cursorY.value) * normalizedSpeed;
-			
+
 			// Çok küçük hareketleri filtrele (stabillik için)
 			if (Math.abs(moveX) > 0.1) cursorX.value += moveX;
 			if (Math.abs(moveY) > 0.1) cursorY.value += moveY;
@@ -1004,11 +1112,11 @@ export const useMouseCursor = () => {
 		// Efektleri yumuşak geçişle uygula
 		const effectSpeed = Math.min(1, deltaTime * 60);
 		rotation.value += (rotationTarget - rotation.value) * effectSpeed * 0.15;
-		
+
 		// Warp değerlerini sabit 1.0'da tut (boyut değişimi yok)
 		warpX.value += (1.0 - warpX.value) * effectSpeed * 0.2;
 		warpY.value += (1.0 - warpY.value) * effectSpeed * 0.2;
-		
+
 		// Sadece tıklama scale'i
 		currentScale.value +=
 			(targetScale.value - currentScale.value) * effectSpeed * 0.3;
@@ -1029,7 +1137,13 @@ export const useMouseCursor = () => {
 	});
 
 	// Timeline-based cursor drawing function for export/playback
-	const drawMousePositionFromTimeline = (ctx, mousePositions, currentTime, videoDuration, options = {}) => {
+	const drawMousePositionFromTimeline = (
+		ctx,
+		mousePositions,
+		currentTime,
+		videoDuration,
+		options = {}
+	) => {
 		const {
 			size = 80,
 			dpr: devicePixelRatio = 1,
@@ -1044,8 +1158,12 @@ export const useMouseCursor = () => {
 		}
 
 		// Calculate effects from timeline data
-		const effects = calculateCursorEffectsFromData(mousePositions, currentTime, videoDuration);
-		
+		const effects = calculateCursorEffectsFromData(
+			mousePositions,
+			currentTime,
+			videoDuration
+		);
+
 		if (!effects.prevPos || !effects.nextPos) {
 			return;
 		}
@@ -1060,18 +1178,21 @@ export const useMouseCursor = () => {
 			fraction = Math.max(0, Math.min(1, fraction));
 		}
 
-		const x = effects.prevPos.x + (effects.nextPos.x - effects.prevPos.x) * fraction;
-		const y = effects.prevPos.y + (effects.nextPos.y - effects.prevPos.y) * fraction;
+		const x =
+			effects.prevPos.x + (effects.nextPos.x - effects.prevPos.x) * fraction;
+		const y =
+			effects.prevPos.y + (effects.nextPos.y - effects.prevPos.y) * fraction;
 
 		// Get cursor image
-		const currentImage = cursorImages.value[effects.prevPos.cursorType || 'default'];
+		const currentImage =
+			cursorImages.value[effects.prevPos.cursorType || "default"];
 		if (!currentImage) {
 			return;
 		}
 
 		// Apply effects from timeline calculation
 		ctx.save();
-		
+
 		// Calculate cursor dimensions
 		const cursorWidth = size * effects.scale;
 		const cursorHeight = size * effects.scale;
@@ -1086,10 +1207,11 @@ export const useMouseCursor = () => {
 			resize: { x: 4, y: 5 },
 		};
 
-		const baseHotspot = hotspots[effects.prevPos.cursorType || 'default'] || hotspots.default;
+		const baseHotspot =
+			hotspots[effects.prevPos.cursorType || "default"] || hotspots.default;
 		const hotspotScale = size / 20;
 		const correctionFactor = 0.85 + 0.15 * (20 / Math.max(20, size));
-		
+
 		const hotspot = {
 			x: baseHotspot.x * hotspotScale * correctionFactor,
 			y: baseHotspot.y * hotspotScale * correctionFactor,
@@ -1104,7 +1226,9 @@ export const useMouseCursor = () => {
 			resize: { x: 0.35, y: 0.25 },
 		};
 
-		const offsetFactor = baseOffsetFactors[effects.prevPos.cursorType || 'default'] || baseOffsetFactors.default;
+		const offsetFactor =
+			baseOffsetFactors[effects.prevPos.cursorType || "default"] ||
+			baseOffsetFactors.default;
 		const offsetX = (size - 20) * offsetFactor.x;
 		const offsetY = (size - 20) * offsetFactor.y;
 
@@ -1124,13 +1248,13 @@ export const useMouseCursor = () => {
 		if (motionEnabled && effects.blurIntensity > 0 && enabledMotionBlur) {
 			// Create motion blur using canvas operations
 			const blurRadius = effects.blurIntensity * blurIntensity * 10;
-			
+
 			// Apply blur based on movement direction
 			if (effects.speed > 0) {
 				const deltaX = effects.nextPos.x - effects.prevPos.x;
 				const deltaY = effects.nextPos.y - effects.prevPos.y;
 				const angle = Math.atan2(deltaY, deltaX);
-				
+
 				// Create directional blur effect
 				ctx.save();
 				ctx.filter = `blur(${blurRadius}px)`;
@@ -1164,6 +1288,45 @@ export const useMouseCursor = () => {
 		}
 	});
 
+	// Get cursor position at specific time for zoom origin
+	const getCursorPositionAtTime = (
+		mousePositions,
+		currentTime,
+		videoDuration
+	) => {
+		if (!mousePositions || mousePositions.length === 0) {
+			return null;
+		}
+
+		// Calculate effects from timeline data
+		const effects = calculateCursorEffectsFromData(
+			mousePositions,
+			currentTime,
+			videoDuration
+		);
+
+		if (!effects.prevPos || !effects.nextPos) {
+			return null;
+		}
+
+		// Interpolate position based on timeline (convert timestamps to seconds)
+		const prevTimestamp = effects.prevPos.timestamp / 1000; // Convert to seconds
+		const nextTimestamp = effects.nextPos.timestamp / 1000; // Convert to seconds
+		const timeDiff = nextTimestamp - prevTimestamp;
+		let fraction = 0;
+		if (timeDiff > 0) {
+			fraction = (effects.estimatedTimestamp - prevTimestamp) / timeDiff;
+			fraction = Math.max(0, Math.min(1, fraction));
+		}
+
+		const x =
+			effects.prevPos.x + (effects.nextPos.x - effects.prevPos.x) * fraction;
+		const y =
+			effects.prevPos.y + (effects.nextPos.y - effects.prevPos.y) * fraction;
+
+		return { x, y };
+	};
+
 	return {
 		cursorCanvas,
 		cursorCtx,
@@ -1195,6 +1358,7 @@ export const useMouseCursor = () => {
 		// Timeline-based functions for export/playback
 		calculateCursorEffectsFromData,
 		drawMousePositionFromTimeline,
+		getCursorPositionAtTime, // 🎯 New function for zoom origin
 		// Motion blur status
 		realMouseSpeed,
 		realMouseAcceleration,

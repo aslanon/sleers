@@ -73,6 +73,7 @@
 <script setup>
 import { nextTick, onUnmounted } from "vue";
 import { useVideoZoom } from "~/composables/useVideoZoom";
+import { useCanvasZoom } from "~/composables/useCanvasZoom";
 import { useMouseCursor } from "~/composables/useMouseCursor";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useCameraRenderer } from "~/composables/useCameraRenderer";
@@ -259,16 +260,29 @@ let cameraElement = null;
 // layout segment için
 const { renderLayout } = useLayoutRenderer();
 
-// Zoom yönetimi
+// Canvas-based Zoom yönetimi
 const {
-	scale,
-	videoScale,
-	targetScale,
-	targetPosition,
-	isZoomAnimating,
+	canvasZoomScale,
+	canvasZoomOrigin,
+	isCanvasZoomTransitioning,
+	isZoomed,
+	zoomPercentage,
+	getCanvasZoomState,
+	calculateCanvasViewport,
+	setZoomOriginFromMouse,
+	beginCanvasZoom,
+	finishCanvasZoom,
+	checkAndApplyCanvasZoom,
+	updateCanvasZoomScale,
+	setCanvasZoom,
+	resetCanvasZoom,
+	handleWheelZoom,
+} = useCanvasZoom();
+
+// Eski zoom sistemi için backward compatibility (gerektiğinde)
+const {
 	lastZoomPosition,
 	calculateZoomOrigin,
-	applyZoomSegment,
 	checkZoomSegments,
 	cleanup: cleanupZoom,
 } = useVideoZoom(videoElement, containerRef, canvasRef);
@@ -788,24 +802,7 @@ const pause = async () => {
 	}
 };
 
-// Video scale animasyonu
-const animateVideoScale = (timestamp) => {
-	if (!ctx || !canvasRef.value || videoState.value.isPaused) return;
-
-	// Store'dan gelen scale değerini kullan
-	const targetScale = currentZoomRange.value ? currentZoomRange.value.scale : 1;
-	const scaleDiff = targetScale - videoScale.value;
-
-	// Smooth transition için lerp
-	const lerpFactor = 0.1;
-	if (Math.abs(scaleDiff) > 0.001) {
-		videoScale.value += scaleDiff * lerpFactor;
-		// Canvas'ı güncelle
-		updateCanvas(timestamp);
-		// Animasyonu devam ettir
-		requestAnimationFrame(animateVideoScale);
-	}
-};
+// Video scale animasyonu artık canvas zoom sistemi tarafından hallediyor
 
 // Zoom range değişikliğini izle
 watch(
@@ -1278,9 +1275,66 @@ const getCropData = () => {
 
 	return {
 		...videoCoords,
-		scale: scale.value,
+		scale: 1, // Scale sabit 1 - crop data zoom'dan bağımsız
 		aspectRatio: cropRatio.value,
 	};
+};
+
+// Cursor pozisyonunu video koordinatlarından canvas koordinatlarına dönüştür
+const transformCursorToCanvasCoords = (
+	cursorX,
+	cursorY,
+	videoElement,
+	canvas,
+	cropArea,
+	padding,
+	dpr
+) => {
+	if (!videoElement || !canvas) return null;
+
+	// Video veya crop boyutlarını kullan
+	let sourceWidth, sourceHeight;
+	if (cropArea?.isApplied) {
+		sourceWidth = cropArea.width;
+		sourceHeight = cropArea.height;
+	} else {
+		sourceWidth = videoElement.videoWidth;
+		sourceHeight = videoElement.videoHeight;
+	}
+
+	const sourceRatio = sourceWidth / sourceHeight;
+	const canvasWidth = canvas.width;
+	const canvasHeight = canvas.height;
+
+	// Video'nun canvas üzerindeki boyut ve pozisyonunu hesapla (MediaPlayer'daki logik ile aynı)
+	const availableWidth = canvasWidth - padding * 2 * dpr;
+	const availableHeight = canvasHeight - padding * 2 * dpr;
+	const availableRatio = availableWidth / availableHeight;
+
+	let drawWidth, drawHeight, videoX, videoY;
+
+	if (sourceRatio > availableRatio) {
+		// Video daha geniş, genişliğe göre ölçekle
+		drawWidth = availableWidth;
+		drawHeight = drawWidth / sourceRatio;
+		videoX = padding * dpr;
+		videoY = padding * dpr + (availableHeight - drawHeight) / 2;
+	} else {
+		// Video daha dar, yüksekliğe göre ölçekle
+		drawHeight = availableHeight;
+		drawWidth = drawHeight * sourceRatio;
+		videoX = padding * dpr + (availableWidth - drawWidth) / 2;
+		videoY = padding * dpr;
+	}
+
+	// Cursor pozisyonunu video koordinatlarından canvas koordinatlarına dönüştür
+	const scaleX = drawWidth / sourceWidth;
+	const scaleY = drawHeight / sourceHeight;
+
+	const canvasX = videoX + cursorX * scaleX;
+	const canvasY = videoY + cursorY * scaleY;
+
+	return { x: canvasX, y: canvasY };
 };
 
 // Mouse cursor yönetimi
@@ -1288,6 +1342,7 @@ const {
 	drawMousePosition,
 	drawMousePositionFromTimeline,
 	calculateCursorEffectsFromData,
+	getCursorPositionAtTime,
 	currentCursorType,
 	isMouseDown,
 	isDragging,
@@ -1295,7 +1350,7 @@ const {
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
 
 // Mouse pozisyonlarını çiz
-const drawMousePositions = () => {
+const drawMousePositions = (customCtx = null) => {
 	// Debug: Mouse cursor durumunu logla
 	if (typeof drawMousePositions.debugCounter === "undefined") {
 		drawMousePositions.debugCounter = 0;
@@ -1323,7 +1378,7 @@ const drawMousePositions = () => {
 		return;
 	}
 
-	const ctx = canvasRef.value.getContext("2d");
+	const ctx = customCtx || canvasRef.value.getContext("2d");
 	if (!ctx) return;
 
 	// Video süresini al
@@ -1733,101 +1788,30 @@ const drawMousePositions = () => {
 	// Önce zoom durumunu kontrol et ve zoom origin'i hesapla
 	let zoomOriginX = displayX;
 	let zoomOriginY = displayY;
-	if (videoScale.value > 1.001) {
-		const activeZoom = checkZoomSegments(
-			videoElement.currentTime,
-			zoomRanges.value
-		);
-
-		// Raw zoom origin hesapla
-		const rawDynamicOrigin = {
-			x: ((interpolatedX - sourceX) / sourceWidth) * 100,
-			y: ((interpolatedY - sourceY) / sourceHeight) * 100,
-		};
-
-		// Zoom tracking için smoothing - static global variable
-		if (typeof window.smoothZoomOrigin === "undefined") {
-			window.smoothZoomOrigin = {
-				x: rawDynamicOrigin.x,
-				y: rawDynamicOrigin.y,
-			};
-		}
-
-		// Zoom movement hızını hesapla
-		const zoomDx = rawDynamicOrigin.x - window.smoothZoomOrigin.x;
-		const zoomDy = rawDynamicOrigin.y - window.smoothZoomOrigin.y;
-		const zoomMoveSpeed = Math.sqrt(zoomDx * zoomDx + zoomDy * zoomDy);
-
-		// Hızlı hareket = daha az smoothing (daha responsive)
-		// Yavaş hareket = daha fazla smoothing (daha stable)
-		const smoothFactor = Math.max(
-			0.08,
-			Math.min(0.35, 0.2 / (zoomMoveSpeed + 1))
-		);
-
-		// Smooth zoom origin hesapla
-		window.smoothZoomOrigin.x +=
-			(rawDynamicOrigin.x - window.smoothZoomOrigin.x) * smoothFactor;
-		window.smoothZoomOrigin.y +=
-			(rawDynamicOrigin.y - window.smoothZoomOrigin.y) * smoothFactor;
-
-		const zoomOrigin = calculateZoomOrigin(
-			window.smoothZoomOrigin, // Raw yerine smooth kullan
-			displayX,
-			displayY,
-			displayWidth,
-			displayHeight,
-			displayX + displayWidth / 2,
-			displayY + displayHeight / 2
-		);
-		zoomOriginX = zoomOrigin.originX;
-		zoomOriginY = zoomOrigin.originY;
-		lastZoomPosition.value = window.smoothZoomOrigin;
-	}
+	// Canvas zoom sistemi cursor pozisyonunu otomatik hallediyor,
+	// ekstra zoom hesaplaması gerekmiyor
 
 	if (cropArea.value?.isApplied) {
 		// Crop uygulanmışsa, mouse pozisyonunu crop alanına göre normalize et
 		const normalizedX = (interpolatedX - sourceX) / sourceWidth;
 		const normalizedY = (interpolatedY - sourceY) / sourceHeight;
 
-		// Zoom'u hesaba katarak pozisyonu hesapla
-		const baseX = displayX + normalizedX * displayWidth;
-		const baseY = displayY + normalizedY * displayHeight;
-
-		if (videoScale.value > 1.001) {
-			canvasX =
-				zoomOriginX +
-				(baseX - zoomOriginX) * videoScale.value +
-				position.value.x;
-			canvasY =
-				zoomOriginY +
-				(baseY - zoomOriginY) * videoScale.value +
-				position.value.y;
-		} else {
-			canvasX = baseX + position.value.x;
-			canvasY = baseY + position.value.y;
-		}
+		// Basit pozisyon hesaplama
+		canvasX = displayX + normalizedX * displayWidth + position.value.x;
+		canvasY = displayY + normalizedY * displayHeight + position.value.y;
 	} else {
 		// Crop uygulanmamışsa normal hesaplama yap
-		const baseX =
-			displayX + (interpolatedX / videoElement.videoWidth) * displayWidth;
-		const baseY =
-			displayY + (interpolatedY / videoElement.videoHeight) * displayHeight;
-
-		if (videoScale.value > 1.001) {
-			canvasX =
-				zoomOriginX +
-				(baseX - zoomOriginX) * videoScale.value +
-				position.value.x;
-			canvasY =
-				zoomOriginY +
-				(baseY - zoomOriginY) * videoScale.value +
-				position.value.y;
-		} else {
-			canvasX = baseX + position.value.x;
-			canvasY = baseY + position.value.y;
-		}
+		canvasX =
+			displayX +
+			(interpolatedX / videoElement.videoWidth) * displayWidth +
+			position.value.x;
+		canvasY =
+			displayY +
+			(interpolatedY / videoElement.videoHeight) * displayHeight +
+			position.value.y;
 	}
+
+	// Normal cursor pozisyonu - zoom sonra uygulanacak
 
 	// Calculate timeline-based motion effects but keep original positioning
 	const timelineEffects = calculateCursorEffectsFromData(
@@ -1885,7 +1869,10 @@ const drawMousePositions = () => {
 			tiltAngle: timelineEffects?.tiltAngle || 0,
 			skewX: timelineEffects?.skewX || 0,
 		},
-		size: mouseSize.value,
+		size:
+			canvasZoomScale.value > 1.01
+				? mouseSize.value / Math.sqrt(canvasZoomScale.value) // Yumuşak küçültme (sqrt ile)
+				: mouseSize.value,
 		dpr,
 		motionEnabled: mouseMotionEnabled.value,
 		motionBlurValue: motionBlurValue.value,
@@ -1894,10 +1881,12 @@ const drawMousePositions = () => {
 
 	// Kamera pozisyonunu güncelle
 	if (cameraElement && cameraSettings.value.followMouse) {
-		// Kamera için offset değerleri
-		const offsetX = 100 * dpr; // Yatay mesafeyi artır
-		const offsetY = 100 * dpr; // Dikey mesafeyi artır
-		const PADDING = 20 * dpr; // Kenarlardan minimum mesafe
+		// 📏 Zoom'a göre ayarlanmış offset değerleri (zoom arttıkça offset küçülsün)
+		const zoomAdjustment =
+			canvasZoomScale.value > 1.01 ? 1 / Math.sqrt(canvasZoomScale.value) : 1;
+		const offsetX = 100 * dpr * zoomAdjustment; // Zoom'a göre ayarlanmış yatay mesafe
+		const offsetY = 100 * dpr * zoomAdjustment; // Zoom'a göre ayarlanmış dikey mesafe
+		const PADDING = 20 * dpr * zoomAdjustment; // Zoom'a göre ayarlanmış padding
 
 		// Mouse pozisyonunu video pozisyonuna göre normalize et
 		const normalizedMouseX = canvasX - position.value.x;
@@ -1907,9 +1896,10 @@ const drawMousePositions = () => {
 		let targetX = normalizedMouseX + offsetX;
 		let targetY = normalizedMouseY + offsetY;
 
-		// Kamera boyutlarını al
-		const cameraWidth =
+		// 📏 Zoom'a göre ayarlanmış kamera boyutlarını al (%50 daha küçük)
+		const baseCameraWidth =
 			(canvasRef.value.width * cameraSettings.value.size) / 100;
+		const cameraWidth = baseCameraWidth * zoomAdjustment * 0.5; // %50 daha küçük (0.5 = 50%)
 		const cameraHeight = cameraWidth;
 
 		// Canvas sınırları içinde kal
@@ -2240,7 +2230,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 	// FPS kontrolü
 	if (timestamp - lastFrameTime < frameInterval) {
 		// Sadece video oynatılıyorsa veya zoom geçişi varsa animasyonu devam ettir
-		if (videoState.value.isPlaying || isZoomTransitioning.value) {
+		if (videoState.value.isPlaying || isCanvasZoomTransitioning.value) {
 			animationFrame = requestAnimationFrame((t) =>
 				updateCanvas(t, mouseX, mouseY)
 			);
@@ -2364,7 +2354,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// In the updateCanvas function, modify the calculation of drawWidth, drawHeight, x, y
 		// First, ensure position is zeroed after aspect ratio changes
-		if (videoScale.value <= 1.001) {
+		if (canvasZoomScale.value <= 1.001) {
 			// Only reset position to center when not zoomed in
 			// This keeps the position consistent while applying different aspect ratios
 			if (sourceRatio !== lastSourceRatio.value) {
@@ -2385,20 +2375,47 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		const drawX = x + offsetX;
 		const drawY = y + offsetY;
 
-		// Aktif zoom segmentini bul - clipped time kullan
+		// Canvas-based zoom kontrolü
 		const currentTime = videoState.value.currentTime; // Clipped time
-		const activeZoom = checkZoomSegments(currentTime, zoomRanges.value);
 
-		// Store'dan gelen scale değerini kullan
-		const targetScale = activeZoom ? activeZoom.scale : 1;
-		const lerpFactor = 0.1;
-		previousScale.value = videoScale.value;
-		videoScale.value =
-			videoScale.value + (targetScale - videoScale.value) * lerpFactor;
+		// 🎯 Custom cursor pozisyonunu zoom origin olarak kullan
+		let cursorPosition = null;
+		if (props.mousePositions && videoElement?.duration) {
+			const cursorPos = getCursorPositionAtTime(
+				props.mousePositions,
+				currentTime,
+				videoElement.duration
+			);
+			if (cursorPos) {
+				// Video koordinatlarından canvas koordinatlarına dönüştür
+				const transformedCursor = transformCursorToCanvasCoords(
+					cursorPos.x,
+					cursorPos.y,
+					videoElement,
+					canvasRef.value,
+					cropArea.value,
+					padding.value,
+					dpr
+				);
 
-		// Scale değişim hızını hesapla
-		const scaleVelocity = Math.abs(videoScale.value - previousScale.value);
-		isZoomTransitioning.value = scaleVelocity > 0.01; // Eşik değeri
+				if (transformedCursor) {
+					cursorPosition = {
+						x: transformedCursor.x,
+						y: transformedCursor.y,
+						canvasWidth: canvasRef.value.width,
+						canvasHeight: canvasRef.value.height,
+					};
+				}
+			}
+		}
+
+		const activeZoom = checkAndApplyCanvasZoom(
+			currentTime,
+			zoomRanges.value,
+			cursorPosition
+		);
+
+		// Zoom segment artık otomatik olarak cursor tracking yapıyor
 
 		// layout segmenti aktif mi
 		// Layout kontrolü - erken return için
@@ -2419,228 +2436,222 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			return;
 		}
 
-		// Zoom efektini uygula
-		if (videoScale.value > 1.001) {
-			const centerX = x + drawWidth / 2;
-			const centerY = y + drawHeight / 2;
+		// Off-screen canvas'ı sadece aktif segment varsa kullan
+		let offscreenCtx = null;
+		let renderCtx = ctx;
 
-			// Zoom origin'ini son kaydedilen cursor konumuna göre hesapla
-			const { originX: transformOriginX, originY: transformOriginY } =
-				calculateZoomOrigin(
-					lastZoomPosition.value || "center",
-					x,
-					y,
-					drawWidth,
-					drawHeight,
-					centerX,
-					centerY
-				);
-
-			// Orijinal görüntüyü çiz - Transform the entire context for all elements
-			ctx.save();
-
-			// Apply the zoom transformation
-			ctx.translate(transformOriginX + offsetX, transformOriginY + offsetY);
-			ctx.scale(videoScale.value, videoScale.value);
-			ctx.translate(
-				-(transformOriginX + offsetX),
-				-(transformOriginY + offsetY)
+		if (isInActiveSegment) {
+			// Canvas viewport zoom başlat - off-screen canvas hazırla
+			offscreenCtx = beginCanvasZoom(
+				canvasRef.value.width,
+				canvasRef.value.height
 			);
 
-			// Video çizimi - sadece aktif segment varsa TÜM video alanını çiz
-			if (isInActiveSegment) {
-				// Draw shadow if enabled
-				if (shadowSize.value > 0) {
-					ctx.save();
-					ctx.beginPath();
-					useRoundRect(
-						ctx,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight,
-						radius.value * dpr
-					);
-					ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-					ctx.shadowBlur = shadowSize.value * dpr;
-					ctx.shadowOffsetX = 0;
-					ctx.shadowOffsetY = 0;
-					ctx.fillStyle = backgroundColor.value;
-					ctx.fill();
-					ctx.restore();
-				}
+			// Zoom varsa off-screen canvas'a çiz, yoksa normal canvas'a çiz
+			renderCtx = offscreenCtx || ctx;
 
-				// Video alanını kırp ve radius uygula
-				ctx.save();
-				ctx.beginPath();
-				useRoundRect(
-					ctx,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight,
-					radius.value * dpr
-				);
-				ctx.clip();
+			// Background'ı renderCtx'e çiz (off-screen canvas için de gerekli)
+			if (offscreenCtx) {
+				// Off-screen canvas için background çiz
+				if (bgImageLoaded.value && bgImageElement.value) {
+					try {
+						// Resmi canvas'a sığacak şekilde ölçekle
+						const scale = Math.max(
+							canvasRef.value.width / bgImageElement.value.width,
+							canvasRef.value.height / bgImageElement.value.height
+						);
 
-				if (cropArea.value?.isApplied === true) {
-					// Crop uygulanmışsa kırpılmış alanı çiz
-					ctx.drawImage(
-						videoElement,
-						cropArea.value.x,
-						cropArea.value.y,
-						cropArea.value.width,
-						cropArea.value.height,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight
-					);
+						const scaledWidth = bgImageElement.value.width * scale;
+						const scaledHeight = bgImageElement.value.height * scale;
+
+						// Resmi ortala
+						const x = (canvasRef.value.width - scaledWidth) / 2;
+						const y = (canvasRef.value.height - scaledHeight) / 2;
+
+						// Blur efekti uygula
+						if (backgroundBlur.value > 0) {
+							renderCtx.filter = `blur(${backgroundBlur.value}px)`;
+						}
+
+						renderCtx.drawImage(
+							bgImageElement.value,
+							x,
+							y,
+							scaledWidth,
+							scaledHeight
+						);
+
+						// Blur'u sıfırla
+						renderCtx.filter = "none";
+					} catch (error) {
+						// Camera background removal aktifse arkaplan doldurmayı atla
+						const isCameraBackgroundRemovalActive =
+							cameraSettings.value?.optimizedBackgroundRemoval;
+
+						if (!isCameraBackgroundRemovalActive) {
+							renderCtx.fillStyle = backgroundColor.value;
+							renderCtx.fillRect(
+								0,
+								0,
+								canvasRef.value.width,
+								canvasRef.value.height
+							);
+						}
+					}
 				} else {
-					// Normal video çizimi
-					ctx.drawImage(
-						videoElement,
-						0,
-						0,
-						videoElement.videoWidth,
-						videoElement.videoHeight,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight
-					);
+					// Camera background removal aktifse arkaplan doldurmayı atla
+					const isCameraBackgroundRemovalActive =
+						cameraSettings.value?.optimizedBackgroundRemoval;
+
+					if (!isCameraBackgroundRemovalActive) {
+						renderCtx.fillStyle = backgroundColor.value;
+						renderCtx.fillRect(
+							0,
+							0,
+							canvasRef.value.width,
+							canvasRef.value.height
+						);
+					}
 				}
-				ctx.restore();
-			}
-			// Segment yoksa hiçbir video alanı çizme (tamamen gizli)
-			ctx.restore();
-
-			// Video border çizimi - draw after the video
-			if (videoBorderSettings.value?.width > 0) {
-				ctx.save();
-				ctx.beginPath();
-				useRoundRect(
-					ctx,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight,
-					radius.value * dpr
-				);
-				ctx.strokeStyle = videoBorderSettings.value.color || "rgba(0, 0, 0, 1)";
-				ctx.lineWidth = videoBorderSettings.value.width * dpr;
-				ctx.stroke();
-				ctx.restore();
-			}
-
-			// --- Video hover border çizimi - sadece aktif segment varsa ---
-			if (isInActiveSegment && isMouseOverVideo.value) {
-				const { x, y, width, height, dpr } = getVideoDisplayRect();
-				drawVideoHoverFrame(ctx, x, y, width, height, dpr);
-			}
-			// --- Video hover border çizimi ---
-
-			// Restore the entire context
-			ctx.restore();
-
-			// Motion blur for zoom transitions
-			if (isZoomTransitioning.value) {
-				// ... existing zoom transition code ...
-			}
-		} else {
-			// Normal video çizimi - sadece aktif segment varsa TÜM video alanını çiz
-			if (isInActiveSegment) {
-				// Shadow ve radius
-				if (shadowSize.value > 0) {
-					ctx.save();
-					ctx.beginPath();
-					useRoundRect(
-						ctx,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight,
-						radius.value * dpr
-					);
-					ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-					ctx.shadowBlur = shadowSize.value * dpr;
-					ctx.shadowOffsetX = 0;
-					ctx.shadowOffsetY = 0;
-					ctx.fillStyle = backgroundColor.value;
-					ctx.fill();
-					ctx.restore();
-				}
-
-				// Video alanını kırp ve radius uygula
-				ctx.save();
-				ctx.beginPath();
-				useRoundRect(
-					ctx,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight,
-					radius.value * dpr
-				);
-				ctx.clip();
-
-				if (cropArea.value?.isApplied === true) {
-					// Crop uygulanmışsa kırpılmış alanı çiz
-					ctx.drawImage(
-						videoElement,
-						cropArea.value.x,
-						cropArea.value.y,
-						cropArea.value.width,
-						cropArea.value.height,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight
-					);
-				} else {
-					// Normal video çizimi
-					ctx.drawImage(
-						videoElement,
-						0,
-						0,
-						videoElement.videoWidth,
-						videoElement.videoHeight,
-						drawX,
-						drawY,
-						drawWidth,
-						drawHeight
-					);
-				}
-				ctx.restore();
-			}
-			// Segment yoksa hiçbir video alanı çizme (tamamen gizli)
-			ctx.restore();
-
-			// Video border çizimi - sadece aktif segment varsa
-			if (isInActiveSegment && videoBorderSettings.value?.width > 0) {
-				ctx.save();
-				ctx.beginPath();
-				useRoundRect(
-					ctx,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight,
-					radius.value * dpr
-				);
-				ctx.strokeStyle = videoBorderSettings.value.color || "rgba(0, 0, 0, 1)";
-				ctx.lineWidth = videoBorderSettings.value.width * dpr;
-				ctx.stroke();
-				ctx.restore();
 			}
 		}
 
-		// Ana context state'i geri yükle
+		// Canvas viewport zoom başlat - off-screen canvas hazırla
+		const offscreenContext = beginCanvasZoom(
+			canvasRef.value.width,
+			canvasRef.value.height
+		);
+
+		// Zoom varsa off-screen canvas'a çiz, yoksa normal canvas'a çiz
+		const renderContext = offscreenContext || ctx;
+
+		// Video çizimi - sadece aktif segment varsa TÜM video alanını çiz
+		if (isInActiveSegment) {
+			// Normal koordinatlar kullan - off-screen canvas otomatik zoom yapacak
+
+			// Draw shadow if enabled
+			if (shadowSize.value > 0) {
+				renderContext.save();
+				renderContext.beginPath();
+				useRoundRect(
+					renderContext,
+					drawX,
+					drawY,
+					drawWidth,
+					drawHeight,
+					radius.value * dpr
+				);
+				renderContext.shadowColor = "rgba(0, 0, 0, 0.75)";
+				renderContext.shadowBlur = shadowSize.value * dpr;
+				renderContext.shadowOffsetX = 0;
+				renderContext.shadowOffsetY = 0;
+				renderContext.fillStyle = backgroundColor.value;
+				renderContext.fill();
+				renderContext.restore();
+			}
+
+			// Video alanını kırp ve radius uygula
+			renderContext.save();
+			renderContext.beginPath();
+			useRoundRect(
+				renderContext,
+				drawX,
+				drawY,
+				drawWidth,
+				drawHeight,
+				radius.value * dpr
+			);
+			renderContext.clip();
+
+			if (cropArea.value?.isApplied === true) {
+				// Crop uygulanmışsa kırpılmış alanı çiz
+				renderContext.drawImage(
+					videoElement,
+					cropArea.value.x,
+					cropArea.value.y,
+					cropArea.value.width,
+					cropArea.value.height,
+					drawX,
+					drawY,
+					drawWidth,
+					drawHeight
+				);
+			} else {
+				// Normal video çizimi
+				renderContext.drawImage(
+					videoElement,
+					0,
+					0,
+					videoElement.videoWidth,
+					videoElement.videoHeight,
+					drawX,
+					drawY,
+					drawWidth,
+					drawHeight
+				);
+			}
+			renderContext.restore();
+
+			// Video border çizimi - draw after the video
+			if (videoBorderSettings.value?.width > 0) {
+				renderContext.save();
+				renderContext.beginPath();
+				useRoundRect(
+					renderContext,
+					drawX,
+					drawY,
+					drawWidth,
+					drawHeight,
+					radius.value * dpr
+				);
+				renderContext.strokeStyle =
+					videoBorderSettings.value.color || "rgba(0, 0, 0, 1)";
+				renderContext.lineWidth = videoBorderSettings.value.width * dpr;
+				renderContext.stroke();
+				renderContext.restore();
+			}
+
+			// --- Video hover border çizimi - sadece aktif segment varsa ---
+			if (isMouseOverVideo.value) {
+				const { x, y, width, height, dpr } = getVideoDisplayRect();
+				drawVideoHoverFrame(renderContext, x, y, width, height, dpr);
+			}
+
+			// ❌ Camera drawing off-screen canvas'tan kaldırıldı - zoom sonrası main canvas'a taşınacak
+
+			// Mouse pozisyonlarını çiz (off-screen canvas'a - zoom öncesi) - sadece aktif segment'te
+			drawMousePositions(renderContext);
+
+			// macOS Dock çiz (off-screen canvas'a - zoom öncesi)
+			if (
+				showDock.value === true &&
+				isDockSupported.value === true &&
+				visibleDockItems.value &&
+				visibleDockItems.value.length > 0
+			) {
+				drawMacOSDock(renderContext, dpr);
+			}
+		}
+
+		// Segment yoksa hiçbir video alanı çizme (tamamen gizli)
 		ctx.restore();
 
-		// Kamera çizimi (cursor'dan önce çizilmeli)
-		if (cameraElement) {
+		// Motion blur for zoom transitions
+		if (isCanvasZoomTransitioning.value) {
+			// ... existing zoom transition code ...
+		}
+
+		// ❌ İkinci camera drawing kaldırıldı - sadece off-screen canvas'ta çiziliyor
+
+		// Off-screen canvas'tan ana canvas'a zoom kopyalama yap
+		if (offscreenContext) {
+			finishCanvasZoom(ctx, canvasRef.value.width, canvasRef.value.height);
+		}
+
+		// 📷 Camera drawing (zoom sonrası main canvas'a - en üst layer)
+		if (cameraElement && isInActiveSegment) {
 			let cameraPos;
+
 			if (isCameraDragging.value) {
 				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
 				cameraPos = cameraPosition.value;
@@ -2651,38 +2662,39 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					y: lastCameraPosition.value.y,
 				};
 			} else if (cameraPosition.value) {
-				// Kamera pozisyonu varsa onu kullan (düzen uygulandıktan sonra veya manuel ayarlandıktan sonra)
+				// Kamera pozisyonu varsa onu kullan
 				cameraPos = { ...cameraPosition.value };
 			} else if (cameraSettings.value.position) {
-				// Kamera ayarlarında pozisyon varsa onu kullan (son çare olarak)
+				// Kamera ayarlarında pozisyon varsa onu kullan
 				cameraPos = { ...cameraSettings.value.position };
 			}
 
 			try {
-				// Zoom aktifse kamera pozisyonunu ona göre ayarla
-				let scaledVideoPosition = { ...position.value };
-				if (videoScale.value > 1.001) {
-					// Zoom aktifse kamera pozisyonu ve zoom ölçeğini hesaba kat
-					if (cameraPos) {
-						// Kameranın zoom'lu görüntüde doğru pozisyonda görünmesi için hesaplama
-						cameraPos = {
-							x: cameraPos.x,
-							y: cameraPos.y,
-						};
-					}
+				// 📏 Camera scaling logic - zoom'dan etkilenmez (main canvas'ta)
+				let cameraScale;
+
+				if (cameraSettings.value.followMouse) {
+					// Camera follow aktifken: Zoom ile küçülsün
+					cameraScale =
+						canvasZoomScale.value > 1.01
+							? (1 / Math.sqrt(canvasZoomScale.value)) * 0.5 // Zoom ile küçült + %50 daha küçük
+							: 0.5; // Zoom yokken %50 küçük
+				} else {
+					// Camera follow yokken: Zoom boyunca sabit boyut kalsın
+					cameraScale = 0.5; // Her zaman %50 küçük, zoom'dan etkilenmesin
 				}
 
 				const cameraResult = drawCamera(
-					ctx,
+					ctx, // Main canvas context (zoom sonrası)
 					cameraElement,
 					canvasRef.value.width,
 					canvasRef.value.height,
-					1,
+					cameraScale, // Zoom'a göre ayarlanmış camera scale
 					mouseX,
 					mouseY,
 					cameraPos,
-					videoScale.value, // Zoom ölçeğini kameraya aktar
-					scaledVideoPosition,
+					1, // Canvas zoom kullanıldığı için kameraya ayrı scale vermeye gerek yok
+					position.value,
 					cameraSettings.value.optimizedBackgroundRemovalSettings
 						?.backgroundType || "transparent",
 					cameraSettings.value.optimizedBackgroundRemovalSettings
@@ -2700,38 +2712,94 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				// Kamera followMouse aktifse ve mouse kamera üstündeyse tooltip çiz
 				if (cameraSettings.value.followMouse && cameraResult?.isMouseOver) {
 					const cameraRect = cameraResult.rect;
-					drawCameraFollowTooltip(ctx, cameraRect, dpr);
+					drawCameraFollowTooltip(ctx, cameraRect, dpr); // Main canvas context
 				}
 			} catch (error) {
-				console.warn("[MediaPlayer] Camera draw error:", error);
 				if (!cameraElement || cameraElement.readyState < 2) {
 					initializeCamera();
 				}
 			}
 		}
 
-		// Mouse pozisyonlarını çiz (kameradan sonra çizilmeli ki üzerine yazılmasın)
-		drawMousePositions();
-
-		// macOS Dock çiz (eğer aktifse ve destekleniyorsa)
-		if (
-			showDock.value === true &&
-			isDockSupported.value === true &&
-			visibleDockItems.value &&
-			visibleDockItems.value.length > 0
-		) {
-			drawMacOSDock(ctx, dpr);
+		// Motion blur for zoom transitions
+		if (isCanvasZoomTransitioning.value) {
+			// Motion blur logic burada olabilir
 		}
 
 		// Animasyon frame'ini sadece gerektiğinde talep et
 		if (
 			videoState.value.isPlaying ||
-			isZoomTransitioning.value ||
+			isCanvasZoomTransitioning.value ||
 			isCameraDragging.value
 		) {
 			animationFrame = requestAnimationFrame((t) =>
 				updateCanvas(t, mouseX, mouseY)
 			);
+		}
+
+		// Background'ı renderCtx'e çiz (off-screen canvas için de gerekli)
+		if (offscreenContext) {
+			// Off-screen canvas için background çiz
+			if (bgImageLoaded.value && bgImageElement.value) {
+				try {
+					// Resmi canvas'a sığacak şekilde ölçekle
+					const scale = Math.max(
+						canvasRef.value.width / bgImageElement.value.width,
+						canvasRef.value.height / bgImageElement.value.height
+					);
+
+					const scaledWidth = bgImageElement.value.width * scale;
+					const scaledHeight = bgImageElement.value.height * scale;
+
+					// Resmi ortala
+					const x = (canvasRef.value.width - scaledWidth) / 2;
+					const y = (canvasRef.value.height - scaledHeight) / 2;
+
+					// Blur efekti uygula
+					if (backgroundBlur.value > 0) {
+						renderContext.filter = `blur(${backgroundBlur.value}px)`;
+					}
+
+					renderContext.drawImage(
+						bgImageElement.value,
+						x,
+						y,
+						scaledWidth,
+						scaledHeight
+					);
+
+					// Blur'u sıfırla
+					renderContext.filter = "none";
+				} catch (error) {
+					// Camera background removal aktifse arkaplan doldurmayı atla
+					const isCameraBackgroundRemovalActive =
+						cameraSettings.value?.optimizedBackgroundRemoval;
+
+					if (!isCameraBackgroundRemovalActive) {
+						renderContext.fillStyle = backgroundColor.value;
+						renderContext.fillRect(
+							0,
+							0,
+							canvasRef.value.width,
+							canvasRef.value.height
+						);
+					}
+				}
+			} else {
+				// Camera background removal aktifse arkaplan doldurmayı atla
+				const isCameraBackgroundRemovalActive =
+					cameraSettings.value?.optimizedBackgroundRemoval;
+
+				if (!isCameraBackgroundRemovalActive) {
+					renderContext.fillStyle = backgroundColor.value;
+					renderContext.fillRect(
+						0,
+						0,
+						canvasRef.value.width,
+						canvasRef.value.height
+					);
+				}
+			}
 		}
 	} catch (error) {
 		console.error("[MediaPlayer] Canvas update error:", error);
@@ -4378,6 +4446,28 @@ function getVideoDisplayRect() {
 		dpr,
 	};
 }
+
+// Mouse wheel event handler for zoom
+const handleWheel = (event) => {
+	// Mouse pozisyonunu al
+	const rect = canvasRef.value.getBoundingClientRect();
+	const mouseX = event.clientX - rect.left;
+	const mouseY = event.clientY - rect.top;
+
+	// Canvas coordinate'larına çevir (DPR ile)
+	const dpr = window.devicePixelRatio || 1;
+	const canvasMouseX = mouseX * dpr;
+	const canvasMouseY = mouseY * dpr;
+
+	// handleWheelZoom fonksiyonunu çağır
+	handleWheelZoom(
+		event,
+		canvasMouseX,
+		canvasMouseY,
+		canvasRef.value.width,
+		canvasRef.value.height
+	);
+};
 </script>
 
 <style scoped>
