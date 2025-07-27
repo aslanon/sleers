@@ -593,13 +593,20 @@ const play = async () => {
 		// Oynatma başladığında seçimi kapat
 		isCameraSelected.value = false;
 
-		// Eğer timeline sonundaysa başa dön
-		if (
-			props.totalCanvasDuration > 0 &&
-			videoState.value.currentTime >= props.totalCanvasDuration
-		) {
+		// Eğer timeline sonundaysa başa dön - sadece canvas süresine bak
+		const canvasDuration = props.totalCanvasDuration || 0;
+		const currentTime = videoState.value.currentTime;
+
+		// Canvas süresinden biraz tolerans ekle (0.02 saniye)
+		const tolerance = 0.02;
+		const shouldReset =
+			canvasDuration > 0 && currentTime >= canvasDuration - tolerance;
+
+		if (shouldReset) {
 			console.log(
-				`[MediaPlayer] Timeline sonunda, başa dönülüyor: ${videoState.value.currentTime} -> 0`
+				`[MediaPlayer] Timeline sonunda, başa dönülüyor: ${currentTime.toFixed(
+					3
+				)}s -> 0s (canvas: ${canvasDuration.toFixed(3)}s)`
 			);
 			videoState.value.currentTime = 0;
 			emit("timeUpdate", 0);
@@ -695,13 +702,20 @@ const startSyncCheck = () => {
 		// Timeline position'ı emit et
 		emit("timeUpdate", videoState.value.currentTime);
 
-		// Canvas sonuna gelince durdur
-		if (
-			props.totalCanvasDuration > 0 &&
-			videoState.value.currentTime >= props.totalCanvasDuration
-		) {
+		// Canvas sonuna gelince durdur - sadece canvas süresine bak
+		const canvasDuration = props.totalCanvasDuration || 0;
+		const currentTime = videoState.value.currentTime;
+
+		// Canvas süresinden biraz tolerans ekle (0.02 saniye)
+		const tolerance = 0.02;
+		const shouldStop =
+			canvasDuration > 0 && currentTime >= canvasDuration - tolerance;
+
+		if (shouldStop) {
 			console.log(
-				`[MediaPlayer] Canvas sonuna gelindi, oynatma durduruluyor: ${videoState.value.currentTime} >= ${props.totalCanvasDuration}`
+				`[MediaPlayer] Canvas sonuna gelindi, oynatma durduruluyor: ${currentTime.toFixed(
+					3
+				)}s >= ${canvasDuration.toFixed(3)}s (tolerance: ${tolerance}s)`
 			);
 			// Timeline'ı durdur
 			isTimelinePlaying.value = false;
@@ -955,10 +969,8 @@ const jumpToTime = async (targetTime) => {
 
 	try {
 		// Artık sadece real time jump - segment clipping yok
-		const constrainedTime = Math.max(
-			0,
-			Math.min(targetTime, props.totalCanvasDuration || videoElement.duration)
-		);
+		const canvasDuration = props.totalCanvasDuration || 0;
+		const constrainedTime = Math.max(0, Math.min(targetTime, canvasDuration));
 		await synchronizeAllElements(constrainedTime, constrainedTime);
 	} catch (error) {
 		console.error("[MediaPlayer] jumpToTime error:", error);
@@ -1413,9 +1425,12 @@ const drawMousePositions = (customCtx = null) => {
 	const ctx = customCtx || canvasRef.value.getContext("2d");
 	if (!ctx) return;
 
-	// Video süresini al
-	const videoDuration = videoElement.duration;
-	if (!videoDuration) return;
+	// Video süresini al - gerçek süreyi kullan
+	const videoDuration = videoElement.duration || 0;
+	if (!videoDuration || videoDuration === Infinity) {
+		console.warn("[MediaPlayer] Invalid video duration:", videoDuration);
+		return;
+	}
 
 	// Current video time
 	const currentVideoTime = videoElement.currentTime;
@@ -1479,8 +1494,15 @@ const drawMousePositions = (customCtx = null) => {
 	const cursorDurationMs = lastCursorTime - firstCursorTime;
 	const cursorDurationSeconds = cursorDurationMs / 1000;
 
-	// Video'nun toplam süresini al
-	const totalVideoDuration = videoElement.duration || 1;
+	// Video'nun toplam süresini al - gerçek süreyi kullan
+	const totalVideoDuration = videoElement.duration || 0;
+	if (!totalVideoDuration || totalVideoDuration === Infinity) {
+		console.warn(
+			"[MediaPlayer] Invalid total video duration:",
+			totalVideoDuration
+		);
+		return;
+	}
 
 	// Current video time'a göre cursor time'ı hesapla
 	const mappedCursorTime =
@@ -3910,7 +3932,10 @@ defineExpose({
 	getSegments: () => props.segments || [],
 	getClippedDuration: () => {
 		if (!props.segments || props.segments.length === 0) {
-			return videoElement?.duration || 0;
+			const actualDuration = videoElement?.duration || 0;
+			return actualDuration > 0 && actualDuration !== Infinity
+				? actualDuration
+				: 0;
 		}
 		return getTotalClippedDuration(props.segments);
 	},

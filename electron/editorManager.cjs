@@ -27,9 +27,9 @@ class EditorManager {
 			const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 			this.editorWindow = new BrowserWindow({
 				width: Math.min(1600, width - 100),
-				height: Math.min(900, height - 100),
+				height: Math.min(1024, height - 100),
 				minWidth: 1000,
-				minHeight: 600,
+				minHeight: 800,
 				show: false,
 				frame: false,
 				webPreferences: {

@@ -13,6 +13,7 @@ const enhancedMotionBlur = ref(true);
 const motionBlurIntensity = ref(0.8);
 const cursorSmoothness = ref(0);
 const cursorOffset = ref(1); // Cursor timing offset in seconds (-2 to +2)
+const mouseLoop = ref(true); // Mouse loop - cursor returns to same position at start/end
 const synchronizedTimestamps = ref(null); // Synchronized recording timestamps
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
@@ -137,6 +138,10 @@ export const usePlayerSettings = () => {
 
 	const updateCursorOffset = (value) => {
 		cursorOffset.value = value;
+	};
+
+	const updateMouseLoop = (value) => {
+		mouseLoop.value = value;
 	};
 
 	const updateBackgroundColor = (color) => {
@@ -271,6 +276,7 @@ export const usePlayerSettings = () => {
 		motionBlurIntensity,
 		cursorSmoothness,
 		cursorOffset,
+		mouseLoop,
 		synchronizedTimestamps,
 		backgroundColor,
 		backgroundImage,
@@ -298,6 +304,7 @@ export const usePlayerSettings = () => {
 		updateMotionBlurIntensity,
 		updateCursorSmoothness,
 		updateCursorOffset,
+		updateMouseLoop,
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,

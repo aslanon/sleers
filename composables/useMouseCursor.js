@@ -51,6 +51,7 @@ export const useMouseCursor = () => {
 		motionBlurIntensity,
 		cursorSmoothness,
 		activeZoomScale,
+		mouseLoop,
 	} = usePlayerSettings();
 
 	// Component başlatıldığında transition tipini ayarla
@@ -1157,6 +1158,15 @@ export const useMouseCursor = () => {
 			return;
 		}
 
+		// Debug: Mouse loop ve video duration kontrolü
+		console.log(
+			`[Mouse Loop Debug] mouseLoop.value: ${
+				mouseLoop.value
+			}, currentTime: ${currentTime}, videoDuration: ${videoDuration}, mousePositions: ${
+				mousePositions?.length || 0
+			}`
+		);
+
 		// Calculate effects from timeline data
 		const effects = calculateCursorEffectsFromData(
 			mousePositions,
@@ -1168,24 +1178,105 @@ export const useMouseCursor = () => {
 			return;
 		}
 
-		// Interpolate position based on timeline (convert timestamps to seconds)
-		const prevTimestamp = effects.prevPos.timestamp / 1000; // Convert to seconds
-		const nextTimestamp = effects.nextPos.timestamp / 1000; // Convert to seconds
-		const timeDiff = nextTimestamp - prevTimestamp;
-		let fraction = 0;
-		if (timeDiff > 0) {
-			fraction = (effects.estimatedTimestamp - prevTimestamp) / timeDiff;
-			fraction = Math.max(0, Math.min(1, fraction));
+		// Mouse Loop Logic: If enabled, cursor returns to same position at start/end
+		let useLoopPosition = false;
+		let loopPosition = null;
+
+		// Debug: Her zaman mouse loop durumunu kontrol et
+		console.log(
+			`[Mouse Loop Debug] mouseLoop.value: ${
+				mouseLoop.value
+			}, mousePositions.length: ${
+				mousePositions?.length || 0
+			}, currentTime: ${currentTime}, videoDuration: ${videoDuration}`
+		);
+
+		if (mouseLoop.value && mousePositions && mousePositions.length > 0) {
+			const firstPos = mousePositions[0];
+			console.log(
+				`[Mouse Loop] Checking loop conditions - currentTime: ${currentTime}, videoDuration: ${videoDuration}, firstPos: ${firstPos.x}, ${firstPos.y}`
+			);
+
+			// If at video start (first 0.5 seconds), use first position
+			if (currentTime <= 0.5) {
+				useLoopPosition = true;
+				loopPosition = { x: firstPos.x, y: firstPos.y };
+				console.log(
+					`[Mouse Loop] Video start - using first position: ${firstPos.x}, ${firstPos.y}`
+				);
+			}
+			// If at video end (1 second before end), use first position (loop back to start)
+			else if (currentTime >= videoDuration - 1.0) {
+				useLoopPosition = true;
+				loopPosition = { x: firstPos.x, y: firstPos.y };
+				console.log(
+					`[Mouse Loop] Video end (1s before) - looping to first position: ${firstPos.x}, ${firstPos.y} (currentTime: ${currentTime}, videoDuration: ${videoDuration})`
+				);
+			}
+			// Test: If current time is high (near end) - sabit değerle test
+			else if (currentTime >= 6.0) {
+				useLoopPosition = true;
+				loopPosition = { x: firstPos.x, y: firstPos.y };
+				console.log(
+					`[Mouse Loop] Test - high current time: ${firstPos.x}, ${firstPos.y} (currentTime: ${currentTime}, videoDuration: ${videoDuration})`
+				);
+			}
 		}
 
-		const x =
-			effects.prevPos.x + (effects.nextPos.x - effects.prevPos.x) * fraction;
-		const y =
-			effects.prevPos.y + (effects.nextPos.y - effects.prevPos.y) * fraction;
+		// Debug: Mouse loop durumunu kontrol et
+		if (mouseLoop.value) {
+			console.log(
+				`[Mouse Loop Debug] useLoopPosition: ${useLoopPosition}, currentTime: ${currentTime}, videoDuration: ${videoDuration}, mouseLoop.value: ${mouseLoop.value}`
+			);
+		}
 
-		// Get cursor image
-		const currentImage =
-			cursorImages.value[effects.prevPos.cursorType || "default"];
+		// Use loop position if enabled, otherwise use normal effects
+		let effectsToUse = effects;
+		let finalX, finalY;
+
+		if (useLoopPosition && loopPosition) {
+			// Use the loop position directly
+			finalX = loopPosition.x;
+			finalY = loopPosition.y;
+			console.log(`[Mouse Loop] Using loop position: ${finalX}, ${finalY}`);
+		} else {
+			// Use normal interpolation
+			if (!effectsToUse.prevPos || !effectsToUse.nextPos) {
+				return;
+			}
+
+			// Interpolate position based on timeline (convert timestamps to seconds)
+			const prevTimestamp = effectsToUse.prevPos.timestamp / 1000; // Convert to seconds
+			const nextTimestamp = effectsToUse.nextPos.timestamp / 1000; // Convert to seconds
+			const timeDiff = nextTimestamp - prevTimestamp;
+			let fraction = 0;
+			if (timeDiff > 0) {
+				fraction = (effectsToUse.estimatedTimestamp - prevTimestamp) / timeDiff;
+				fraction = Math.max(0, Math.min(1, fraction));
+			}
+
+			finalX =
+				effectsToUse.prevPos.x +
+				(effectsToUse.nextPos.x - effectsToUse.prevPos.x) * fraction;
+			finalY =
+				effectsToUse.prevPos.y +
+				(effectsToUse.nextPos.y - effectsToUse.prevPos.y) * fraction;
+		}
+
+		// Use finalX and finalY for cursor position
+		const x = finalX;
+		const y = finalY;
+
+		// Get cursor image - use appropriate cursor type based on loop or normal mode
+		let cursorType = "default";
+		if (useLoopPosition && loopPosition) {
+			// For loop mode, use the first position's cursor type
+			cursorType = mousePositions[0].cursorType || "default";
+		} else if (effectsToUse.prevPos) {
+			cursorType = effectsToUse.prevPos.cursorType || "default";
+		}
+
+		const currentImage = cursorImages.value[cursorType];
 		if (!currentImage) {
 			return;
 		}
@@ -1194,8 +1285,8 @@ export const useMouseCursor = () => {
 		ctx.save();
 
 		// Calculate cursor dimensions
-		const cursorWidth = size * effects.scale;
-		const cursorHeight = size * effects.scale;
+		const cursorWidth = size * effectsToUse.scale;
+		const cursorHeight = size * effectsToUse.scale;
 
 		// Cursor positioning with offset
 		const hotspots = {
@@ -1207,8 +1298,7 @@ export const useMouseCursor = () => {
 			resize: { x: 4, y: 5 },
 		};
 
-		const baseHotspot =
-			hotspots[effects.prevPos.cursorType || "default"] || hotspots.default;
+		const baseHotspot = hotspots[cursorType] || hotspots.default;
 		const hotspotScale = size / 20;
 		const correctionFactor = 0.85 + 0.15 * (20 / Math.max(20, size));
 
@@ -1227,8 +1317,7 @@ export const useMouseCursor = () => {
 		};
 
 		const offsetFactor =
-			baseOffsetFactors[effects.prevPos.cursorType || "default"] ||
-			baseOffsetFactors.default;
+			baseOffsetFactors[cursorType] || baseOffsetFactors.default;
 		const offsetX = (size - 20) * offsetFactor.x;
 		const offsetY = (size - 20) * offsetFactor.y;
 
@@ -1236,23 +1325,33 @@ export const useMouseCursor = () => {
 		ctx.translate(x - offsetX, y - offsetY);
 		ctx.translate(cursorWidth / 2, 0);
 
-		// Apply timeline-calculated effects
-		ctx.rotate(effects.rotation);
-		ctx.rotate(effects.tiltAngle);
-		ctx.transform(1, 0, effects.skewX, 1, 0, 0);
-		ctx.scale(effects.scale, effects.scale);
+		// Apply timeline-calculated effects (only if not in loop mode)
+		if (!useLoopPosition) {
+			ctx.rotate(effectsToUse.rotation);
+			ctx.rotate(effectsToUse.tiltAngle);
+			ctx.transform(1, 0, effectsToUse.skewX, 1, 0, 0);
+			ctx.scale(effectsToUse.scale, effectsToUse.scale);
+		} else {
+			// In loop mode, use default scale without effects
+			ctx.scale(1, 1);
+		}
 
 		ctx.translate(-cursorWidth / 2, 0);
 
-		// Apply motion blur if enabled and intensity > 0
-		if (motionEnabled && effects.blurIntensity > 0 && enabledMotionBlur) {
+		// Apply motion blur if enabled and intensity > 0 (only if not in loop mode)
+		if (
+			!useLoopPosition &&
+			motionEnabled &&
+			effectsToUse.blurIntensity > 0 &&
+			enabledMotionBlur
+		) {
 			// Create motion blur using canvas operations
-			const blurRadius = effects.blurIntensity * blurIntensity * 10;
+			const blurRadius = effectsToUse.blurIntensity * blurIntensity * 10;
 
 			// Apply blur based on movement direction
-			if (effects.speed > 0) {
-				const deltaX = effects.nextPos.x - effects.prevPos.x;
-				const deltaY = effects.nextPos.y - effects.prevPos.y;
+			if (effectsToUse.speed > 0) {
+				const deltaX = effectsToUse.nextPos.x - effectsToUse.prevPos.x;
+				const deltaY = effectsToUse.nextPos.y - effectsToUse.prevPos.y;
 				const angle = Math.atan2(deltaY, deltaX);
 
 				// Create directional blur effect
@@ -1273,7 +1372,8 @@ export const useMouseCursor = () => {
 		// Return effects data for debugging/monitoring
 		return {
 			position: { x, y },
-			effects,
+			effects: useLoopPosition ? null : effectsToUse,
+			isLoopMode: useLoopPosition,
 		};
 	};
 
