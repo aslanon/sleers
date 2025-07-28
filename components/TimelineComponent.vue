@@ -186,9 +186,31 @@
 							</div>
 						</div>
 
-						<!-- GIF Track -->
+						<!-- GIF Tracks - Each GIF gets its own row -->
 						<div
+							v-if="gifSegments.length === 0"
 							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleGifTrackClick"
+							@mousemove="handleGifTrackMouseMove"
+							@mouseenter="isGifTrackHovered = true"
+							@mouseleave="handleGifTrackLeave"
+						>
+							<div class="flex flex-row h-[42px] relative items-center">
+								<!-- Empty State Label -->
+								<div class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors">
+									<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8"/>
+									</svg>
+									<span class="text-sm font-medium tracking-wide">Add GIF overlay</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- Individual GIF Track Rows -->
+						<div
+							v-for="(segment, index) in gifSegments"
+							:key="`gif-row-${segment.id}`"
+							class="timeline-layer-bar w-full rounded-xl relative mb-2"
 							@click="handleGifTrackClick"
 							@mousemove="handleGifTrackMouseMove"
 							@mouseenter="isGifTrackHovered = true"
@@ -198,21 +220,8 @@
 								class="flex flex-row h-[42px] relative items-center"
 								:class="{ 'z-50': isGifTrackHovered }"
 							>
-								<!-- Empty State Label -->
-								<div
-									v-if="gifSegments.length === 0"
-									class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
-								>
-									<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8"/>
-									</svg>
-									<span class="text-sm font-medium tracking-wide">Add GIF overlay</span>
-								</div>
-
-								<!-- GIF Segments -->
+								<!-- Single GIF Segment in its own row -->
 								<TimelineGifSegment
-									v-for="(segment, index) in gifSegments"
-									:key="`gif-${segment.id}`"
 									:segment="segment"
 									:is-active="segment.gif.id === selectedGifId"
 									:is-dragging="isGifDragging && draggedGifIndex === index"

@@ -574,11 +574,11 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 	
 	ctx.save();
 	
-	// GIF pozisyon ve boyut hesaplama (scale factor dahil)
-	const x = renderData.x * dpr * scale;
-	const y = renderData.y * dpr * scale;
-	const width = renderData.width * dpr * scale;
-	const height = renderData.height * dpr * scale;
+	// GIF pozisyon ve boyut hesaplama (scale factor dahil) - round to prevent jitter
+	const x = Math.round(renderData.x * dpr * scale);
+	const y = Math.round(renderData.y * dpr * scale);
+	const width = Math.round(renderData.width * dpr * scale);
+	const height = Math.round(renderData.height * dpr * scale);
 	
 	// Rounded corner radius matching camera component
 	const radius = Math.min(width, height) * 0.05; // 5% of smaller dimension
@@ -597,14 +597,23 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 		const cachedVideo = window.gifVideoCache.get(cacheKey);
 		if (cachedVideo.readyState >= 2) { // HAVE_CURRENT_DATA
 			try {
-				// Video'yu sync et - GIF'in başlama zamanından itibaren loop
+				// More stable video sync - reduce time updates
 				const gifDuration = cachedVideo.duration || 2; // Default 2 saniye
 				const relativeTime = renderData.relativeTime || 0;
 				const loopTime = relativeTime % gifDuration;
 				
-				// Video zamanını ayarla (sadece gerektiğinde)
-				if (Math.abs(cachedVideo.currentTime - loopTime) > 0.1) {
+				// Only update video time if significantly different (reduces jitter)
+				const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
+				if (timeDiff > 0.2) { // Increased threshold from 0.1 to 0.2
 					cachedVideo.currentTime = loopTime;
+				}
+				
+				// Use requestVideoFrameCallback if available for smoother rendering
+				if (cachedVideo.requestVideoFrameCallback && !cachedVideo._frameCallbackSet) {
+					cachedVideo._frameCallbackSet = true;
+					cachedVideo.requestVideoFrameCallback(() => {
+						cachedVideo._frameCallbackSet = false;
+					});
 				}
 				
 				ctx.drawImage(cachedVideo, x, y, width, height);
@@ -619,6 +628,10 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 		gifVideo.muted = true;
 		gifVideo.loop = true;
 		gifVideo.playsInline = true;
+		gifVideo.preload = 'auto';
+		// Reduce frame rate updates for smoother playback
+		gifVideo.style.imageRendering = 'pixelated'; // Better for GIFs
+		gifVideo.style.imageRendering = 'crisp-edges'; // Fallback
 		gifVideo.preload = 'metadata';
 		
 		// MP4 varsa onu kullan, yoksa fallback
