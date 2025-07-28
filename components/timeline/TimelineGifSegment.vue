@@ -25,8 +25,8 @@
 		@mousedown.stop="handleMouseDown"
 	>
 		<!-- Background GIF Preview Image -->
-		<div 
-			class="absolute inset-0 overflow-hidden" 
+		<div
+			class="absolute inset-0 overflow-hidden"
 			:style="{
 				borderRadius: '10px',
 				backgroundImage: `url(${segment.gif.url})`,
@@ -34,38 +34,42 @@
 				backgroundRepeat: 'repeat-x',
 				backgroundPosition: 'left center',
 				opacity: 0.3,
-				filter: 'blur(0.5px)'
+				filter: 'blur(0.5px)',
 			}"
 		>
-			<div class="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"></div>
+			<div
+				class="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"
+			></div>
 		</div>
 
-		<!-- Segment Content - Centered like other segments -->
-		<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-			<!-- Top Row: GIF Icon + Label -->
-			<div class="flex items-center justify-center gap-1.5 mb-1">
-				<!-- GIF Icon -->
-				<svg 
-					class="w-3 h-3 text-white/70"
-					fill="none" 
-					stroke="currentColor" 
-					viewBox="0 0 24 24"
-				>
-					<path 
-						stroke-linecap="round" 
-						stroke-linejoin="round" 
-						stroke-width="1.5" 
-						d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8 M14 16H18V12"
-					/>
-				</svg>
-				<span class="text-white/70 text-[10px] font-medium tracking-wide">
+		<!-- Segment Content - Responsive layout based on timeline hover -->
+		<div class="absolute inset-0 flex items-center justify-center text-center pointer-events-none">
+			<!-- Timeline Hovered: Vertical layout (icon above text) -->
+			<div v-if="isTimelineHovered" class="flex flex-col items-center justify-center">
+				<span class="text-white/70 text-[10px] font-medium tracking-wide mb-0.5">
 					GIF
+				</span>
+				<span class="text-white/90 text-sm font-medium tracking-wide truncate max-w-[100px]">
+					{{ segment.gif.title }}
 				</span>
 			</div>
 
-			<!-- Bottom Row: Title -->
-			<div class="flex items-center justify-center">
-				<span class="text-white/90 text-[10px] font-medium tracking-wide truncate max-w-[80px]">
+			<!-- Timeline Not Hovered: Horizontal layout (icon and text side by side) -->
+			<div v-else class="flex items-center justify-center gap-1.5">
+				<svg
+					class="w-3 h-3 text-white/70 flex-shrink-0"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="1.5"
+						d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8 M14 16H18V12"
+					/>
+				</svg>
+				<span class="text-white/90 text-xs font-medium tracking-wide truncate max-w-[60px]">
 					{{ segment.gif.title }}
 				</span>
 			</div>
@@ -75,8 +79,9 @@
 		<div
 			class="absolute left-1 top-0 bottom-0 w-1 z-50 flex items-center justify-start opacity-0 transition-opacity duration-200"
 			:class="{
-				'opacity-80': isActive,
-				'group-hover:opacity-80': !isResizing,
+				'opacity-80': isActive && isTimelineHovered,
+				'group-hover:opacity-80': !isResizing && !isDragging && isTimelineHovered,
+				hidden: !isTimelineHovered,
 			}"
 			@mousedown.stop="handleResizeStart($event, 'start')"
 		>
@@ -89,8 +94,9 @@
 		<div
 			class="absolute right-1 top-0 bottom-0 w-1 z-50 flex items-center justify-end opacity-0 transition-opacity duration-200"
 			:class="{
-				'opacity-80': isActive,
-				'group-hover:opacity-80': !isResizing,
+				'opacity-80': isActive && isTimelineHovered,
+				'group-hover:opacity-80': !isResizing && !isDragging && isTimelineHovered,
+				hidden: !isTimelineHovered,
 			}"
 			@mousedown.stop="handleResizeStart($event, 'end')"
 		>
@@ -109,7 +115,6 @@
 				height: '100%',
 			}"
 		></div>
-
 	</div>
 </template>
 
@@ -139,6 +144,10 @@ const props = defineProps({
 		default: false,
 	},
 	isSplitMode: {
+		type: Boolean,
+		default: false,
+	},
+	isTimelineHovered: {
 		type: Boolean,
 		default: false,
 	},
@@ -175,8 +184,13 @@ const segmentStyle = computed(() => {
 	return {
 		left: `${startX}px`,
 		width: `${Math.max(width, 50)}px`,
-		backgroundColor: 'rgba(59, 130, 246, 0.1)', // Blue background for GIF segments
-		borderRadius: '10px', // Match other segments radius exactly
+		backgroundColor: "rgba(59, 130, 246, 0.1)", // Blue background for GIF segments
+		borderRadius: props.isTimelineHovered ? "10px" : "6px",
+		height: props.isTimelineHovered ? "100%" : "46%",
+		border: props.isActive
+			? "1px solid rgba(255, 255, 255, 0.5)"
+			: "0.5px solid rgba(255, 255, 255, 0.2)",
+		transition: props.isDragging ? "none" : "all 0.2s ease",
 	};
 });
 
@@ -188,7 +202,7 @@ const handleClick = () => {
 
 const handleMouseMove = (event) => {
 	if (!props.isSplitMode) return;
-	
+
 	const rect = segmentRef.value.getBoundingClientRect();
 	mousePosition.value = {
 		x: event.clientX - rect.left,
@@ -209,7 +223,7 @@ const handleMouseDown = (event) => {
 		const clickX = event.clientX - rect.left;
 		const relativeTime = clickX / props.timeScale;
 		const splitTime = props.segment.gif.startTime + relativeTime;
-		
+
 		emit("split", {
 			segment: props.segment,
 			splitTime,
@@ -252,7 +266,7 @@ const handleGlobalMouseMove = (event) => {
 				...props.segment.gif,
 				startTime: newTime,
 				endTime: newTime + duration,
-			}
+			},
 		};
 
 		emit("update", updatedSegment);
@@ -278,10 +292,10 @@ const handleGlobalMouseUp = () => {
 
 const handleResizeStart = (event, type) => {
 	event.stopPropagation();
-	
+
 	isResizing.value = true;
 	resizeType.value = type;
-	
+
 	emit("resize-start", {
 		segment: props.segment,
 		type,
@@ -305,7 +319,10 @@ const handleResizeMove = (event) => {
 		// Resize from start
 		const minStartTime = 0;
 		const maxStartTime = props.segment.gif.endTime - 0.1; // Minimum 0.1s duration
-		const newStartTime = Math.max(minStartTime, Math.min(maxStartTime, mouseTime));
+		const newStartTime = Math.max(
+			minStartTime,
+			Math.min(maxStartTime, mouseTime)
+		);
 
 		updatedSegment.gif = {
 			...updatedSegment.gif,
@@ -335,7 +352,6 @@ const handleResizeEnd = () => {
 	document.removeEventListener("mouseup", handleResizeEnd);
 };
 
-
 // Cleanup on unmount
 onUnmounted(() => {
 	document.removeEventListener("mousemove", handleGlobalMouseMove);
@@ -356,7 +372,8 @@ div[style*="background-image"] {
 }
 
 /* Static background image - no animation */
-:deep(img), img {
+:deep(img),
+img {
 	animation: none !important;
 	animation-play-state: paused !important;
 	animation-duration: 0s !important;

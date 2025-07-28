@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="timeline-container h-full min-h-[400px] overflow-auto max-h-[400px]"
+		class="timeline-container h-full min-h-[400px] overflow-auto max-h-[600px]"
 	>
 		<!-- Timeline Header -->
 		<div
@@ -38,20 +38,20 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll h-full overflow-y-hidden min-h-[400px]"
+			class="overflow-x-scroll h-full overflow-y-auto min-h-[400px]"
 			@wheel="handleZoom"
 		>
 			<!-- @wheel.prevent="handleContainerWheel" -->
 			<div
 				ref="timelineRef"
-				class="timeline-ruler py-4 relative h-full select-none"
+				class="timeline-ruler py-4 relative min-h-full select-none"
 				@mousedown="startDragging"
 				@click="handleTimelineClick"
 				@mousemove="handleTimelineMouseMove"
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content h-full relative pt-6 transition-[width] duration-100 ease-linear"
+					class="timeline-content min-h-full relative pt-6 transition-[width] duration-100 ease-linear"
 					:style="{ width: `${timelineWidth}px` }"
 					@click="handleTimelineClick"
 				>
@@ -82,7 +82,7 @@
 
 					<!-- Video Track -->
 					<div
-						class="absolute left-0 right-0 top-16 flex flex-col gap-2 px-2"
+						class="absolute max-h-[400px] pb-[150px] overflow-auto left-0 right-0 top-16 flex flex-col gap-2 px-2"
 						@mouseenter="isTimelineHovered = true"
 						@mouseleave="isTimelineHovered = false"
 					>
@@ -156,11 +156,25 @@
 						>
 							<div class="flex flex-row h-[42px] relative items-center">
 								<!-- Empty State Label -->
-								<div class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors">
-									<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8"/>
+								<div
+									class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<svg
+										class="w-4 h-4"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="1.5"
+											d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8"
+										/>
 									</svg>
-									<span class="text-sm font-medium tracking-wide">Add GIF overlay</span>
+									<span class="text-sm font-medium tracking-wide"
+										>Add GIF overlay</span
+									>
 								</div>
 							</div>
 						</div>
@@ -184,6 +198,7 @@
 									:segment="segment"
 									:is-active="segment.gif.id === selectedGifId"
 									:is-dragging="isGifDragging && draggedGifIndex === index"
+									:is-timeline-hovered="isTimelineHovered"
 									:time-scale="timeScale"
 									:timeline-width="timelineWidth"
 									@click="handleGifSegmentClick"
@@ -297,10 +312,11 @@
 					<!-- Preview Playhead -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-4 bottom-0 w-[1px] z-50"
+						class="absolute top-4 w-[1px] z-[9998] pointer-events-none"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
+							height: `${timelineContentHeight - 16}px`,
 							background:
 								'linear-gradient(to bottom, rgb(26 26 26) 0%, transparent 100%)',
 						}"
@@ -326,10 +342,11 @@
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 bottom-0 w-[1px] transition-[left] duration-[250ms] ease-linear will-change-[left] z-40"
+						class="absolute top-0 w-[1px] transition-[left] duration-[250ms] ease-linear will-change-[left] z-[9999] pointer-events-none"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
+							height: `${timelineContentHeight}px`,
 							background:
 								'linear-gradient(to bottom, rgb(67 42 244) 0%, transparent 100%)',
 						}"
@@ -484,7 +501,7 @@ const {
 	selectedGifId,
 	selectGif,
 	removeGif,
-	handleKeyDown: handleGifKeyDown
+	handleKeyDown: handleGifKeyDown,
 } = useGifManager();
 
 // Referanslar ve state
@@ -630,11 +647,31 @@ const timeScale = computed(() => {
 
 // GIF segments for timeline display
 const gifSegments = computed(() => {
-	return activeGifs.value.map(gif => ({
+	return activeGifs.value.map((gif) => ({
 		id: `gif-segment-${gif.id}`,
 		gif: gif,
-		type: 'gif'
+		type: "gif",
 	}));
+});
+
+// Calculate dynamic timeline height based on content
+const timelineContentHeight = computed(() => {
+	// Base height for timeline markers and padding
+	const baseHeight = 80; // pt-6 + pb-6 + marker space
+	
+	// Layout track height
+	const layoutTrackHeight = 42;
+	
+	// GIF tracks height (each GIF gets its own row)
+	const gifTracksHeight = Math.max(42, gifSegments.value.length * 44); // 42px per GIF + 2px gap
+	
+	// Segments bar height
+	const segmentsBarHeight = 42;
+	
+	// Zoom tracks height
+	const zoomTracksHeight = zoomRanges.value.length > 0 ? 42 : 0;
+	
+	return baseHeight + layoutTrackHeight + gifTracksHeight + segmentsBarHeight + zoomTracksHeight;
 });
 
 // GIF track state
@@ -2170,7 +2207,7 @@ const handleGifSegmentClick = (segment) => {
 
 const handleGifSegmentUpdate = (updatedSegment) => {
 	// Update the GIF with new timing/position
-	const gif = activeGifs.value.find(g => g.id === updatedSegment.gif.id);
+	const gif = activeGifs.value.find((g) => g.id === updatedSegment.gif.id);
 	if (gif) {
 		Object.assign(gif, updatedSegment.gif);
 	}
@@ -2182,7 +2219,9 @@ const handleGifSegmentDelete = (segment) => {
 
 const handleGifDragStart = (data) => {
 	isGifDragging.value = true;
-	draggedGifIndex.value = gifSegments.value.findIndex(s => s.id === data.segment.id);
+	draggedGifIndex.value = gifSegments.value.findIndex(
+		(s) => s.id === data.segment.id
+	);
 };
 
 const handleGifDragEnd = () => {
