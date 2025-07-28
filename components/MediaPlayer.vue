@@ -295,16 +295,16 @@ let cameraElement = null;
 const { renderLayout } = useLayoutRenderer();
 
 // GIF manager için
-const { 
-	getGifsAtTime, 
-	getGifRenderData, 
-	handleGifClick, 
+const {
+	getGifsAtTime,
+	getGifRenderData,
+	handleGifClick,
 	handleKeyDown: handleGifKeyDown,
 	handleMouseMove: handleGifMouseMove,
 	handleMouseUp: handleGifMouseUp,
 	dragState,
 	activeGifs,
-	selectedGifId 
+	selectedGifId,
 } = useGifManager();
 
 // Canvas-based Zoom yönetimi
@@ -456,23 +456,34 @@ const drawVideoCornerHandle = (ctx, x, y, size, position) => {
 };
 
 // Camera-style hover frame for GIFs
-const drawGifHoverFrame = (ctx, x, y, width, height, radius, dpr, scale, showHandles = false, renderData = null) => {
+const drawGifHoverFrame = (
+	ctx,
+	x,
+	y,
+	width,
+	height,
+	radius,
+	dpr,
+	scale,
+	showHandles = false,
+	renderData = null
+) => {
 	ctx.save();
-	
+
 	// Draw selection border with rounded corners (like camera)
-	ctx.strokeStyle = '#3b82f6'; // Blue color matching camera
+	ctx.strokeStyle = "#3b82f6"; // Blue color matching camera
 	ctx.lineWidth = 2 * dpr * scale;
-	
+
 	ctx.beginPath();
 	useRoundRect(ctx, x, y, width, height, radius);
 	ctx.stroke();
-	
+
 	// Sadece sol üstte handle göster (camera style)
 	if (showHandles) {
 		const handleSize = 100 * dpr; // 50% smaller than camera (200 * 0.5)
 		const handleX = x - handleSize / 2;
 		const handleY = y - handleSize / 2;
-		
+
 		// Siyah rounded handle çiz (matching camera)
 		ctx.fillStyle = "#000000";
 		ctx.beginPath();
@@ -484,12 +495,12 @@ const drawGifHoverFrame = (ctx, x, y, width, height, radius, dpr, scale, showHan
 			2 * Math.PI
 		);
 		ctx.fill();
-		
+
 		// Resize icon çiz - PNG image kullan (same as camera)
 		const iconSize = handleSize * 0.6;
 		const iconX = handleX + handleSize / 2 - iconSize / 2;
 		const iconY = handleY + handleSize / 2 - iconSize / 2;
-		
+
 		// PNG image yükle ve çiz (senkron) - matching camera implementation
 		if (!window.resizeIconImage) {
 			window.resizeIconImage = new Image();
@@ -503,7 +514,7 @@ const drawGifHoverFrame = (ctx, x, y, width, height, radius, dpr, scale, showHan
 			};
 			window.resizeIconImage.src = "/icons/chevron-up-down.png";
 		}
-		
+
 		// Eğer image yüklendiyse çiz (45 derece döndürülmüş)
 		if (window.resizeIconImage && window.resizeIconImage.complete) {
 			ctx.save();
@@ -522,12 +533,12 @@ const drawGifHoverFrame = (ctx, x, y, width, height, radius, dpr, scale, showHan
 			ctx.save();
 			ctx.translate(iconX + iconSize / 2, iconY + iconSize / 2);
 			ctx.rotate(-Math.PI / 4); // 45 derece saat yönü tersinde
-			
+
 			ctx.strokeStyle = "#FFFFFF";
 			ctx.lineWidth = 3 * dpr; // Match camera exactly
 			ctx.lineCap = "round";
 			ctx.lineJoin = "round";
-			
+
 			ctx.beginPath();
 			// Üst ok (yukarı)
 			ctx.moveTo(-iconSize / 4, iconSize / 4);
@@ -540,125 +551,141 @@ const drawGifHoverFrame = (ctx, x, y, width, height, radius, dpr, scale, showHan
 			ctx.stroke();
 			ctx.restore();
 		}
-		
+
 		// Store handle data for interaction detection (in screen coordinates)
 		if (!window.gifHandleData) {
 			window.gifHandleData = new Map();
 		}
-		
+
 		const gifHandle = {
 			x: handleX,
 			y: handleY,
 			width: handleSize,
 			height: handleSize,
-			type: 'tl'
+			type: "tl",
 		};
-		
+
 		window.gifHandleData.set(renderData?.id, {
 			handle: gifHandle,
-			gifBounds: { 
-				x: x/(dpr*scale), 
-				y: y/(dpr*scale), 
-				width: width/(dpr*scale), 
-				height: height/(dpr*scale) 
-			}
+			gifBounds: {
+				x: x / (dpr * scale),
+				y: y / (dpr * scale),
+				width: width / (dpr * scale),
+				height: height / (dpr * scale),
+			},
 		});
 	}
-	
+
 	ctx.restore();
 };
 
 // GIF overlay çizim fonksiyonu
 const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 	if (!renderData || !renderData.url) return;
-	
+
 	ctx.save();
-	
+
 	// GIF pozisyon ve boyut hesaplama (scale factor dahil) - round to prevent jitter
 	const x = Math.round(renderData.x * dpr * scale);
 	const y = Math.round(renderData.y * dpr * scale);
 	const width = Math.round(renderData.width * dpr * scale);
 	const height = Math.round(renderData.height * dpr * scale);
-	
+
 	// Rounded corner radius matching camera component
 	const radius = Math.min(width, height) * 0.05; // 5% of smaller dimension
-	
+
 	// Opacity ayarla
 	ctx.globalAlpha = renderData.opacity || 1;
-	
+
 	// Animated GIF rendering için video element kullan
 	if (!window.gifVideoCache) {
 		window.gifVideoCache = new Map();
 	}
-	
+
 	const cacheKey = renderData.url;
-	
+
 	if (window.gifVideoCache.has(cacheKey)) {
 		const cachedVideo = window.gifVideoCache.get(cacheKey);
-		if (cachedVideo.readyState >= 2) { // HAVE_CURRENT_DATA
+		if (cachedVideo.readyState >= 2) {
+			// HAVE_CURRENT_DATA
 			try {
 				// More stable video sync - reduce time updates
 				const gifDuration = cachedVideo.duration || 2; // Default 2 saniye
 				const relativeTime = renderData.relativeTime || 0;
 				const loopTime = relativeTime % gifDuration;
-				
+
 				// Only update video time if significantly different (reduces jitter)
 				const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
-				if (timeDiff > 0.2) { // Increased threshold from 0.1 to 0.2
+				if (timeDiff > 0.2) {
+					// Increased threshold from 0.1 to 0.2
 					cachedVideo.currentTime = loopTime;
 				}
-				
+
 				// Use requestVideoFrameCallback if available for smoother rendering
-				if (cachedVideo.requestVideoFrameCallback && !cachedVideo._frameCallbackSet) {
+				if (
+					cachedVideo.requestVideoFrameCallback &&
+					!cachedVideo._frameCallbackSet
+				) {
 					cachedVideo._frameCallbackSet = true;
 					cachedVideo.requestVideoFrameCallback(() => {
 						cachedVideo._frameCallbackSet = false;
 					});
 				}
-				
+
 				ctx.drawImage(cachedVideo, x, y, width, height);
 			} catch (error) {
-				console.warn('Error drawing cached GIF video:', error);
+				console.warn("Error drawing cached GIF video:", error);
 			}
 		}
 	} else {
 		// İlk yükleme - video element oluştur
-		const gifVideo = document.createElement('video');
-		gifVideo.crossOrigin = 'anonymous';
+		const gifVideo = document.createElement("video");
+		gifVideo.crossOrigin = "anonymous";
 		gifVideo.muted = true;
 		gifVideo.loop = true;
 		gifVideo.playsInline = true;
-		gifVideo.preload = 'auto';
+		gifVideo.preload = "auto";
 		// Reduce frame rate updates for smoother playback
-		gifVideo.style.imageRendering = 'pixelated'; // Better for GIFs
-		gifVideo.style.imageRendering = 'crisp-edges'; // Fallback
-		gifVideo.preload = 'metadata';
-		
+		gifVideo.style.imageRendering = "pixelated"; // Better for GIFs
+		gifVideo.style.imageRendering = "crisp-edges"; // Fallback
+		gifVideo.preload = "metadata";
+
 		// MP4 varsa onu kullan, yoksa fallback
 		const videoUrl = renderData.mp4Url || renderData.url;
-		
+
 		gifVideo.onloadeddata = () => {
 			window.gifVideoCache.set(cacheKey, gifVideo);
 			gifVideo.play().catch(console.warn);
 			// Force canvas redraw to show the loaded GIF
 			requestAnimationFrame(() => updateCanvas(performance.now()));
 		};
-		
+
 		gifVideo.onerror = () => {
-			console.warn('Failed to load GIF video:', videoUrl);
+			console.warn("Failed to load GIF video:", videoUrl);
 			// Fallback to image if video fails
 			drawGifAsImage(ctx, renderData, dpr, x, y, width, height);
 		};
-		
+
 		gifVideo.src = videoUrl;
 	}
-	
+
 	// GIF seçili ise highlight ve resize handles çiz (AFTER drawing GIF for proper z-index)
 	if (renderData.isSelected) {
 		// Draw camera-style hover frame with rounded borders on top
-		drawGifHoverFrame(ctx, x, y, width, height, radius, dpr, scale, true, renderData);
+		drawGifHoverFrame(
+			ctx,
+			x,
+			y,
+			width,
+			height,
+			radius,
+			dpr,
+			scale,
+			true,
+			renderData
+		);
 	}
-	
+
 	ctx.restore();
 };
 
@@ -667,31 +694,31 @@ const drawGifAsImage = (ctx, renderData, dpr, x, y, width, height) => {
 	if (!window.gifImageCache) {
 		window.gifImageCache = new Map();
 	}
-	
-	const cacheKey = renderData.url + '_img';
-	
+
+	const cacheKey = renderData.url + "_img";
+
 	if (window.gifImageCache.has(cacheKey)) {
 		const cachedImg = window.gifImageCache.get(cacheKey);
 		if (cachedImg.complete && cachedImg.naturalWidth > 0) {
 			try {
 				ctx.drawImage(cachedImg, x, y, width, height);
 			} catch (error) {
-				console.warn('Error drawing cached GIF image:', error);
+				console.warn("Error drawing cached GIF image:", error);
 			}
 		}
 	} else {
 		const gifImg = new Image();
-		gifImg.crossOrigin = 'anonymous';
-		
+		gifImg.crossOrigin = "anonymous";
+
 		gifImg.onload = () => {
 			window.gifImageCache.set(cacheKey, gifImg);
 			requestAnimationFrame(() => updateCanvas(performance.now()));
 		};
-		
+
 		gifImg.onerror = () => {
-			console.warn('Failed to load GIF image:', renderData.url);
+			console.warn("Failed to load GIF image:", renderData.url);
 		};
-		
+
 		gifImg.src = renderData.url;
 	}
 };
@@ -846,6 +873,26 @@ const play = async () => {
 	try {
 		if (isTimelinePlaying.value) return;
 
+		// Video element'lerin hazır olduğunu kontrol et
+		const videoReady = videoElement.readyState >= 2; // HAVE_CURRENT_DATA
+		const cameraReady = cameraElement ? cameraElement.readyState >= 2 : true;
+		const audioReady = audioRef.value ? audioRef.value.readyState >= 2 : true;
+
+		if (!videoReady) {
+			console.warn("[MediaPlayer] Video not ready, waiting...");
+			// Video yüklenene kadar bekle
+			await new Promise((resolve) => {
+				const checkReady = () => {
+					if (videoElement.readyState >= 2) {
+						resolve();
+					} else {
+						setTimeout(checkReady, 100);
+					}
+				};
+				checkReady();
+			});
+		}
+
 		// Oynatma başladığında seçimi kapat
 		isCameraSelected.value = false;
 
@@ -872,6 +919,18 @@ const play = async () => {
 			`[MediaPlayer] Timeline oynatma başlatılıyor - position: ${videoState.value.currentTime}`
 		);
 
+		// Mevcut sync interval'ı temizle
+		if (syncInterval) {
+			clearInterval(syncInterval);
+			syncInterval = null;
+		}
+
+		// Mevcut animation frame'i temizle
+		if (animationFrame) {
+			cancelAnimationFrame(animationFrame);
+			animationFrame = null;
+		}
+
 		// Timeline'ı başlat - video element'lerden tamamen bağımsız
 		isTimelinePlaying.value = true;
 		videoState.value.isPlaying = true;
@@ -881,9 +940,7 @@ const play = async () => {
 		startSyncCheck();
 
 		// Canvas animasyonunu başlat
-		if (!animationFrame) {
-			animationFrame = requestAnimationFrame(updateCanvas);
-		}
+		animationFrame = requestAnimationFrame(updateCanvas);
 
 		emit("play");
 	} catch (error) {
@@ -940,8 +997,10 @@ let syncInterval = null;
 
 // Timeline-based playback with immediate video sync
 const startSyncCheck = () => {
+	// Mevcut interval'ı temizle
 	if (syncInterval) {
 		clearInterval(syncInterval);
+		syncInterval = null;
 	}
 
 	// Her 33ms'de timeline'ı ilerlet (30fps) - daha smooth, daha az aggressive
@@ -1077,23 +1136,30 @@ const pause = async () => {
 			syncInterval = null;
 		}
 
-		// Tüm video element'leri durdur
-		try {
-			await videoElement.pause();
-			if (cameraElement) {
-				await cameraElement.pause();
-			}
-			if (audioRef.value && !audioRef.value.paused) {
-				await audioRef.value.pause();
-			}
-		} catch (error) {
-			console.error("[MediaPlayer] Video elements pause error:", error);
-		}
-
 		// Canvas animasyonunu durdur
 		if (animationFrame) {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = null;
+		}
+
+		// Tüm video element'leri durdur (async olarak)
+		const pausePromises = [];
+
+		try {
+			if (!videoElement.paused) {
+				pausePromises.push(videoElement.pause());
+			}
+			if (cameraElement && !cameraElement.paused) {
+				pausePromises.push(cameraElement.pause());
+			}
+			if (audioRef.value && !audioRef.value.paused) {
+				pausePromises.push(audioRef.value.pause());
+			}
+
+			// Tüm pause işlemlerini bekle
+			await Promise.allSettled(pausePromises);
+		} catch (error) {
+			console.error("[MediaPlayer] Video elements pause error:", error);
 		}
 
 		// Son frame'i çiz
@@ -3033,11 +3099,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					cameraElement,
 					canvasRef.value.width,
 					canvasRef.value.height,
-					cameraScale, // Zoom'a göre ayarlanmış camera scale
+					dpr, // Device pixel ratio
 					mouseX,
 					mouseY,
 					cameraPos,
-					1, // Canvas zoom kullanıldığı için kameraya ayrı scale vermeye gerek yok
+					canvasZoomScale.value, // Canvas zoom scale
 					position.value,
 					cameraSettings.value.optimizedBackgroundRemovalSettings
 						?.backgroundType || "transparent",
@@ -3075,7 +3141,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// 🎬 GIF Overlay Rendering (HIGHEST Z-INDEX - on top of everything including camera)
 		const currentGifs = getGifsAtTime(canvasTime);
 		if (currentGifs.length > 0 && isInActiveSegment) {
-			currentGifs.forEach(gif => {
+			currentGifs.forEach((gif) => {
 				const renderData = getGifRenderData(gif.id, canvasTime);
 				if (renderData && renderData.isVisible) {
 					drawGifOverlay(ctx, renderData, dpr, scaleValue);
@@ -3090,9 +3156,19 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			isCameraDragging.value ||
 			currentGifs.length > 0 // Keep animating if GIFs are active
 		) {
+			// Mevcut frame'i temizle
+			if (animationFrame) {
+				cancelAnimationFrame(animationFrame);
+			}
 			animationFrame = requestAnimationFrame((t) =>
 				updateCanvas(t, mouseX, mouseY)
 			);
+		} else {
+			// Animasyon durduğunda frame'i temizle
+			if (animationFrame) {
+				cancelAnimationFrame(animationFrame);
+				animationFrame = null;
+			}
 		}
 
 		// Background'ı renderCtx'e çiz (off-screen canvas için de gerekli)
@@ -3736,37 +3812,37 @@ onMounted(() => {
 		bgImageElement.value.src = newImage;
 	}
 
-// GIF Event Handlers for timeline synchronization
-const handleGifAdded = (event) => {
-	// A new GIF was added to the timeline
-	const { gif } = event.detail;
-	// Force canvas redraw to show the new GIF
-	requestAnimationFrame(() => updateCanvas(performance.now()));
-};
+	// GIF Event Handlers for timeline synchronization
+	const handleGifAdded = (event) => {
+		// A new GIF was added to the timeline
+		const { gif } = event.detail;
+		// Force canvas redraw to show the new GIF
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	};
 
-const handleGifRemoved = (event) => {
-	// A GIF was removed from the timeline
-	const { gifId } = event.detail;
-	// Clear cached image if exists
-	if (window.gifImageCache) {
-		const keysToDelete = [];
-		for (const [key, value] of window.gifImageCache.entries()) {
-			if (key.includes(gifId)) {
-				keysToDelete.push(key);
+	const handleGifRemoved = (event) => {
+		// A GIF was removed from the timeline
+		const { gifId } = event.detail;
+		// Clear cached image if exists
+		if (window.gifImageCache) {
+			const keysToDelete = [];
+			for (const [key, value] of window.gifImageCache.entries()) {
+				if (key.includes(gifId)) {
+					keysToDelete.push(key);
+				}
 			}
+			keysToDelete.forEach((key) => window.gifImageCache.delete(key));
 		}
-		keysToDelete.forEach(key => window.gifImageCache.delete(key));
-	}
-	// Force canvas redraw
-	requestAnimationFrame(() => updateCanvas(performance.now()));
-};
+		// Force canvas redraw
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	};
 
-const handleGifSelected = (event) => {
-	// A GIF was selected in the timeline
-	const { gifId } = event.detail;
-	// Force canvas redraw to show selection
-	requestAnimationFrame(() => updateCanvas(performance.now()));
-};
+	const handleGifSelected = (event) => {
+		// A GIF was selected in the timeline
+		const { gifId } = event.detail;
+		// Force canvas redraw to show selection
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	};
 
 	window.addEventListener("resize", handleResize);
 	if (videoRef.value && canvasRef.value) {
@@ -3776,7 +3852,7 @@ const handleGifSelected = (event) => {
 	canvasRef.value.addEventListener("mousemove", handleMouseMove);
 	window.addEventListener("mouseup", handleMouseUp);
 	window.addEventListener("keydown", handleGifKeyDown);
-	
+
 	// GIF event listeners for timeline synchronization
 	window.addEventListener("gif-added", handleGifAdded);
 	window.addEventListener("gif-removed", handleGifRemoved);
@@ -3817,7 +3893,7 @@ onUnmounted(() => {
 	}
 	window.removeEventListener("mouseup", handleMouseUp);
 	window.removeEventListener("keydown", handleGifKeyDown);
-	
+
 	// Remove GIF event listeners
 	window.removeEventListener("gif-added", handleGifAdded);
 	window.removeEventListener("gif-removed", handleGifRemoved);
