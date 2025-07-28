@@ -3052,7 +3052,14 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 		}
 
-		// 🎬 GIF Overlay Rendering (after camera, on top of everything)
+		// GIF'leri en son çiz (highest z-index) - camera'dan da sonra
+
+		// Motion blur for zoom transitions
+		if (isCanvasZoomTransitioning.value) {
+			// Motion blur logic burada olabilir
+		}
+
+		// 🎬 GIF Overlay Rendering (HIGHEST Z-INDEX - on top of everything including camera)
 		const currentGifs = getGifsAtTime(canvasTime);
 		if (currentGifs.length > 0 && isInActiveSegment) {
 			currentGifs.forEach(gif => {
@@ -3061,11 +3068,6 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawGifOverlay(ctx, renderData, dpr, scaleValue);
 				}
 			});
-		}
-
-		// Motion blur for zoom transitions
-		if (isCanvasZoomTransitioning.value) {
-			// Motion blur logic burada olabilir
 		}
 
 		// Animasyon frame'ini sadece gerektiğinde talep et

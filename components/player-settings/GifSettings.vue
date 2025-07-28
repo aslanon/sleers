@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-col gap-12 min-h-[800px] max-w-[500px]">
+	<div class="flex flex-col gap-12 min-h-[800px] max-w-[400px]">
 		<!-- GIF Search Section -->
 		<div class="space-y-4">
 			<div>

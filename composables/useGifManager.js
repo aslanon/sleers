@@ -412,7 +412,7 @@ export const useGifManager = () => {
 		}
 	};
 
-	// Handle GIF resize (exact camera implementation)
+	// Handle GIF resize (more responsive and easier to use)
 	const handleGifResize = (gif, mouseX, mouseY, handle) => {
 		if (!gif || !handle) return;
 
@@ -431,37 +431,59 @@ export const useGifManager = () => {
 		const mouseYCanvas = (mouseY - rect.top) * scaleY;
 
 		const aspectRatio = dragState.originalWidth / dragState.originalHeight;
-		let newWidth, newHeight, newX, newY;
-
-		// Exact camera resize logic - distance from center
+		
+		// More responsive resize logic - directional scaling
 		const centerX = dragState.originalX + dragState.originalWidth / 2;
 		const centerY = dragState.originalY + dragState.originalHeight / 2;
 		
-		const distanceX = Math.abs(mouseXCanvas - centerX);
-		const distanceY = Math.abs(mouseYCanvas - centerY);
-		const maxDistance = Math.max(distanceX, distanceY);
+		// Calculate current distance from center
+		const currentDistanceX = mouseXCanvas - centerX;
+		const currentDistanceY = mouseYCanvas - centerY;
+		const currentDistance = Math.sqrt(currentDistanceX * currentDistanceX + currentDistanceY * currentDistanceY);
+		
+		// Calculate original distance when resize started
+		const originalCenterX = dragState.originalX + dragState.originalWidth / 2;
+		const originalCenterY = dragState.originalY + dragState.originalHeight / 2;
+		const startDistanceX = dragState.startX - originalCenterX;
+		const startDistanceY = dragState.startY - originalCenterY;
+		const startDistance = Math.sqrt(startDistanceX * startDistanceX + startDistanceY * startDistanceY);
+		
+		// Calculate scale factor based on distance change (more responsive)
+		const distanceRatio = currentDistance / Math.max(startDistance, 50); // Prevent division by zero
+		// Inverse the ratio since handle is outside GIF - farther from handle = bigger GIF
+		const inversedRatio = 2.0 - distanceRatio; // Flip the scaling direction
+		const scaleFactor = Math.max(0.2, Math.min(4.0, inversedRatio)); // Limit between 0.2x and 4x
+		
+		let newWidth = dragState.originalWidth * scaleFactor;
+		let newHeight = newWidth / aspectRatio;
 
-		newWidth = maxDistance * 2;
-		newHeight = newWidth / aspectRatio;
+		// Position from center
+		let newX = centerX - newWidth / 2;
+		let newY = centerY - newHeight / 2;
 
-		newX = centerX - newWidth / 2;
-		newY = centerY - newHeight / 2;
-
-		const minSize = 50 * dpr;
+		// Apply minimum and maximum size constraints
+		const minSize = 30 * dpr; // Smaller minimum
+		const maxSize = 800 * dpr; // Maximum size limit
+		
 		if (newWidth < minSize) {
 			newWidth = minSize;
 			newHeight = newWidth / aspectRatio;
-			// Re-center after applying minimum size
-			newX = centerX - newWidth / 2;
-			newY = centerY - newHeight / 2;
+		} else if (newWidth > maxSize) {
+			newWidth = maxSize;
+			newHeight = newWidth / aspectRatio;
 		}
+		
 		if (newHeight < minSize) {
 			newHeight = minSize;
 			newWidth = newHeight * aspectRatio;
-			// Re-center after applying minimum size
-			newX = centerX - newWidth / 2;
-			newY = centerY - newHeight / 2;
+		} else if (newHeight > maxSize) {
+			newHeight = maxSize;
+			newWidth = newHeight * aspectRatio;
 		}
+
+		// Re-center after size constraints
+		newX = centerX - newWidth / 2;
+		newY = centerY - newHeight / 2;
 
 		// Update GIF properties with proper coordinate conversion
 		gif.width = newWidth / dpr;
