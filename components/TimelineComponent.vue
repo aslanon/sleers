@@ -1,7 +1,5 @@
 <template>
-	<div
-		class="timeline-container h-full min-h-[400px] overflow-auto max-h-[400px]"
-	>
+	<div class="timeline-container h-auto">
 		<!-- Timeline Header -->
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
@@ -38,7 +36,7 @@
 		<!-- Timeline Ruler -->
 		<div
 			ref="scrollContainerRef"
-			class="overflow-x-scroll h-full overflow-y-auto min-h-[400px]"
+			class="overflow-x-scroll h-full"
 			@wheel="handleZoom"
 		>
 			<!-- @wheel.prevent="handleContainerWheel" -->
@@ -56,33 +54,34 @@
 					@click="handleTimelineClick"
 				>
 					<!-- Zaman İşaretleri -->
-					<div
-						v-for="marker in timeMarkers"
-						:key="marker.time"
-						class="absolute flex flex-col items-center"
-						:style="{
-							left: `${marker.position}%`,
-							transform: 'translateX(-50%)',
-						}"
-					>
-						<span
-							v-if="marker.time != 0 && shouldShowTime(marker.time)"
-							class="text-[12px] text-white/20 mt-0.5"
-							:class="{
-								'font-medium': marker.isHour || marker.isMinute,
+					<div class="w-full h-[42px]">
+						<div
+							v-for="marker in timeMarkers"
+							:key="marker.time"
+							class="absolute flex flex-col items-center"
+							:style="{
+								left: `${marker.position}%`,
+								transform: 'translateX(-50%)',
 							}"
 						>
-							{{ marker.label }}
-						</span>
-						<div
-							v-if="marker.time != 0"
-							class="w-1 h-1 rounded-full bg-white/20"
-						></div>
+							<span
+								v-if="marker.time != 0 && shouldShowTime(marker.time)"
+								class="text-[12px] text-white/20 mt-0.5"
+								:class="{
+									'font-medium': marker.isHour || marker.isMinute,
+								}"
+							>
+								{{ marker.label }}
+							</span>
+							<div
+								v-if="marker.time != 0"
+								class="w-1 h-1 mt-1 rounded-full bg-white/20 relative time-dot"
+							></div>
+						</div>
 					</div>
-
 					<!-- Video Track -->
 					<div
-						class="absolute max-h-[400px] pb-[150px] overflow-auto left-0 right-0 top-16 flex flex-col gap-2 px-2"
+						class="max-h-[400px] overflow-y-auto min-h-[400px] pb-[150px] pt-4 overflow-auto flex flex-col gap-2 px-2"
 						@mouseenter="isTimelineHovered = true"
 						@mouseleave="isTimelineHovered = false"
 					>
@@ -2337,5 +2336,17 @@ button:disabled {
 .timeline-track {
 	position: relative;
 	cursor: pointer;
+}
+
+.time-dot:after {
+	content: "";
+	position: absolute;
+	top: 30px;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	width: 1px;
+	background: linear-gradient(to bottom, #ffffff24, #ffffff00);
+	height: 40px;
+	z-index: 0;
 }
 </style>
