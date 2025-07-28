@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="timeline-container h-full min-h-[400px] overflow-auto max-h-[600px]"
+		class="timeline-container h-full min-h-[400px] overflow-auto max-h-[400px]"
 	>
 		<!-- Timeline Header -->
 		<div
@@ -154,7 +154,10 @@
 							@mouseenter="isGifTrackHovered = true"
 							@mouseleave="handleGifTrackLeave"
 						>
-							<div class="flex flex-row h-[42px] relative items-center">
+							<div
+								v-if="gifSegments.length > 0"
+								class="flex flex-row h-[42px] relative items-center"
+							>
 								<!-- Empty State Label -->
 								<div
 									class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
@@ -658,20 +661,26 @@ const gifSegments = computed(() => {
 const timelineContentHeight = computed(() => {
 	// Base height for timeline markers and padding
 	const baseHeight = 80; // pt-6 + pb-6 + marker space
-	
+
 	// Layout track height
 	const layoutTrackHeight = 42;
-	
+
 	// GIF tracks height (each GIF gets its own row)
 	const gifTracksHeight = Math.max(42, gifSegments.value.length * 44); // 42px per GIF + 2px gap
-	
+
 	// Segments bar height
 	const segmentsBarHeight = 42;
-	
+
 	// Zoom tracks height
 	const zoomTracksHeight = zoomRanges.value.length > 0 ? 42 : 0;
-	
-	return baseHeight + layoutTrackHeight + gifTracksHeight + segmentsBarHeight + zoomTracksHeight;
+
+	return (
+		baseHeight +
+		layoutTrackHeight +
+		gifTracksHeight +
+		segmentsBarHeight +
+		zoomTracksHeight
+	);
 });
 
 // GIF track state
