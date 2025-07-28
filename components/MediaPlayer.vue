@@ -484,6 +484,8 @@ const drawGifHoverFrame = (
 		const handleX = x - handleSize / 2;
 		const handleY = y - handleSize / 2;
 
+		// Debug log removed for cleaner console
+
 		// Siyah rounded handle çiz (matching camera)
 		ctx.fillStyle = "#000000";
 		ctx.beginPath();
@@ -552,6 +554,66 @@ const drawGifHoverFrame = (
 			ctx.restore();
 		}
 
+		// Rotate button - sağ tarafta
+		const rotateHandleSize = handleSize * 0.8; // Biraz daha küçük
+		const rotateHandleX = handleX + handleSize + 10 * dpr; // Resize handle'ın sağında
+		const rotateHandleY = handleY;
+
+		// Siyah rounded rotate handle çiz
+		ctx.fillStyle = "#000000";
+		ctx.beginPath();
+		ctx.arc(
+			rotateHandleX + rotateHandleSize / 2,
+			rotateHandleY + rotateHandleSize / 2,
+			rotateHandleSize / 2,
+			0,
+			2 * Math.PI
+		);
+		ctx.fill();
+
+		// Rotate icon çiz - beyaz ok
+		const rotateIconSize = rotateHandleSize * 0.5;
+		const rotateIconX =
+			rotateHandleX + rotateHandleSize / 2 - rotateIconSize / 2;
+		const rotateIconY =
+			rotateHandleY + rotateHandleSize / 2 - rotateIconSize / 2;
+
+		ctx.save();
+		ctx.translate(
+			rotateIconX + rotateIconSize / 2,
+			rotateIconY + rotateIconSize / 2
+		);
+
+		// Mouse pozisyonuna göre rotate yönü
+		const mouseX = window.mousePosition?.x || 0;
+		const mouseY = window.mousePosition?.y || 0;
+		const centerX = rotateIconX + rotateIconSize / 2;
+		const centerY = rotateIconY + rotateIconSize / 2;
+
+		// Mouse pozisyonuna göre dinamik ok yönü
+		let arrowAngle = 0;
+		if (Math.abs(mouseX - centerX) > Math.abs(mouseY - centerY)) {
+			// Horizontal movement
+			arrowAngle = mouseX > centerX ? Math.PI / 4 : -Math.PI / 4; // 45 derece sağ/sol
+		} else {
+			// Vertical movement
+			arrowAngle = mouseY > centerY ? Math.PI / 4 : -Math.PI / 4; // 45 derece aşağı/yukarı
+		}
+		ctx.rotate(arrowAngle);
+
+		ctx.strokeStyle = "#FFFFFF";
+		ctx.lineWidth = 2 * dpr;
+		ctx.lineCap = "round";
+		ctx.lineJoin = "round";
+
+		ctx.beginPath();
+		// Rotate arrow çiz
+		ctx.moveTo(-rotateIconSize / 3, rotateIconSize / 3);
+		ctx.lineTo(rotateIconSize / 3, 0);
+		ctx.lineTo(-rotateIconSize / 3, -rotateIconSize / 3);
+		ctx.stroke();
+		ctx.restore();
+
 		// Store handle data for interaction detection (in screen coordinates)
 		if (!window.gifHandleData) {
 			window.gifHandleData = new Map();
@@ -565,15 +627,29 @@ const drawGifHoverFrame = (
 			type: "tl",
 		};
 
-		window.gifHandleData.set(renderData?.id, {
-			handle: gifHandle,
-			gifBounds: {
-				x: x / (dpr * scale),
-				y: y / (dpr * scale),
-				width: width / (dpr * scale),
-				height: height / (dpr * scale),
-			},
-		});
+		const rotateHandle = {
+			x: rotateHandleX,
+			y: rotateHandleY,
+			width: rotateHandleSize,
+			height: rotateHandleSize,
+			type: "rotate",
+		};
+
+		// Only set handle data if we have a valid ID
+		if (renderData?.id) {
+			window.gifHandleData.set(renderData.id, {
+				handle: gifHandle,
+				rotateHandle: rotateHandle,
+				gifBounds: {
+					x: x / (dpr * scale),
+					y: y / (dpr * scale),
+					width: width / (dpr * scale),
+					height: height / (dpr * scale),
+				},
+			});
+
+			// Debug log removed for cleaner console
+		}
 	}
 
 	ctx.restore();
@@ -597,6 +673,16 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 	// Opacity ayarla
 	ctx.globalAlpha = renderData.opacity || 1;
 
+	// Rotation uygula
+	const rotation = renderData.rotation || 0;
+	if (rotation !== 0) {
+		const centerX = x + width / 2;
+		const centerY = y + height / 2;
+		ctx.translate(centerX, centerY);
+		ctx.rotate((rotation * Math.PI) / 180);
+		ctx.translate(-centerX, -centerY);
+	}
+
 	// Check if it's an image or video (not a GIF)
 	const isImage = renderData.type === "image";
 	const isVideo = renderData.type === "video";
@@ -607,11 +693,11 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			window.imageCache = new Map();
 		}
 
-		const cacheKey = renderData.url;
+		const cacheKey = renderData.id || renderData.url;
 
 		if (window.imageCache.has(cacheKey)) {
 			const cachedImage = window.imageCache.get(cacheKey);
-			if (cachedImage.complete) {
+			if (cachedImage.complete && cachedImage.naturalWidth > 0) {
 				ctx.drawImage(cachedImage, x, y, width, height);
 			}
 		} else {
@@ -637,11 +723,11 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			window.videoCache = new Map();
 		}
 
-		const cacheKey = renderData.url;
+		const cacheKey = renderData.id || renderData.url;
 
 		if (window.videoCache.has(cacheKey)) {
 			const cachedVideo = window.videoCache.get(cacheKey);
-			if (cachedVideo.readyState >= 2) {
+			if (cachedVideo.readyState >= 2 && cachedVideo.videoWidth > 0) {
 				// HAVE_CURRENT_DATA
 				try {
 					// Video sync - calculate relative time within the overlay duration
@@ -710,11 +796,11 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			window.gifVideoCache = new Map();
 		}
 
-		const cacheKey = renderData.url;
+		const cacheKey = renderData.id || renderData.url;
 
 		if (window.gifVideoCache.has(cacheKey)) {
 			const cachedVideo = window.gifVideoCache.get(cacheKey);
-			if (cachedVideo.readyState >= 2) {
+			if (cachedVideo.readyState >= 2 && cachedVideo.videoWidth > 0) {
 				// HAVE_CURRENT_DATA
 				try {
 					// More stable video sync - reduce time updates
@@ -780,6 +866,7 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 	// GIF seçili ise highlight ve resize handles çiz (AFTER drawing GIF for proper z-index)
 	if (renderData.isSelected) {
+		// Debug log removed for cleaner console
 		// Draw camera-style hover frame with rounded borders on top
 		drawGifHoverFrame(
 			ctx,
@@ -804,7 +891,7 @@ const drawGifAsImage = (ctx, renderData, dpr, x, y, width, height) => {
 		window.gifImageCache = new Map();
 	}
 
-	const cacheKey = renderData.url + "_img";
+	const cacheKey = (renderData.id || renderData.url) + "_img";
 
 	if (window.gifImageCache.has(cacheKey)) {
 		const cachedImg = window.gifImageCache.get(cacheKey);
@@ -2794,6 +2881,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		console.warn("[MediaPlayer] Missing required elements for canvas update");
 		return;
 	}
+
+	// Don't clear handle data every frame - let it persist for interaction
+	// if (window.gifHandleData) {
+	// 	window.gifHandleData.clear();
+	// }
 
 	// FPS kontrolü
 	if (timestamp - lastFrameTime < frameInterval) {

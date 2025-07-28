@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-col gap-4">
+	<div class="flex flex-col gap-4 min-h-[800px]">
 		<div v-if="isZoomSettingsActive" class="flex flex-col gap-12">
 			<div class="space-y-2">
 				<h3 class="text-lg font-medium">Zoom Settings</h3>
