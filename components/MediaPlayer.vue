@@ -80,6 +80,7 @@ import { useCamera } from "~/composables/modules/useCamera";
 import { useVideoDrag } from "~/composables/useVideoDrag";
 import useDockSettings from "~/composables/useDockSettings";
 import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
+import { useRoundRect } from "~/composables/useRoundRect";
 import VideoCropModal from "~/components/player-settings/VideoCropModal.vue";
 import { useLayoutRenderer } from "~/composables/useLayoutRenderer";
 import { useGifManager } from "~/composables/useGifManager";
@@ -298,7 +299,9 @@ const {
 	getGifsAtTime, 
 	getGifRenderData, 
 	handleGifClick, 
-	handleKeyDown: handleGifKeyDown, 
+	handleKeyDown: handleGifKeyDown,
+	handleMouseMove: handleGifMouseMove,
+	handleMouseUp: handleGifMouseUp,
 	dragState,
 	activeGifs,
 	selectedGifId 
@@ -452,48 +455,136 @@ const drawVideoCornerHandle = (ctx, x, y, size, position) => {
 	ctx.stroke();
 };
 
+// Camera-style hover frame for GIFs
+const drawGifHoverFrame = (ctx, x, y, width, height, radius, dpr, scale, showHandles = false, renderData = null) => {
+	ctx.save();
+	
+	// Draw selection border with rounded corners (like camera)
+	ctx.strokeStyle = '#3b82f6'; // Blue color matching camera
+	ctx.lineWidth = 2 * dpr * scale;
+	
+	ctx.beginPath();
+	useRoundRect(ctx, x, y, width, height, radius);
+	ctx.stroke();
+	
+	// Sadece sol üstte handle göster (camera style)
+	if (showHandles) {
+		const handleSize = 100 * dpr; // 50% smaller than camera (200 * 0.5)
+		const handleX = x - handleSize / 2;
+		const handleY = y - handleSize / 2;
+		
+		// Siyah rounded handle çiz (matching camera)
+		ctx.fillStyle = "#000000";
+		ctx.beginPath();
+		ctx.arc(
+			handleX + handleSize / 2,
+			handleY + handleSize / 2,
+			handleSize / 2,
+			0,
+			2 * Math.PI
+		);
+		ctx.fill();
+		
+		// Resize icon çiz - PNG image kullan (same as camera)
+		const iconSize = handleSize * 0.6;
+		const iconX = handleX + handleSize / 2 - iconSize / 2;
+		const iconY = handleY + handleSize / 2 - iconSize / 2;
+		
+		// PNG image yükle ve çiz (senkron) - matching camera implementation
+		if (!window.resizeIconImage) {
+			window.resizeIconImage = new Image();
+			window.resizeIconImage.crossOrigin = "anonymous";
+			window.resizeIconImage.onload = () => {
+				// Image yüklendiğinde canvas'ı yeniden çiz
+				if (window.resizeIconImage.complete) {
+					// Canvas'ı yeniden çizmek için event trigger
+					window.dispatchEvent(new CustomEvent("resizeIconLoaded"));
+				}
+			};
+			window.resizeIconImage.src = "/icons/chevron-up-down.png";
+		}
+		
+		// Eğer image yüklendiyse çiz (45 derece döndürülmüş)
+		if (window.resizeIconImage && window.resizeIconImage.complete) {
+			ctx.save();
+			ctx.translate(iconX + iconSize / 2, iconY + iconSize / 2);
+			ctx.rotate(-Math.PI / 4); // 45 derece saat yönü tersinde
+			ctx.drawImage(
+				window.resizeIconImage,
+				-iconSize / 2,
+				-iconSize / 2,
+				iconSize,
+				iconSize
+			);
+			ctx.restore();
+		} else {
+			// Fallback: Beyaz çift ok çiz (45 derece döndürülmüş) - matching camera
+			ctx.save();
+			ctx.translate(iconX + iconSize / 2, iconY + iconSize / 2);
+			ctx.rotate(-Math.PI / 4); // 45 derece saat yönü tersinde
+			
+			ctx.strokeStyle = "#FFFFFF";
+			ctx.lineWidth = 3 * dpr; // Match camera exactly
+			ctx.lineCap = "round";
+			ctx.lineJoin = "round";
+			
+			ctx.beginPath();
+			// Üst ok (yukarı)
+			ctx.moveTo(-iconSize / 4, iconSize / 4);
+			ctx.lineTo(0, -iconSize / 4);
+			ctx.lineTo(iconSize / 4, iconSize / 4);
+			// Alt ok (aşağı)
+			ctx.moveTo(-iconSize / 4, -iconSize / 4);
+			ctx.lineTo(0, iconSize / 4);
+			ctx.lineTo(iconSize / 4, -iconSize / 4);
+			ctx.stroke();
+			ctx.restore();
+		}
+		
+		// Store handle data for interaction detection (in screen coordinates)
+		if (!window.gifHandleData) {
+			window.gifHandleData = new Map();
+		}
+		
+		const gifHandle = {
+			x: handleX,
+			y: handleY,
+			width: handleSize,
+			height: handleSize,
+			type: 'tl'
+		};
+		
+		window.gifHandleData.set(renderData?.id, {
+			handle: gifHandle,
+			gifBounds: { 
+				x: x/(dpr*scale), 
+				y: y/(dpr*scale), 
+				width: width/(dpr*scale), 
+				height: height/(dpr*scale) 
+			}
+		});
+	}
+	
+	ctx.restore();
+};
+
 // GIF overlay çizim fonksiyonu
-const drawGifOverlay = (ctx, renderData, dpr) => {
+const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 	if (!renderData || !renderData.url) return;
 	
 	ctx.save();
 	
-	// GIF pozisyon ve boyut hesaplama
-	const x = renderData.x * dpr;
-	const y = renderData.y * dpr;
-	const width = renderData.width * dpr;
-	const height = renderData.height * dpr;
+	// GIF pozisyon ve boyut hesaplama (scale factor dahil)
+	const x = renderData.x * dpr * scale;
+	const y = renderData.y * dpr * scale;
+	const width = renderData.width * dpr * scale;
+	const height = renderData.height * dpr * scale;
+	
+	// Rounded corner radius matching camera component
+	const radius = Math.min(width, height) * 0.05; // 5% of smaller dimension
 	
 	// Opacity ayarla
 	ctx.globalAlpha = renderData.opacity || 1;
-	
-	// GIF seçili ise highlight ve resize handles çiz
-	if (renderData.isSelected) {
-		// Selection border
-		ctx.strokeStyle = '#3b82f6';
-		ctx.lineWidth = 2 * dpr;
-		ctx.setLineDash([4 * dpr, 2 * dpr]);
-		ctx.strokeRect(x - 2 * dpr, y - 2 * dpr, width + 4 * dpr, height + 4 * dpr);
-		ctx.setLineDash([]);
-		
-		// Resize handles
-		const handleSize = 8 * dpr;
-		const handles = [
-			{ x: x - handleSize/2, y: y - handleSize/2, type: 'tl' }, // Top-left
-			{ x: x + width - handleSize/2, y: y - handleSize/2, type: 'tr' }, // Top-right
-			{ x: x - handleSize/2, y: y + height - handleSize/2, type: 'bl' }, // Bottom-left
-			{ x: x + width - handleSize/2, y: y + height - handleSize/2, type: 'br' }, // Bottom-right
-		];
-		
-		ctx.fillStyle = '#3b82f6';
-		ctx.strokeStyle = '#ffffff';
-		ctx.lineWidth = 1 * dpr;
-		
-		handles.forEach(handle => {
-			ctx.fillRect(handle.x, handle.y, handleSize, handleSize);
-			ctx.strokeRect(handle.x, handle.y, handleSize, handleSize);
-		});
-	}
 	
 	// Animated GIF rendering için video element kullan
 	if (!window.gifVideoCache) {
@@ -547,6 +638,12 @@ const drawGifOverlay = (ctx, renderData, dpr) => {
 		};
 		
 		gifVideo.src = videoUrl;
+	}
+	
+	// GIF seçili ise highlight ve resize handles çiz (AFTER drawing GIF for proper z-index)
+	if (renderData.isSelected) {
+		// Draw camera-style hover frame with rounded borders on top
+		drawGifHoverFrame(ctx, x, y, width, height, radius, dpr, scale, true, renderData);
 	}
 	
 	ctx.restore();
@@ -2961,7 +3058,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			currentGifs.forEach(gif => {
 				const renderData = getGifRenderData(gif.id, canvasTime);
 				if (renderData && renderData.isVisible) {
-					drawGifOverlay(ctx, renderData, dpr);
+					drawGifOverlay(ctx, renderData, dpr, scaleValue);
 				}
 			});
 		}
@@ -4448,6 +4545,17 @@ const handleMouseMove = (e) => {
 	// Mouse pozisyonlarını güncelle
 	mousePosition.value = { x: mouseX, y: mouseY };
 
+	// GIF drag/resize handling (highest priority)
+	if (dragState.isDragging || dragState.isResizing) {
+		// Call GIF manager's mouse move handler
+		handleGifMouseMove(e);
+		// Update canvas to show drag/resize in real-time
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now(), mouseX, mouseY);
+		});
+		return; // Don't handle other interactions while dragging/resizing GIF
+	}
+
 	// Resize sırasında handle resize işlemini yap
 	if (isCameraResizing.value) {
 		const resizeResult = handleCameraResize(e);
@@ -4480,6 +4588,13 @@ const handleMouseMove = (e) => {
 };
 
 const handleMouseUp = () => {
+	// GIF drag/resize handling (highest priority)
+	if (dragState.isDragging || dragState.isResizing) {
+		// Call GIF manager's mouse up handler
+		handleGifMouseUp();
+		return;
+	}
+
 	if (isCameraDragging.value) {
 		stopCameraDrag();
 	}

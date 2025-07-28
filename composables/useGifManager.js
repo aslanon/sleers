@@ -78,6 +78,15 @@ export const useGifManager = () => {
 			.toString(36)
 			.substr(2, 9)}`;
 
+		// Get original dimensions and scale them up while maintaining aspect ratio
+		const originalWidth = parseInt(gifData.images.fixed_width.width) || 200;
+		const originalHeight = parseInt(gifData.images.fixed_width.height) || 200;
+		
+		// Scale factor to make GIFs bigger by default (1.5x larger)
+		const scaleFactor = 1.5;
+		const scaledWidth = originalWidth * scaleFactor;
+		const scaledHeight = originalHeight * scaleFactor;
+
 		const newGif = {
 			id: gifId,
 			title: gifData.title || "Untitled GIF",
@@ -85,8 +94,8 @@ export const useGifManager = () => {
 			originalUrl: gifData.images.original.url,
 			webpUrl: gifData.images.fixed_width.webp,
 			mp4Url: gifData.images.fixed_width.mp4,
-			width: parseInt(gifData.images.fixed_width.width) || 200,
-			height: parseInt(gifData.images.fixed_width.height) || 200,
+			width: scaledWidth,
+			height: scaledHeight,
 			x: 100, // Default position
 			y: 100,
 			opacity: 1,
@@ -257,17 +266,54 @@ export const useGifManager = () => {
 	// Handle GIF click on canvas
 	const handleGifClick = (event, canvasRect) => {
 		const dpr = window.devicePixelRatio || 1;
-		const scaleValue = 1; // Adjust if needed based on canvas scaling
+		const scaleValue = 3; // Match MediaPlayer scale value
 
 		const x = (event.clientX - canvasRect.left) * dpr * scaleValue;
 		const y = (event.clientY - canvasRect.top) * dpr * scaleValue;
 
+		// Check for resize handle clicks first (higher priority)
+		if (typeof window !== "undefined" && window.gifHandleData) {
+			for (const [gifId, handleData] of window.gifHandleData.entries()) {
+				const handle = handleData.handle;
+				
+				// Check if click is on resize handle
+				if (x >= handle.x && x <= handle.x + handle.width &&
+					y >= handle.y && y <= handle.y + handle.height) {
+					
+					const gif = activeGifs.value.find(g => g.id === gifId);
+					if (gif) {
+						selectGif(gifId);
+						
+						// Start resize operation
+						dragState.isResizing = true;
+						dragState.draggedGifId = gifId;
+						dragState.resizeHandle = 'tl'; // Top-left resize
+						dragState.startX = x;
+						dragState.startY = y;
+						
+						// Store original dimensions for resize calculations (in canvas coordinates)
+						const dpr = window.devicePixelRatio || 1;
+						dragState.originalWidth = gif.width * dpr;
+						dragState.originalHeight = gif.height * dpr;
+						dragState.originalX = gif.x * dpr;
+						dragState.originalY = gif.y * dpr;
+
+						// Add mouse move and up listeners
+						document.addEventListener("mousemove", handleMouseMove);
+						document.addEventListener("mouseup", handleMouseUp);
+
+						return gif;
+					}
+				}
+			}
+		}
+
 		// Find clicked GIF (check from top to bottom - reverse order for z-index)
 		const clickedGif = [...activeGifs.value].reverse().find((gif) => {
-			const gifX = gif.x * dpr;
-			const gifY = gif.y * dpr;
-			const gifWidth = gif.width * dpr;
-			const gifHeight = gif.height * dpr;
+			const gifX = gif.x * dpr * scaleValue;
+			const gifY = gif.y * dpr * scaleValue;
+			const gifWidth = gif.width * dpr * scaleValue;
+			const gifHeight = gif.height * dpr * scaleValue;
 
 			return (
 				x >= gifX && x <= gifX + gifWidth && y >= gifY && y <= gifY + gifHeight
@@ -278,8 +324,8 @@ export const useGifManager = () => {
 			selectGif(clickedGif.id);
 
 			// Start drag for the clicked GIF
-			const gifX = clickedGif.x * dpr;
-			const gifY = clickedGif.y * dpr;
+			const gifX = clickedGif.x * dpr * scaleValue;
+			const gifY = clickedGif.y * dpr * scaleValue;
 
 			dragState.isDragging = true;
 			dragState.draggedGifId = clickedGif.id;
@@ -309,7 +355,7 @@ export const useGifManager = () => {
 		if (!dragState.isDragging && !dragState.isResizing) return;
 
 		const dpr = window.devicePixelRatio || 1;
-		const scaleValue = 1;
+		const scaleValue = 3; // Match MediaPlayer scale value
 
 		// Get canvas bounds
 		const canvas = document.querySelector("#canvasID");
@@ -322,21 +368,23 @@ export const useGifManager = () => {
 		if (dragState.isDragging) {
 			const gif = activeGifs.value.find((g) => g.id === dragState.draggedGifId);
 			if (gif) {
-				// Calculate new position
-				const newX = (x - dragState.offsetX) / dpr;
-				const newY = (y - dragState.offsetY) / dpr;
+				// Calculate new position (accounting for scale)
+				const newX = (x - dragState.offsetX) / (dpr * scaleValue);
+				const newY = (y - dragState.offsetY) / (dpr * scaleValue);
 
 				// Constrain to canvas bounds
-				gif.x = Math.max(0, Math.min(newX, canvas.width / dpr - gif.width));
-				gif.y = Math.max(0, Math.min(newY, canvas.height / dpr - gif.height));
+				const canvasWidth = canvas.width / (dpr * scaleValue);
+				const canvasHeight = canvas.height / (dpr * scaleValue);
+				gif.x = Math.max(0, Math.min(newX, canvasWidth - gif.width));
+				gif.y = Math.max(0, Math.min(newY, canvasHeight - gif.height));
 
 				updateGifPosition();
 			}
 		} else if (dragState.isResizing) {
 			const gif = activeGifs.value.find((g) => g.id === dragState.draggedGifId);
 			if (gif) {
-				// Handle resize based on handle type
-				handleGifResize(gif, x, y, dragState.resizeHandle);
+				// Handle resize based on handle type - pass raw event for camera-style resize
+				handleGifResize(gif, event.clientX, event.clientY, dragState.resizeHandle);
 			}
 		}
 	};
@@ -364,69 +412,57 @@ export const useGifManager = () => {
 		}
 	};
 
-	// Handle GIF resize (updated for interactive resize)
+	// Handle GIF resize (exact camera implementation)
 	const handleGifResize = (gif, mouseX, mouseY, handle) => {
 		if (!gif || !handle) return;
 
 		const dpr = window.devicePixelRatio || 1;
-		const minSize = 50;
-
-		// Convert mouse position to canvas coordinates
-		const x = mouseX / dpr;
-		const y = mouseY / dpr;
-
-		// Calculate new dimensions based on resize handle
-		let newX = gif.x;
-		let newY = gif.y;
-		let newWidth = gif.width;
-		let newHeight = gif.height;
-
-		switch (handle) {
-			case "tl": // Top-left
-				newWidth = gif.x + gif.width - x;
-				newHeight = gif.y + gif.height - y;
-				newX = x;
-				newY = y;
-				break;
-			case "tr": // Top-right
-				newWidth = x - gif.x;
-				newHeight = gif.y + gif.height - y;
-				newY = y;
-				break;
-			case "bl": // Bottom-left
-				newWidth = gif.x + gif.width - x;
-				newHeight = y - gif.y;
-				newX = x;
-				break;
-			case "br": // Bottom-right
-				newWidth = x - gif.x;
-				newHeight = y - gif.y;
-				break;
-			case "top":
-				newHeight = gif.y + gif.height - y;
-				newY = y;
-				break;
-			case "right":
-				newWidth = x - gif.x;
-				break;
-			case "bottom":
-				newHeight = y - gif.y;
-				break;
-			case "left":
-				newWidth = gif.x + gif.width - x;
-				newX = x;
-				break;
+		const canvas = document.getElementById("canvasID");
+		if (!canvas) {
+			console.warn("Canvas element not found during GIF resize");
+			return;
 		}
 
-		// Apply constraints
-		if (newWidth >= minSize) {
-			gif.width = newWidth;
-			gif.x = newX;
+		const rect = canvas.getBoundingClientRect();
+		const scaleX = canvas.width / rect.width;
+		const scaleY = canvas.height / rect.height;
+
+		const mouseXCanvas = (mouseX - rect.left) * scaleX;
+		const mouseYCanvas = (mouseY - rect.top) * scaleY;
+
+		const aspectRatio = dragState.originalWidth / dragState.originalHeight;
+		let newWidth, newHeight, newX, newY;
+
+		// Basit resize mantığı - tüm köşeler için aynı (exact camera logic)
+		const distanceX = Math.abs(
+			mouseXCanvas - (dragState.originalX + dragState.originalWidth / 2)
+		);
+		const distanceY = Math.abs(
+			mouseYCanvas - (dragState.originalY + dragState.originalHeight / 2)
+		);
+		const maxDistance = Math.max(distanceX, distanceY);
+
+		newWidth = maxDistance * 2;
+		newHeight = newWidth / aspectRatio;
+
+		newX = dragState.originalX + dragState.originalWidth / 2 - newWidth / 2;
+		newY = dragState.originalY + dragState.originalHeight / 2 - newHeight / 2;
+
+		const minSize = 50 * dpr;
+		if (newWidth < minSize) {
+			newWidth = minSize;
+			newHeight = newWidth / aspectRatio;
 		}
-		if (newHeight >= minSize) {
-			gif.height = newHeight;
-			gif.y = newY;
+		if (newHeight < minSize) {
+			newHeight = minSize;
+			newWidth = newHeight * aspectRatio;
 		}
+
+		// Update GIF properties with canvas coordinate conversion
+		gif.width = newWidth / dpr;
+		gif.height = newHeight / dpr;
+		gif.x = newX / dpr;
+		gif.y = newY / dpr;
 
 		updateGifSize();
 	};
