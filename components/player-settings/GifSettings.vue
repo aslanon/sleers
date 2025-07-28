@@ -85,7 +85,7 @@
 		<!-- GIF Search Section -->
 		<div class="space-y-4">
 			<div>
-				<h4 class="text-base font-semibold text-white">GIF Search</h4>
+				<h4 class="text-base font-semibold text-white">Add GIF</h4>
 				<p class="text-sm font-normal text-gray-500">
 					Search and add GIFs from Giphy to your video.
 				</p>
