@@ -433,35 +433,40 @@ export const useGifManager = () => {
 		const aspectRatio = dragState.originalWidth / dragState.originalHeight;
 		let newWidth, newHeight, newX, newY;
 
-		// Basit resize mantığı - tüm köşeler için aynı (exact camera logic)
-		const distanceX = Math.abs(
-			mouseXCanvas - (dragState.originalX + dragState.originalWidth / 2)
-		);
-		const distanceY = Math.abs(
-			mouseYCanvas - (dragState.originalY + dragState.originalHeight / 2)
-		);
+		// Exact camera resize logic - distance from center
+		const centerX = dragState.originalX + dragState.originalWidth / 2;
+		const centerY = dragState.originalY + dragState.originalHeight / 2;
+		
+		const distanceX = Math.abs(mouseXCanvas - centerX);
+		const distanceY = Math.abs(mouseYCanvas - centerY);
 		const maxDistance = Math.max(distanceX, distanceY);
 
 		newWidth = maxDistance * 2;
 		newHeight = newWidth / aspectRatio;
 
-		newX = dragState.originalX + dragState.originalWidth / 2 - newWidth / 2;
-		newY = dragState.originalY + dragState.originalHeight / 2 - newHeight / 2;
+		newX = centerX - newWidth / 2;
+		newY = centerY - newHeight / 2;
 
 		const minSize = 50 * dpr;
 		if (newWidth < minSize) {
 			newWidth = minSize;
 			newHeight = newWidth / aspectRatio;
+			// Re-center after applying minimum size
+			newX = centerX - newWidth / 2;
+			newY = centerY - newHeight / 2;
 		}
 		if (newHeight < minSize) {
 			newHeight = minSize;
 			newWidth = newHeight * aspectRatio;
+			// Re-center after applying minimum size
+			newX = centerX - newWidth / 2;
+			newY = centerY - newHeight / 2;
 		}
 
-		// Update GIF properties with canvas coordinate conversion
+		// Update GIF properties with proper coordinate conversion
 		gif.width = newWidth / dpr;
 		gif.height = newHeight / dpr;
-		gif.x = newX / dpr;
+		gif.x = newX / dpr;  
 		gif.y = newY / dpr;
 
 		updateGifSize();
