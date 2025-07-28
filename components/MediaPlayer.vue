@@ -597,8 +597,9 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 	// Opacity ayarla
 	ctx.globalAlpha = renderData.opacity || 1;
 
-	// Check if it's an image (not a GIF)
+	// Check if it's an image or video (not a GIF)
 	const isImage = renderData.type === "image";
+	const isVideo = renderData.type === "video";
 
 	if (isImage) {
 		// Handle static images
@@ -629,6 +630,78 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			};
 
 			img.src = renderData.url;
+		}
+	} else if (isVideo) {
+		// Handle video files
+		if (!window.videoCache) {
+			window.videoCache = new Map();
+		}
+
+		const cacheKey = renderData.url;
+
+		if (window.videoCache.has(cacheKey)) {
+			const cachedVideo = window.videoCache.get(cacheKey);
+			if (cachedVideo.readyState >= 2) {
+				// HAVE_CURRENT_DATA
+				try {
+					// Video sync - calculate relative time within the overlay duration
+					const videoDuration = cachedVideo.duration || 1;
+					const overlayStartTime = renderData.startTime || 0;
+					const overlayEndTime = renderData.endTime || 10;
+					const overlayDuration = overlayEndTime - overlayStartTime;
+
+					// Calculate current time within the overlay's time range
+					const currentCanvasTime = videoState.value.currentTime;
+					const relativeTime = currentCanvasTime - overlayStartTime;
+
+					// Loop the video if it's shorter than the overlay duration
+					const videoTime = relativeTime % videoDuration;
+
+					// Only update video time if significantly different (reduces jitter)
+					const timeDiff = Math.abs(cachedVideo.currentTime - videoTime);
+					if (timeDiff > 0.1) {
+						cachedVideo.currentTime = videoTime;
+					}
+
+					// Use requestVideoFrameCallback if available for smoother rendering
+					if (
+						cachedVideo.requestVideoFrameCallback &&
+						!cachedVideo._frameCallbackSet
+					) {
+						cachedVideo._frameCallbackSet = true;
+						cachedVideo.requestVideoFrameCallback(() => {
+							cachedVideo._frameCallbackSet = false;
+						});
+					}
+
+					ctx.drawImage(cachedVideo, x, y, width, height);
+				} catch (error) {
+					console.warn("Error drawing cached video:", error);
+				}
+			}
+		} else {
+			// İlk yükleme - video element oluştur
+			const overlayVideo = document.createElement("video");
+			overlayVideo.crossOrigin = "anonymous";
+			overlayVideo.muted = true;
+			overlayVideo.loop = true;
+			overlayVideo.playsInline = true;
+			overlayVideo.preload = "auto";
+			overlayVideo.style.imageRendering = "pixelated";
+			overlayVideo.style.imageRendering = "crisp-edges";
+
+			overlayVideo.onloadeddata = () => {
+				window.videoCache.set(cacheKey, overlayVideo);
+				overlayVideo.play().catch(console.warn);
+				// Force canvas redraw to show the loaded video
+				requestAnimationFrame(() => updateCanvas(performance.now()));
+			};
+
+			overlayVideo.onerror = () => {
+				console.warn("Failed to load overlay video:", renderData.url);
+			};
+
+			overlayVideo.src = renderData.url;
 		}
 	} else {
 		// Handle animated GIFs
@@ -1053,7 +1126,7 @@ const startSyncCheck = () => {
 		// Timeline position'ı emit et
 		emit("timeUpdate", videoState.value.currentTime);
 
-		// Canvas sonuna gelince durdur - sadece canvas süresine bak
+		// Canvas sonuna gelince durdur - tüm segment'lerin en son bitiş zamanına kadar oynat
 		const canvasDuration = props.totalCanvasDuration || 0;
 		const currentTime = videoState.value.currentTime;
 
@@ -1302,8 +1375,12 @@ const getSegmentVideoTime = (canvasTime) => {
 		}
 	}
 
-	// Hiçbir segment aktif değil - null dön (siyah ekran)
+	// Hiçbir video segment aktif değil - ama timeline devam ediyor
+	// GIF ve video overlay'ler hala görünebilir
 	currentActiveSegment.value = null;
+
+	// Timeline devam ediyor ama video content yok - siyah ekran
+	// Ancak GIF ve video overlay'ler hala render edilebilir
 	return null;
 };
 
@@ -3020,6 +3097,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		const renderContext = offscreenContext || ctx;
 
 		// Video çizimi - sadece aktif segment varsa TÜM video alanını çiz
+		// Video segment'i olmasa bile GIF ve video overlay'ler render edilebilir
 		if (isInActiveSegment) {
 			// Normal koordinatlar kullan - off-screen canvas otomatik zoom yapacak
 
@@ -3224,7 +3302,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// 🎬 GIF Overlay Rendering (HIGHEST Z-INDEX - on top of everything including camera)
 		const currentGifs = getGifsAtTime(canvasTime);
-		if (currentGifs.length > 0 && isInActiveSegment) {
+		if (currentGifs.length > 0) {
+			// Video segment'i olmasa bile GIF ve video overlay'ler render edilebilir
 			currentGifs.forEach((gif) => {
 				const renderData = getGifRenderData(gif.id, canvasTime);
 				if (renderData && renderData.isVisible) {
@@ -4443,6 +4522,11 @@ defineExpose({
 				: 0;
 		}
 		return getTotalClippedDuration(props.segments);
+	},
+
+	// Toplam canvas süresini export için
+	getTotalCanvasDuration: () => {
+		return props.totalCanvasDuration || 0;
 	},
 
 	// Clipped time'dan real time'a dönüştürme fonksiyonu

@@ -214,6 +214,76 @@
 							</div>
 						</div>
 
+						<!-- Video Track -->
+						<div
+							v-if="videoSegments.length === 0"
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleVideoTrackClick"
+							@mousemove="handleVideoTrackMouseMove"
+							@mouseenter="isVideoTrackHovered = true"
+							@mouseleave="handleVideoTrackLeave"
+						>
+							<div
+								v-if="videoSegments.length > 0"
+								class="flex flex-row h-[42px] relative items-center"
+							>
+								<!-- Empty State Label -->
+								<div
+									class="absolute w-[100vw] bg-[#ef444407] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<svg
+										class="w-4 h-4"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="1.5"
+											d="M15.75 10.5l4.72-4.72a.75.75 0 014.53 0l-4.72 4.72M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+										/>
+									</svg>
+									<span class="text-sm font-medium tracking-wide"
+										>Add video overlay</span
+									>
+								</div>
+							</div>
+						</div>
+
+						<!-- Individual Video Track Rows -->
+						<div
+							v-for="(segment, index) in videoSegments"
+							:key="`video-row-${segment.id}`"
+							class="timeline-layer-bar w-full rounded-xl relative mb-2"
+							@click="handleVideoTrackClick"
+							@mousemove="handleVideoTrackMouseMove"
+							@mouseenter="isVideoTrackHovered = true"
+							@mouseleave="handleVideoTrackLeave"
+						>
+							<div
+								class="flex flex-row h-[42px] relative items-center"
+								:class="{ 'z-50': isVideoTrackHovered }"
+							>
+								<!-- Single Video Segment in its own row -->
+								<TimelineGifSegment
+									:segment="segment"
+									:is-active="segment.gif.id === selectedGifId"
+									:is-dragging="isVideoDragging && draggedVideoIndex === index"
+									:is-timeline-hovered="isTimelineHovered"
+									:time-scale="timeScale"
+									:timeline-width="timelineWidth"
+									@click="handleVideoSegmentClick"
+									@update="handleVideoSegmentUpdate"
+									@delete="handleVideoSegmentDelete"
+									@drag-start="handleVideoDragStart"
+									@drag-end="handleVideoDragEnd"
+									@resize-start="handleVideoResizeStart"
+									@resize-end="handleVideoResizeEnd"
+								/>
+							</div>
+						</div>
+
 						<!-- Segment Bar (MOVED BELOW GIF TRACKS) -->
 						<div class="timeline-layer-bar w-full rounded-xl relative">
 							<!-- Video Segments Container -->
@@ -587,37 +657,50 @@ const maxDuration = computed(() => {
 	return timelineEndTime;
 });
 
-// Canvas uzunluğu - sadece segment'lerin kapladığı alan
+// Canvas uzunluğu - sadece video segment'lerin en son bitiş zamanına göre (GIF ve video segment'ler henüz tanımlanmadı)
 const canvasDuration = computed(() => {
-	if (!props.segments || props.segments.length === 0) {
-		// Segment yoksa video uzunluğu
-		return props.duration;
-	}
+	// Video segment'lerinin en son bitiş zamanı
+	const videoSegmentsEndTime =
+		props.segments && props.segments.length > 0
+			? Math.max(
+					...props.segments.map(
+						(segment) => segment.timelineEnd || segment.end || 0
+					),
+					0
+			  )
+			: 0;
 
-	// En son segment'in bitiş zamanını bul - bu canvas'ın gerçek uzunluğu
-	const lastSegmentEndTime = Math.max(
-		...props.segments.map((segment) => segment.timelineEnd || segment.end || 0), // ✅ Yeni field kullan
+	// Layout segment'lerinin en son bitiş zamanı
+	const layoutSegmentsEndTime =
+		layoutRanges.value.length > 0
+			? Math.max(...layoutRanges.value.map((range) => range.end || 0), 0)
+			: 0;
+
+	// Zoom segment'lerinin en son bitiş zamanı
+	const zoomSegmentsEndTime =
+		zoomRanges.value.length > 0
+			? Math.max(...zoomRanges.value.map((range) => range.end || 0), 0)
+			: 0;
+
+	// Tüm segment türlerinin en son bitiş zamanını bul (GIF ve video segment'ler sonra eklenecek)
+	const allSegmentsEndTime = Math.max(
+		videoSegmentsEndTime,
+		layoutSegmentsEndTime,
+		zoomSegmentsEndTime,
 		0
 	);
 
 	// Canvas uzunluğu minimum video uzunluğu kadar olmalı
-	const actualCanvasDuration = Math.max(lastSegmentEndTime, props.duration);
+	const actualCanvasDuration = Math.max(allSegmentsEndTime, props.duration);
 
 	console.log(
-		`[Timeline] canvasDuration: lastSegmentEnd=${lastSegmentEndTime}, videoDuration=${props.duration}, actualCanvas=${actualCanvasDuration}`
+		`[Timeline] canvasDuration: videoSegmentsEnd=${videoSegmentsEndTime}, layoutSegmentsEnd=${layoutSegmentsEndTime}, zoomSegmentsEnd=${zoomSegmentsEndTime}, allSegmentsEnd=${allSegmentsEndTime}, videoDuration=${props.duration}, actualCanvas=${actualCanvasDuration}`
 	);
 
 	return actualCanvasDuration;
 });
 
-// Canvas duration değiştiğinde MediaPlayer'a bildir
-watch(
-	canvasDuration,
-	(newDuration) => {
-		emit("totalDurationUpdate", newDuration);
-	},
-	{ immediate: true }
-);
+// Canvas duration değiştiğinde MediaPlayer'a bildir (finalCanvasDuration tanımlandıktan sonra taşınacak)
 
 // Segments props'unu izle - segment silme işleminden sonra güncellenip güncellenmediğini kontrol et
 watch(
@@ -647,14 +730,74 @@ const timeScale = computed(() => {
 	return 25 * currentZoom.value; // pixels per second
 });
 
-// GIF and Image segments for timeline display
+// GIF, Image and Video segments for timeline display
 const gifSegments = computed(() => {
-	return activeGifs.value.map((gif) => ({
-		id: `${gif.type}-segment-${gif.id}`,
-		gif: gif,
-		type: gif.type || "gif", // Support both 'gif' and 'image' types
-	}));
+	return activeGifs.value
+		.filter((gif) => gif.type === "gif" || gif.type === "image")
+		.map((gif) => ({
+			id: `${gif.type}-segment-${gif.id}`,
+			gif: gif,
+			type: gif.type || "gif", // Support both 'gif' and 'image' types
+		}));
 });
+
+// Video segments for timeline display (separate row)
+const videoSegments = computed(() => {
+	return activeGifs.value
+		.filter((gif) => gif.type === "video")
+		.map((gif) => ({
+			id: `${gif.type}-segment-${gif.id}`,
+			gif: gif,
+			type: gif.type,
+		}));
+});
+
+// Canvas duration'ı GIF ve video segment'lerle güncelle
+const finalCanvasDuration = computed(() => {
+	// Mevcut canvas duration'ı al
+	const baseCanvasDuration = canvasDuration.value;
+
+	// GIF ve image segment'lerinin en son bitiş zamanı
+	const gifSegmentsEndTime =
+		gifSegments.value.length > 0
+			? Math.max(
+					...gifSegments.value.map((segment) => segment.gif.endTime || 0),
+					0
+			  )
+			: 0;
+
+	// Video overlay segment'lerinin en son bitiş zamanı
+	const videoOverlaySegmentsEndTime =
+		videoSegments.value.length > 0
+			? Math.max(
+					...videoSegments.value.map((segment) => segment.gif.endTime || 0),
+					0
+			  )
+			: 0;
+
+	// Tüm segment türlerinin en son bitiş zamanını bul
+	const allSegmentsEndTime = Math.max(
+		baseCanvasDuration,
+		gifSegmentsEndTime,
+		videoOverlaySegmentsEndTime,
+		0
+	);
+
+	console.log(
+		`[Timeline] finalCanvasDuration: baseCanvasDuration=${baseCanvasDuration}, gifSegmentsEnd=${gifSegmentsEndTime}, videoOverlaySegmentsEnd=${videoOverlaySegmentsEndTime}, allSegmentsEnd=${allSegmentsEndTime}`
+	);
+
+	return allSegmentsEndTime;
+});
+
+// Canvas duration değiştiğinde MediaPlayer'a bildir
+watch(
+	finalCanvasDuration,
+	(newDuration) => {
+		emit("totalDurationUpdate", newDuration);
+	},
+	{ immediate: true }
+);
 
 // Calculate dynamic timeline height based on content
 const timelineContentHeight = computed(() => {
@@ -667,6 +810,9 @@ const timelineContentHeight = computed(() => {
 	// GIF tracks height (each GIF gets its own row)
 	const gifTracksHeight = Math.max(42, gifSegments.value.length * 44); // 42px per GIF + 2px gap
 
+	// Video tracks height (each video gets its own row)
+	const videoTracksHeight = Math.max(42, videoSegments.value.length * 44); // 42px per video + 2px gap
+
 	// Segments bar height
 	const segmentsBarHeight = 42;
 
@@ -677,6 +823,7 @@ const timelineContentHeight = computed(() => {
 		baseHeight +
 		layoutTrackHeight +
 		gifTracksHeight +
+		videoTracksHeight +
 		segmentsBarHeight +
 		zoomTracksHeight
 	);
@@ -686,6 +833,11 @@ const timelineContentHeight = computed(() => {
 const isGifTrackHovered = ref(false);
 const isGifDragging = ref(false);
 const draggedGifIndex = ref(-1);
+
+// Video track state
+const isVideoTrackHovered = ref(false);
+const isVideoDragging = ref(false);
+const draggedVideoIndex = ref(-1);
 
 // Playhead pozisyonu - artık gerçek video time ile çalışır
 const playheadPosition = computed(() => {
@@ -2243,6 +2395,57 @@ const handleGifResizeStart = () => {
 
 const handleGifResizeEnd = () => {
 	// Handle GIF resize end
+};
+
+// Video Track Event Handlers
+const handleVideoTrackClick = (event) => {
+	// Handle clicking on empty video track (could open video settings)
+	// For now, just clear selection
+	selectedGifId.value = null;
+};
+
+const handleVideoTrackMouseMove = (event) => {
+	// Handle mouse movement on video track
+};
+
+const handleVideoTrackLeave = () => {
+	isVideoTrackHovered.value = false;
+};
+
+const handleVideoSegmentClick = (segment) => {
+	selectGif(segment.gif.id);
+};
+
+const handleVideoSegmentUpdate = (updatedSegment) => {
+	// Update the video with new timing/position
+	const gif = activeGifs.value.find((g) => g.id === updatedSegment.gif.id);
+	if (gif) {
+		Object.assign(gif, updatedSegment.gif);
+	}
+};
+
+const handleVideoSegmentDelete = (segment) => {
+	removeGif(segment.gif.id);
+};
+
+const handleVideoDragStart = (data) => {
+	isVideoDragging.value = true;
+	draggedVideoIndex.value = videoSegments.value.findIndex(
+		(s) => s.id === data.segment.id
+	);
+};
+
+const handleVideoDragEnd = () => {
+	isVideoDragging.value = false;
+	draggedVideoIndex.value = -1;
+};
+
+const handleVideoResizeStart = () => {
+	// Handle video resize start
+};
+
+const handleVideoResizeEnd = () => {
+	// Handle video resize end
 };
 
 // Lifecycle hooks

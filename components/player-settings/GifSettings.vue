@@ -82,6 +82,89 @@
 			</div>
 		</div>
 
+		<!-- Video Ekleme Section -->
+		<div class="space-y-4">
+			<div>
+				<h4 class="text-base font-semibold text-white">Add Video</h4>
+				<p class="text-sm font-normal text-gray-500">
+					Add videos to your video as overlay elements.
+				</p>
+			</div>
+
+			<div class="space-y-3">
+				<!-- Video File Input -->
+				<div class="relative">
+					<input
+						ref="videoFileInput"
+						type="file"
+						accept="video/*"
+						@change="handleVideoFileSelect"
+						class="hidden"
+					/>
+					<button
+						@click="$refs.videoFileInput.click()"
+						class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-lg text-white hover:bg-zinc-700/50 transition-colors flex items-center justify-center space-x-2"
+					>
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M15.75 10.5l4.72-4.72a.75.75 0 014.53 0l-4.72 4.72M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+								stroke="white"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+						<span>Select Video</span>
+					</button>
+				</div>
+
+				<!-- Selected Video Preview -->
+				<div v-if="selectedVideoFile" class="space-y-2">
+					<div class="relative bg-zinc-800/30 rounded-lg overflow-hidden">
+						<video
+							:src="selectedVideoPreview"
+							class="w-full h-32 object-cover"
+							controls
+							muted
+						/>
+						<div class="absolute top-2 right-2">
+							<button
+								@click="clearSelectedVideo"
+								class="bg-red-600 hover:bg-red-700 text-white p-1 rounded-full"
+							>
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									<path
+										d="M18 6L6 18M6 6L18 18"
+										stroke="white"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									/>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<button
+						@click="addVideoToCanvas"
+						class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+					>
+						Add to canvas
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- GIF Search Section -->
 		<div class="space-y-4">
 			<div>
@@ -249,6 +332,10 @@ const props = defineProps({
 const selectedImageFile = ref(null);
 const selectedImagePreview = ref(null);
 
+// Video file handling
+const selectedVideoFile = ref(null);
+const selectedVideoPreview = ref(null);
+
 // Use GIF manager composable
 const {
 	searchQuery,
@@ -367,6 +454,77 @@ const addImageToCanvas = () => {
 	};
 
 	img.src = selectedImagePreview.value;
+};
+
+// Video handling functions
+const handleVideoFileSelect = (event) => {
+	const file = event.target.files[0];
+	if (file && file.type.startsWith("video/")) {
+		selectedVideoFile.value = file;
+
+		// Create preview URL
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			selectedVideoPreview.value = e.target.result;
+		};
+		reader.readAsDataURL(file);
+	}
+};
+
+const clearSelectedVideo = () => {
+	selectedVideoFile.value = null;
+	selectedVideoPreview.value = null;
+	// Clear file input
+	const fileInput = document.querySelector(
+		'input[type="file"][accept="video/*"]'
+	);
+	if (fileInput) {
+		fileInput.value = "";
+	}
+};
+
+const addVideoToCanvas = () => {
+	if (!selectedVideoFile.value) return;
+
+	// Create a temporary video element to get dimensions
+	const video = document.createElement("video");
+	video.onloadedmetadata = () => {
+		// Calculate aspect ratio
+		const aspectRatio = video.videoWidth / video.videoHeight;
+
+		// Set default size while maintaining aspect ratio
+		const defaultWidth = 400; // Base width for videos
+		const defaultHeight = defaultWidth / aspectRatio;
+
+		// Create video object similar to GIF structure
+		const videoId = `video_${Date.now()}`;
+		const videoObject = {
+			id: videoId,
+			title: selectedVideoFile.value.name,
+			url: selectedVideoPreview.value,
+			type: "video", // Distinguish from GIFs and images
+			x: 100,
+			y: 100,
+			width: defaultWidth,
+			height: defaultHeight,
+			opacity: 1,
+			startTime: 0,
+			endTime: props.duration || 10,
+			file: selectedVideoFile.value,
+			originalWidth: video.videoWidth,
+			originalHeight: video.videoHeight,
+			aspectRatio: aspectRatio,
+			duration: video.duration || 0,
+		};
+
+		// Add to active GIFs (videos will be handled as GIFs in the system)
+		addGifToCanvas(videoObject);
+
+		// Clear selection
+		clearSelectedVideo();
+	};
+
+	video.src = selectedVideoPreview.value;
 };
 
 // Update size while preserving aspect ratio for images

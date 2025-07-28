@@ -89,8 +89,9 @@ export const useGifManager = () => {
 			gifData.id ||
 			`gif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-		// Check if it's an image (not a GIF)
+		// Check if it's an image or video (not a GIF)
 		const isImage = gifData.type === "image";
+		const isVideo = gifData.type === "video";
 
 		let newGif;
 
@@ -115,6 +116,29 @@ export const useGifManager = () => {
 				originalWidth: gifData.originalWidth,
 				originalHeight: gifData.originalHeight,
 				aspectRatio: gifData.aspectRatio,
+			};
+		} else if (isVideo) {
+			// Handle video files
+			newGif = {
+				id: gifId,
+				title: gifData.title || "Untitled Video",
+				url: gifData.url,
+				type: "video",
+				width: gifData.width || 400,
+				height: gifData.height || 300,
+				x: gifData.x || 100,
+				y: gifData.y || 100,
+				opacity: gifData.opacity || 1,
+				startTime: gifData.startTime || 0,
+				endTime: gifData.endTime || 10,
+				file: gifData.file,
+				originalUrl: gifData.url,
+				webpUrl: gifData.url,
+				mp4Url: gifData.url,
+				originalWidth: gifData.originalWidth,
+				originalHeight: gifData.originalHeight,
+				aspectRatio: gifData.aspectRatio,
+				duration: gifData.duration || 0,
 			};
 		} else {
 			// Handle GIFs from Giphy
