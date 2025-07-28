@@ -495,13 +495,70 @@ const drawGifOverlay = (ctx, renderData, dpr) => {
 		});
 	}
 	
-	// GIF render etmek için img element oluştur
-	// Cache için img element yönetimi
+	// Animated GIF rendering için video element kullan
+	if (!window.gifVideoCache) {
+		window.gifVideoCache = new Map();
+	}
+	
+	const cacheKey = renderData.url;
+	
+	if (window.gifVideoCache.has(cacheKey)) {
+		const cachedVideo = window.gifVideoCache.get(cacheKey);
+		if (cachedVideo.readyState >= 2) { // HAVE_CURRENT_DATA
+			try {
+				// Video'yu sync et - GIF'in başlama zamanından itibaren loop
+				const gifDuration = cachedVideo.duration || 2; // Default 2 saniye
+				const relativeTime = renderData.relativeTime || 0;
+				const loopTime = relativeTime % gifDuration;
+				
+				// Video zamanını ayarla (sadece gerektiğinde)
+				if (Math.abs(cachedVideo.currentTime - loopTime) > 0.1) {
+					cachedVideo.currentTime = loopTime;
+				}
+				
+				ctx.drawImage(cachedVideo, x, y, width, height);
+			} catch (error) {
+				console.warn('Error drawing cached GIF video:', error);
+			}
+		}
+	} else {
+		// İlk yükleme - video element oluştur
+		const gifVideo = document.createElement('video');
+		gifVideo.crossOrigin = 'anonymous';
+		gifVideo.muted = true;
+		gifVideo.loop = true;
+		gifVideo.playsInline = true;
+		gifVideo.preload = 'metadata';
+		
+		// MP4 varsa onu kullan, yoksa fallback
+		const videoUrl = renderData.mp4Url || renderData.url;
+		
+		gifVideo.onloadeddata = () => {
+			window.gifVideoCache.set(cacheKey, gifVideo);
+			gifVideo.play().catch(console.warn);
+			// Force canvas redraw to show the loaded GIF
+			requestAnimationFrame(() => updateCanvas(performance.now()));
+		};
+		
+		gifVideo.onerror = () => {
+			console.warn('Failed to load GIF video:', videoUrl);
+			// Fallback to image if video fails
+			drawGifAsImage(ctx, renderData, dpr, x, y, width, height);
+		};
+		
+		gifVideo.src = videoUrl;
+	}
+	
+	ctx.restore();
+};
+
+// Fallback function to draw GIF as static image
+const drawGifAsImage = (ctx, renderData, dpr, x, y, width, height) => {
 	if (!window.gifImageCache) {
 		window.gifImageCache = new Map();
 	}
 	
-	const cacheKey = renderData.url;
+	const cacheKey = renderData.url + '_img';
 	
 	if (window.gifImageCache.has(cacheKey)) {
 		const cachedImg = window.gifImageCache.get(cacheKey);
@@ -509,29 +566,24 @@ const drawGifOverlay = (ctx, renderData, dpr) => {
 			try {
 				ctx.drawImage(cachedImg, x, y, width, height);
 			} catch (error) {
-				console.warn('Error drawing cached GIF:', error);
+				console.warn('Error drawing cached GIF image:', error);
 			}
 		}
 	} else {
-		// İlk yükleme
 		const gifImg = new Image();
 		gifImg.crossOrigin = 'anonymous';
 		
 		gifImg.onload = () => {
 			window.gifImageCache.set(cacheKey, gifImg);
-			// Force canvas redraw to show the loaded GIF
 			requestAnimationFrame(() => updateCanvas(performance.now()));
 		};
 		
 		gifImg.onerror = () => {
-			console.warn('Failed to load GIF:', renderData.url);
+			console.warn('Failed to load GIF image:', renderData.url);
 		};
 		
-		// For animated GIFs, ensure we use the webp version if available for better performance
-		gifImg.src = renderData.webpUrl || renderData.url;
+		gifImg.src = renderData.url;
 	}
-	
-	ctx.restore();
 };
 
 // Video hover state güncelleme fonksiyonu

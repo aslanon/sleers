@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-col gap-12 min-h-[800px]">
+	<div class="flex flex-col gap-12 min-h-[800px] max-w-[500px]">
 		<!-- GIF Search Section -->
 		<div class="space-y-4">
 			<div>
@@ -8,7 +8,7 @@
 					Search and add GIFs from Giphy to your video.
 				</p>
 			</div>
-			
+
 			<div class="relative">
 				<input
 					v-model="searchQuery"
@@ -45,17 +45,26 @@
 						class="w-full h-24 object-cover"
 						loading="lazy"
 					/>
-					<div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+					<div
+						class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center"
+					>
 						<svg
 							class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
 						>
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+							/>
 						</svg>
 					</div>
-					<div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+					<div
+						class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2"
+					>
 						<p class="text-xs text-white truncate">{{ gif.title }}</p>
 					</div>
 				</div>
@@ -78,8 +87,12 @@
 							class="w-12 h-8 object-cover rounded"
 						/>
 						<div>
-							<p class="text-sm text-white font-medium truncate">{{ gif.title }}</p>
-							<p class="text-xs text-gray-400">{{ formatTime(gif.startTime) }} - {{ formatTime(gif.endTime) }}</p>
+							<p class="text-sm text-white font-medium truncate">
+								{{ gif.title }}
+							</p>
+							<p class="text-xs text-gray-400">
+								{{ formatTime(gif.startTime) }} - {{ formatTime(gif.endTime) }}
+							</p>
 						</div>
 					</div>
 					<div class="flex items-center space-x-2">
@@ -87,18 +100,28 @@
 							@click="selectGif(gif.id)"
 							:class="{
 								'bg-blue-600': selectedGifId === gif.id,
-								'bg-zinc-600 hover:bg-zinc-500': selectedGifId !== gif.id
+								'bg-zinc-600 hover:bg-zinc-500': selectedGifId !== gif.id,
 							}"
 							class="px-3 py-1 text-xs text-white rounded transition-colors"
 						>
-							{{ selectedGifId === gif.id ? 'Selected' : 'Select' }}
+							{{ selectedGifId === gif.id ? "Selected" : "Select" }}
 						</button>
 						<button
 							@click="removeGif(gif.id)"
 							class="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
 						>
-							<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+							<svg
+								class="w-4 h-4"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+								/>
 							</svg>
 						</button>
 					</div>
@@ -110,7 +133,7 @@
 		<div v-if="selectedGif" class="space-y-6">
 			<div>
 				<h5 class="text-sm font-semibold text-white mb-4">GIF Controls</h5>
-				
+
 				<!-- Position Controls -->
 				<div class="space-y-4">
 					<SliderInput
@@ -123,7 +146,7 @@
 						unit="px"
 						@update:modelValue="updateGifPosition"
 					/>
-					
+
 					<SliderInput
 						v-model="selectedGif.y"
 						label="Y Position"
@@ -134,7 +157,7 @@
 						unit="px"
 						@update:modelValue="updateGifPosition"
 					/>
-					
+
 					<!-- Size Controls -->
 					<SliderInput
 						v-model="selectedGif.width"
@@ -146,7 +169,7 @@
 						unit="px"
 						@update:modelValue="updateGifSize"
 					/>
-					
+
 					<SliderInput
 						v-model="selectedGif.height"
 						label="Height"
@@ -180,7 +203,7 @@
 						unit="s"
 						@update:modelValue="updateGifTiming"
 					/>
-					
+
 					<SliderInput
 						v-model="selectedGif.endTime"
 						label="End Time"
@@ -197,10 +220,22 @@
 
 		<!-- Instructions -->
 		<div v-if="activeGifs.length === 0" class="text-center py-8">
-			<svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2M7 4h10M7 4l-2 16h14l-2-16M10 9v8m4-8v8"/>
+			<svg
+				class="w-16 h-16 text-gray-600 mx-auto mb-4"
+				fill="none"
+				stroke="currentColor"
+				viewBox="0 0 24 24"
+			>
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					stroke-width="1.5"
+					d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2M7 4h10M7 4l-2 16h14l-2-16M10 9v8m4-8v8"
+				/>
 			</svg>
-			<p class="text-gray-400 text-sm">Search for GIFs above to add them to your video</p>
+			<p class="text-gray-400 text-sm">
+				Search for GIFs above to add them to your video
+			</p>
 		</div>
 	</div>
 </template>
@@ -213,8 +248,8 @@ import SliderInput from "~/components/ui/SliderInput.vue";
 const props = defineProps({
 	duration: {
 		type: Number,
-		default: 0
-	}
+		default: 0,
+	},
 });
 
 // Use GIF manager composable
@@ -231,15 +266,18 @@ const {
 	updateGifPosition,
 	updateGifSize,
 	updateGifOpacity,
-	updateGifTiming
+	updateGifTiming,
 } = useGifManager();
 
 // Debug electronAPI on component mount
 onMounted(() => {
-	console.log('GifSettings: Checking electronAPI availability...');
-	console.log('window.electronAPI:', window.electronAPI);
+	console.log("GifSettings: Checking electronAPI availability...");
+	console.log("window.electronAPI:", window.electronAPI);
 	if (window.electronAPI) {
-		console.log('Available electronAPI methods:', Object.keys(window.electronAPI));
+		console.log(
+			"Available electronAPI methods:",
+			Object.keys(window.electronAPI)
+		);
 	}
 });
 
@@ -256,13 +294,13 @@ const debounceSearch = () => {
 
 // Selected GIF computed
 const selectedGif = computed(() => {
-	return activeGifs.value.find(gif => gif.id === selectedGifId.value);
+	return activeGifs.value.find((gif) => gif.id === selectedGifId.value);
 });
 
 // Time formatting helper
 const formatTime = (seconds) => {
 	const mins = Math.floor(seconds / 60);
 	const secs = Math.floor(seconds % 60);
-	return `${mins}:${secs.toString().padStart(2, '0')}`;
+	return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 </script>
