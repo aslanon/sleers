@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-container h-auto">
+	<div class="timeline-container h-auto max-h-[400px]">
 		<!-- Timeline Header -->
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
@@ -647,12 +647,12 @@ const timeScale = computed(() => {
 	return 25 * currentZoom.value; // pixels per second
 });
 
-// GIF segments for timeline display
+// GIF and Image segments for timeline display
 const gifSegments = computed(() => {
 	return activeGifs.value.map((gif) => ({
-		id: `gif-segment-${gif.id}`,
+		id: `${gif.type}-segment-${gif.id}`,
 		gif: gif,
-		type: "gif",
+		type: gif.type || "gif", // Support both 'gif' and 'image' types
 	}));
 });
 

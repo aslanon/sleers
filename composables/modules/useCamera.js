@@ -33,6 +33,7 @@ export const useCamera = () => {
 	const hoverScale = ref(1);
 	const HOVER_SCALE = 1.0;
 	const TRANSITION_SPEED = 0.5;
+	const cameraZoomScale = ref(1.0); // Camera zoom scale'i için
 
 	// Cache ve optimizasyon
 	const lastFrameTime = ref(0);
@@ -299,7 +300,7 @@ export const useCamera = () => {
 
 		// Sadece sol üstte handle göster
 		if (showHandles) {
-			const handleSize = 200 * dpr;
+			const handleSize = 100 * dpr; // Match GIF handle size
 			const handleX = x - handleSize / 2;
 			const handleY = y - handleSize / 2;
 
@@ -406,6 +407,24 @@ export const useCamera = () => {
 		// Zoom durumunda kamera boyutlarını size'a göre ayarla ve aspect ratio'yu koru
 		const baseCanvasWidth = canvasWidth;
 		let cameraWidth = (baseCanvasWidth * cameraSettings.value.size) / 100;
+
+		// Zoom varsa camera'yı smooth küçült
+		if (zoomScale > 1.01) {
+			const targetScale = 0.75; // Hedef küçültme oranı
+			const lerpFactor = 0.15; // Yumuşak geçiş faktörü
+
+			// Smooth lerp ile zoom scale'i güncelle
+			cameraZoomScale.value =
+				cameraZoomScale.value +
+				(targetScale - cameraZoomScale.value) * lerpFactor;
+			cameraWidth = cameraWidth * cameraZoomScale.value;
+		} else {
+			// Zoom yoksa normal boyuta dön
+			const lerpFactor = 0.15;
+			cameraZoomScale.value =
+				cameraZoomScale.value + (1.0 - cameraZoomScale.value) * lerpFactor;
+		}
+
 		let cameraHeight;
 
 		// Aspect ratio'yu her zaman koru
@@ -582,7 +601,31 @@ export const useCamera = () => {
 				// Mouse pozisyonunu doğrudan kullan (video pozisyonunu çıkarma)
 				// Edge detection MediaPlayer'da yapılıyor, burada sadece basit pozisyonlama
 				let targetX = mouseX - cameraWidth / 2;
-				let targetY = mouseY + 100 * dpr; // Default offset
+
+				// Dinamik offset hesapla - camera size'ına ve cursor size'ına göre
+				const { mouseSize } = usePlayerSettings();
+				const cursorSize = mouseSize.value || 180; // Gerçek cursor size'ını al
+				const cameraSizePercent = cameraSettings.value.size || 10;
+				const cameraSizePixels = (canvasWidth * cameraSizePercent) / 100;
+
+				// Offset'i camera size'ına göre ayarla
+				const baseOffset = Math.max(cameraSizePixels * 0.3, 60 * dpr); // Camera'nın %30'u veya minimum 60px
+				const cursorOffset = cursorSize * 0.2; // Cursor size'ının %20'si
+				const dynamicOffset = baseOffset + cursorOffset;
+
+				let targetY = mouseY + dynamicOffset; // Dinamik offset
+
+				// Debug dinamik offset hesaplaması
+				console.log("[DYNAMIC OFFSET DEBUG]", {
+					cursorSize,
+					cameraSizePercent,
+					cameraSizePixels,
+					baseOffset,
+					cursorOffset,
+					dynamicOffset,
+					mouseY,
+					targetY,
+				});
 
 				// Video pozisyonunu ekle
 				targetX += videoPosition.x;
@@ -972,7 +1015,7 @@ export const useCamera = () => {
 	};
 
 	const detectHandle = (mouseX, mouseY, cameraRect, dpr, scaleValue = 3) => {
-		const handleSize = 200 * dpr; // Matches drawHoverFrame handle size
+		const handleSize = 100 * dpr; // Match GIF handle size
 
 		// Sadece sol üst köşe için handle detection - tüm siyah alan resize alanı
 		const handleX = cameraRect.x - handleSize / 2;
@@ -1064,20 +1107,21 @@ export const useCamera = () => {
 		newY =
 			initialPosition.value.y + initialSize.value.height / 2 - newHeight / 2;
 
-		const minSize = 50 * dpr;
-		if (newWidth < minSize) {
-			newWidth = minSize;
-			newHeight = newWidth / aspectRatio;
-		}
-		if (newHeight < minSize) {
-			newHeight = minSize;
-			newWidth = newHeight * aspectRatio;
-		}
+		// Remove size constraints - allow unlimited resizing
+		// const minSize = 50 * dpr;
+		// if (newWidth < minSize) {
+		// 	newWidth = minSize;
+		// 	newHeight = newWidth / aspectRatio;
+		// }
+		// if (newHeight < minSize) {
+		// 	newHeight = minSize;
+		// 	newWidth = newHeight * aspectRatio;
+		// }
 
-		// Kamera boyutunu güncelle
+		// Kamera boyutunu güncelle - remove size limits
 		const canvasWidth = canvas.width;
 		const newSizePercentage = (newWidth / canvasWidth) * 100;
-		cameraSettings.value.size = Math.max(5, Math.min(50, newSizePercentage));
+		cameraSettings.value.size = newSizePercentage; // Remove size constraints
 
 		cameraPosition.value = { x: newX, y: newY };
 		lastCameraPosition.value = { x: newX, y: newY };

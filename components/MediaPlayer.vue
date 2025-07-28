@@ -597,76 +597,112 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 	// Opacity ayarla
 	ctx.globalAlpha = renderData.opacity || 1;
 
-	// Animated GIF rendering için video element kullan
-	if (!window.gifVideoCache) {
-		window.gifVideoCache = new Map();
-	}
+	// Check if it's an image (not a GIF)
+	const isImage = renderData.type === "image";
 
-	const cacheKey = renderData.url;
+	if (isImage) {
+		// Handle static images
+		if (!window.imageCache) {
+			window.imageCache = new Map();
+		}
 
-	if (window.gifVideoCache.has(cacheKey)) {
-		const cachedVideo = window.gifVideoCache.get(cacheKey);
-		if (cachedVideo.readyState >= 2) {
-			// HAVE_CURRENT_DATA
-			try {
-				// More stable video sync - reduce time updates
-				const gifDuration = cachedVideo.duration || 2; // Default 2 saniye
-				const relativeTime = renderData.relativeTime || 0;
-				const loopTime = relativeTime % gifDuration;
+		const cacheKey = renderData.url;
 
-				// Only update video time if significantly different (reduces jitter)
-				const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
-				if (timeDiff > 0.2) {
-					// Increased threshold from 0.1 to 0.2
-					cachedVideo.currentTime = loopTime;
-				}
-
-				// Use requestVideoFrameCallback if available for smoother rendering
-				if (
-					cachedVideo.requestVideoFrameCallback &&
-					!cachedVideo._frameCallbackSet
-				) {
-					cachedVideo._frameCallbackSet = true;
-					cachedVideo.requestVideoFrameCallback(() => {
-						cachedVideo._frameCallbackSet = false;
-					});
-				}
-
-				ctx.drawImage(cachedVideo, x, y, width, height);
-			} catch (error) {
-				console.warn("Error drawing cached GIF video:", error);
+		if (window.imageCache.has(cacheKey)) {
+			const cachedImage = window.imageCache.get(cacheKey);
+			if (cachedImage.complete) {
+				ctx.drawImage(cachedImage, x, y, width, height);
 			}
+		} else {
+			// Load image for the first time
+			const img = new Image();
+			img.crossOrigin = "anonymous";
+
+			img.onload = () => {
+				window.imageCache.set(cacheKey, img);
+				// Force canvas redraw to show the loaded image
+				requestAnimationFrame(() => updateCanvas(performance.now()));
+			};
+
+			img.onerror = () => {
+				console.warn("Failed to load image:", renderData.url);
+			};
+
+			img.src = renderData.url;
 		}
 	} else {
-		// İlk yükleme - video element oluştur
-		const gifVideo = document.createElement("video");
-		gifVideo.crossOrigin = "anonymous";
-		gifVideo.muted = true;
-		gifVideo.loop = true;
-		gifVideo.playsInline = true;
-		gifVideo.preload = "auto";
-		// Reduce frame rate updates for smoother playback
-		gifVideo.style.imageRendering = "pixelated"; // Better for GIFs
-		gifVideo.style.imageRendering = "crisp-edges"; // Fallback
-		gifVideo.preload = "metadata";
+		// Handle animated GIFs
+		// Animated GIF rendering için video element kullan
+		if (!window.gifVideoCache) {
+			window.gifVideoCache = new Map();
+		}
 
-		// MP4 varsa onu kullan, yoksa fallback
-		const videoUrl = renderData.mp4Url || renderData.url;
+		const cacheKey = renderData.url;
 
-		gifVideo.onloadeddata = () => {
-			window.gifVideoCache.set(cacheKey, gifVideo);
-			gifVideo.play().catch(console.warn);
-			// Force canvas redraw to show the loaded GIF
-			requestAnimationFrame(() => updateCanvas(performance.now()));
-		};
+		if (window.gifVideoCache.has(cacheKey)) {
+			const cachedVideo = window.gifVideoCache.get(cacheKey);
+			if (cachedVideo.readyState >= 2) {
+				// HAVE_CURRENT_DATA
+				try {
+					// More stable video sync - reduce time updates
+					const gifDuration = cachedVideo.duration || 2; // Default 2 saniye
+					const relativeTime = renderData.relativeTime || 0;
+					const loopTime = relativeTime % gifDuration;
 
-		gifVideo.onerror = () => {
-			console.warn("Failed to load GIF video:", videoUrl);
-			// Fallback to image if video fails
-			drawGifAsImage(ctx, renderData, dpr, x, y, width, height);
-		};
+					// Only update video time if significantly different (reduces jitter)
+					const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
+					if (timeDiff > 0.2) {
+						// Increased threshold from 0.1 to 0.2
+						cachedVideo.currentTime = loopTime;
+					}
 
-		gifVideo.src = videoUrl;
+					// Use requestVideoFrameCallback if available for smoother rendering
+					if (
+						cachedVideo.requestVideoFrameCallback &&
+						!cachedVideo._frameCallbackSet
+					) {
+						cachedVideo._frameCallbackSet = true;
+						cachedVideo.requestVideoFrameCallback(() => {
+							cachedVideo._frameCallbackSet = false;
+						});
+					}
+
+					ctx.drawImage(cachedVideo, x, y, width, height);
+				} catch (error) {
+					console.warn("Error drawing cached GIF video:", error);
+				}
+			}
+		} else {
+			// İlk yükleme - video element oluştur
+			const gifVideo = document.createElement("video");
+			gifVideo.crossOrigin = "anonymous";
+			gifVideo.muted = true;
+			gifVideo.loop = true;
+			gifVideo.playsInline = true;
+			gifVideo.preload = "auto";
+			// Reduce frame rate updates for smoother playback
+			gifVideo.style.imageRendering = "pixelated"; // Better for GIFs
+			gifVideo.style.imageRendering = "crisp-edges"; // Fallback
+			gifVideo.preload = "metadata";
+
+			// MP4 varsa onu kullan, yoksa fallback
+			const videoUrl = renderData.mp4Url || renderData.url;
+
+			gifVideo.onloadeddata = () => {
+				window.gifVideoCache.set(cacheKey, gifVideo);
+				gifVideo.play().catch(console.warn);
+				// Force canvas redraw to show the loaded GIF
+				requestAnimationFrame(() => updateCanvas(performance.now()));
+			};
+
+			gifVideo.onerror = () => {
+				console.warn("Failed to load GIF video:", videoUrl);
+				// Fallback to image if video fails
+				drawGifAsImage(ctx, renderData, dpr, x, y, width, height);
+			};
+
+			gifVideo.src = videoUrl;
+		}
 	}
 
 	// GIF seçili ise highlight ve resize handles çiz (AFTER drawing GIF for proper z-index)
@@ -2161,33 +2197,68 @@ const drawMousePositions = (customCtx = null) => {
 	// Mouse pozisyonunu video koordinatlarından canvas koordinatlarına çevir
 	let canvasX, canvasY;
 
-	// Önce zoom durumunu kontrol et ve zoom origin'i hesapla
-	let zoomOriginX = displayX;
-	let zoomOriginY = displayY;
-	// Canvas zoom sistemi cursor pozisyonunu otomatik hallediyor,
-	// ekstra zoom hesaplaması gerekmiyor
+	// En basit cursor pozisyon hesaplaması
+	const canvasWidth = canvasRef.value.width;
+	const canvasHeight = canvasRef.value.height;
+	const zoomScale = canvasZoomScale.value;
 
+	// Video'nun canvas içindeki pozisyonunu hesapla
+	const videoX = displayX + position.value.x;
+	const videoY = displayY + position.value.y;
+
+	// Mouse pozisyonunu video koordinatlarından canvas koordinatlarına çevir
 	if (cropArea.value?.isApplied) {
 		// Crop uygulanmışsa, mouse pozisyonunu crop alanına göre normalize et
 		const normalizedX = (interpolatedX - sourceX) / sourceWidth;
 		const normalizedY = (interpolatedY - sourceY) / sourceHeight;
 
-		// Basit pozisyon hesaplama
-		canvasX = displayX + normalizedX * displayWidth + position.value.x;
-		canvasY = displayY + normalizedY * displayHeight + position.value.y;
+		// Video koordinatlarından canvas koordinatlarına çevir
+		canvasX = videoX + normalizedX * displayWidth;
+		canvasY = videoY + normalizedY * displayHeight;
 	} else {
 		// Crop uygulanmamışsa normal hesaplama yap
-		canvasX =
-			displayX +
-			(interpolatedX / videoElement.videoWidth) * displayWidth +
-			position.value.x;
+		canvasX = videoX + (interpolatedX / videoElement.videoWidth) * displayWidth;
 		canvasY =
-			displayY +
-			(interpolatedY / videoElement.videoHeight) * displayHeight +
-			position.value.y;
+			videoY + (interpolatedY / videoElement.videoHeight) * displayHeight;
 	}
 
-	// Normal cursor pozisyonu - zoom sonra uygulanacak
+	// Zoom varsa sadece cursor boyutunu ayarla - pozisyonu değiştirme
+	if (zoomScale > 1.01) {
+		// Cursor boyutunu zoom'a göre ayarla ama pozisyonu değiştirme
+		const cursorSizeMultiplier = 1.0 / zoomScale; // Zoom arttıkça cursor küçülsün
+
+		// Debug zoom tracking
+		console.log("[CURSOR SIZE DEBUG]", {
+			zoomScale,
+			cursorSizeMultiplier,
+			canvasX,
+			canvasY,
+		});
+	}
+
+	// Canvas sınırları içinde tut
+	canvasX = Math.max(0, Math.min(canvasWidth, canvasX));
+	canvasY = Math.max(0, Math.min(canvasHeight, canvasY));
+
+	// Debug: Canvas sınırları kontrolü
+	if (
+		canvasX < 0 ||
+		canvasX > canvasWidth ||
+		canvasY < 0 ||
+		canvasY > canvasHeight
+	) {
+		console.warn("[CURSOR BOUNDS WARNING]", {
+			canvasX,
+			canvasY,
+			canvasWidth,
+			canvasHeight,
+			zoomScale,
+			videoX,
+			videoY,
+			displayWidth,
+			displayHeight,
+		});
+	}
 
 	// Calculate timeline-based motion effects but keep original positioning
 	const timelineEffects = calculateCursorEffectsFromData(
@@ -2208,10 +2279,26 @@ const drawMousePositions = (customCtx = null) => {
 		interpolatedY: interpolatedY,
 		canvasX: canvasX,
 		canvasY: canvasY,
+		canvasWidth: canvasWidth,
+		canvasHeight: canvasHeight,
+		zoomScale: zoomScale,
+		videoX: videoX,
+		videoY: videoY,
+		displayWidth: displayWidth,
+		displayHeight: displayHeight,
 		visible: !!prevPos && !!nextPos,
 	});
 
 	// Use original positioning with timeline-based motion effects
+	console.log("[CURSOR DRAW CALL]", {
+		canvasX: canvasX,
+		canvasY: canvasY,
+		mouseVisible: mouseVisible.value,
+		mouseSize: mouseSize.value,
+		prevPos: prevPos ? { x: prevPos.x, y: prevPos.y } : null,
+		nextPos: nextPos ? { x: nextPos.x, y: nextPos.y } : null,
+	});
+
 	drawMousePosition(ctx, {
 		x: canvasX,
 		y: canvasY,
@@ -2245,10 +2332,7 @@ const drawMousePositions = (customCtx = null) => {
 			tiltAngle: timelineEffects?.tiltAngle || 0,
 			skewX: timelineEffects?.skewX || 0,
 		},
-		size:
-			canvasZoomScale.value > 1.01
-				? mouseSize.value / Math.sqrt(canvasZoomScale.value) // Yumuşak küçültme (sqrt ile)
-				: mouseSize.value,
+		size: zoomScale > 1.01 ? mouseSize.value * 0.8 : mouseSize.value * 1.5, // Zoom varsa cursor'ı biraz küçült
 		dpr,
 		motionEnabled: mouseMotionEnabled.value,
 		motionBlurValue: motionBlurValue.value,
@@ -4651,10 +4735,10 @@ const handleMouseMove = (e) => {
 	if (isCameraResizing.value) {
 		const resizeResult = handleCameraResize(e);
 		if (resizeResult) {
-			// Camera size'ı güncelle
+			// Camera size'ı güncelle - remove size limits
 			const newSizePercent =
 				(resizeResult.size.width / canvasRef.value.width) * 100;
-			cameraSettings.value.size = Math.max(5, Math.min(50, newSizePercent)); // 5-50% arası
+			cameraSettings.value.size = newSizePercent; // Remove size constraints
 
 			// Camera pozisyonunu güncelle (merkez origin için)
 			if (resizeResult.position) {

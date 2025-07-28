@@ -43,13 +43,22 @@
 		</div>
 
 		<!-- Segment Content - Responsive layout based on timeline hover -->
-		<div class="absolute inset-0 flex items-center justify-center text-center pointer-events-none">
+		<div
+			class="absolute inset-0 flex items-center justify-center text-center pointer-events-none"
+		>
 			<!-- Timeline Hovered: Vertical layout (icon above text) -->
-			<div v-if="isTimelineHovered" class="flex flex-col items-center justify-center">
-				<span class="text-white/70 text-[10px] font-medium tracking-wide mb-0.5">
-					GIF
+			<div
+				v-if="isTimelineHovered"
+				class="flex flex-col items-center justify-center"
+			>
+				<span
+					class="text-white/70 text-[10px] font-medium tracking-wide mb-0.5"
+				>
+					{{ segment.gif.type === "image" ? "IMAGE" : "GIF" }}
 				</span>
-				<span class="text-white/90 text-sm font-medium tracking-wide truncate max-w-[100px]">
+				<span
+					class="text-white/90 text-sm font-medium tracking-wide truncate max-w-[100px]"
+				>
 					{{ segment.gif.title }}
 				</span>
 			</div>
@@ -57,6 +66,21 @@
 			<!-- Timeline Not Hovered: Horizontal layout (icon and text side by side) -->
 			<div v-else class="flex items-center justify-center gap-1.5">
 				<svg
+					v-if="segment.gif.type === 'image'"
+					class="w-3 h-3 text-white/70 flex-shrink-0"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						d="M12.75 8.25V15.75M18.75 8.25H15.75V12M15.75 12V15.75M15.75 12H18M9.75 9.34835C8.72056 7.88388 7.05152 7.88388 6.02208 9.34835C4.99264 10.8128 4.99264 13.1872 6.02208 14.6517C7.05152 16.1161 8.72056 16.1161 9.75 14.6517V12H8.25M4.5 19.5H19.5C20.7426 19.5 21.75 18.4926 21.75 17.25V6.75C21.75 5.50736 20.7426 4.5 19.5 4.5H4.5C3.25736 4.5 2.25 5.50736 2.25 6.75V17.25C2.25 18.4926 3.25736 19.5 4.5 19.5Z"
+						stroke="white"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
+				<svg
+					v-else
 					class="w-3 h-3 text-white/70 flex-shrink-0"
 					fill="none"
 					stroke="currentColor"
@@ -69,7 +93,9 @@
 						d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8 M14 16H18V12"
 					/>
 				</svg>
-				<span class="text-white/90 text-xs font-medium tracking-wide truncate max-w-[60px]">
+				<span
+					class="text-white/90 text-xs font-medium tracking-wide truncate max-w-[60px]"
+				>
 					{{ segment.gif.title }}
 				</span>
 			</div>
@@ -80,7 +106,8 @@
 			class="absolute left-1 top-0 bottom-0 w-1 z-50 flex items-center justify-start opacity-0 transition-opacity duration-200"
 			:class="{
 				'opacity-80': isActive && isTimelineHovered,
-				'group-hover:opacity-80': !isResizing && !isDragging && isTimelineHovered,
+				'group-hover:opacity-80':
+					!isResizing && !isDragging && isTimelineHovered,
 				hidden: !isTimelineHovered,
 			}"
 			@mousedown.stop="handleResizeStart($event, 'start')"
@@ -95,7 +122,8 @@
 			class="absolute right-1 top-0 bottom-0 w-1 z-50 flex items-center justify-end opacity-0 transition-opacity duration-200"
 			:class="{
 				'opacity-80': isActive && isTimelineHovered,
-				'group-hover:opacity-80': !isResizing && !isDragging && isTimelineHovered,
+				'group-hover:opacity-80':
+					!isResizing && !isDragging && isTimelineHovered,
 				hidden: !isTimelineHovered,
 			}"
 			@mousedown.stop="handleResizeStart($event, 'end')"

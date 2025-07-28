@@ -1,5 +1,87 @@
 <template>
-	<div class="flex flex-col gap-12 min-h-[800px] max-w-[400px]">
+	<div class="flex flex-col gap-12 min-h-[800px] w-full max-w-[500px]">
+		<!-- Görsel Ekleme Section -->
+		<div class="space-y-4">
+			<div>
+				<h4 class="text-base font-semibold text-white">Add Image</h4>
+				<p class="text-sm font-normal text-gray-500">
+					Add images to your video as overlay elements.
+				</p>
+			</div>
+
+			<div class="space-y-3">
+				<!-- File Input -->
+				<div class="relative">
+					<input
+						ref="imageFileInput"
+						type="file"
+						accept="image/*"
+						@change="handleImageFileSelect"
+						class="hidden"
+					/>
+					<button
+						@click="$refs.imageFileInput.click()"
+						class="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-lg text-white hover:bg-zinc-700/50 transition-colors flex items-center justify-center space-x-2"
+					>
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M12.75 8.25V15.75M18.75 8.25H15.75V12M15.75 12V15.75M15.75 12H18M9.75 9.34835C8.72056 7.88388 7.05152 7.88388 6.02208 9.34835C4.99264 10.8128 4.99264 13.1872 6.02208 14.6517C7.05152 16.1161 8.72056 16.1161 9.75 14.6517V12H8.25M4.5 19.5H19.5C20.7426 19.5 21.75 18.4926 21.75 17.25V6.75C21.75 5.50736 20.7426 4.5 19.5 4.5H4.5C3.25736 4.5 2.25 5.50736 2.25 6.75V17.25C2.25 18.4926 3.25736 19.5 4.5 19.5Z"
+								stroke="white"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						</svg>
+						<span>Select Image</span>
+					</button>
+				</div>
+
+				<!-- Selected Image Preview -->
+				<div v-if="selectedImageFile" class="space-y-2">
+					<div class="relative bg-zinc-800/30 rounded-lg overflow-hidden">
+						<img
+							:src="selectedImagePreview"
+							:alt="selectedImageFile.name"
+							class="w-full h-32 object-cover"
+						/>
+						<div class="absolute top-2 right-2">
+							<button
+								@click="clearSelectedImage"
+								class="bg-red-600 hover:bg-red-700 text-white p-1 rounded-full"
+							>
+								<svg
+									width="16"
+									height="16"
+									viewBox="0 0 24 24"
+									fill="none"
+									xmlns="http://www.w3.org/2000/svg"
+								>
+									<path
+										d="M18 6L6 18M6 6L18 18"
+										stroke="white"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									/>
+								</svg>
+							</button>
+						</div>
+					</div>
+					<button
+						@click="addImageToCanvas"
+						class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+					>
+						Add to canvas
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- GIF Search Section -->
 		<div class="space-y-4">
 			<div>
@@ -87,7 +169,7 @@
 							class="w-12 h-8 object-cover rounded"
 						/>
 						<div>
-							<p class="text-sm text-white font-medium truncate">
+							<p class="text-sm text-white max-w-[100px] font-medium truncate">
 								{{ gif.title }}
 							</p>
 							<p class="text-xs text-gray-400">
@@ -129,95 +211,6 @@
 			</div>
 		</div>
 
-		<!-- GIF Controls (when gif is selected) -->
-		<div v-if="selectedGif" class="space-y-6">
-			<div>
-				<h5 class="text-sm font-semibold text-white mb-4">GIF Controls</h5>
-
-				<!-- Position Controls -->
-				<div class="space-y-4">
-					<SliderInput
-						v-model="selectedGif.x"
-						label="X Position"
-						desc="Horizontal position on canvas"
-						:min="0"
-						:max="1920"
-						:step="1"
-						unit="px"
-						@update:modelValue="updateGifPosition"
-					/>
-
-					<SliderInput
-						v-model="selectedGif.y"
-						label="Y Position"
-						desc="Vertical position on canvas"
-						:min="0"
-						:max="1080"
-						:step="1"
-						unit="px"
-						@update:modelValue="updateGifPosition"
-					/>
-
-					<!-- Size Controls -->
-					<SliderInput
-						v-model="selectedGif.width"
-						label="Width"
-						desc="GIF width in pixels"
-						:min="50"
-						:max="800"
-						:step="1"
-						unit="px"
-						@update:modelValue="updateGifSize"
-					/>
-
-					<SliderInput
-						v-model="selectedGif.height"
-						label="Height"
-						desc="GIF height in pixels"
-						:min="50"
-						:max="600"
-						:step="1"
-						unit="px"
-						@update:modelValue="updateGifSize"
-					/>
-
-					<!-- Opacity Control -->
-					<SliderInput
-						v-model="selectedGif.opacity"
-						label="Opacity"
-						desc="GIF transparency"
-						:min="0"
-						:max="1"
-						:step="0.1"
-						@update:modelValue="updateGifOpacity"
-					/>
-
-					<!-- Timing Controls -->
-					<SliderInput
-						v-model="selectedGif.startTime"
-						label="Start Time"
-						desc="When GIF appears in video"
-						:min="0"
-						:max="duration"
-						:step="0.1"
-						unit="s"
-						@update:modelValue="updateGifTiming"
-					/>
-
-					<SliderInput
-						v-model="selectedGif.endTime"
-						label="End Time"
-						desc="When GIF disappears from video"
-						:min="selectedGif.startTime + 0.1"
-						:max="duration"
-						:step="0.1"
-						unit="s"
-						@update:modelValue="updateGifTiming"
-					/>
-				</div>
-			</div>
-		</div>
-
 		<!-- Instructions -->
 		<div v-if="activeGifs.length === 0" class="text-center py-8">
 			<svg
@@ -251,6 +244,10 @@ const props = defineProps({
 		default: 0,
 	},
 });
+
+// Image file handling
+const selectedImageFile = ref(null);
+const selectedImagePreview = ref(null);
 
 // Use GIF manager composable
 const {
@@ -302,5 +299,97 @@ const formatTime = (seconds) => {
 	const mins = Math.floor(seconds / 60);
 	const secs = Math.floor(seconds % 60);
 	return `${mins}:${secs.toString().padStart(2, "0")}`;
+};
+
+// Image handling functions
+const handleImageFileSelect = (event) => {
+	const file = event.target.files[0];
+	if (file && file.type.startsWith("image/")) {
+		selectedImageFile.value = file;
+
+		// Create preview URL
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			selectedImagePreview.value = e.target.result;
+		};
+		reader.readAsDataURL(file);
+	}
+};
+
+const clearSelectedImage = () => {
+	selectedImageFile.value = null;
+	selectedImagePreview.value = null;
+	// Clear file input
+	const fileInput = document.querySelector('input[type="file"]');
+	if (fileInput) {
+		fileInput.value = "";
+	}
+};
+
+const addImageToCanvas = () => {
+	if (!selectedImageFile.value) return;
+
+	// Create a temporary image to get dimensions
+	const img = new Image();
+	img.onload = () => {
+		// Calculate aspect ratio
+		const aspectRatio = img.width / img.height;
+
+		// Set default size while maintaining aspect ratio
+		const defaultWidth = 300; // Base width
+		const defaultHeight = defaultWidth / aspectRatio;
+
+		// Create image object similar to GIF structure
+		const imageId = `image_${Date.now()}`;
+		const imageObject = {
+			id: imageId,
+			title: selectedImageFile.value.name,
+			url: selectedImagePreview.value,
+			type: "image", // Distinguish from GIFs
+			x: 100,
+			y: 100,
+			width: defaultWidth,
+			height: defaultHeight,
+			opacity: 1,
+			startTime: 0,
+			endTime: props.duration || 10,
+			file: selectedImageFile.value,
+			originalWidth: img.width,
+			originalHeight: img.height,
+			aspectRatio: aspectRatio,
+		};
+
+		// Add to active GIFs (images will be handled as GIFs in the system)
+		addGifToCanvas(imageObject);
+
+		// Clear selection
+		clearSelectedImage();
+	};
+
+	img.src = selectedImagePreview.value;
+};
+
+// Update size while preserving aspect ratio for images
+const updateGifSizeWithAspectRatio = () => {
+	if (
+		selectedGif.value &&
+		selectedGif.value.type === "image" &&
+		selectedGif.value.aspectRatio
+	) {
+		// For images, maintain aspect ratio
+		const aspectRatio = selectedGif.value.aspectRatio;
+
+		// Update height based on width change
+		if (selectedGif.value.width) {
+			selectedGif.value.height = selectedGif.value.width / aspectRatio;
+		}
+		// Update width based on height change
+		else if (selectedGif.value.height) {
+			selectedGif.value.width = selectedGif.value.height * aspectRatio;
+		}
+	}
+
+	// Call the original update function
+	updateGifSize();
 };
 </script>
