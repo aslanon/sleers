@@ -186,6 +186,49 @@
 							</div>
 						</div>
 
+						<!-- GIF Track -->
+						<div
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleGifTrackClick"
+							@mousemove="handleGifTrackMouseMove"
+							@mouseenter="isGifTrackHovered = true"
+							@mouseleave="handleGifTrackLeave"
+						>
+							<div
+								class="flex flex-row h-[42px] relative items-center"
+								:class="{ 'z-50': isGifTrackHovered }"
+							>
+								<!-- Empty State Label -->
+								<div
+									v-if="gifSegments.length === 0"
+									class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8"/>
+									</svg>
+									<span class="text-sm font-medium tracking-wide">Add GIF overlay</span>
+								</div>
+
+								<!-- GIF Segments -->
+								<TimelineGifSegment
+									v-for="(segment, index) in gifSegments"
+									:key="`gif-${segment.id}`"
+									:segment="segment"
+									:is-active="segment.gif.id === selectedGifId"
+									:is-dragging="isGifDragging && draggedGifIndex === index"
+									:time-scale="timeScale"
+									:timeline-width="timelineWidth"
+									@click="handleGifSegmentClick"
+									@update="handleGifSegmentUpdate"
+									@delete="handleGifSegmentDelete"
+									@drag-start="handleGifDragStart"
+									@drag-end="handleGifDragEnd"
+									@resize-start="handleGifResizeStart"
+									@resize-end="handleGifResizeEnd"
+								/>
+							</div>
+						</div>
+
 						<!-- Zoom Track -->
 						<div
 							class="timeline-layer-bar w-full rounded-xl relative"
@@ -320,11 +363,13 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useLayoutSettings } from "~/composables/useLayoutSettings";
+import { useGifManager } from "~/composables/useGifManager";
 import TimelineSegment from "~/components/timeline/TimelineSegment.vue";
 import TimelineZoomSegment from "~/components/timeline/TimelineZoomSegment.vue";
 import TimelineLayoutSegment from "~/components/timeline/TimelineLayoutSegment.vue";
 import TimelineGhostZoom from "~/components/timeline/TimelineGhostZoom.vue";
 import LayoutTypePopover from "~/components/timeline/LayoutTypePopover.vue";
+import TimelineGifSegment from "~/components/timeline/TimelineGifSegment.vue";
 
 const props = defineProps({
 	duration: {
@@ -423,6 +468,15 @@ const {
 	setCurrentLayoutType,
 	wouldOverlap,
 } = useLayoutSettings();
+
+// GIF manager
+const {
+	activeGifs,
+	selectedGifId,
+	selectGif,
+	removeGif,
+	handleKeyDown: handleGifKeyDown
+} = useGifManager();
 
 // Referanslar ve state
 const scrollContainerRef = ref(null);
@@ -559,6 +613,25 @@ watch(
 const timelineWidth = computed(() => {
 	return maxDuration.value * 25 * currentZoom.value;
 });
+
+// Time scale for pixel-to-time conversion
+const timeScale = computed(() => {
+	return 25 * currentZoom.value; // pixels per second
+});
+
+// GIF segments for timeline display
+const gifSegments = computed(() => {
+	return activeGifs.value.map(gif => ({
+		id: `gif-segment-${gif.id}`,
+		gif: gif,
+		type: 'gif'
+	}));
+});
+
+// GIF track state
+const isGifTrackHovered = ref(false);
+const isGifDragging = ref(false);
+const draggedGifIndex = ref(-1);
 
 // Playhead pozisyonu - artık gerçek video time ile çalışır
 const playheadPosition = computed(() => {
@@ -2067,15 +2140,66 @@ const handleLayoutTypeSelect = (type) => {
 	closeLayoutPopover();
 };
 
+// GIF Track Event Handlers
+const handleGifTrackClick = (event) => {
+	// Handle clicking on empty GIF track (could open GIF settings)
+	// For now, just clear selection
+	selectedGifId.value = null;
+};
+
+const handleGifTrackMouseMove = (event) => {
+	// Handle mouse movement on GIF track
+};
+
+const handleGifTrackLeave = () => {
+	isGifTrackHovered.value = false;
+};
+
+const handleGifSegmentClick = (segment) => {
+	selectGif(segment.gif.id);
+};
+
+const handleGifSegmentUpdate = (updatedSegment) => {
+	// Update the GIF with new timing/position
+	const gif = activeGifs.value.find(g => g.id === updatedSegment.gif.id);
+	if (gif) {
+		Object.assign(gif, updatedSegment.gif);
+	}
+};
+
+const handleGifSegmentDelete = (segment) => {
+	removeGif(segment.gif.id);
+};
+
+const handleGifDragStart = (data) => {
+	isGifDragging.value = true;
+	draggedGifIndex.value = gifSegments.value.findIndex(s => s.id === data.segment.id);
+};
+
+const handleGifDragEnd = () => {
+	isGifDragging.value = false;
+	draggedGifIndex.value = -1;
+};
+
+const handleGifResizeStart = () => {
+	// Handle GIF resize start
+};
+
+const handleGifResizeEnd = () => {
+	// Handle GIF resize end
+};
+
 // Lifecycle hooks
 onMounted(() => {
 	window.addEventListener("click", handleClickOutside);
 	window.addEventListener("keydown", handleKeyDown);
+	window.addEventListener("keydown", handleGifKeyDown);
 });
 
 onUnmounted(() => {
 	window.removeEventListener("click", handleClickOutside);
 	window.removeEventListener("keydown", handleKeyDown);
+	window.removeEventListener("keydown", handleGifKeyDown);
 });
 </script>
 

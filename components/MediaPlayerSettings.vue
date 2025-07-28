@@ -143,6 +143,38 @@
 							stroke-linejoin="round"
 						/>
 					</svg>
+
+					<svg
+						v-if="tab.id === 'gif'"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z"
+							stroke="white"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+						<path
+							d="M8 12L10 14L16 8"
+							stroke="white"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+						<circle cx="8.5" cy="8.5" r="1.5" fill="white"/>
+						<path
+							d="M14 16H18V12"
+							stroke="white"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
 				</button>
 			</div>
 
@@ -189,6 +221,12 @@
 					<OptimizedBackgroundRemovalSettings
 						v-if="currentTab === 'optimized-background-removal'"
 					/>
+
+					<!-- GIF Settings -->
+					<GifSettings
+						v-if="currentTab === 'gif'"
+						:duration="duration"
+					/>
 				</div>
 				<div class="player-settings-blur --bottom"></div>
 			</div>
@@ -204,6 +242,7 @@ import ZoomSettings from "./player-settings/ZoomSettings.vue";
 import CameraSettings from "./player-settings/CameraSettings.vue";
 import LayoutSettings from "./player-settings/LayoutSettings.vue";
 import OptimizedBackgroundRemovalSettings from "./player-settings/OptimizedBackgroundRemovalSettings.vue";
+import GifSettings from "./player-settings/GifSettings.vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 
 const props = defineProps({
@@ -257,6 +296,11 @@ const tabs = [
 	{
 		id: "mouse",
 		name: "Mouse Ayarları",
+		isShowInTab: true,
+	},
+	{
+		id: "gif",
+		name: "GIF Ayarları",
 		isShowInTab: true,
 	},
 	{

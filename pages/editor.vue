@@ -1196,13 +1196,14 @@ const handlePreviewTimeUpdate = (time) => {
 
 // Klavye event handler'ı
 const handleKeyDown = async (event) => {
+	// TODO: Fix selectedZoomIndex reference - currently undefined
 	// Zoom segmenti seçiliyse, clip segmenti silme işlemini yapma
-	if (selectedZoomIndex.value !== null) {
-		console.log(
-			"[editor.vue] Zoom segment seçili, clip segment silme işlemi atlanıyor"
-		);
-		return;
-	}
+	// if (selectedZoomIndex.value !== null) {
+	// 	console.log(
+	// 		"[editor.vue] Zoom segment seçili, clip segment silme işlemi atlanıyor"
+	// 	);
+	// 	return;
+	// }
 
 	// Timeline component'ten gelen event'leri ignore et
 	if (

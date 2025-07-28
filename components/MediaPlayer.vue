@@ -82,6 +82,7 @@ import useDockSettings from "~/composables/useDockSettings";
 import { calculateVideoDisplaySize } from "~/composables/utils/mousePosition";
 import VideoCropModal from "~/components/player-settings/VideoCropModal.vue";
 import { useLayoutRenderer } from "~/composables/useLayoutRenderer";
+import { useGifManager } from "~/composables/useGifManager";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -292,6 +293,17 @@ let cameraElement = null;
 // layout segment için
 const { renderLayout } = useLayoutRenderer();
 
+// GIF manager için
+const { 
+	getGifsAtTime, 
+	getGifRenderData, 
+	handleGifClick, 
+	handleKeyDown: handleGifKeyDown, 
+	dragState,
+	activeGifs,
+	selectedGifId 
+} = useGifManager();
+
 // Canvas-based Zoom yönetimi
 const {
 	canvasZoomScale,
@@ -438,6 +450,88 @@ const drawVideoCornerHandle = (ctx, x, y, size, position) => {
 	}
 
 	ctx.stroke();
+};
+
+// GIF overlay çizim fonksiyonu
+const drawGifOverlay = (ctx, renderData, dpr) => {
+	if (!renderData || !renderData.url) return;
+	
+	ctx.save();
+	
+	// GIF pozisyon ve boyut hesaplama
+	const x = renderData.x * dpr;
+	const y = renderData.y * dpr;
+	const width = renderData.width * dpr;
+	const height = renderData.height * dpr;
+	
+	// Opacity ayarla
+	ctx.globalAlpha = renderData.opacity || 1;
+	
+	// GIF seçili ise highlight ve resize handles çiz
+	if (renderData.isSelected) {
+		// Selection border
+		ctx.strokeStyle = '#3b82f6';
+		ctx.lineWidth = 2 * dpr;
+		ctx.setLineDash([4 * dpr, 2 * dpr]);
+		ctx.strokeRect(x - 2 * dpr, y - 2 * dpr, width + 4 * dpr, height + 4 * dpr);
+		ctx.setLineDash([]);
+		
+		// Resize handles
+		const handleSize = 8 * dpr;
+		const handles = [
+			{ x: x - handleSize/2, y: y - handleSize/2, type: 'tl' }, // Top-left
+			{ x: x + width - handleSize/2, y: y - handleSize/2, type: 'tr' }, // Top-right
+			{ x: x - handleSize/2, y: y + height - handleSize/2, type: 'bl' }, // Bottom-left
+			{ x: x + width - handleSize/2, y: y + height - handleSize/2, type: 'br' }, // Bottom-right
+		];
+		
+		ctx.fillStyle = '#3b82f6';
+		ctx.strokeStyle = '#ffffff';
+		ctx.lineWidth = 1 * dpr;
+		
+		handles.forEach(handle => {
+			ctx.fillRect(handle.x, handle.y, handleSize, handleSize);
+			ctx.strokeRect(handle.x, handle.y, handleSize, handleSize);
+		});
+	}
+	
+	// GIF render etmek için img element oluştur
+	// Cache için img element yönetimi
+	if (!window.gifImageCache) {
+		window.gifImageCache = new Map();
+	}
+	
+	const cacheKey = renderData.url;
+	
+	if (window.gifImageCache.has(cacheKey)) {
+		const cachedImg = window.gifImageCache.get(cacheKey);
+		if (cachedImg.complete && cachedImg.naturalWidth > 0) {
+			try {
+				ctx.drawImage(cachedImg, x, y, width, height);
+			} catch (error) {
+				console.warn('Error drawing cached GIF:', error);
+			}
+		}
+	} else {
+		// İlk yükleme
+		const gifImg = new Image();
+		gifImg.crossOrigin = 'anonymous';
+		
+		gifImg.onload = () => {
+			window.gifImageCache.set(cacheKey, gifImg);
+			// Force canvas redraw to show the loaded GIF
+			requestAnimationFrame(() => updateCanvas(performance.now()));
+		};
+		
+		gifImg.onerror = () => {
+			console.warn('Failed to load GIF:', renderData.url);
+		};
+		
+		// For animated GIFs, ensure we use the webp version if available for better performance
+		gifImg.src = renderData.webpUrl || renderData.url;
+	}
+	
+	ctx.restore();
 };
 
 // Video hover state güncelleme fonksiyonu
@@ -2809,6 +2903,17 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 		}
 
+		// 🎬 GIF Overlay Rendering (after camera, on top of everything)
+		const currentGifs = getGifsAtTime(canvasTime);
+		if (currentGifs.length > 0 && isInActiveSegment) {
+			currentGifs.forEach(gif => {
+				const renderData = getGifRenderData(gif.id, canvasTime);
+				if (renderData && renderData.isVisible) {
+					drawGifOverlay(ctx, renderData, dpr);
+				}
+			});
+		}
+
 		// Motion blur for zoom transitions
 		if (isCanvasZoomTransitioning.value) {
 			// Motion blur logic burada olabilir
@@ -2818,7 +2923,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		if (
 			videoState.value.isPlaying ||
 			isCanvasZoomTransitioning.value ||
-			isCameraDragging.value
+			isCameraDragging.value ||
+			currentGifs.length > 0 // Keep animating if GIFs are active
 		) {
 			animationFrame = requestAnimationFrame((t) =>
 				updateCanvas(t, mouseX, mouseY)
@@ -3466,6 +3572,38 @@ onMounted(() => {
 		bgImageElement.value.src = newImage;
 	}
 
+// GIF Event Handlers for timeline synchronization
+const handleGifAdded = (event) => {
+	// A new GIF was added to the timeline
+	const { gif } = event.detail;
+	// Force canvas redraw to show the new GIF
+	requestAnimationFrame(() => updateCanvas(performance.now()));
+};
+
+const handleGifRemoved = (event) => {
+	// A GIF was removed from the timeline
+	const { gifId } = event.detail;
+	// Clear cached image if exists
+	if (window.gifImageCache) {
+		const keysToDelete = [];
+		for (const [key, value] of window.gifImageCache.entries()) {
+			if (key.includes(gifId)) {
+				keysToDelete.push(key);
+			}
+		}
+		keysToDelete.forEach(key => window.gifImageCache.delete(key));
+	}
+	// Force canvas redraw
+	requestAnimationFrame(() => updateCanvas(performance.now()));
+};
+
+const handleGifSelected = (event) => {
+	// A GIF was selected in the timeline
+	const { gifId } = event.detail;
+	// Force canvas redraw to show selection
+	requestAnimationFrame(() => updateCanvas(performance.now()));
+};
+
 	window.addEventListener("resize", handleResize);
 	if (videoRef.value && canvasRef.value) {
 		renderVideo();
@@ -3473,6 +3611,12 @@ onMounted(() => {
 	canvasRef.value.addEventListener("mousedown", handleMouseDown);
 	canvasRef.value.addEventListener("mousemove", handleMouseMove);
 	window.addEventListener("mouseup", handleMouseUp);
+	window.addEventListener("keydown", handleGifKeyDown);
+	
+	// GIF event listeners for timeline synchronization
+	window.addEventListener("gif-added", handleGifAdded);
+	window.addEventListener("gif-removed", handleGifRemoved);
+	window.addEventListener("gif-selected", handleGifSelected);
 });
 
 onUnmounted(() => {
@@ -3508,6 +3652,12 @@ onUnmounted(() => {
 		canvasRef.value.removeEventListener("mousemove", handleMouseMove);
 	}
 	window.removeEventListener("mouseup", handleMouseUp);
+	window.removeEventListener("keydown", handleGifKeyDown);
+	
+	// Remove GIF event listeners
+	window.removeEventListener("gif-added", handleGifAdded);
+	window.removeEventListener("gif-removed", handleGifRemoved);
+	window.removeEventListener("gif-selected", handleGifSelected);
 });
 
 // Props değişikliklerini izle
@@ -4129,6 +4279,13 @@ const handleMouseDown = (e) => {
 	const dpr = window.devicePixelRatio || 1;
 	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
 	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
+
+	// GIF click detection (has highest priority)
+	const clickedGif = handleGifClick(e, rect);
+	if (clickedGif) {
+		// GIF was clicked, stop propagation to video/camera handlers
+		return;
+	}
 
 	// Kamera üzerinde tıklandıysa
 	if (isMouseOverCamera.value) {

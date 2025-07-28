@@ -59,6 +59,59 @@ const MediaStateManager = require("./mediaStateManager.cjs");
 const DockManager = require("./dockManager.cjs");
 const PortManager = require("./portManager.cjs");
 
+// Giphy API handler for secure API calls - registered early
+ipcMain.handle("search-gifs", async (event, query) => {
+	console.log("IPC: Searching for GIFs with query:", query);
+	try {
+		const url = `https://api.giphy.com/v1/gifs/search?api_key=DCabEPYut33Xk4DzYdL44AXsRcUAKjPp&q=${encodeURIComponent(
+			query
+		)}&limit=20&offset=0&rating=pg&lang=en`;
+		console.log("IPC: Making request to:", url);
+
+		const request = net.request({
+			method: "GET",
+			url: url,
+		});
+
+		return new Promise((resolve, reject) => {
+			let data = "";
+
+			request.on("response", (response) => {
+				console.log("IPC: Got response with status:", response.statusCode);
+
+				response.on("data", (chunk) => {
+					data += chunk;
+				});
+
+				response.on("end", () => {
+					try {
+						const parsedData = JSON.parse(data);
+						console.log(
+							"IPC: Successfully parsed response, found",
+							parsedData.data?.length || 0,
+							"GIFs"
+						);
+						resolve(parsedData);
+					} catch (error) {
+						console.error("IPC: Error parsing response:", error);
+						reject(error);
+					}
+				});
+			});
+
+			request.on("error", (error) => {
+				console.error("IPC: Network error:", error);
+				reject(error);
+			});
+
+			request.end();
+		});
+	} catch (error) {
+		console.error("IPC: Error fetching GIFs:", error);
+		throw error;
+	}
+});
+
 // Synchronized Recording Service
 class SynchronizedRecordingService {
 	constructor() {
@@ -3458,35 +3511,39 @@ async function createWindow() {
 	setupWindowEvents();
 	loadApplication();
 
-	// Add CSP headers
-	mainWindow.webContents.session.webRequest.onHeadersReceived(
-		(details, callback) => {
-			callback({
-				responseHeaders: {
-					...details.responseHeaders,
-					"Content-Security-Policy": [
-						"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org;",
-					],
-				},
-			});
-		}
-	);
+	// CSP headers are now handled globally in setupSecurityPolicies()
+	// mainWindow.webContents.session.webRequest.onHeadersReceived(
+	// 	(details, callback) => {
+	// 		callback({
+	// 			responseHeaders: {
+	// 				...details.responseHeaders,
+	// 				"Content-Security-Policy": [
+	// 					"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org https://api.giphy.com https://*.giphy.com;",
+	// 				],
+	// 			},
+	// 		});
+	// 	}
+	// );
 }
 
 function setupSecurityPolicies() {
+	console.log("[Main] Setting up CSP with Giphy domains...");
 	session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+		const cspPolicy =
+			"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org https://api.giphy.com https://*.giphy.com https://media.giphy.com; " +
+			"script-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org; " +
+			"connect-src 'self' http://localhost:* file: data: electron: blob: https://storage.googleapis.com https://*.tensorflow.org https://api.giphy.com https://*.giphy.com; " +
+			"img-src 'self' http://localhost:* file: data: electron: blob: https://*.giphy.com https://media.giphy.com https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; " +
+			"style-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline'; " +
+			"font-src 'self' http://localhost:* file: data: electron: blob:; " +
+			"media-src 'self' http://localhost:* file: data: electron: blob: https://*.giphy.com https://media.giphy.com;";
+
+		console.log("[Main] Applying CSP:", cspPolicy);
+
 		callback({
 			responseHeaders: {
 				...details.responseHeaders,
-				"Content-Security-Policy": [
-					"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org; " +
-						"script-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org; " +
-						"connect-src 'self' http://localhost:* file: data: electron: blob: https://storage.googleapis.com https://*.tensorflow.org; " +
-						"img-src 'self' http://localhost:* file: data: electron: blob:; " +
-						"style-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline'; " +
-						"font-src 'self' http://localhost:* file: data: electron: blob:; " +
-						"media-src 'self' http://localhost:* file: data: electron: blob:;",
-				],
+				"Content-Security-Policy": [cspPolicy],
 			},
 		});
 	});
@@ -3683,6 +3740,10 @@ function getPreloadPath() {
 app.whenReady().then(() => {
 	// Uygulama kapanma değişkenini false olarak ayarla
 	app.isQuitting = false;
+
+	// Setup security policies first
+	console.log("[Main] Setting up security policies...");
+	setupSecurityPolicies();
 
 	// Initialize DockManager early
 	console.log("[Main] Initializing DockManager...");

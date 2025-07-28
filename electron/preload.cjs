@@ -372,6 +372,10 @@ try {
 		on: safeElectronAPI.ipcRenderer.on,
 		once: safeElectronAPI.ipcRenderer.once,
 		removeAllListeners: safeElectronAPI.ipcRenderer.removeAllListeners,
+		// GIF search functionality
+		searchGifs: async (query) => {
+			return await ipcRenderer.invoke('search-gifs', query);
+		},
 	});
 
 	// Dock API'sini expose et - Ana süreçle iletişim kuran sürüm
