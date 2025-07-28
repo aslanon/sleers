@@ -145,48 +145,7 @@
 							</div>
 						</div>
 
-						<!-- Segment Bar -->
-						<div class="timeline-layer-bar w-full rounded-xl relative">
-							<!-- Video Segments Container -->
-							<div
-								class="flex flex-row h-[42px] relative w-full items-center"
-								@dragover.prevent
-								@drop.prevent="handleSegmentDrop"
-							>
-								<!-- Video Segments -->
-								<TimelineSegment
-									v-for="(segment, index) in compactedSegments"
-									:key="segment.id"
-									:segment="segment"
-									:index="index"
-									:is-active="segment.id === activeSegmentId"
-									:is-resizing="isResizing && resizingSegmentIndex === index"
-									:is-hovered="isHovered"
-									:is-split-mode="isSplitMode"
-									:is-dragging="
-										isSegmentDragging && draggedSegmentIndex === index
-									"
-									:duration="maxDuration"
-									:original-video-duration="
-										segment.originalVideoDuration ||
-										originalVideoDuration ||
-										duration
-									"
-									@click="handleSegmentClick"
-									@mouse-move="handleSegmentMouseMove"
-									@mouse-leave="handleSegmentMouseLeave"
-									@resize-start="handleResizeStart"
-									@resize-update="handleResizeUpdate"
-									@resize-end="handleResizeEnd"
-									@split="handleSegmentSplit"
-									@drag-start="handleSegmentDragStart"
-									@drag="handleSegmentDrag"
-									@drag-end="handleVideoSegmentDragEnd"
-								/>
-							</div>
-						</div>
-
-						<!-- GIF Tracks - Each GIF gets its own row -->
+						<!-- GIF Tracks - Each GIF gets its own row (MOVED ABOVE SEGMENTS) -->
 						<div
 							v-if="gifSegments.length === 0"
 							class="timeline-layer-bar w-full rounded-xl relative"
@@ -234,6 +193,47 @@
 									@drag-end="handleGifDragEnd"
 									@resize-start="handleGifResizeStart"
 									@resize-end="handleGifResizeEnd"
+								/>
+							</div>
+						</div>
+
+						<!-- Segment Bar (MOVED BELOW GIF TRACKS) -->
+						<div class="timeline-layer-bar w-full rounded-xl relative">
+							<!-- Video Segments Container -->
+							<div
+								class="flex flex-row h-[42px] relative w-full items-center"
+								@dragover.prevent
+								@drop.prevent="handleSegmentDrop"
+							>
+								<!-- Video Segments -->
+								<TimelineSegment
+									v-for="(segment, index) in compactedSegments"
+									:key="segment.id"
+									:segment="segment"
+									:index="index"
+									:is-active="segment.id === activeSegmentId"
+									:is-resizing="isResizing && resizingSegmentIndex === index"
+									:is-hovered="isHovered"
+									:is-split-mode="isSplitMode"
+									:is-dragging="
+										isSegmentDragging && draggedSegmentIndex === index
+									"
+									:duration="maxDuration"
+									:original-video-duration="
+										segment.originalVideoDuration ||
+										originalVideoDuration ||
+										duration
+									"
+									@click="handleSegmentClick"
+									@mouse-move="handleSegmentMouseMove"
+									@mouse-leave="handleSegmentMouseLeave"
+									@resize-start="handleResizeStart"
+									@resize-update="handleResizeUpdate"
+									@resize-end="handleResizeEnd"
+									@split="handleSegmentSplit"
+									@drag-start="handleSegmentDragStart"
+									@drag="handleSegmentDrag"
+									@drag-end="handleVideoSegmentDragEnd"
 								/>
 							</div>
 						</div>

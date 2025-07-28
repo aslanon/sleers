@@ -1197,28 +1197,20 @@ export const useMouseCursor = () => {
 				`[Mouse Loop] Checking loop conditions - currentTime: ${currentTime}, videoDuration: ${videoDuration}, firstPos: ${firstPos.x}, ${firstPos.y}`
 			);
 
-			// If at video start (first 0.5 seconds), use first position
-			if (currentTime <= 0.5) {
+			// If at video start (first 1 second), use first position
+			if (currentTime <= 1.0) {
 				useLoopPosition = true;
 				loopPosition = { x: firstPos.x, y: firstPos.y };
 				console.log(
 					`[Mouse Loop] Video start - using first position: ${firstPos.x}, ${firstPos.y}`
 				);
 			}
-			// If at video end (1 second before end), use first position (loop back to start)
-			else if (currentTime >= videoDuration - 1.0) {
+			// If at video end (last 2 seconds), use first position (loop back to start)
+			else if (videoDuration > 0 && currentTime >= videoDuration - 2.0) {
 				useLoopPosition = true;
 				loopPosition = { x: firstPos.x, y: firstPos.y };
 				console.log(
-					`[Mouse Loop] Video end (1s before) - looping to first position: ${firstPos.x}, ${firstPos.y} (currentTime: ${currentTime}, videoDuration: ${videoDuration})`
-				);
-			}
-			// Test: If current time is high (near end) - sabit değerle test
-			else if (currentTime >= 6.0) {
-				useLoopPosition = true;
-				loopPosition = { x: firstPos.x, y: firstPos.y };
-				console.log(
-					`[Mouse Loop] Test - high current time: ${firstPos.x}, ${firstPos.y} (currentTime: ${currentTime}, videoDuration: ${videoDuration})`
+					`[Mouse Loop] Video end (2s before) - looping to first position: ${firstPos.x}, ${firstPos.y} (currentTime: ${currentTime}, videoDuration: ${videoDuration})`
 				);
 			}
 		}

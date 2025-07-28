@@ -3,8 +3,8 @@
 		ref="segmentRef"
 		class="h-full ring-inset relative group"
 		:class="{
-			'ring-[1px] ring-blue-400 z-30': isActive,
-			'hover:!ring-[1px] hover:!ring-blue-300 hover:z-30':
+			'ring-[1px] ring-white z-30': isActive,
+			'hover:!ring-[1px] hover:!ring-white hover:z-30':
 				!isResizing && !isActive && !isDragging && !isDraggingLocal,
 			'z-10':
 				!isResizing &&
@@ -24,37 +24,51 @@
 		@mouseleave="handleMouseLeave"
 		@mousedown.stop="handleMouseDown"
 	>
-		<!-- GIF Preview Image -->
-		<div class="absolute inset-0 overflow-hidden rounded-sm">
-			<img
-				:src="segment.gif.url"
-				:alt="segment.gif.title"
-				class="w-full h-full object-cover opacity-70"
-				loading="lazy"
-			/>
+		<!-- Background GIF Preview Image -->
+		<div 
+			class="absolute inset-0 overflow-hidden" 
+			:style="{
+				borderRadius: '10px',
+				backgroundImage: `url(${segment.gif.url})`,
+				backgroundSize: 'auto 100%',
+				backgroundRepeat: 'repeat-x',
+				backgroundPosition: 'left center',
+				opacity: 0.3,
+				filter: 'blur(0.5px)'
+			}"
+		>
 			<div class="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"></div>
 		</div>
 
-		<!-- GIF Icon Overlay -->
-		<div class="absolute top-1 left-1 z-20">
-			<svg 
-				class="w-4 h-4 text-white drop-shadow-lg"
-				fill="none" 
-				stroke="currentColor" 
-				viewBox="0 0 24 24"
-			>
-				<path 
-					stroke-linecap="round" 
-					stroke-linejoin="round" 
-					stroke-width="2" 
-					d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8 M14 16H18V12"
-				/>
-			</svg>
-		</div>
+		<!-- Segment Content - Centered like other segments -->
+		<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+			<!-- Top Row: GIF Icon + Label -->
+			<div class="flex items-center justify-center gap-1.5 mb-1">
+				<!-- GIF Icon -->
+				<svg 
+					class="w-3 h-3 text-white/70"
+					fill="none" 
+					stroke="currentColor" 
+					viewBox="0 0 24 24"
+				>
+					<path 
+						stroke-linecap="round" 
+						stroke-linejoin="round" 
+						stroke-width="1.5" 
+						d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8 M14 16H18V12"
+					/>
+				</svg>
+				<span class="text-white/70 text-[10px] font-medium tracking-wide">
+					GIF
+				</span>
+			</div>
 
-		<!-- GIF Title -->
-		<div class="absolute bottom-0 left-0 right-0 p-1 bg-gradient-to-t from-black/80 to-transparent">
-			<p class="text-xs text-white truncate font-medium">{{ segment.gif.title }}</p>
+			<!-- Bottom Row: Title -->
+			<div class="flex items-center justify-center">
+				<span class="text-white/90 text-[10px] font-medium tracking-wide truncate max-w-[80px]">
+					{{ segment.gif.title }}
+				</span>
+			</div>
 		</div>
 
 		<!-- Left Edge Handle -->
@@ -67,7 +81,7 @@
 			@mousedown.stop="handleResizeStart($event, 'start')"
 		>
 			<div
-				class="w-[3px] h-[24px] bg-blue-400 rounded-full cursor-ew-resize"
+				class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 			></div>
 		</div>
 
@@ -81,7 +95,7 @@
 			@mousedown.stop="handleResizeStart($event, 'end')"
 		>
 			<div
-				class="w-[3px] h-[24px] bg-blue-400 rounded-full cursor-ew-resize"
+				class="w-[3px] h-[24px] bg-white rounded-full cursor-ew-resize"
 			></div>
 		</div>
 
@@ -96,20 +110,6 @@
 			}"
 		></div>
 
-		<!-- Delete Button -->
-		<div
-			v-if="isActive"
-			class="absolute -top-2 -right-2 z-50"
-		>
-			<button
-				@click.stop="handleDelete"
-				class="w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors shadow-lg"
-			>
-				<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-				</svg>
-			</button>
-		</div>
 	</div>
 </template>
 
@@ -176,7 +176,7 @@ const segmentStyle = computed(() => {
 		left: `${startX}px`,
 		width: `${Math.max(width, 50)}px`,
 		backgroundColor: 'rgba(59, 130, 246, 0.1)', // Blue background for GIF segments
-		borderRadius: '4px',
+		borderRadius: '10px', // Match other segments radius exactly
 	};
 });
 
@@ -335,10 +335,6 @@ const handleResizeEnd = () => {
 	document.removeEventListener("mouseup", handleResizeEnd);
 };
 
-const handleDelete = () => {
-	removeGif(props.segment.gif.id);
-	emit("delete", props.segment);
-};
 
 // Cleanup on unmount
 onUnmounted(() => {
@@ -352,5 +348,18 @@ onUnmounted(() => {
 <style scoped>
 .segment-transition {
 	transition: left 0.1s ease-out, width 0.1s ease-out;
+}
+
+/* Prevent GIF animation completely in timeline segments */
+div[style*="background-image"] {
+	background-attachment: fixed !important;
+}
+
+/* Static background image - no animation */
+:deep(img), img {
+	animation: none !important;
+	animation-play-state: paused !important;
+	animation-duration: 0s !important;
+	animation-iteration-count: 0 !important;
 }
 </style>
