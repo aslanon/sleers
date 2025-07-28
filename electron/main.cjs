@@ -59,6 +59,9 @@ const MediaStateManager = require("./mediaStateManager.cjs");
 const DockManager = require("./dockManager.cjs");
 const PortManager = require("./portManager.cjs");
 
+// Global process tracking
+global.ffmpegProcesses = [];
+
 // Giphy API handler for secure API calls - registered early
 ipcMain.handle("search-gifs", async (event, query) => {
 	console.log("IPC: Searching for GIFs with query:", query);
@@ -2358,8 +2361,17 @@ function setupIpcHandlers() {
 						]);
 					}
 
+					// Process'i global array'e ekle
+					global.ffmpegProcesses.push(command);
+
 					command
 						.on("end", () => {
+							// Process'i array'den çıkar
+							const index = global.ffmpegProcesses.indexOf(command);
+							if (index > -1) {
+								global.ffmpegProcesses.splice(index, 1);
+							}
+
 							// Geçici dosyaları temizle
 							fs.unlinkSync(tempVideoPath);
 							if (tempAudioPath) fs.unlinkSync(tempAudioPath);
@@ -2367,6 +2379,12 @@ function setupIpcHandlers() {
 							resolve({ success: true, path: filePath });
 						})
 						.on("error", (err) => {
+							// Process'i array'den çıkar
+							const index = global.ffmpegProcesses.indexOf(command);
+							if (index > -1) {
+								global.ffmpegProcesses.splice(index, 1);
+							}
+
 							console.error("[main] Video kaydedilirken hata:", err);
 							reject(err);
 						})
@@ -2415,6 +2433,9 @@ function setupIpcHandlers() {
 						command = command.input(tempAudioPath);
 					}
 
+					// Process'i global array'e ekle
+					global.ffmpegProcesses.push(command);
+
 					command
 						.videoCodec("libx264")
 						.outputOptions([
@@ -2423,6 +2444,12 @@ function setupIpcHandlers() {
 							"-movflags +faststart", // Web'de hızlı başlatma için
 						])
 						.on("end", () => {
+							// Process'i array'den çıkar
+							const index = global.ffmpegProcesses.indexOf(command);
+							if (index > -1) {
+								global.ffmpegProcesses.splice(index, 1);
+							}
+
 							// Geçici dosyaları temizle
 							fs.unlinkSync(tempVideoPath);
 							if (tempAudioPath) fs.unlinkSync(tempAudioPath);
@@ -2430,6 +2457,12 @@ function setupIpcHandlers() {
 							resolve({ success: true, path: filePath });
 						})
 						.on("error", (err) => {
+							// Process'i array'den çıkar
+							const index = global.ffmpegProcesses.indexOf(command);
+							if (index > -1) {
+								global.ffmpegProcesses.splice(index, 1);
+							}
+
 							console.error("[main] Video kaydedilirken hata:", err);
 							reject(err);
 						})
@@ -2496,12 +2529,24 @@ function setupIpcHandlers() {
 						console.log(`[main] FFmpeg ilerleme: ${progress.percent}%`);
 					})
 					.on("end", () => {
+						// Process'i array'den çıkar
+						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
+						if (index > -1) {
+							global.ffmpegProcesses.splice(index, 1);
+						}
+
 						// Geçici dosyayı temizle
 						fs.unlinkSync(tempWebmPath);
 						console.log("[main] Video başarıyla kaydedildi:", outputPath);
 						resolve({ success: true });
 					})
 					.on("error", (err, stdout, stderr) => {
+						// Process'i array'den çıkar
+						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
+						if (index > -1) {
+							global.ffmpegProcesses.splice(index, 1);
+						}
+
 						console.error("[main] Video dönüştürme hatası:", err);
 						console.error("[main] FFmpeg stderr:", stderr);
 						// Geçici dosyayı temizle
@@ -2511,6 +2556,9 @@ function setupIpcHandlers() {
 						reject(new Error("Video dönüştürülemedi: " + err.message));
 					})
 					.save(outputPath);
+
+				// Process'i global array'e ekle
+				global.ffmpegProcesses.push(ffmpegCommand);
 			});
 		} catch (error) {
 			console.error("[main] Video kaydetme hatası:", error);
@@ -2876,22 +2924,37 @@ function setupIpcHandlers() {
 
 			// FFmpeg ile GIF'e dönüştür
 			return new Promise((resolve, reject) => {
-				ffmpeg(tempWebmPath)
+				const ffmpegCommand = ffmpeg(tempWebmPath)
 					.outputOptions([
 						"-vf",
 						"fps=15,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", // GIF kalitesi için optimizasyon
 					])
 					.on("end", () => {
+						// Process'i array'den çıkar
+						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
+						if (index > -1) {
+							global.ffmpegProcesses.splice(index, 1);
+						}
+
 						// Geçici dosyayı temizle
 						fs.unlinkSync(tempWebmPath);
 						console.log("[main] GIF başarıyla kaydedildi:", outputPath);
 						resolve({ success: true });
 					})
 					.on("error", (err) => {
+						// Process'i array'den çıkar
+						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
+						if (index > -1) {
+							global.ffmpegProcesses.splice(index, 1);
+						}
+
 						console.error("[main] GIF dönüştürme hatası:", err);
 						reject(new Error("GIF dönüştürülemedi: " + err.message));
 					})
 					.save(outputPath);
+
+				// Process'i global array'e ekle
+				global.ffmpegProcesses.push(ffmpegCommand);
 			});
 		} catch (error) {
 			console.error("[main] GIF kaydetme hatası:", error);
@@ -3609,7 +3672,7 @@ function setupWindowEvents() {
 function loadApplication() {
 	if (isDev) {
 		mainWindow.loadURL(portManager.getUrl());
-		mainWindow.webContents.openDevTools({ mode: "detach" });
+		// mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
 		try {
 			// Express sunucusunu kullan - bu daha stabil
@@ -3780,8 +3843,7 @@ app.on("before-quit", () => {
 	console.log("[Main] Uygulama kapanıyor, isQuitting = true");
 	app.isQuitting = true;
 
-	// Temizlik işlemleri burada yapılıyor, ancak uygulamayı bloklamaması için
-	// direkt olarak kapanmaya izin veriyoruz
+	// Tüm process'leri ve kaynakları temizle
 	try {
 		// Cursor tracking temizliği
 		if (cursorTrackingState.pollingInterval) {
@@ -3821,9 +3883,49 @@ app.on("before-quit", () => {
 		if (trayManager) trayManager.cleanup();
 		if (tempFileManager) tempFileManager.cleanupAllFiles();
 
+		// FFmpeg process'lerini temizle
+		if (global.ffmpegProcesses) {
+			console.log("[Main] FFmpeg process'leri temizleniyor...");
+			global.ffmpegProcesses.forEach((process) => {
+				try {
+					if (process && !process.killed) {
+						process.kill("SIGTERM");
+					}
+				} catch (err) {
+					console.warn("[Main] FFmpeg process temizleme hatası:", err.message);
+				}
+			});
+			global.ffmpegProcesses = [];
+		}
+
+		// Tüm child process'leri temizle
+		if (process.platform === "darwin") {
+			try {
+				const { exec } = require("child_process");
+				exec("pkill -f 'sleer'", (error) => {
+					if (error) {
+						console.warn("[Main] Process temizleme hatası:", error.message);
+					} else {
+						console.log("[Main] Tüm sleer process'leri temizlendi");
+					}
+				});
+			} catch (err) {
+				console.warn("[Main] Process temizleme hatası:", err.message);
+			}
+		}
+
+		// Node.js event loop'u temizle
+		setTimeout(() => {
+			process.exit(0);
+		}, 100);
+
 		console.log("[Main] Tüm kaynaklar temizlendi");
 	} catch (error) {
 		console.error("[Main] Temizleme işlemi sırasında hata:", error);
+		// Hata olsa bile uygulamayı kapat
+		setTimeout(() => {
+			process.exit(0);
+		}, 100);
 	}
 });
 

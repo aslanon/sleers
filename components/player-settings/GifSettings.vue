@@ -114,7 +114,7 @@
 		<!-- GIF Results -->
 		<div v-if="searchResults.length > 0" class="space-y-4">
 			<h5 class="text-sm font-semibold text-white">Search Results</h5>
-			<div class="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+			<div class="grid grid-cols-2 gap-3">
 				<div
 					v-for="gif in searchResults"
 					:key="gif.id"

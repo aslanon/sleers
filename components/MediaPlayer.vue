@@ -3233,6 +3233,37 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			});
 		}
 
+		// 🌟 Zoom Overlay (EN ÜST LAYER - her şeyin üstünde)
+		if (canvasZoomScale.value > 1.01) {
+			ctx.save();
+
+			// Zoom transformasyonunu sıfırla - overlay zoom'dan etkilenmesin
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+			// Zoom intensity'ye göre overlay opacity'sini ayarla
+			const zoomIntensity = Math.min((canvasZoomScale.value - 1) / 2, 1); // 0-1 arası
+			const overlayOpacity = Math.min(zoomIntensity * 1.5, 1); // Maksimum 1 opacity
+
+			// Alt kısımdan yukarıya doğru gradient overlay - canvas'ın gerçek boyutlarına göre
+			const gradient = ctx.createLinearGradient(
+				0,
+				canvasRef.value.height, // Başlangıç (alt)
+				0,
+				0 // Bitiş (üst)
+			);
+
+			// Siyahdan şeffafa geçiş - zoom intensity'ye göre
+			gradient.addColorStop(0, `rgba(0, 0, 0, ${overlayOpacity})`); // Alt kısım siyah
+			gradient.addColorStop(0.05, `rgba(0, 0, 0, ${overlayOpacity * 0.8})`); // Orta kısım
+			gradient.addColorStop(0.3, `rgba(0, 0, 0, ${overlayOpacity * 0.3})`); // Üst kısım
+			gradient.addColorStop(1, "rgba(0, 0, 0, 0)"); // En üst şeffaf
+
+			ctx.fillStyle = gradient;
+			ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+
+			ctx.restore();
+		}
+
 		// Animasyon frame'ini sadece gerektiğinde talep et
 		if (
 			videoState.value.isPlaying ||

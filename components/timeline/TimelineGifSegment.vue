@@ -94,7 +94,7 @@
 					/>
 				</svg>
 				<span
-					class="text-white/90 text-xs font-medium tracking-wide truncate max-w-[60px]"
+					class="text-white/90 text-xs font-medium tracking-wide truncate max-w-[120px]"
 				>
 					{{ segment.gif.title }}
 				</span>

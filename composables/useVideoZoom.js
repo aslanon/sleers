@@ -238,7 +238,7 @@ export const useVideoZoom = (videoElement, containerRef, canvasRef) => {
 				// Giriş animasyonu
 				segmentProgress = timeFromStart / duration;
 			} else if (timeToEnd < duration) {
-				// Çıkış animasyonu
+				// Çıkış animasyonu - smooth geçiş için tersine çevir
 				segmentProgress = timeToEnd / duration;
 			} else {
 				// Tam zoom

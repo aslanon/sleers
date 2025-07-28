@@ -408,9 +408,10 @@ export const useCamera = () => {
 		const baseCanvasWidth = canvasWidth;
 		let cameraWidth = (baseCanvasWidth * cameraSettings.value.size) / 100;
 
-		// Zoom varsa camera'yı smooth küçült
+		// Zoom varsa camera'yı smooth küçült - cursor gibi
 		if (zoomScale > 1.01) {
-			const targetScale = 0.75; // Hedef küçültme oranı
+			// Custom cursor gibi sadece biraz küçült
+			const targetScale = 0.8; // Hedef küçültme oranı
 			const lerpFactor = 0.15; // Yumuşak geçiş faktörü
 
 			// Smooth lerp ile zoom scale'i güncelle
@@ -419,10 +420,18 @@ export const useCamera = () => {
 				(targetScale - cameraZoomScale.value) * lerpFactor;
 			cameraWidth = cameraWidth * cameraZoomScale.value;
 		} else {
-			// Zoom yoksa normal boyuta dön
-			const lerpFactor = 0.15;
+			// Zoom yoksa normal boyuta dön - smooth geçiş için
+			const targetScale = 1.0; // Normal boyut (1.0 = %100)
+			const lerpFactor = 0.08; // Daha yumuşak geçiş faktörü (çıkış için daha slow)
+
 			cameraZoomScale.value =
-				cameraZoomScale.value + (1.0 - cameraZoomScale.value) * lerpFactor;
+				cameraZoomScale.value +
+				(targetScale - cameraZoomScale.value) * lerpFactor;
+
+			// Eğer scale 1'e yakınsa tam olarak 1 yap
+			if (Math.abs(cameraZoomScale.value - 1.0) < 0.005) {
+				cameraZoomScale.value = 1.0;
+			}
 		}
 
 		let cameraHeight;
@@ -557,9 +566,11 @@ export const useCamera = () => {
 			maxRadius
 		);
 
-		const maxShadowBlur = Math.min(cameraWidth, cameraHeight) * 0.2;
-		const safeShadowBlur =
-			((cameraSettings.value?.shadow || 0) / 100) * maxShadowBlur;
+		const maxShadowBlur = Math.min(cameraWidth, cameraHeight) * 1.2; // Daha büyük maksimum blur
+		const safeShadowBlur = Math.max(
+			((cameraSettings.value?.shadow || 0) / 100) * maxShadowBlur,
+			10 * dpr
+		); // Minimum 10px shadow
 
 		let cameraX, cameraY;
 
@@ -768,6 +779,7 @@ export const useCamera = () => {
 			ctx.imageSmoothingEnabled = true;
 			ctx.imageSmoothingQuality = "high";
 
+			// Shadow'ı video çiziminden önce çiz (arka planda kalması için)
 			if (cameraSettings.value?.shadow > 0) {
 				ctx.save();
 				ctx.beginPath();
@@ -779,13 +791,12 @@ export const useCamera = () => {
 					cameraHeight,
 					safeRadius
 				);
-				ctx.shadowColor = "rgba(0,0,0,0.6)";
+				ctx.shadowColor = "rgba(0,0,0,1)"; // Tam siyah shadow
 				ctx.shadowBlur = safeShadowBlur;
 				ctx.shadowOffsetX = 0;
-				ctx.shadowOffsetY = 0;
-				ctx.fillStyle = "rgba(0,0,0,0.01)";
+				ctx.shadowOffsetY = 6 * dpr; // Daha büyük offset
+				ctx.fillStyle = "rgba(0,0,0,0.8)"; // Daha belirgin fill
 				ctx.fill();
-				ctx.globalAlpha = 1.0;
 				ctx.restore();
 			}
 

@@ -307,6 +307,7 @@ onUnmounted(() => {
 	-webkit-app-region: no-drag; /* Electron'un varsayılan sürükleme davranışını devre dışı bırak */
 	background-color: transparent !important;
 	background: transparent !important;
+	transform-origin: center center; /* Büyüme/küçülme işlemlerinin merkezi */
 }
 
 .camera-video {
@@ -320,6 +321,7 @@ onUnmounted(() => {
 	backface-visibility: hidden;
 	will-change: transform;
 	transform: translateZ(0) scaleX(-1);
+	transform-origin: center center; /* Büyüme/küçülme işlemlerinin merkezi */
 }
 
 .circular-text {

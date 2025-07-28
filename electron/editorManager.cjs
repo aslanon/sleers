@@ -60,7 +60,7 @@ class EditorManager {
 					await this.editorWindow.loadURL(
 						`http://127.0.0.1:${global.serverPort}/editor`
 					);
-					this.editorWindow.webContents.openDevTools({ mode: "detach" });
+					// this.editorWindow.webContents.openDevTools({ mode: "detach" });
 				} else {
 					// Express sunucusu kullanıldığında
 					const serverPort = global.serverPort || 3030; // Global değişkenden portu al

@@ -29,7 +29,7 @@ const dockSize = ref(4);
 const cameraSettings = ref({
 	size: 10, // Yüzde 20 yapıldı (10 -> 20)
 	radius: 100, // Arttırıldı (50 -> 100)
-	shadow: 10,
+	shadow: 10, // Default shadow %50'e ayarlandı
 	followMouse: true,
 	mirror: true,
 	visible: true,
