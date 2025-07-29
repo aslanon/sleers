@@ -409,8 +409,8 @@ export const useCamera = () => {
 		const baseCanvasWidth = canvasWidth;
 		let cameraWidth = (baseCanvasWidth * cameraSettings.value.size) / 100;
 
-		// Zoom varsa camera'yı smooth küçült - cursor gibi
-		if (zoomScale > 1.01) {
+		// Zoom varsa camera'yı smooth küçült - cursor gibi (background removal yoksa)
+		if (zoomScale > 1.01 && !backgroundRemovalActive.value) {
 			// Custom cursor gibi sadece biraz küçült
 			const targetScale = 0.8; // Hedef küçültme oranı
 			const lerpFactor = 0.15; // Yumuşak geçiş faktörü
@@ -421,7 +421,7 @@ export const useCamera = () => {
 				(targetScale - cameraZoomScale.value) * lerpFactor;
 			cameraWidth = cameraWidth * cameraZoomScale.value;
 		} else {
-			// Zoom yoksa normal boyuta dön - smooth geçiş için
+			// Zoom yoksa veya background removal varsa normal boyuta dön
 			const targetScale = 1.0; // Normal boyut (1.0 = %100)
 			const lerpFactor = 0.08; // Daha yumuşak geçiş faktörü (çıkış için daha slow)
 
