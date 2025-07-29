@@ -1092,9 +1092,34 @@ const togglePlay = async (e) => {
 };
 
 const play = async () => {
-	if (!videoElement) return;
 	try {
 		if (isTimelinePlaying.value) return;
+
+		// Video yoksa direkt editor modunda oynatma başlat
+		if (!videoElement) {
+			// Editor modu için oynatma
+			isTimelinePlaying.value = true;
+			videoState.value.isPlaying = true;
+			videoState.value.isPaused = false;
+
+			// Varsayılan duration ayarla (eğer yoksa)
+			if (!videoState.value.duration || videoState.value.duration === 0) {
+				videoState.value.duration = 30; // 30 saniye varsayılan
+			}
+
+			// Timeline sync'ini başlat
+			startSyncCheck();
+
+			// Canvas animasyonunu başlat
+			if (!animationFrame) {
+				animationFrame = requestAnimationFrame((timestamp) => {
+					updateCanvas(timestamp);
+				});
+			}
+
+			emit("play", videoState.value);
+			return;
+		}
 
 		// Video element'lerin hazır olduğunu kontrol et
 		const videoReady = videoElement.readyState >= 2; // HAVE_CURRENT_DATA
@@ -1264,9 +1289,9 @@ const startSyncCheck = () => {
 			clearInterval(syncInterval);
 			syncInterval = null;
 
-			// Video element'leri de durdur
+			// Video element'leri de durdur (varsa)
 			try {
-				if (!videoElement.paused) videoElement.pause();
+				if (videoElement && !videoElement.paused) videoElement.pause();
 				if (cameraElement && !cameraElement.paused) cameraElement.pause();
 				if (audioRef.value && !audioRef.value.paused) audioRef.value.pause();
 			} catch (error) {
@@ -1285,7 +1310,7 @@ const startSyncCheck = () => {
 
 // Video element'leri timeline'a sync et
 const syncVideoToTimeline = () => {
-	if (!isTimelinePlaying.value) return;
+	if (!isTimelinePlaying.value || !videoElement) return;
 
 	const canvasTime = videoState.value.currentTime;
 	const segmentInfo = getSegmentVideoTime(canvasTime);
@@ -1340,7 +1365,6 @@ const syncVideoToTimeline = () => {
 };
 
 const pause = async () => {
-	if (!videoElement) return;
 	try {
 		if (!isTimelinePlaying.value) return;
 
@@ -1359,10 +1383,16 @@ const pause = async () => {
 			syncInterval = null;
 		}
 
-		// Canvas animasyonunu durdur
+		// Canvas animasyonunu durdur (video yoksa da durdur)
 		if (animationFrame) {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = null;
+		}
+
+		// Video yoksa direkt emit et ve çık
+		if (!videoElement) {
+			emit("pause", videoState.value);
+			return;
 		}
 
 		// Tüm video element'leri durdur (async olarak)
@@ -1583,7 +1613,7 @@ const jumpToSegmentEnd = async () => {
 
 // Pencere boyutu değiştiğinde
 const handleResize = () => {
-	if (!containerRef.value || !videoElement || !canvasRef.value || !ctx) return;
+	if (!containerRef.value || !canvasRef.value || !ctx) return;
 
 	// Container boyutlarını al
 	const container = containerRef.value.getBoundingClientRect();
@@ -1595,9 +1625,13 @@ const handleResize = () => {
 	if (cropArea.value?.isApplied) {
 		sourceWidth = cropArea.value.width;
 		sourceHeight = cropArea.value.height;
-	} else {
+	} else if (videoElement) {
 		sourceWidth = videoElement.videoWidth;
 		sourceHeight = videoElement.videoHeight;
+	} else {
+		// Video yoksa varsayılan 16:9 kullan
+		sourceWidth = 1920;
+		sourceHeight = 1080;
 	}
 	const sourceRatio = sourceWidth / sourceHeight;
 	const containerRatio = containerWidth / containerHeight;
@@ -1652,7 +1686,7 @@ const handleResize = () => {
 
 // Kırpma alanını güncelle
 const updateCropArea = () => {
-	if (!containerRef.value || !videoElement || !canvasRef.value || !ctx) return;
+	if (!containerRef.value || !canvasRef.value || !ctx) return;
 
 	// Container boyutlarını al
 	const container = containerRef.value.getBoundingClientRect();
@@ -1830,11 +1864,11 @@ watch(
 
 // Kırpma verilerini al
 const getCropData = () => {
-	if (!containerRef.value || !videoElement) return null;
+	if (!containerRef.value) return null;
 
 	const container = containerRef.value.getBoundingClientRect();
-	const videoWidth = videoElement.videoWidth;
-	const videoHeight = videoElement.videoHeight;
+	const videoWidth = videoElement ? videoElement.videoWidth : 1920;
+	const videoHeight = videoElement ? videoElement.videoHeight : 1080;
 
 	// Seçilen aspect ratio yoksa null döndür
 	if (!cropRatio.value) return null;
@@ -2964,8 +2998,8 @@ watch(backgroundImage, (newImage) => {
 
 // Canvas güncelleme fonksiyonu
 const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
-	if (!videoElement || !ctx || !canvasRef.value) {
-		console.warn("[MediaPlayer] Missing required elements for canvas update");
+	if (!ctx || !canvasRef.value) {
+		console.warn("[MediaPlayer] Missing required canvas elements for update");
 		return;
 	}
 
@@ -2979,8 +3013,8 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 	const currentFrameInterval = 1000 / currentFPS;
 
 	if (timestamp - lastFrameTime < currentFrameInterval) {
-		// Sadece video oynatılıyorsa veya zoom geçişi varsa animasyonu devam ettir
-		if (videoState.value.isPlaying || isCanvasZoomTransitioning.value) {
+		// Animasyonu devam ettir: video oynatılıyorsa, zoom geçişi varsa, video yoksa (editor modu için)
+		if (videoState.value.isPlaying || isCanvasZoomTransitioning.value || !videoElement) {
 			animationFrame = requestAnimationFrame((t) =>
 				updateCanvas(t, mouseX, mouseY)
 			);
@@ -3057,7 +3091,17 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				cameraSettings.value?.optimizedBackgroundRemoval;
 
 			if (!isCameraBackgroundRemovalActive) {
-				ctx.fillStyle = backgroundColor.value;
+				// Video yoksa ve arkaplan resmi yoksa, varsayılan gradient arkaplan kullan
+				if (!videoElement) {
+					// Editor modu için gradient arkaplan
+					const gradient = ctx.createLinearGradient(0, 0, canvasRef.value.width, canvasRef.value.height);
+					gradient.addColorStop(0, '#1a1a1a');
+					gradient.addColorStop(0.5, '#2d2d2d');
+					gradient.addColorStop(1, '#1a1a1a');
+					ctx.fillStyle = gradient;
+				} else {
+					ctx.fillStyle = backgroundColor.value;
+				}
 				ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 			}
 			// Background removal aktifse canvas transparent kalır
@@ -3071,9 +3115,13 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		if (cropArea.value?.isApplied) {
 			sourceWidth = cropArea.value.width;
 			sourceHeight = cropArea.value.height;
-		} else {
+		} else if (videoElement) {
 			sourceWidth = videoElement.videoWidth;
 			sourceHeight = videoElement.videoHeight;
+		} else {
+			// Video yoksa varsayılan 16:9 ratio kullan (1920x1080)
+			sourceWidth = 1920;
+			sourceHeight = 1080;
 		}
 
 		const sourceRatio = sourceWidth / sourceHeight;
@@ -3280,7 +3328,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// Video çizimi - sadece aktif segment varsa TÜM video alanını çiz
 		// Video segment'i olmasa bile GIF ve video overlay'ler render edilebilir
-		if (isInActiveSegment) {
+		if (isInActiveSegment || !videoElement) {
 			// Normal koordinatlar kullan - off-screen canvas otomatik zoom yapacak
 
 			// Draw shadow if enabled
@@ -3317,32 +3365,35 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			);
 			renderContext.clip();
 
-			if (cropArea.value?.isApplied === true) {
-				// Crop uygulanmışsa kırpılmış alanı çiz
-				renderContext.drawImage(
-					videoElement,
-					cropArea.value.x,
-					cropArea.value.y,
-					cropArea.value.width,
-					cropArea.value.height,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight
-				);
-			} else {
-				// Normal video çizimi
-				renderContext.drawImage(
-					videoElement,
-					0,
-					0,
-					videoElement.videoWidth,
-					videoElement.videoHeight,
-					drawX,
-					drawY,
-					drawWidth,
-					drawHeight
-				);
+			// Video element varsa video çiz, yoksa boş alan bırak
+			if (videoElement) {
+				if (cropArea.value?.isApplied === true) {
+					// Crop uygulanmışsa kırpılmış alanı çiz
+					renderContext.drawImage(
+						videoElement,
+						cropArea.value.x,
+						cropArea.value.y,
+						cropArea.value.width,
+						cropArea.value.height,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight
+					);
+				} else {
+					// Normal video çizimi
+					renderContext.drawImage(
+						videoElement,
+						0,
+						0,
+						videoElement.videoWidth,
+						videoElement.videoHeight,
+						drawX,
+						drawY,
+						drawWidth,
+						drawHeight
+					);
+				}
 			}
 			renderContext.restore();
 
@@ -3619,6 +3670,13 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		console.error("[MediaPlayer] Canvas update error:", error);
 		animationFrame = null;
 	}
+
+	// Animasyonu devam ettir: video oynatılıyorsa, zoom geçişi varsa, video yoksa (editor modu için)
+	if (videoState.value.isPlaying || isCanvasZoomTransitioning.value || !videoElement) {
+		animationFrame = requestAnimationFrame((t) =>
+			updateCanvas(t, mouseX, mouseY)
+		);
+	}
 };
 
 // Props'ları izle
@@ -3883,9 +3941,9 @@ const initVideo = () => {
 	}
 };
 
-// Video metadata ve data yükleme işleyicileri
-const onVideoMetadataLoaded = () => {
-	if (!videoElement || !canvasRef.value) return;
+// Canvas kurulum fonksiyonu - video olsun veya olmasın çalışır
+const setupCanvas = () => {
+	if (!canvasRef.value) return;
 
 	try {
 		// Context'i oluştur
@@ -3902,8 +3960,10 @@ const onVideoMetadataLoaded = () => {
 		const containerWidth = container.width;
 		const containerHeight = container.height;
 
-		// Video aspect ratio'sunu hesapla
-		const videoRatio = videoElement.videoWidth / videoElement.videoHeight;
+		// Video varsa video ratio'sunu kullan, yoksa 16:9 kullan
+		const videoRatio = videoElement ? 
+			(videoElement.videoWidth / videoElement.videoHeight) : 
+			(16 / 9); // Varsayılan 16:9 aspect ratio
 		const containerRatio = containerWidth / containerHeight;
 
 		// Canvas boyutlarını container'a göre ayarla
@@ -3929,7 +3989,7 @@ const onVideoMetadataLoaded = () => {
 		ctx.imageSmoothingEnabled = true;
 		ctx.imageSmoothingQuality = "high";
 
-		// Canvas transform ayarları
+		// Canvas transform ayarları (dpr zaten yukarıda tanımlı)
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
 		// Canvas stil ayarları
@@ -3951,11 +4011,46 @@ const onVideoMetadataLoaded = () => {
 			boxSizing: "border-box",
 		});
 
-		// Video boyutlarını kaydet
-		videoSize.value = {
-			width: videoElement.videoWidth,
-			height: videoElement.videoHeight,
-		};
+		// Video boyutlarını kaydet - video varsa gerçek boyutları, yoksa varsayılan
+		if (videoElement) {
+			videoSize.value = {
+				width: videoElement.videoWidth,
+				height: videoElement.videoHeight,
+			};
+		} else {
+			videoSize.value = {
+				width: 1920,
+				height: 1080,
+			};
+		}
+
+		// İlk render
+		if (containerRef.value) {
+			handleResize();
+		}
+
+		// İlk frame'i hemen çiz
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now());
+		});
+
+		// Video yoksa sürekli animasyon başlat (GIF'ler ve diğer elementler için)
+		if (!videoElement && !animationFrame) {
+			animationFrame = requestAnimationFrame((timestamp) => {
+				updateCanvas(timestamp);
+			});
+		}
+	} catch (error) {
+		console.error("[MediaPlayer] Canvas setup error:", error);
+	}
+};
+
+// Video metadata ve data yükleme işleyicileri
+const onVideoMetadataLoaded = () => {
+	if (!videoElement || !canvasRef.value) return;
+
+	try {
+		setupCanvas();
 
 		// İlk render
 		handleResize();
@@ -4164,7 +4259,15 @@ const onVideoVolumeChange = () => {
 
 // Component lifecycle
 onMounted(() => {
-	initVideo();
+	// Video var mı kontrol et, yoksa da canvas'ı başlat
+	if (props.videoUrl) {
+		initVideo();
+	} else {
+		// Video yoksa direkt canvas'ı kur
+		nextTick(() => {
+			setupCanvas();
+		});
+	}
 
 	// Initialize camera position from camera settings if available
 	if (cameraSettings.value && cameraSettings.value.position) {
