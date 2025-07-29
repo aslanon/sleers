@@ -1,6 +1,7 @@
 <template>
 	<div class="timeline-container h-auto max-h-[400px]">
 		<!-- Timeline Header -->
+
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
 		>
@@ -87,6 +88,7 @@
 					>
 						<!-- Layout Track -->
 						<div
+							v-if="hasVideo"
 							class="timeline-layer-bar w-full rounded-xl relative"
 							@click="handleLayoutTrackClick"
 							@mousemove="handleLayoutTrackMouseMove"
@@ -499,6 +501,10 @@ const props = defineProps({
 					typeof (segment.start || segment.startTime) === "number" &&
 					typeof (segment.end || segment.endTime) === "number"
 			),
+	},
+	hasVideo: {
+		type: Boolean,
+		default: false,
 	},
 	minZoom: {
 		type: Number,

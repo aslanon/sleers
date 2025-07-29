@@ -157,6 +157,7 @@
 			:is-split-mode="isSplitMode"
 			:is-playing="isPlaying"
 			:is-deleting-segment="isDeletingSegment"
+			:has-video="!!videoUrl"
 			@timeUpdate="handleTimeUpdate"
 			@previewTimeUpdate="handlePreviewTimeUpdate"
 			@segmentUpdate="handleSegmentUpdate"

@@ -90,21 +90,27 @@ export const usePlayerSettings = (hasVideoRef) => {
 	// hasVideo bir reactive değer (computed veya ref) olarak kabul edilir
 	const hasVideo = computed(() => {
 		// Eğer function olarak geçildiyse (computed), çağır
-		if (typeof hasVideoRef === 'function') {
+		if (typeof hasVideoRef === "function") {
 			return hasVideoRef();
 		}
 		// Eğer ref/reactive olarak geçildiyse, .value ile eriş
-		if (hasVideoRef && typeof hasVideoRef === 'object' && 'value' in hasVideoRef) {
+		if (
+			hasVideoRef &&
+			typeof hasVideoRef === "object" &&
+			"value" in hasVideoRef
+		) {
 			return hasVideoRef.value;
 		}
 		// Primitive değer olarak geçildiyse, direkt kullan
 		return hasVideoRef;
 	});
-	
+
 	// Video yoksa styling değerlerini sıfırla
 	const padding = computed(() => (hasVideo.value ? basePadding.value : 0));
 	const radius = computed(() => (hasVideo.value ? baseRadius.value : 0));
-	const shadowSize = computed(() => (hasVideo.value ? baseShadowSize.value : 0));
+	const shadowSize = computed(() =>
+		hasVideo.value ? baseShadowSize.value : 0
+	);
 
 	// Synchronized recording service integration
 	const getSynchronizedTimestamp = (recordingType, timestamp) => {

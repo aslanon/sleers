@@ -369,26 +369,6 @@
 				</div>
 			</div>
 		</div>
-
-		<!-- Instructions -->
-		<div v-if="activeGifs.length === 0" class="text-center py-8">
-			<svg
-				class="w-16 h-16 text-gray-600 mx-auto mb-4"
-				fill="none"
-				stroke="currentColor"
-				viewBox="0 0 24 24"
-			>
-				<path
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					stroke-width="1.5"
-					d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2M7 4h10M7 4l-2 16h14l-2-16M10 9v8m4-8v8"
-				/>
-			</svg>
-			<p class="text-gray-400 text-sm">
-				Search for GIFs above to add them to your video
-			</p>
-		</div>
 	</div>
 </template>
 
