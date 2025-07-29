@@ -214,6 +214,7 @@ const {
 	cameraSettings,
 	videoBorderSettings,
 	mouseVisible,
+	autoHideCursor,
 	showDock, // Dock görünürlük ayarı
 	dockSize,
 	synchronizedTimestamps,
@@ -1965,10 +1966,63 @@ const drawMousePositions = (customCtx = null) => {
 		return;
 	}
 
+	// Mouse visible olduğunda da log
+	if (drawMousePositions.debugCounter % 60 === 0) {
+		console.log("[MediaPlayer] Mouse cursor is visible, drawing...");
+	}
+
 	if (!props.mousePositions || !canvasRef.value || !videoElement) {
 		if (drawMousePositions.debugCounter % 60 === 0) {
 		}
 		return;
+	}
+
+	// Auto hide kontrolü - eğer aktifse hareketsizlik süresini kontrol et
+	if (autoHideCursor.value) {
+		// Video süresini al
+		const videoDuration = videoElement.duration || 0;
+		const currentVideoTime = videoElement.currentTime;
+		
+		if (videoDuration > 0 && props.mousePositions.length > 1) {
+			// Mevcut zaman için mouse position'ı bul
+			const totalFrames = props.mousePositions.length;
+			const frameTime = videoDuration / totalFrames;
+			const currentFrameIndex = Math.floor(currentVideoTime / frameTime);
+			
+			// 2 saniye (2000ms) süresince hareketsizlik kontrolü
+			const IDLE_THRESHOLD = 2000; // 2 saniye
+			const currentPos = props.mousePositions[Math.min(currentFrameIndex, totalFrames - 1)];
+			
+			if (currentPos) {
+				// Geriye doğru bakarak son hareket zamanını bul
+				let lastMovementTime = currentPos.timestamp;
+				const movementThreshold = 10; // 10 pixel hareket threshold
+				
+				for (let i = currentFrameIndex; i >= Math.max(0, currentFrameIndex - 120); i--) { // Son 2 saniye (~60fps * 2)
+					const pos = props.mousePositions[i];
+					const prevPos = props.mousePositions[i - 1];
+					
+					if (pos && prevPos) {
+						const distance = Math.sqrt(
+							Math.pow(pos.x - prevPos.x, 2) + Math.pow(pos.y - prevPos.y, 2)
+						);
+						
+						if (distance > movementThreshold) {
+							lastMovementTime = pos.timestamp;
+							break;
+						}
+					}
+				}
+				
+				// Hareketsizlik süresini hesapla
+				const idleTime = currentPos.timestamp - lastMovementTime;
+				
+				if (idleTime > IDLE_THRESHOLD) {
+					// 2 saniyeden fazla hareketsizse cursor'u gizle
+					return;
+				}
+			}
+		}
 	}
 
 	const ctx = customCtx || canvasRef.value.getContext("2d");
@@ -5082,11 +5136,13 @@ watch(
 // mouseVisible değişikliğini izle ve canvas'ı güncelle
 watch(
 	mouseVisible,
-	() => {
+	(newValue) => {
+		console.log("[MediaPlayer] mouseVisible changed to:", newValue);
 		if (!ctx || !canvasRef.value) return;
 
 		// Canvas'ı hemen güncelle
 		requestAnimationFrame(() => {
+			console.log("[MediaPlayer] Updating canvas due to mouseVisible change");
 			updateCanvas(performance.now());
 		});
 	},

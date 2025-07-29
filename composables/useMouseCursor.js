@@ -52,6 +52,7 @@ export const useMouseCursor = () => {
 		cursorSmoothness,
 		activeZoomScale,
 		mouseLoop,
+		mouseVisible,
 	} = usePlayerSettings();
 
 	// Component başlatıldığında transition tipini ayarla
@@ -147,8 +148,25 @@ export const useMouseCursor = () => {
 		}
 	});
 
+	// mouseVisible ile isVisible'ı senkronize et
+	watch(mouseVisible, (newValue) => {
+		console.log(`[Cursor Sync] mouseVisible changed to: ${newValue}, updating isVisible`);
+		isVisible.value = newValue;
+		
+		// mouseVisible false olduğunda timeout'u temizle
+		if (!newValue && inactivityTimeout.value) {
+			clearTimeout(inactivityTimeout.value);
+			inactivityTimeout.value = null;
+		}
+	}, { immediate: true });
+
 	// Cursor hareketsizlik kontrolü
 	const checkCursorInactivity = () => {
+		// mouseVisible false ise hiçbir işlem yapma
+		if (!mouseVisible.value) {
+			return;
+		}
+
 		// Otomatik gizlenme kapalıysa işlem yapma
 		if (!autoHideCursor.value) {
 			isVisible.value = true;
@@ -167,7 +185,10 @@ export const useMouseCursor = () => {
 
 		// Yeni timeout başlat
 		inactivityTimeout.value = setTimeout(() => {
-			isVisible.value = false;
+			// Timeout tetiklendiğinde mouseVisible'ı tekrar kontrol et
+			if (mouseVisible.value) {
+				isVisible.value = false;
+			}
 		}, INACTIVITY_DURATION);
 
 		lastMovementTime.value = Date.now();
