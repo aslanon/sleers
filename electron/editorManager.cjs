@@ -38,7 +38,6 @@ class EditorManager {
 					webSecurity: false,
 					allowRunningInsecureContent: true,
 					preload: path.join(__dirname, "preload.cjs"),
-					devTools: isDev, // Production'da DevTools'u devre dışı bırak
 				},
 				icon: path.join(__dirname, "../build/icon.png"),
 				title: "Creavit Studio - Video Editor",
@@ -165,8 +164,16 @@ class EditorManager {
 					}
 				});
 
-				// Production'da DevTools kısayollarını engelle
+				// Production'da DevTools'u tamamen devre dışı bırak
 				if (!isDev) {
+					// DevTools'u programatik olarak devre dışı bırak
+					try {
+						this.editorWindow.webContents.setDevToolsWebContents(null);
+					} catch (error) {
+						console.log('setDevToolsWebContents not available:', error.message);
+					}
+					
+					// DevTools kısayollarını engelle
 					this.editorWindow.webContents.on('before-input-event', (event, input) => {
 						if (input.key === 'F12' || 
 							(input.meta && input.alt && input.key.toLowerCase() === 'i') ||
@@ -176,8 +183,14 @@ class EditorManager {
 						}
 					});
 					
+					// Context menu'yu devre dışı bırak
 					this.editorWindow.webContents.on('context-menu', (event) => {
 						event.preventDefault();
+					});
+					
+					// DevTools açılma denemelerini engelle
+					this.editorWindow.webContents.on('devtools-opened', () => {
+						this.editorWindow.webContents.closeDevTools();
 					});
 				}
 

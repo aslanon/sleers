@@ -286,7 +286,7 @@ class CameraManager {
 					preload: path.join(__dirname, "preload.cjs"),
 					webSecurity: false,
 					allowRunningInsecureContent: true,
-					devTools: isDev, // Production'da DevTools'u devre dışı bırak
+// devTools property kaldırıldı - programatik kontrol kullanılacak
 				},
 				backgroundColor: "#00000000",
 				hasShadow: false,
@@ -313,6 +313,32 @@ class CameraManager {
 
 			// Load camera content
 			await this.loadCameraContent();
+
+			// Production'da DevTools güvenlik önlemleri
+			if (!isDev) {
+				try {
+					this.cameraWindow.webContents.setDevToolsWebContents(null);
+				} catch (error) {
+					console.log('setDevToolsWebContents not available:', error.message);
+				}
+				
+				this.cameraWindow.webContents.on('before-input-event', (event, input) => {
+					if (input.key === 'F12' || 
+						(input.meta && input.alt && input.key.toLowerCase() === 'i') ||
+						(input.meta && input.shift && input.key.toLowerCase() === 'i') ||
+						(input.control && input.shift && input.key.toLowerCase() === 'i')) {
+						event.preventDefault();
+					}
+				});
+				
+				this.cameraWindow.webContents.on('context-menu', (event) => {
+					event.preventDefault();
+				});
+				
+				this.cameraWindow.webContents.on('devtools-opened', () => {
+					this.cameraWindow.webContents.closeDevTools();
+				});
+			}
 
 			// Kamera penceresini göster
 			if (this.cameraWindow && !this.cameraWindow.isDestroyed()) {

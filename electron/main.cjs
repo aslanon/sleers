@@ -3520,7 +3520,7 @@ async function createWindow() {
 			allowRunningInsecureContent: true,
 			webviewTag: true,
 			additionalArguments: ["--disable-site-isolation-trials"],
-			devTools: isDev, // Production'da DevTools'u devre dışı bırak
+// devTools property kaldırıldı - programatik kontrol kullanılacak
 		},
 	});
 
@@ -3537,6 +3537,13 @@ function setupProductionSecurity() {
 		// Application menüsünü kaldır
 		Menu.setApplicationMenu(null);
 		
+		// DevTools'u programatik olarak devre dışı bırak
+		try {
+			mainWindow.webContents.setDevToolsWebContents(null);
+		} catch (error) {
+			console.log('setDevToolsWebContents not available:', error.message);
+		}
+		
 		// DevTools açma kısayollarını engelle
 		mainWindow.webContents.on('before-input-event', (event, input) => {
 			// F12, Cmd+Opt+I, Cmd+Shift+I gibi DevTools kısayollarını engelle
@@ -3552,6 +3559,11 @@ function setupProductionSecurity() {
 		// Right-click context menu'yu devre dışı bırak
 		mainWindow.webContents.on('context-menu', (event) => {
 			event.preventDefault();
+		});
+		
+		// DevTools açılma denemelerini engelle
+		mainWindow.webContents.on('devtools-opened', () => {
+			mainWindow.webContents.closeDevTools();
 		});
 		
 		console.log('Production security measures applied');
