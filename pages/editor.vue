@@ -92,6 +92,7 @@
 				:duration="videoDuration"
 				:width="videoWidth"
 				:height="videoHeight"
+				:has-video="!!videoUrl"
 				v-model="mouseSize"
 				:media-player="mediaPlayerRef"
 				class="relative"

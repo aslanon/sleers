@@ -1,5 +1,5 @@
 <template>
-	<div class="flex flex-col gap-12 pb-12">
+	<div class="flex flex-col w-full min-h-[550px] min-w-[350px] gap-12 pb-12">
 		<!-- <div class="space-y-2">
 			<h3 class="text-lg font-medium">Video Settings</h3>
 			<p class="text-sm text-gray-400">
@@ -7,6 +7,7 @@
 			</p>
 		</div> -->
 		<SliderInput
+			v-if="hasVideo"
 			v-model="paddingValue"
 			label="Padding"
 			desc="Adds spacing to video edges for better appearance."
@@ -17,6 +18,7 @@
 		/>
 
 		<SliderInput
+			v-if="hasVideo"
 			v-model="radiusValue"
 			label="Radius"
 			desc="Adjusts video corner roundness."
@@ -27,6 +29,7 @@
 		/>
 
 		<SliderInput
+			v-if="hasVideo"
 			v-model="shadowValue"
 			label="Shadow"
 			desc="Adjusts video shadow opacity."
@@ -120,7 +123,7 @@
 		</div>
 
 		<!-- Video Border Ayarları -->
-		<div class="space-y-4">
+		<div v-if="hasVideo" class="space-y-4">
 			<!-- Border Kalınlığı -->
 			<SliderInput
 				v-model="borderWidthValue"
@@ -234,6 +237,10 @@ const props = defineProps({
 		required: true,
 		default: 1080,
 	},
+	hasVideo: {
+		type: Boolean,
+		default: true,
+	},
 });
 
 const {
@@ -241,6 +248,9 @@ const {
 	padding,
 	radius,
 	shadowSize,
+	basePadding,
+	baseRadius,
+	baseShadowSize,
 	backgroundBlur,
 	videoBorderSettings,
 	updateBackgroundColor,
@@ -254,7 +264,7 @@ const {
 	updateShowDock: updateDockVisibility,
 	dockSize,
 	updateDockSize: updateDockSizeValue,
-} = usePlayerSettings();
+} = usePlayerSettings(() => props.hasVideo);
 
 // Dock ayarları
 const {
@@ -312,9 +322,9 @@ const colors = [
 
 // Local state
 const selectedColor = ref(backgroundColor.value);
-const paddingValue = ref(padding.value);
-const radiusValue = ref(radius.value);
-const shadowValue = ref(shadowSize.value);
+const paddingValue = ref(basePadding.value);
+const radiusValue = ref(baseRadius.value);
+const shadowValue = ref(baseShadowSize.value);
 const blurValue = ref(backgroundBlur.value);
 const selectedWallpaper = ref(null);
 // Border ayarları için state
@@ -383,21 +393,21 @@ watch(
 );
 
 watch(
-	() => padding.value,
+	() => basePadding.value,
 	(newValue) => {
 		paddingValue.value = newValue;
 	}
 );
 
 watch(
-	() => radius.value,
+	() => baseRadius.value,
 	(newValue) => {
 		radiusValue.value = newValue;
 	}
 );
 
 watch(
-	() => shadowSize.value,
+	() => baseShadowSize.value,
 	(newValue) => {
 		shadowValue.value = newValue;
 	}

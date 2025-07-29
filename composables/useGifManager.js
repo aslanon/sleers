@@ -96,6 +96,10 @@ export const useGifManager = () => {
 		// Default duration: video duration if available, otherwise 10 seconds
 		const defaultDuration = videoDuration || 10;
 
+		// Canvas ortası için hesaplama (1920x1080 16:9 format)
+		const canvasWidth = 1920;
+		const canvasHeight = 1080;
+
 		let newGif;
 
 		if (isImage) {
@@ -107,8 +111,8 @@ export const useGifManager = () => {
 				type: "image",
 				width: gifData.width || 200,
 				height: gifData.height || 150,
-				x: gifData.x || 100,
-				y: gifData.y || 100,
+				x: gifData.x || (canvasWidth - (gifData.width || 200)) / 2,
+				y: gifData.y || (canvasHeight - (gifData.height || 150)) / 2,
 				opacity: gifData.opacity || 1,
 				startTime: gifData.startTime || 0,
 				endTime: gifData.endTime || 10, // Image için sabit 10 saniye
@@ -130,8 +134,8 @@ export const useGifManager = () => {
 				type: "video",
 				width: gifData.width || 400,
 				height: gifData.height || 300,
-				x: gifData.x || 100,
-				y: gifData.y || 100,
+				x: gifData.x || (canvasWidth - (gifData.width || 400)) / 2,
+				y: gifData.y || (canvasHeight - (gifData.height || 300)) / 2,
 				opacity: gifData.opacity || 1,
 				startTime: gifData.startTime || 0,
 				endTime: gifData.endTime || defaultDuration, // Video için kendi duration'ı, yoksa defaultDuration
@@ -166,8 +170,8 @@ export const useGifManager = () => {
 				mp4Url: gifData.images.fixed_width.mp4,
 				width: scaledWidth,
 				height: scaledHeight,
-				x: 100, // Default position
-				y: 100,
+				x: gifData.x || (canvasWidth - scaledWidth) / 2,
+				y: gifData.y || (canvasHeight - scaledHeight) / 2,
 				opacity: 1,
 				startTime: 0,
 				endTime: 10, // GIF'ler için sabit 10 saniye

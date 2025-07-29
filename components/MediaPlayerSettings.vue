@@ -174,6 +174,7 @@
 						v-if="currentTab === 'video'"
 						:duration="duration"
 						:width="width"
+						:has-video="hasVideo"
 						:height="height"
 					/>
 
@@ -240,6 +241,10 @@ const props = defineProps({
 		required: true,
 		default: 1080,
 	},
+	hasVideo: {
+		type: Boolean,
+		default: false,
+	},
 	modelValue: {
 		type: Number,
 		default: 42,
@@ -253,7 +258,7 @@ const props = defineProps({
 const emit = defineEmits(["update:modelValue"]);
 
 // Store'dan currentZoomRange'i al
-const { currentZoomRange } = usePlayerSettings();
+const { currentZoomRange } = usePlayerSettings(() => props.hasVideo);
 
 // Tab yönetimi
 const tabs = [
@@ -295,7 +300,13 @@ const tabs = [
 	},
 ];
 
-const currentTab = ref("video");
+const hasVideo = computed(() => props.hasVideo);
+
+watch(hasVideo, (newVal) => {
+	currentTab.value = hasVideo.value ? "video" : "gif";
+});
+
+const currentTab = ref("gif");
 
 // currentTab'ı expose et
 defineExpose({

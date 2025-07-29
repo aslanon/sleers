@@ -55,8 +55,29 @@
 					</button>
 				</div>
 
+				<!-- Video Loading State -->
+				<div v-if="isVideoLoading" class="space-y-2">
+					<div class="bg-zinc-800/30 rounded-lg p-8 flex flex-col items-center justify-center">
+						<div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+						<p class="text-sm text-gray-400">Loading video...</p>
+					</div>
+				</div>
+
+				<!-- Video Load Error -->
+				<div v-if="videoLoadError" class="space-y-2">
+					<div class="bg-red-900/20 border border-red-700 rounded-lg p-4">
+						<p class="text-sm text-red-400">{{ videoLoadError }}</p>
+						<button
+							@click="clearSelectedVideo"
+							class="mt-2 px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded transition-colors"
+						>
+							Try Again
+						</button>
+					</div>
+				</div>
+
 				<!-- Selected Video Preview -->
-				<div v-if="selectedVideoFile" class="space-y-2">
+				<div v-if="selectedVideoFile && !isVideoLoading && !videoLoadError" class="space-y-2">
 					<div class="relative bg-zinc-800/30 rounded-lg overflow-hidden">
 						<video
 							:src="selectedVideoPreview"
@@ -89,9 +110,11 @@
 					</div>
 					<button
 						@click="addVideoToCanvas"
-						class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+						:disabled="isVideoLoading"
+						class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
 					>
-						Add to canvas
+						<span v-if="isVideoLoading">Processing...</span>
+						<span v-else>Add to canvas</span>
 					</button>
 				</div>
 			</div>
@@ -379,6 +402,8 @@ const selectedImagePreview = ref(null);
 // Video file handling
 const selectedVideoFile = ref(null);
 const selectedVideoPreview = ref(null);
+const isVideoLoading = ref(false);
+const videoLoadError = ref(null);
 
 // Use GIF manager composable
 const {
@@ -504,13 +529,48 @@ const addImageToCanvas = () => {
 const handleVideoFileSelect = (event) => {
 	const file = event.target.files[0];
 	if (file && file.type.startsWith("video/")) {
+		// Reset states
+		videoLoadError.value = null;
+		isVideoLoading.value = true;
+		
+		// Check file size (warn if > 100MB)
+		const maxSize = 100 * 1024 * 1024; // 100MB
+		const fileSize = file.size;
+		
+		if (fileSize > maxSize) {
+			console.warn(`Large video file detected: ${(fileSize / 1024 / 1024).toFixed(1)}MB`);
+		}
+
 		selectedVideoFile.value = file;
 
-		// Create preview URL
+		// Create preview URL with timeout and error handling
 		const reader = new FileReader();
+		
 		reader.onload = (e) => {
 			selectedVideoPreview.value = e.target.result;
+			isVideoLoading.value = false;
 		};
+		
+		reader.onerror = () => {
+			videoLoadError.value = "Failed to load video file. Please try a different file.";
+			isVideoLoading.value = false;
+			selectedVideoFile.value = null;
+		};
+		
+		// Add timeout for very large files
+		const loadTimeout = setTimeout(() => {
+			if (isVideoLoading.value) {
+				reader.abort();
+				videoLoadError.value = "Video loading timed out. File may be too large.";
+				isVideoLoading.value = false;
+				selectedVideoFile.value = null;
+			}
+		}, 30000); // 30 second timeout
+		
+		reader.onloadend = () => {
+			clearTimeout(loadTimeout);
+		};
+		
 		reader.readAsDataURL(file);
 	}
 };
@@ -518,6 +578,8 @@ const handleVideoFileSelect = (event) => {
 const clearSelectedVideo = () => {
 	selectedVideoFile.value = null;
 	selectedVideoPreview.value = null;
+	isVideoLoading.value = false;
+	videoLoadError.value = null;
 	// Clear file input
 	const fileInput = document.querySelector(
 		'input[type="file"][accept="video/*"]'
@@ -528,46 +590,85 @@ const clearSelectedVideo = () => {
 };
 
 const addVideoToCanvas = () => {
-	if (!selectedVideoFile.value) return;
+	if (!selectedVideoFile.value || isVideoLoading.value) return;
+
+	isVideoLoading.value = true;
+	videoLoadError.value = null;
 
 	// Create a temporary video element to get dimensions
 	const video = document.createElement("video");
+	video.preload = "metadata"; // Only load metadata, not the full video
+	
+	// Set timeout for metadata loading
+	const metadataTimeout = setTimeout(() => {
+		videoLoadError.value = "Failed to load video metadata. The file may be corrupted or in an unsupported format.";
+		isVideoLoading.value = false;
+	}, 15000); // 15 second timeout for metadata
+	
 	video.onloadedmetadata = () => {
-		// Calculate aspect ratio
-		const aspectRatio = video.videoWidth / video.videoHeight;
+		clearTimeout(metadataTimeout);
+		
+		try {
+			// Validate video properties
+			if (!video.videoWidth || !video.videoHeight) {
+				throw new Error("Invalid video dimensions");
+			}
+			
+			// Calculate aspect ratio
+			const aspectRatio = video.videoWidth / video.videoHeight;
 
-		// Set default size while maintaining aspect ratio
-		const defaultWidth = 400; // Base width for videos
-		const defaultHeight = defaultWidth / aspectRatio;
+			// Set default size while maintaining aspect ratio
+			const defaultWidth = 400; // Base width for videos
+			const defaultHeight = defaultWidth / aspectRatio;
 
-		// Create video object similar to GIF structure
-		const videoId = `video_${Date.now()}`;
-		const videoObject = {
-			id: videoId,
-			title: selectedVideoFile.value.name,
-			url: selectedVideoPreview.value,
-			type: "video", // Distinguish from GIFs and images
-			x: 100,
-			y: 100,
-			width: defaultWidth,
-			height: defaultHeight,
-			opacity: 1,
-			startTime: 0,
-			endTime: video.duration || 10, // Video'nun kendi duration'ını kullan
-			file: selectedVideoFile.value,
-			originalWidth: video.videoWidth,
-			originalHeight: video.videoHeight,
-			aspectRatio: aspectRatio,
-			duration: video.duration || 0,
-		};
+			// Get video duration (fallback to 10 if not available)
+			const videoDuration = isFinite(video.duration) && video.duration > 0 ? video.duration : 10;
+			
+			console.log(`Video loaded: ${video.videoWidth}x${video.videoHeight}, duration: ${videoDuration}s`);
 
-		// Add to active GIFs (videos will be handled as GIFs in the system)
-		addGifToCanvas(videoObject, video.duration || 10);
+			// Create video object similar to GIF structure
+			const videoId = `video_${Date.now()}`;
+			const videoObject = {
+				id: videoId,
+				title: selectedVideoFile.value.name,
+				url: selectedVideoPreview.value,
+				type: "video", // Distinguish from GIFs and images
+				x: 100,
+				y: 100,
+				width: defaultWidth,
+				height: defaultHeight,
+				opacity: 1,
+				startTime: 0,
+				endTime: videoDuration, // Video'nun kendi duration'ını kullan
+				file: selectedVideoFile.value,
+				originalWidth: video.videoWidth,
+				originalHeight: video.videoHeight,
+				aspectRatio: aspectRatio,
+				duration: videoDuration,
+			};
 
-		// Clear selection
-		clearSelectedVideo();
+			// Add to active GIFs (videos will be handled as GIFs in the system)
+			addGifToCanvas(videoObject, videoDuration);
+
+			// Clear selection
+			clearSelectedVideo();
+			
+		} catch (error) {
+			console.error("Error processing video:", error);
+			videoLoadError.value = `Error processing video: ${error.message}`;
+		} finally {
+			isVideoLoading.value = false;
+		}
+	};
+	
+	video.onerror = (e) => {
+		clearTimeout(metadataTimeout);
+		console.error("Video loading error:", e);
+		videoLoadError.value = "Failed to load video. Please check the file format and try again.";
+		isVideoLoading.value = false;
 	};
 
+	// Set video source to trigger loading
 	video.src = selectedVideoPreview.value;
 };
 

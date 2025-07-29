@@ -220,7 +220,7 @@ const {
 	synchronizedTimestamps,
 	getSynchronizedTimestamp,
 	setSynchronizedTimestamps,
-} = usePlayerSettings();
+} = usePlayerSettings(() => !!props.videoUrl);
 
 // Dock ayarlarını al
 const { isSupported: isDockSupported, visibleDockItems } = useDockSettings();
@@ -1746,9 +1746,14 @@ const updateCropArea = () => {
 	if (cropArea.value?.isApplied) {
 		sourceWidth = cropArea.value.width;
 		sourceHeight = cropArea.value.height;
-	} else {
+	} else if (videoElement && videoElement.videoWidth && videoElement.videoHeight) {
+		// Video element varsa video boyutlarını kullan
 		sourceWidth = videoElement.videoWidth;
 		sourceHeight = videoElement.videoHeight;
+	} else {
+		// Video element yoksa varsayılan 16:9 boyutları kullan (1920x1080)
+		sourceWidth = 1920;
+		sourceHeight = 1080;
 	}
 	const sourceRatio = sourceWidth / sourceHeight;
 	const containerRatio = containerWidth / containerHeight;

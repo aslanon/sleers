@@ -18,16 +18,16 @@ const synchronizedTimestamps = ref(null); // Synchronized recording timestamps
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
-const padding = ref(128);
-const radius = ref(64);
-const shadowSize = ref(50);
+const basePadding = ref(128);
+const baseRadius = ref(64);
+const baseShadowSize = ref(50);
 const cropRatio = ref("");
 const zoomRanges = ref([]);
 const currentZoomRange = ref(null);
 const showDock = ref(false);
 const dockSize = ref(4);
 const cameraSettings = ref({
-	size: 10, // Yüzde 20 yapıldı (10 -> 20)
+	size: 20, // Yüzde 20 yapıldı (10 -> 20)
 	radius: 100, // Arttırıldı (50 -> 100)
 	shadow: 10, // Default shadow %50'e ayarlandı
 	followMouse: true,
@@ -86,7 +86,26 @@ const activeZoomPosition = computed(
 	() => currentZoomRange.value?.position || "center"
 );
 
-export const usePlayerSettings = () => {
+export const usePlayerSettings = (hasVideoRef) => {
+	// hasVideo bir reactive değer (computed veya ref) olarak kabul edilir
+	const hasVideo = computed(() => {
+		// Eğer function olarak geçildiyse (computed), çağır
+		if (typeof hasVideoRef === 'function') {
+			return hasVideoRef();
+		}
+		// Eğer ref/reactive olarak geçildiyse, .value ile eriş
+		if (hasVideoRef && typeof hasVideoRef === 'object' && 'value' in hasVideoRef) {
+			return hasVideoRef.value;
+		}
+		// Primitive değer olarak geçildiyse, direkt kullan
+		return hasVideoRef;
+	});
+	
+	// Video yoksa styling değerlerini sıfırla
+	const padding = computed(() => (hasVideo.value ? basePadding.value : 0));
+	const radius = computed(() => (hasVideo.value ? baseRadius.value : 0));
+	const shadowSize = computed(() => (hasVideo.value ? baseShadowSize.value : 0));
+
 	// Synchronized recording service integration
 	const getSynchronizedTimestamp = (recordingType, timestamp) => {
 		if (synchronizedTimestamps.value && synchronizedTimestamps.value.offsets) {
@@ -157,15 +176,15 @@ export const usePlayerSettings = () => {
 	};
 
 	const updatePadding = (value) => {
-		padding.value = value;
+		basePadding.value = value;
 	};
 
 	const updateRadius = (value) => {
-		radius.value = value;
+		baseRadius.value = value;
 	};
 
 	const updateShadowSize = (value) => {
-		shadowSize.value = value;
+		baseShadowSize.value = value;
 	};
 
 	const updateCropRatio = (ratio) => {
@@ -284,6 +303,9 @@ export const usePlayerSettings = () => {
 		padding,
 		radius,
 		shadowSize,
+		basePadding,
+		baseRadius,
+		baseShadowSize,
 		cropRatio,
 		zoomRanges,
 		currentZoomRange,
