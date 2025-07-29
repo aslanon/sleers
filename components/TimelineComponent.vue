@@ -287,7 +287,10 @@
 						</div>
 
 						<!-- Segment Bar (MOVED BELOW GIF TRACKS) -->
-						<div class="timeline-layer-bar w-full rounded-xl relative">
+						<div
+							v-if="hasVideo"
+							class="timeline-layer-bar w-full rounded-xl relative"
+						>
 							<!-- Video Segments Container -->
 							<div
 								class="flex flex-row h-[42px] relative w-full items-center"

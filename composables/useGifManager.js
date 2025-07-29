@@ -21,6 +21,8 @@ const dragState = reactive({
 	offsetY: 0,
 	isResizing: false,
 	resizeHandle: null, // 'tl', 'tr', 'bl', 'br', 'top', 'right', 'bottom', 'left'
+	initialMouseX: null, // Added for rotate handle
+	initialMouseY: null, // Added for rotate handle
 });
 
 export const useGifManager = () => {
@@ -96,10 +98,6 @@ export const useGifManager = () => {
 		// Default duration: video duration if available, otherwise 10 seconds
 		const defaultDuration = videoDuration || 10;
 
-		// Canvas ortası için hesaplama (1920x1080 16:9 format)
-		const canvasWidth = 1920;
-		const canvasHeight = 1080;
-
 		let newGif;
 
 		if (isImage) {
@@ -111,8 +109,8 @@ export const useGifManager = () => {
 				type: "image",
 				width: gifData.width || 200,
 				height: gifData.height || 150,
-				x: gifData.x || (canvasWidth - (gifData.width || 200)) / 2,
-				y: gifData.y || (canvasHeight - (gifData.height || 150)) / 2,
+				x: gifData.x || 100,
+				y: gifData.y || 100,
 				opacity: gifData.opacity || 1,
 				startTime: gifData.startTime || 0,
 				endTime: gifData.endTime || 10, // Image için sabit 10 saniye
@@ -134,8 +132,8 @@ export const useGifManager = () => {
 				type: "video",
 				width: gifData.width || 400,
 				height: gifData.height || 300,
-				x: gifData.x || (canvasWidth - (gifData.width || 400)) / 2,
-				y: gifData.y || (canvasHeight - (gifData.height || 300)) / 2,
+				x: gifData.x || 100,
+				y: gifData.y || 100,
 				opacity: gifData.opacity || 1,
 				startTime: gifData.startTime || 0,
 				endTime: gifData.endTime || defaultDuration, // Video için kendi duration'ı, yoksa defaultDuration
@@ -170,8 +168,8 @@ export const useGifManager = () => {
 				mp4Url: gifData.images.fixed_width.mp4,
 				width: scaledWidth,
 				height: scaledHeight,
-				x: gifData.x || (canvasWidth - scaledWidth) / 2,
-				y: gifData.y || (canvasHeight - scaledHeight) / 2,
+				x: gifData.x || 100,
+				y: gifData.y || 100,
 				opacity: 1,
 				startTime: 0,
 				endTime: 10, // GIF'ler için sabit 10 saniye
@@ -570,20 +568,26 @@ export const useGifManager = () => {
 
 	const handleMouseUp = () => {
 		if (dragState.isDragging || dragState.isResizing || dragState.isRotating) {
+			// Reset drag state
 			dragState.isDragging = false;
 			dragState.isResizing = false;
 			dragState.isRotating = false;
 			dragState.draggedGifId = null;
 			dragState.resizeHandle = null;
+			dragState.initialMouseX = null; // Reset initial mouse position
+			dragState.initialMouseY = null; // Reset initial mouse position
 
-			// Don't clear handle data - let it persist for continued interaction
-			// if (window.gifHandleData) {
-			// 	window.gifHandleData.clear();
-			// }
-
-			// Remove event listeners
+			// Remove event listeners immediately to prevent conflicts
 			document.removeEventListener("mousemove", handleMouseMove);
 			document.removeEventListener("mouseup", handleMouseUp);
+
+			// Force canvas update to ensure handles are properly rendered
+			if (typeof window !== "undefined") {
+				// Single update with longer delay for better stability
+				setTimeout(() => {
+					window.dispatchEvent(new CustomEvent("gif-interaction-ended"));
+				}, 200); // Longer delay to ensure all operations are complete
+			}
 		}
 	};
 
@@ -627,46 +631,51 @@ export const useGifManager = () => {
 		const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
 		// Minimum distance threshold to start rotation
-		const minDistance = 50 * dpr;
+		const minDistance = 30 * dpr; // Reduced for more responsive rotation
 
 		if (distance < minDistance) {
 			return; // Don't rotate if too close to center
 		}
 
-		// Get current rotation
-		const currentRotation = gif.rotation || 0;
-
-		// Calculate rotation speed based on distance from center
-		const maxDistance = 200 * dpr;
-		const rotationSpeed = Math.min(distance / maxDistance, 1.0) * 1.5; // Max 1.5 degrees per frame
-
-		// Determine rotation direction based on mouse position
-		let targetRotation = currentRotation;
-
-		if (Math.abs(deltaX) > Math.abs(deltaY)) {
-			// Horizontal movement - rotate based on X direction
-			if (deltaX > 0) {
-				// Mouse sağda - sağa döndür
-				targetRotation = currentRotation + rotationSpeed;
-			} else {
-				// Mouse solda - sola döndür
-				targetRotation = currentRotation - rotationSpeed;
-			}
-		} else {
-			// Vertical movement - rotate based on Y direction
-			if (deltaY > 0) {
-				// Mouse aşağıda - sağa döndür
-				targetRotation = currentRotation + rotationSpeed;
-			} else {
-				// Mouse yukarıda - sola döndür
-				targetRotation = currentRotation - rotationSpeed;
-			}
+		// Store initial mouse position for first click to prevent sudden rotation
+		if (!dragState.initialMouseX) {
+			dragState.initialMouseX = mouseXCanvas;
+			dragState.initialMouseY = mouseYCanvas;
+			return; // Skip first frame to prevent sudden rotation
 		}
 
-		// Apply smooth rotation with smaller lerp factor
-		const lerpFactor = 0.08; // Daha yavaş geçiş
-		gif.rotation =
-			currentRotation + (targetRotation - currentRotation) * lerpFactor;
+		// Calculate the angle from the previous mouse position to current position
+		// This creates a more natural rotation based on mouse movement direction
+		const prevDeltaX = dragState.initialMouseX - gifCenterX;
+		const prevDeltaY = dragState.initialMouseY - gifCenterY;
+
+		// Calculate the angle change based on mouse movement
+		const prevAngle = Math.atan2(prevDeltaY, prevDeltaX);
+		const currentAngle = Math.atan2(deltaY, deltaX);
+
+		// Calculate the angle difference (rotation amount)
+		let angleDiff = currentAngle - prevAngle;
+
+		// Handle angle wrapping for smooth rotation
+		if (angleDiff > Math.PI) {
+			angleDiff -= 2 * Math.PI;
+		} else if (angleDiff < -Math.PI) {
+			angleDiff += 2 * Math.PI;
+		}
+
+		// Convert to degrees
+		const rotationDegrees = angleDiff * (180 / Math.PI);
+
+		// Apply smooth rotation with lerp
+		const currentRotation = gif.rotation || 0;
+		const lerpFactor = 0.3; // Increased for more responsive rotation
+
+		// Apply the rotation change
+		gif.rotation = currentRotation + rotationDegrees * lerpFactor;
+
+		// Update the initial mouse position for next frame
+		dragState.initialMouseX = mouseXCanvas;
+		dragState.initialMouseY = mouseYCanvas;
 
 		// Update GIF rotation
 		updateGifRotation();
@@ -694,31 +703,42 @@ export const useGifManager = () => {
 		const aspectRatio =
 			gif.aspectRatio || dragState.originalWidth / dragState.originalHeight;
 
-		// More responsive resize logic - directional scaling
-		const centerX = dragState.originalX + dragState.originalWidth / 2;
-		const centerY = dragState.originalY + dragState.originalHeight / 2;
-
 		// For top-left resize handle, analyze mouse movement direction
 		const deltaX = mouseXCanvas - dragState.startX;
 		const deltaY = mouseYCanvas - dragState.startY;
 
 		console.log(`[Resize] Mouse movement: deltaX=${deltaX}, deltaY=${deltaY}`);
 
+		// Stabilize resize by using a minimum movement threshold
+		const minMovementThreshold = 3; // Reduced threshold for smoother response
+		const absDeltaX = Math.abs(deltaX);
+		const absDeltaY = Math.abs(deltaY);
+
+		// Only resize if movement is significant enough
+		if (absDeltaX < minMovementThreshold && absDeltaY < minMovementThreshold) {
+			return;
+		}
+
 		// For top-left handle:
-		// - Moving RIGHT (positive deltaX) should INCREASE width
-		// - Moving DOWN (positive deltaY) should INCREASE height
-		// - Moving LEFT (negative deltaX) should DECREASE width
-		// - Moving UP (negative deltaY) should DECREASE height
+		// - Moving RIGHT (positive deltaX) should DECREASE width (reversed)
+		// - Moving DOWN (positive deltaY) should DECREASE height (reversed)
+		// - Moving LEFT (negative deltaX) should INCREASE width (reversed)
+		// - Moving UP (negative deltaY) should INCREASE height (reversed)
 
-		// Calculate scale factors based on movement direction
-		// If still inverted, we can invert the calculation
-		const scaleFactorX = 1 + deltaX / dragState.originalWidth;
-		const scaleFactorY = 1 + deltaY / dragState.originalHeight;
+		// Calculate scale factors based on movement direction with enhanced smoothing
+		const scaleFactorX = 1 - (deltaX / dragState.originalWidth) * 0.3; // Reduced sensitivity for smoother resize
+		const scaleFactorY = 1 - (deltaY / dragState.originalHeight) * 0.3; // Reduced sensitivity for smoother resize
 
-		// Use the larger scale factor to maintain aspect ratio
+		// Use the larger scale factor to maintain aspect ratio, but with enhanced smoothing
 		const scaleFactor = Math.max(scaleFactorX, scaleFactorY, 0.1); // Minimum 10% size
 
-		let newWidth = dragState.originalWidth * scaleFactor;
+		// Apply enhanced smoothing to prevent jittery resize
+		const smoothedScaleFactor = Math.max(0.1, Math.min(5.0, scaleFactor)); // Limit scale range
+
+		// Apply additional smoothing for even smoother resize
+		const finalScaleFactor = Math.pow(smoothedScaleFactor, 0.8); // Smoothing curve
+
+		let newWidth = dragState.originalWidth * finalScaleFactor;
 		let newHeight = newWidth / aspectRatio;
 
 		// For top-left handle, position should move as size changes
@@ -770,7 +790,7 @@ export const useGifManager = () => {
 		// Calculate animation progress - only if playing
 		const relativeTime = currentTime - gif.startTime;
 		let frameIndex = 0;
-		
+
 		if (state.isPlaying) {
 			frameIndex = Math.floor(relativeTime * state.frameRate) % 60; // Assume 60 frames max
 		} else {

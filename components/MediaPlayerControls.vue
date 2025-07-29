@@ -8,7 +8,7 @@
 				<button
 					ref="dropdownButton"
 					@click="toggleDropdown"
-					class="aspect-ratio-button px-3 py-1.5 w-[150px] rounded bg-black/80 border border-white/5 transition-all flex items-center justify-between space-x-2 hover:border-white/10"
+					class="aspect-ratio-button px-3 py-1.5 w-[200px] rounded bg-black/80 border border-white/5 transition-all flex items-center justify-between space-x-2 hover:border-white/10"
 				>
 					<span class="text-sm text-white/90">{{
 						getCurrentRatio?.label || "Auto"
@@ -41,7 +41,60 @@
 					ref="dropdownMenu"
 					class="fixed bg-zinc-900/95 backdrop-blur-sm rounded-lg border border-white/10 py-1 z-[60] shadow-xl"
 				>
-					<div class="max-h-[320px] overflow-y-auto" @mousedown.stop>
+					<div class="max-h-[320px] w-[200px] overflow-y-auto" @mousedown.stop>
+						<!-- Custom Resolution Inputs -->
+						<div
+							v-if="showCustomInputs"
+							class="px-3 py-2 border-t border-white/10"
+						>
+							<div class="grid grid-cols-2 gap-2 mb-2">
+								<div>
+									<label class="block text-xs font-medium text-gray-400 mb-1">
+										Width (px)
+									</label>
+									<input
+										v-model="customWidth"
+										type="number"
+										min="100"
+										max="7680"
+										class="w-full bg-zinc-800/60 border border-zinc-600/60 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+										placeholder="1920"
+									/>
+								</div>
+								<div>
+									<label class="block text-xs font-medium text-gray-400 mb-1">
+										Height (px)
+									</label>
+									<input
+										v-model="customHeight"
+										type="number"
+										min="100"
+										max="4320"
+										class="w-full bg-zinc-800/60 border border-zinc-600/60 rounded px-2 py-1 text-white text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+										placeholder="1080"
+									/>
+								</div>
+							</div>
+							<button
+								@click="applyCustomResolution"
+								class="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded transition-all duration-200 flex items-center justify-center gap-1"
+							>
+								<svg
+									class="w-3 h-3"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M5 13l4 4L19 7"
+									/>
+								</svg>
+								Apply Resolution
+							</button>
+						</div>
 						<button
 							v-for="ratio in aspectRatios"
 							:key="ratio.value"
@@ -309,6 +362,11 @@ const dropdownMenu = ref(null);
 const isAspectRatioOpen = ref(false);
 let resizeObserver = null;
 
+// Custom resolution data
+const customWidth = ref("1920");
+const customHeight = ref("1080");
+const showCustomInputs = ref(false);
+
 // Dropdown pozisyonunu güncelle
 const updateDropdownPosition = () => {
 	if (!isAspectRatioOpen.value || !dropdownButton.value) return;
@@ -383,6 +441,12 @@ onUnmounted(() => {
 
 // Aspect ratio seçenekleri
 const aspectRatios = [
+	{
+		value: "custom",
+		label: "Custom",
+		iconClass: "icon-custom",
+		preview: "Custom",
+	},
 	{ value: "", label: "Auto", iconClass: "icon-auto", preview: "16/9" },
 	{
 		value: "16:9",
@@ -413,6 +477,14 @@ const aspectRatios = [
 
 // Mevcut seçili ratio'yu bul
 const getCurrentRatio = computed(() => {
+	// Custom seçiliyse ve inputlar görünüyorsa
+	if (showCustomInputs.value) {
+		return {
+			label: `Custom (${customWidth.value}×${customHeight.value})`,
+			value: "custom",
+		};
+	}
+
 	return (
 		aspectRatios.find((ratio) => ratio.value === cropRatio.value) ||
 		aspectRatios[0]
@@ -421,8 +493,42 @@ const getCurrentRatio = computed(() => {
 
 // Aspect ratio seçimi
 const selectAspectRatio = (ratio) => {
+	// Custom seçildiğinde sadece dropdown'ı açık tut, hiçbir değer gönderme
+	if (ratio === "custom") {
+		// Custom inputları göster, hiçbir değer gönderme
+		showCustomInputs.value = true;
+		return;
+	}
+
+	// Normal aspect ratio seçimleri için
+	showCustomInputs.value = false;
 	updateCropRatio(ratio);
 	isAspectRatioOpen.value = false;
+};
+
+// Apply custom resolution
+const applyCustomResolution = () => {
+	const width = parseInt(customWidth.value);
+	const height = parseInt(customHeight.value);
+
+	if (!width || !height || width < 100 || height < 100) {
+		console.error("Please enter valid width and height values (minimum 100px)");
+		return;
+	}
+
+	if (width > 7680 || height > 4320) {
+		console.error("Resolution too high. Maximum supported: 7680×4320");
+		return;
+	}
+
+	console.log(`Applied custom resolution: ${width}×${height}`);
+
+	// Emit custom resolution change event
+	emit("customResolutionChange", { width, height });
+
+	// Apply butonuna basıldıktan sonra dropdown'ı kapat ama custom label'ı koru
+	isAspectRatioOpen.value = false;
+	// showCustomInputs'i false yapma, label'ın custom olarak kalması için
 };
 
 const emit = defineEmits([
@@ -435,6 +541,7 @@ const emit = defineEmits([
 	"update:isCropMode",
 	"captureScreenshot",
 	"splitCurrentSegment",
+	"customResolutionChange",
 ]);
 
 // Space tuşu için event handler
@@ -522,5 +629,11 @@ button:active {
 .icon-tall {
 	width: 9px;
 	height: 12px;
+}
+
+.icon-custom {
+	width: 12px;
+	height: 12px;
+	border-style: dashed;
 }
 </style>

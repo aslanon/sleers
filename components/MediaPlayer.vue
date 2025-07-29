@@ -15,6 +15,7 @@
 			@mouseup="handleMouseUp"
 			@mouseleave="handleMouseUp"
 			@wheel="handleWheel"
+			@paste="handlePaste"
 		>
 			<div
 				class="relative crop-area flex items-center justify-center"
@@ -30,6 +31,7 @@
 					ref="canvasRef"
 					class="rounded-md"
 					style="display: block; position: absolute; margin: auto"
+					@paste="handlePaste"
 				></canvas>
 			</div>
 
@@ -71,7 +73,7 @@
 </template>
 
 <script setup>
-import { nextTick, onUnmounted } from "vue";
+import { nextTick, onUnmounted, onMounted } from "vue";
 import { useVideoZoom } from "~/composables/useVideoZoom";
 import { useCanvasZoom } from "~/composables/useCanvasZoom";
 import { useMouseCursor } from "~/composables/useMouseCursor";
@@ -484,8 +486,14 @@ const drawGifHoverFrame = (
 	// Sadece sol üstte handle göster (camera style)
 	if (showHandles) {
 		const handleSize = 100 * dpr; // 50% smaller than camera (200 * 0.5)
-		const handleX = x - handleSize / 2;
-		const handleY = y - handleSize / 2;
+
+		// Calculate handle position relative to GIF center to maintain position after rotation
+		const gifCenterX = x + width / 2;
+		const gifCenterY = y + height / 2;
+
+		// Position handles relative to center, then offset to top-left corner
+		const handleX = gifCenterX - width / 2 - handleSize / 2;
+		const handleY = gifCenterY - height / 2 - handleSize / 2;
 
 		// Debug log removed for cleaner console
 
@@ -560,7 +568,7 @@ const drawGifHoverFrame = (
 		// Rotate button - sağ tarafta
 		const rotateHandleSize = handleSize * 0.8; // Biraz daha küçük
 		const rotateHandleX = handleX + handleSize + 10 * dpr; // Resize handle'ın sağında
-		const rotateHandleY = handleY;
+		const rotateHandleY = handleY; // Same Y position as resize handle
 
 		// Siyah rounded rotate handle çiz
 		ctx.fillStyle = "#000000";
@@ -1118,10 +1126,11 @@ const play = async () => {
 		if (isTimelinePlaying.value) return;
 
 		// Timeline sonunda mı kontrol et - eğer sonundaysa başa dön
-		const canvasDuration = props.totalCanvasDuration || videoState.value.duration || 30;
+		const canvasDuration =
+			props.totalCanvasDuration || videoState.value.duration || 30;
 		const tolerance = 0.1; // 100ms tolerans
-		const isAtEnd = videoState.value.currentTime >= (canvasDuration - tolerance);
-		
+		const isAtEnd = videoState.value.currentTime >= canvasDuration - tolerance;
+
 		if (isAtEnd) {
 			console.log("[MediaPlayer] Timeline sonunda, başa dönülüyor");
 			videoState.value.currentTime = 0;
@@ -1746,7 +1755,11 @@ const updateCropArea = () => {
 	if (cropArea.value?.isApplied) {
 		sourceWidth = cropArea.value.width;
 		sourceHeight = cropArea.value.height;
-	} else if (videoElement && videoElement.videoWidth && videoElement.videoHeight) {
+	} else if (
+		videoElement &&
+		videoElement.videoWidth &&
+		videoElement.videoHeight
+	) {
 		// Video element varsa video boyutlarını kullan
 		sourceWidth = videoElement.videoWidth;
 		sourceHeight = videoElement.videoHeight;
@@ -3067,7 +3080,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 	if (timestamp - lastFrameTime < currentFrameInterval) {
 		// Animasyonu devam ettir: video oynatılıyorsa, zoom geçişi varsa, video yoksa (editor modu için)
-		if (videoState.value.isPlaying || isCanvasZoomTransitioning.value || !videoElement) {
+		if (
+			videoState.value.isPlaying ||
+			isCanvasZoomTransitioning.value ||
+			!videoElement
+		) {
 			animationFrame = requestAnimationFrame((t) =>
 				updateCanvas(t, mouseX, mouseY)
 			);
@@ -3147,10 +3164,15 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				// Video yoksa ve arkaplan resmi yoksa, varsayılan gradient arkaplan kullan
 				if (!videoElement) {
 					// Editor modu için gradient arkaplan
-					const gradient = ctx.createLinearGradient(0, 0, canvasRef.value.width, canvasRef.value.height);
-					gradient.addColorStop(0, '#1a1a1a');
-					gradient.addColorStop(0.5, '#2d2d2d');
-					gradient.addColorStop(1, '#1a1a1a');
+					const gradient = ctx.createLinearGradient(
+						0,
+						0,
+						canvasRef.value.width,
+						canvasRef.value.height
+					);
+					gradient.addColorStop(0, "#1a1a1a");
+					gradient.addColorStop(0.5, "#2d2d2d");
+					gradient.addColorStop(1, "#1a1a1a");
 					ctx.fillStyle = gradient;
 				} else {
 					ctx.fillStyle = backgroundColor.value;
@@ -3725,7 +3747,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 	}
 
 	// Animasyonu devam ettir: video oynatılıyorsa, zoom geçişi varsa, video yoksa (editor modu için)
-	if (videoState.value.isPlaying || isCanvasZoomTransitioning.value || !videoElement) {
+	if (
+		videoState.value.isPlaying ||
+		isCanvasZoomTransitioning.value ||
+		!videoElement
+	) {
 		animationFrame = requestAnimationFrame((t) =>
 			updateCanvas(t, mouseX, mouseY)
 		);
@@ -4014,9 +4040,9 @@ const setupCanvas = () => {
 		const containerHeight = container.height;
 
 		// Video varsa video ratio'sunu kullan, yoksa 16:9 kullan
-		const videoRatio = videoElement ? 
-			(videoElement.videoWidth / videoElement.videoHeight) : 
-			(16 / 9); // Varsayılan 16:9 aspect ratio
+		const videoRatio = videoElement
+			? videoElement.videoWidth / videoElement.videoHeight
+			: 16 / 9; // Varsayılan 16:9 aspect ratio
 		const containerRatio = containerWidth / containerHeight;
 
 		// Canvas boyutlarını container'a göre ayarla
@@ -4398,6 +4424,18 @@ onMounted(() => {
 		}
 	};
 
+	const handleGifInteractionEnded = () => {
+		// GIF interaction (drag/resize/rotate) ended
+		// Force canvas update to ensure handles are properly rendered
+		if (ctx && !window.gifEventPending) {
+			window.gifEventPending = true;
+			setTimeout(() => {
+				window.gifEventPending = false;
+				updateCanvas(performance.now());
+			}, 100); // Increased delay for better stability
+		}
+	};
+
 	window.addEventListener("resize", handleResize);
 	if (videoRef.value && canvasRef.value) {
 		renderVideo();
@@ -4411,6 +4449,9 @@ onMounted(() => {
 	window.addEventListener("gif-added", handleGifAdded);
 	window.addEventListener("gif-removed", handleGifRemoved);
 	window.addEventListener("gif-selected", handleGifSelected);
+	window.addEventListener("gif-interaction-ended", handleGifInteractionEnded);
+
+	window.addEventListener("paste", handlePaste);
 });
 
 onUnmounted(() => {
@@ -4452,6 +4493,12 @@ onUnmounted(() => {
 	window.removeEventListener("gif-added", handleGifAdded);
 	window.removeEventListener("gif-removed", handleGifRemoved);
 	window.removeEventListener("gif-selected", handleGifSelected);
+	window.removeEventListener(
+		"gif-interaction-ended",
+		handleGifInteractionEnded
+	);
+
+	window.removeEventListener("paste", handlePaste);
 });
 
 // Props değişikliklerini izle
@@ -4720,6 +4767,47 @@ defineExpose({
 	// Canvas'ı direkt döndür - export için optimize edilmiş
 	getCanvas: () => {
 		return canvasRef.value;
+	},
+
+	// Canvas size değiştirme fonksiyonu - custom resolution için
+	setCanvasSize: (width, height) => {
+		if (!canvasRef.value || !ctx) return;
+
+		try {
+			// Canvas boyutlarını güncelle
+			const dpr = 1;
+			canvasRef.value.width = width * dpr * scaleValue;
+			canvasRef.value.height = height * dpr * scaleValue;
+
+			// Canvas stil boyutlarını ayarla (CSS pixels)
+			canvasRef.value.style.width = `${width}px`;
+			canvasRef.value.style.height = `${height}px`;
+
+			// Canvas transform ayarları
+			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+			// Video boyutlarını güncelle
+			videoSize.value = {
+				width: width,
+				height: height,
+			};
+
+			// Canvas'ı hemen güncelle
+			requestAnimationFrame(() => updateCanvas(performance.now()));
+
+			console.log(`Canvas size changed to: ${width}×${height}`);
+		} catch (error) {
+			console.error("[MediaPlayer] Canvas size change error:", error);
+		}
+	},
+
+	// Canvas size alma fonksiyonu
+	getCanvasSize: () => {
+		if (!canvasRef.value) return { width: 1920, height: 1080 };
+		return {
+			width: canvasRef.value.width / scaleValue,
+			height: canvasRef.value.height / scaleValue,
+		};
 	},
 
 	// Audio controls
@@ -5643,6 +5731,67 @@ const handleWheel = (event) => {
 		canvasRef.value.width,
 		canvasRef.value.height
 	);
+};
+
+const handlePaste = (event) => {
+	// Handle paste event for clipboard images
+	event.preventDefault();
+
+	const { clipboardData } = event;
+	if (!clipboardData) return;
+
+	// Check for image data in clipboard
+	const items = clipboardData.items;
+	for (let i = 0; i < items.length; i++) {
+		const item = items[i];
+
+		// Check if the item is an image
+		if (item.type.indexOf("image") !== -1) {
+			const file = item.getAsFile();
+			if (file) {
+				// Create a URL for the image
+				const imageUrl = URL.createObjectURL(file);
+
+				// Create image object for GIF manager
+				const imageObject = {
+					id: `pasted_image_${Date.now()}_${Math.random()
+						.toString(36)
+						.substr(2, 9)}`,
+					title: file.name || "Pasted Image",
+					url: imageUrl,
+					type: "image",
+					x: 100,
+					y: 100,
+					width: 200, // will be updated after load
+					height: 150, // will be updated after load
+					opacity: 1,
+					startTime: 0,
+					endTime: 10,
+					file: file,
+					originalWidth: 0, // Will be set when image loads
+					originalHeight: 0, // Will be set when image loads
+					aspectRatio: 1, // Will be set when image loads
+				};
+
+				// Load image to get dimensions
+				const img = new Image();
+				img.onload = () => {
+					imageObject.originalWidth = img.width;
+					imageObject.originalHeight = img.height;
+					imageObject.aspectRatio = img.width / img.height;
+					// Aspect ratio'yu koruyacak şekilde width/height ayarla
+					imageObject.width = 200;
+					imageObject.height = 200 / imageObject.aspectRatio;
+					// Add to GIF manager
+					const { addGifToCanvas } = useGifManager();
+					addGifToCanvas(imageObject);
+				};
+				img.src = imageUrl;
+				console.log("Pasted image added:", imageObject);
+				break;
+			}
+		}
+	}
 };
 </script>
 

@@ -143,6 +143,7 @@
 					@update:isCropMode="isCropMode = $event"
 					@captureScreenshot="handleCaptureScreenshot"
 					@splitCurrentSegment="handleSplitCurrentSegment"
+					@customResolutionChange="handleCustomResolutionChange"
 					class="mt-4"
 				/>
 			</div>
@@ -730,6 +731,15 @@ const handleExport = async (settings) => {
 	} catch (error) {
 		console.error("[editor.vue] Export işlemi hatası:", error);
 		alert(`An error occurred while starting export process: ${error.message}`);
+	}
+};
+
+// Handle custom resolution change
+const handleCustomResolutionChange = (resolution) => {
+	console.log("Custom resolution change:", resolution);
+
+	if (mediaPlayerRef.value && mediaPlayerRef.value.setCanvasSize) {
+		mediaPlayerRef.value.setCanvasSize(resolution.width, resolution.height);
 	}
 };
 
