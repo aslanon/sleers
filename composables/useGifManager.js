@@ -191,11 +191,17 @@ export const useGifManager = () => {
 
 		// Emit event to timeline component to create segment
 		if (typeof window !== "undefined") {
-			window.dispatchEvent(
-				new CustomEvent("gif-added", {
-					detail: { gif: newGif },
-				})
-			);
+			// Debounce event dispatch to prevent excessive updates
+			if (window.gifEventTimeout) {
+				clearTimeout(window.gifEventTimeout);
+			}
+			window.gifEventTimeout = setTimeout(() => {
+				window.dispatchEvent(
+					new CustomEvent("gif-added", {
+						detail: { gif: newGif },
+					})
+				);
+			}, 50);
 		}
 
 		return newGif;
@@ -214,11 +220,17 @@ export const useGifManager = () => {
 
 			// Emit event to timeline component to remove segment
 			if (typeof window !== "undefined") {
-				window.dispatchEvent(
-					new CustomEvent("gif-removed", {
-						detail: { gifId },
-					})
-				);
+				// Debounce event dispatch to prevent excessive updates
+				if (window.gifEventTimeout) {
+					clearTimeout(window.gifEventTimeout);
+				}
+				window.gifEventTimeout = setTimeout(() => {
+					window.dispatchEvent(
+						new CustomEvent("gif-removed", {
+							detail: { gifId },
+						})
+					);
+				}, 50);
 			}
 		}
 	};
@@ -234,11 +246,17 @@ export const useGifManager = () => {
 
 		// Emit selection event
 		if (typeof window !== "undefined") {
-			window.dispatchEvent(
-				new CustomEvent("gif-selected", {
-					detail: { gifId },
-				})
-			);
+			// Debounce event dispatch to prevent excessive updates
+			if (window.gifEventTimeout) {
+				clearTimeout(window.gifEventTimeout);
+			}
+			window.gifEventTimeout = setTimeout(() => {
+				window.dispatchEvent(
+					new CustomEvent("gif-selected", {
+						detail: { gifId },
+					})
+				);
+			}, 50);
 		}
 	};
 

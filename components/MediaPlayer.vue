@@ -707,8 +707,14 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 			img.onload = () => {
 				window.imageCache.set(cacheKey, img);
-				// Force canvas redraw to show the loaded image
-				requestAnimationFrame(() => updateCanvas(performance.now()));
+				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
+				if (ctx && !window.imageLoadPending) {
+					window.imageLoadPending = true;
+					setTimeout(() => {
+						window.imageLoadPending = false;
+						updateCanvas(performance.now());
+					}, 50);
+				}
 			};
 
 			img.onerror = () => {
@@ -745,7 +751,8 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 					// Only update video time if significantly different (reduces jitter)
 					const timeDiff = Math.abs(cachedVideo.currentTime - videoTime);
-					if (timeDiff > 0.1) {
+					if (timeDiff > 0.3) {
+						// Increased threshold for more stability
 						cachedVideo.currentTime = videoTime;
 					}
 
@@ -779,8 +786,14 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			overlayVideo.onloadeddata = () => {
 				window.videoCache.set(cacheKey, overlayVideo);
 				overlayVideo.play().catch(console.warn);
-				// Force canvas redraw to show the loaded video
-				requestAnimationFrame(() => updateCanvas(performance.now()));
+				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
+				if (ctx && !window.videoLoadPending) {
+					window.videoLoadPending = true;
+					setTimeout(() => {
+						window.videoLoadPending = false;
+						updateCanvas(performance.now());
+					}, 50);
+				}
 			};
 
 			overlayVideo.onerror = () => {
@@ -810,8 +823,8 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 					// Only update video time if significantly different (reduces jitter)
 					const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
-					if (timeDiff > 0.2) {
-						// Increased threshold from 0.1 to 0.2
+					if (timeDiff > 0.4) {
+						// Increased threshold for more stability
 						cachedVideo.currentTime = loopTime;
 					}
 
@@ -850,8 +863,14 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			gifVideo.onloadeddata = () => {
 				window.gifVideoCache.set(cacheKey, gifVideo);
 				gifVideo.play().catch(console.warn);
-				// Force canvas redraw to show the loaded GIF
-				requestAnimationFrame(() => updateCanvas(performance.now()));
+				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
+				if (ctx && !window.gifVideoLoadPending) {
+					window.gifVideoLoadPending = true;
+					setTimeout(() => {
+						window.gifVideoLoadPending = false;
+						updateCanvas(performance.now());
+					}, 50);
+				}
 			};
 
 			gifVideo.onerror = () => {
@@ -908,7 +927,14 @@ const drawGifAsImage = (ctx, renderData, dpr, x, y, width, height) => {
 
 		gifImg.onload = () => {
 			window.gifImageCache.set(cacheKey, gifImg);
-			requestAnimationFrame(() => updateCanvas(performance.now()));
+			// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
+			if (ctx && !window.gifImageLoadPending) {
+				window.gifImageLoadPending = true;
+				setTimeout(() => {
+					window.gifImageLoadPending = false;
+					updateCanvas(performance.now());
+				}, 50);
+			}
 		};
 
 		gifImg.onerror = () => {
@@ -2888,8 +2914,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 	// 	window.gifHandleData.clear();
 	// }
 
-	// FPS kontrolü
-	if (timestamp - lastFrameTime < frameInterval) {
+	// FPS kontrolü - GIF'ler için daha düşük FPS kullan
+	const currentFPS = window.gifAnimationActive ? 10 : 60; // GIF'ler için 10 FPS, normal için 60 FPS
+	const currentFrameInterval = 1000 / currentFPS;
+
+	if (timestamp - lastFrameTime < currentFrameInterval) {
 		// Sadece video oynatılıyorsa veya zoom geçişi varsa animasyonu devam ettir
 		if (videoState.value.isPlaying || isCanvasZoomTransitioning.value) {
 			animationFrame = requestAnimationFrame((t) =>
@@ -3397,12 +3426,29 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		const currentGifs = getGifsAtTime(canvasTime);
 		if (currentGifs.length > 0) {
 			// Video segment'i olmasa bile GIF ve video overlay'ler render edilebilir
+			let hasVisibleGifs = false;
 			currentGifs.forEach((gif) => {
 				const renderData = getGifRenderData(gif.id, canvasTime);
 				if (renderData && renderData.isVisible) {
+					hasVisibleGifs = true;
 					drawGifOverlay(ctx, renderData, dpr, scaleValue);
 				}
 			});
+
+			// Sadece görünür GIF'ler varsa animasyonu devam ettir
+			if (hasVisibleGifs) {
+				// GIF'ler aktif olduğunda sürekli animasyon yerine sadece gerektiğinde güncelle
+				if (!window.gifAnimationActive) {
+					window.gifAnimationActive = true;
+					// GIF animasyonu için daha düşük FPS kullan
+					setTimeout(() => {
+						window.gifAnimationActive = false;
+						if (ctx) {
+							requestAnimationFrame(() => updateCanvas(performance.now()));
+						}
+					}, 100); // 10 FPS for GIFs
+				}
+			}
 		}
 
 		// 🌟 Zoom Overlay (EN ÜST LAYER - her şeyin üstünde)
@@ -3437,12 +3483,13 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		}
 
 		// Animasyon frame'ini sadece gerektiğinde talep et
-		if (
+		const shouldContinueAnimation =
 			videoState.value.isPlaying ||
 			isCanvasZoomTransitioning.value ||
 			isCameraDragging.value ||
-			currentGifs.length > 0 // Keep animating if GIFs are active
-		) {
+			(window.gifAnimationActive && currentGifs.length > 0); // GIF animasyonu aktifse devam et
+
+		if (shouldContinueAnimation) {
 			// Mevcut frame'i temizle
 			if (animationFrame) {
 				cancelAnimationFrame(animationFrame);
@@ -4103,8 +4150,14 @@ onMounted(() => {
 	const handleGifAdded = (event) => {
 		// A new GIF was added to the timeline
 		const { gif } = event.detail;
-		// Force canvas redraw to show the new GIF
-		requestAnimationFrame(() => updateCanvas(performance.now()));
+		// Sadece bir kez canvas'ı güncelle
+		if (ctx && !window.gifEventPending) {
+			window.gifEventPending = true;
+			setTimeout(() => {
+				window.gifEventPending = false;
+				updateCanvas(performance.now());
+			}, 100);
+		}
 	};
 
 	const handleGifRemoved = (event) => {
@@ -4120,15 +4173,27 @@ onMounted(() => {
 			}
 			keysToDelete.forEach((key) => window.gifImageCache.delete(key));
 		}
-		// Force canvas redraw
-		requestAnimationFrame(() => updateCanvas(performance.now()));
+		// Sadece bir kez canvas'ı güncelle
+		if (ctx && !window.gifEventPending) {
+			window.gifEventPending = true;
+			setTimeout(() => {
+				window.gifEventPending = false;
+				updateCanvas(performance.now());
+			}, 100);
+		}
 	};
 
 	const handleGifSelected = (event) => {
 		// A GIF was selected in the timeline
 		const { gifId } = event.detail;
-		// Force canvas redraw to show selection
-		requestAnimationFrame(() => updateCanvas(performance.now()));
+		// Sadece bir kez canvas'ı güncelle
+		if (ctx && !window.gifEventPending) {
+			window.gifEventPending = true;
+			setTimeout(() => {
+				window.gifEventPending = false;
+				updateCanvas(performance.now());
+			}, 100);
+		}
 	};
 
 	window.addEventListener("resize", handleResize);
