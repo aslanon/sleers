@@ -3520,13 +3520,42 @@ async function createWindow() {
 			allowRunningInsecureContent: true,
 			webviewTag: true,
 			additionalArguments: ["--disable-site-isolation-trials"],
+			devTools: isDev, // Production'da DevTools'u devre dışı bırak
 		},
 	});
 
 	setupSecurityPolicies();
 	initializeManagers();
 	setupWindowEvents();
+	setupProductionSecurity();
 	loadApplication();
+}
+
+// Production'da güvenlik ayarları
+function setupProductionSecurity() {
+	if (!isDev) {
+		// Application menüsünü kaldır
+		Menu.setApplicationMenu(null);
+		
+		// DevTools açma kısayollarını engelle
+		mainWindow.webContents.on('before-input-event', (event, input) => {
+			// F12, Cmd+Opt+I, Cmd+Shift+I gibi DevTools kısayollarını engelle
+			if (input.key === 'F12' || 
+				(input.meta && input.alt && input.key.toLowerCase() === 'i') ||
+				(input.meta && input.shift && input.key.toLowerCase() === 'i') ||
+				(input.control && input.shift && input.key.toLowerCase() === 'i')) {
+				event.preventDefault();
+				console.log('DevTools shortcut blocked in production');
+			}
+		});
+		
+		// Right-click context menu'yu devre dışı bırak
+		mainWindow.webContents.on('context-menu', (event) => {
+			event.preventDefault();
+		});
+		
+		console.log('Production security measures applied');
+	}
 
 	// CSP headers are now handled globally in setupSecurityPolicies()
 	// mainWindow.webContents.session.webRequest.onHeadersReceived(

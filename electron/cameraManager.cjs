@@ -286,6 +286,7 @@ class CameraManager {
 					preload: path.join(__dirname, "preload.cjs"),
 					webSecurity: false,
 					allowRunningInsecureContent: true,
+					devTools: isDev, // Production'da DevTools'u devre dışı bırak
 				},
 				backgroundColor: "#00000000",
 				hasShadow: false,
