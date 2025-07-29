@@ -5,7 +5,7 @@
 module.exports = {
 	appId: "com.creavit.studio",
 	productName: "Creavit Studio",
-	asar: true,
+	asar: false,
 	directories: {
 		output: "dist",
 		buildResources: "build",
@@ -13,25 +13,28 @@ module.exports = {
 	files: [
 		"electron/**",
 		"package.json",
-		"node_modules/electron-store/**", // Electron-store modülünü açıkça dahil et
-		"node_modules/conf/**", // conf modülü (electron-store bağımlılığı)
+		"node_modules/electron-store/**",
+		"node_modules/conf/**", 
+		"node_modules/@ffmpeg-installer/**",
+		"node_modules/fluent-ffmpeg/**",
+		"node_modules/node-mac-recorder/**",
+		"node_modules/uiohook-napi/**",
+		"node_modules/async/**", // fluent-ffmpeg dependency
+		"node_modules/which/**", // fluent-ffmpeg dependency
 	],
 	extraResources: [
 		{
 			from: ".output/public",
 			to: "public",
 		},
+		{
+			from: "node_modules/@ffmpeg-installer/darwin-arm64/ffmpeg",
+			to: "ffmpeg",
+		},
 	],
 	extraMetadata: {
 		main: "electron/main.cjs",
 	},
-	// Harici bağımlılıkları asar içine dahil etme
-	asarUnpack: [
-		"node_modules/electron-store/**",
-		"node_modules/conf/**",
-		"node_modules/uiohook-napi/**", // UIohook binary'lerini ASAR dışında tut
-		"node_modules/node-mac-recorder/**", // MacRecorder native modülünü ASAR dışında tut
-	],
 	mac: {
 		category: "public.app-category.video",
 		icon: "build/icon.icns",

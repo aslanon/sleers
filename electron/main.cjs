@@ -15,7 +15,10 @@ const path = require("path");
 const fs = require("fs");
 const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
-const ffmpeg = require("fluent-ffmpeg");
+const FFmpegWrapper = require("./ffmpegWrapper.cjs");
+
+// FFmpeg wrapper instance
+const ffmpegWrapper = new FFmpegWrapper();
 
 const express = require("express");
 const http = require("http");
@@ -2513,53 +2516,22 @@ function setupIpcHandlers() {
 				throw new Error("WebM dosyası boş - kayıt işlemi başarısız");
 			}
 
-			// FFmpeg ile MP4'e dönüştür - minimal ayarlar
-			return new Promise((resolve, reject) => {
-				const ffmpegCommand = ffmpeg(tempWebmPath)
-					.outputOptions([
-						"-c:v libx264", // H.264 codec
-						"-crf 28", // Orta kalite
-						"-preset fast", // Hızlı encoding
-						"-pix_fmt yuv420p", // Uyumlu renk formatı
-					])
-					.on("start", (commandLine) => {
-						console.log("[main] FFmpeg başlatıldı:", commandLine);
-					})
-					.on("progress", (progress) => {
-						console.log(`[main] FFmpeg ilerleme: ${progress.percent}%`);
-					})
-					.on("end", () => {
-						// Process'i array'den çıkar
-						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
-						if (index > -1) {
-							global.ffmpegProcesses.splice(index, 1);
-						}
-
-						// Geçici dosyayı temizle
-						fs.unlinkSync(tempWebmPath);
-						console.log("[main] Video başarıyla kaydedildi:", outputPath);
-						resolve({ success: true });
-					})
-					.on("error", (err, stdout, stderr) => {
-						// Process'i array'den çıkar
-						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
-						if (index > -1) {
-							global.ffmpegProcesses.splice(index, 1);
-						}
-
-						console.error("[main] Video dönüştürme hatası:", err);
-						console.error("[main] FFmpeg stderr:", stderr);
-						// Geçici dosyayı temizle
-						if (fs.existsSync(tempWebmPath)) {
-							fs.unlinkSync(tempWebmPath);
-						}
-						reject(new Error("Video dönüştürülemedi: " + err.message));
-					})
-					.save(outputPath);
-
-				// Process'i global array'e ekle
-				global.ffmpegProcesses.push(ffmpegCommand);
-			});
+			// Custom FFmpeg wrapper ile MP4'e dönüştür
+			try {
+				await ffmpegWrapper.convertWebmToMp4(tempWebmPath, outputPath);
+				
+				// Geçici dosyayı temizle
+				fs.unlinkSync(tempWebmPath);
+				console.log("[main] Video başarıyla kaydedildi:", outputPath);
+				
+				return { success: true };
+			} catch (conversionError) {
+				// Geçici dosyayı temizle
+				if (fs.existsSync(tempWebmPath)) {
+					fs.unlinkSync(tempWebmPath);
+				}
+				throw new Error("Video dönüştürülemedi: " + conversionError.message);
+			}
 		} catch (error) {
 			console.error("[main] Video kaydetme hatası:", error);
 			throw error;
@@ -2922,40 +2894,22 @@ function setupIpcHandlers() {
 			);
 			fs.writeFileSync(tempWebmPath, inputBuffer);
 
-			// FFmpeg ile GIF'e dönüştür
-			return new Promise((resolve, reject) => {
-				const ffmpegCommand = ffmpeg(tempWebmPath)
-					.outputOptions([
-						"-vf",
-						"fps=15,scale=640:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", // GIF kalitesi için optimizasyon
-					])
-					.on("end", () => {
-						// Process'i array'den çıkar
-						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
-						if (index > -1) {
-							global.ffmpegProcesses.splice(index, 1);
-						}
-
-						// Geçici dosyayı temizle
-						fs.unlinkSync(tempWebmPath);
-						console.log("[main] GIF başarıyla kaydedildi:", outputPath);
-						resolve({ success: true });
-					})
-					.on("error", (err) => {
-						// Process'i array'den çıkar
-						const index = global.ffmpegProcesses.indexOf(ffmpegCommand);
-						if (index > -1) {
-							global.ffmpegProcesses.splice(index, 1);
-						}
-
-						console.error("[main] GIF dönüştürme hatası:", err);
-						reject(new Error("GIF dönüştürülemedi: " + err.message));
-					})
-					.save(outputPath);
-
-				// Process'i global array'e ekle
-				global.ffmpegProcesses.push(ffmpegCommand);
-			});
+			// Custom FFmpeg wrapper ile GIF'e dönüştür
+			try {
+				await ffmpegWrapper.convertWebmToGif(tempWebmPath, outputPath);
+				
+				// Geçici dosyayı temizle
+				fs.unlinkSync(tempWebmPath);
+				console.log("[main] GIF başarıyla kaydedildi:", outputPath);
+				
+				return { success: true };
+			} catch (conversionError) {
+				// Geçici dosyayı temizle
+				if (fs.existsSync(tempWebmPath)) {
+					fs.unlinkSync(tempWebmPath);
+				}
+				throw new Error("GIF dönüştürülemedi: " + conversionError.message);
+			}
 		} catch (error) {
 			console.error("[main] GIF kaydetme hatası:", error);
 			throw error;
