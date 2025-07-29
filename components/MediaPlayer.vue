@@ -759,6 +759,13 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 						cachedVideo.currentTime = videoTime;
 					}
 
+					// Video play/pause state'ini canvas state'e sync et
+					if (videoState.value.isPlaying && cachedVideo.paused) {
+						cachedVideo.play().catch(console.warn);
+					} else if (!videoState.value.isPlaying && !cachedVideo.paused) {
+						cachedVideo.pause();
+					}
+
 					// Use requestVideoFrameCallback if available for smoother rendering
 					if (
 						cachedVideo.requestVideoFrameCallback &&
@@ -788,7 +795,10 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 			overlayVideo.onloadeddata = () => {
 				window.videoCache.set(cacheKey, overlayVideo);
-				overlayVideo.play().catch(console.warn);
+				// Sadece canvas oynatılıyorsa video'yu oynat
+				if (videoState.value.isPlaying) {
+					overlayVideo.play().catch(console.warn);
+				}
 				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
 				if (ctx && !window.videoLoadPending) {
 					window.videoLoadPending = true;
@@ -831,6 +841,13 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 						cachedVideo.currentTime = loopTime;
 					}
 
+					// GIF video play/pause state'ini canvas state'e sync et
+					if (videoState.value.isPlaying && cachedVideo.paused) {
+						cachedVideo.play().catch(console.warn);
+					} else if (!videoState.value.isPlaying && !cachedVideo.paused) {
+						cachedVideo.pause();
+					}
+
 					// Use requestVideoFrameCallback if available for smoother rendering
 					if (
 						cachedVideo.requestVideoFrameCallback &&
@@ -865,7 +882,10 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 			gifVideo.onloadeddata = () => {
 				window.gifVideoCache.set(cacheKey, gifVideo);
-				gifVideo.play().catch(console.warn);
+				// Sadece canvas oynatılıyorsa GIF video'yu oynat
+				if (videoState.value.isPlaying) {
+					gifVideo.play().catch(console.warn);
+				}
 				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
 				if (ctx && !window.gifVideoLoadPending) {
 					window.gifVideoLoadPending = true;
@@ -3560,9 +3580,9 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				}
 			});
 
-			// Sadece görünür GIF'ler varsa animasyonu devam ettir
-			if (hasVisibleGifs) {
-				// GIF'ler aktif olduğunda sürekli animasyon yerine sadece gerektiğinde güncelle
+			// Sadece canvas oynatılırken GIF animasyonunu aktif et
+			if (hasVisibleGifs && videoState.value.isPlaying) {
+				// GIF'ler sadece canvas oynatılırken animate olur
 				if (!window.gifAnimationActive) {
 					window.gifAnimationActive = true;
 					// GIF animasyonu için daha düşük FPS kullan
