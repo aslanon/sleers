@@ -4348,6 +4348,18 @@ onMounted(() => {
 		});
 	}
 
+	// Editor modu açıldığında canvas'ı doğru boyutlandır
+	nextTick(() => {
+		// Canvas'ın tam boyutunda görünmesi için resize event'ini tetikle
+		setTimeout(() => {
+			handleResize();
+			// Ek olarak bir kez daha canvas'ı güncelle
+			if (ctx) {
+				updateCanvas(performance.now());
+			}
+		}, 100); // Kısa bir delay ile canvas'ın tam boyutunda görünmesini sağla
+	});
+
 	// Initialize camera position from camera settings if available
 	if (cameraSettings.value && cameraSettings.value.position) {
 		cameraPosition.value = { ...cameraSettings.value.position };
