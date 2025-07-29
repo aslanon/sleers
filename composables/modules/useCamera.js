@@ -782,21 +782,52 @@ export const useCamera = () => {
 			// Shadow'ı video çiziminden önce çiz (arka planda kalması için)
 			if (cameraSettings.value?.shadow > 0) {
 				ctx.save();
-				ctx.beginPath();
-				useRoundRect(
-					ctx,
-					cameraX,
-					cameraY,
-					cameraWidth,
-					cameraHeight,
-					safeRadius
-				);
-				ctx.shadowColor = "rgba(0,0,0,1)"; // Tam siyah shadow
-				ctx.shadowBlur = safeShadowBlur;
-				ctx.shadowOffsetX = 0;
-				ctx.shadowOffsetY = 6 * dpr; // Daha büyük offset
-				ctx.fillStyle = "rgba(0,0,0,0.8)"; // Daha belirgin fill
-				ctx.fill();
+				
+				// Background removal aktifse siluet bazında shadow çiz
+				if (backgroundRemovalActive.value && lastProcessedFrame.value) {
+					// Shadow offset'i uygula
+					ctx.translate(0, 6 * dpr);
+					
+					// Shadow blur ve color ayarla
+					ctx.shadowColor = "rgba(0,0,0,1)";
+					ctx.shadowBlur = safeShadowBlur;
+					ctx.shadowOffsetX = 0;
+					ctx.shadowOffsetY = 0; // translate ile offset uyguladık
+					
+					// Processed frame'i shadow olarak çiz (globalAlpha ile)
+					ctx.globalAlpha = 0.8;
+					ctx.globalCompositeOperation = "multiply";
+					
+					ctx.drawImage(
+						lastProcessedFrame.value,
+						sourceX,
+						sourceY,
+						sourceWidth,
+						sourceHeight,
+						cameraX,
+						cameraY,
+						cameraWidth,
+						cameraHeight
+					);
+				} else {
+					// Normal dikdörtgen shadow
+					ctx.beginPath();
+					useRoundRect(
+						ctx,
+						cameraX,
+						cameraY,
+						cameraWidth,
+						cameraHeight,
+						safeRadius
+					);
+					ctx.shadowColor = "rgba(0,0,0,1)";
+					ctx.shadowBlur = safeShadowBlur;
+					ctx.shadowOffsetX = 0;
+					ctx.shadowOffsetY = 6 * dpr;
+					ctx.fillStyle = "rgba(0,0,0,0.8)";
+					ctx.fill();
+				}
+				
 				ctx.restore();
 			}
 
