@@ -273,7 +273,8 @@ export const useCamera = () => {
 
 	// ===== RENDER FONKSİYONLARI =====
 	const updateHoverScale = () => {
-		const targetScale = isMouseOverCamera.value ? HOVER_SCALE : 1;
+		// Background removal aktifken hover efekti olmasın
+		const targetScale = (isMouseOverCamera.value && !backgroundRemovalActive.value) ? HOVER_SCALE : 1;
 		hoverScale.value += (targetScale - hoverScale.value) * TRANSITION_SPEED;
 	};
 

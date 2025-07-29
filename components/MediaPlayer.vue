@@ -3424,20 +3424,6 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			}
 
 			try {
-				// 📏 Camera scaling logic - zoom'dan etkilenmez (main canvas'ta)
-				let cameraScale;
-
-				if (cameraSettings.value.followMouse) {
-					// Camera follow aktifken: Zoom ile küçülsün
-					cameraScale =
-						canvasZoomScale.value > 1.01
-							? (1 / Math.sqrt(canvasZoomScale.value)) * 0.5 // Zoom ile küçült + %50 daha küçük
-							: 0.5; // Zoom yokken %50 küçük
-				} else {
-					// Camera follow yokken: Zoom boyunca sabit boyut kalsın
-					cameraScale = 0.5; // Her zaman %50 küçük, zoom'dan etkilenmesin
-				}
-
 				const cameraResult = drawCamera(
 					ctx, // Main canvas context (zoom sonrası)
 					cameraElement,
