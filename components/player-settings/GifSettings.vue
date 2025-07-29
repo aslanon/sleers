@@ -245,7 +245,7 @@
 				<div
 					v-for="gif in searchResults"
 					:key="gif.id"
-					@click="addGifToCanvas(gif)"
+					@click="addGifToCanvas(gif, props.duration)"
 					class="relative bg-zinc-800/30 rounded-lg overflow-hidden cursor-pointer hover:bg-zinc-700/50 transition-colors group"
 				>
 					<img
@@ -491,7 +491,7 @@ const addImageToCanvas = () => {
 		};
 
 		// Add to active GIFs (images will be handled as GIFs in the system)
-		addGifToCanvas(imageObject);
+		addGifToCanvas(imageObject, props.duration);
 
 		// Clear selection
 		clearSelectedImage();
@@ -553,7 +553,7 @@ const addVideoToCanvas = () => {
 			height: defaultHeight,
 			opacity: 1,
 			startTime: 0,
-			endTime: props.duration || 10,
+			endTime: video.duration || 10, // Video'nun kendi duration'ını kullan
 			file: selectedVideoFile.value,
 			originalWidth: video.videoWidth,
 			originalHeight: video.videoHeight,
@@ -562,7 +562,7 @@ const addVideoToCanvas = () => {
 		};
 
 		// Add to active GIFs (videos will be handled as GIFs in the system)
-		addGifToCanvas(videoObject);
+		addGifToCanvas(videoObject, video.duration || 10);
 
 		// Clear selection
 		clearSelectedVideo();

@@ -84,7 +84,7 @@ export const useGifManager = () => {
 	};
 
 	// Add GIF or Image to canvas with unique ID and timeline segment
-	const addGifToCanvas = (gifData) => {
+	const addGifToCanvas = (gifData, videoDuration = null) => {
 		const gifId =
 			gifData.id ||
 			`gif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -92,6 +92,9 @@ export const useGifManager = () => {
 		// Check if it's an image or video (not a GIF)
 		const isImage = gifData.type === "image";
 		const isVideo = gifData.type === "video";
+
+		// Default duration: video duration if available, otherwise 10 seconds
+		const defaultDuration = videoDuration || 10;
 
 		let newGif;
 
@@ -108,7 +111,7 @@ export const useGifManager = () => {
 				y: gifData.y || 100,
 				opacity: gifData.opacity || 1,
 				startTime: gifData.startTime || 0,
-				endTime: gifData.endTime || 10,
+				endTime: gifData.endTime || 10, // Image için sabit 10 saniye
 				file: gifData.file,
 				originalUrl: gifData.url,
 				webpUrl: gifData.url,
@@ -131,7 +134,7 @@ export const useGifManager = () => {
 				y: gifData.y || 100,
 				opacity: gifData.opacity || 1,
 				startTime: gifData.startTime || 0,
-				endTime: gifData.endTime || 10,
+				endTime: gifData.endTime || defaultDuration, // Video için kendi duration'ı, yoksa defaultDuration
 				file: gifData.file,
 				originalUrl: gifData.url,
 				webpUrl: gifData.url,
@@ -167,7 +170,7 @@ export const useGifManager = () => {
 				y: 100,
 				opacity: 1,
 				startTime: 0,
-				endTime: 5, // Default 5 seconds
+				endTime: 10, // GIF'ler için sabit 10 saniye
 				isSelected: false,
 				isDragging: false,
 				isResizing: false,
@@ -178,12 +181,12 @@ export const useGifManager = () => {
 
 		activeGifs.value.push(newGif);
 
-		// Create GIF state for animation tracking
+		// Create GIF state for animation tracking - initially paused
 		gifStates.set(gifId, {
 			currentFrame: 0,
 			lastFrameTime: 0,
 			frameRate: 30, // Default frame rate
-			isPlaying: true,
+			isPlaying: false, // Start paused, will be controlled by canvas play state
 		});
 
 		// Auto-select the newly added GIF
@@ -760,9 +763,16 @@ export const useGifManager = () => {
 		const state = gifStates.get(gifId);
 		if (!state) return null;
 
-		// Calculate animation progress
+		// Calculate animation progress - only if playing
 		const relativeTime = currentTime - gif.startTime;
-		const frameIndex = Math.floor(relativeTime * state.frameRate) % 60; // Assume 60 frames max
+		let frameIndex = 0;
+		
+		if (state.isPlaying) {
+			frameIndex = Math.floor(relativeTime * state.frameRate) % 60; // Assume 60 frames max
+		} else {
+			// If paused, keep current frame
+			frameIndex = state.currentFrame || 0;
+		}
 
 		return {
 			...gif,
@@ -773,7 +783,21 @@ export const useGifManager = () => {
 			relativeTime,
 			url: gif.url || gif.originalUrl,
 			rotation: gif.rotation || 0,
+			isPlaying: state.isPlaying, // Pass playing state to renderer
 		};
+	};
+
+	// Control GIF animation based on canvas play state
+	const playAllGifs = () => {
+		gifStates.forEach((state) => {
+			state.isPlaying = true;
+		});
+	};
+
+	const pauseAllGifs = () => {
+		gifStates.forEach((state) => {
+			state.isPlaying = false;
+		});
 	};
 
 	// Clear all GIFs
@@ -813,5 +837,7 @@ export const useGifManager = () => {
 		handleKeyDown,
 		getGifRenderData,
 		clearAllGifs,
+		playAllGifs,
+		pauseAllGifs,
 	};
 };

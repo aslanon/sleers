@@ -306,6 +306,8 @@ const {
 	dragState,
 	activeGifs,
 	selectedGifId,
+	playAllGifs,
+	pauseAllGifs,
 } = useGifManager();
 
 // Canvas-based Zoom yönetimi
@@ -1095,6 +1097,24 @@ const play = async () => {
 	try {
 		if (isTimelinePlaying.value) return;
 
+		// Timeline sonunda mı kontrol et - eğer sonundaysa başa dön
+		const canvasDuration = props.totalCanvasDuration || videoState.value.duration || 30;
+		const tolerance = 0.1; // 100ms tolerans
+		const isAtEnd = videoState.value.currentTime >= (canvasDuration - tolerance);
+		
+		if (isAtEnd) {
+			console.log("[MediaPlayer] Timeline sonunda, başa dönülüyor");
+			videoState.value.currentTime = 0;
+			// Video varsa onu da başa sar
+			if (videoElement) {
+				videoElement.currentTime = 0;
+				if (cameraElement) cameraElement.currentTime = 0;
+				if (audioRef.value) audioRef.value.currentTime = 0;
+			}
+			// Timeline pozisyonunu emit et
+			emit("timeUpdate", 0);
+		}
+
 		// Video yoksa direkt editor modunda oynatma başlat
 		if (!videoElement) {
 			// Editor modu için oynatma
@@ -1116,6 +1136,9 @@ const play = async () => {
 					updateCanvas(timestamp);
 				});
 			}
+
+			// GIF'leri oynat
+			playAllGifs();
 
 			emit("play", videoState.value);
 			return;
@@ -1145,11 +1168,10 @@ const play = async () => {
 		isCameraSelected.value = false;
 
 		// Eğer timeline sonundaysa başa dön - sadece canvas süresine bak
-		const canvasDuration = props.totalCanvasDuration || 0;
+		// canvasDuration ve tolerance zaten yukarıda tanımlı, tekrar kullan
 		const currentTime = videoState.value.currentTime;
 
-		// Canvas süresinden biraz tolerans ekle (0.02 saniye)
-		const tolerance = 0.02;
+		// Canvas süresinden biraz tolerans ekle (tolerance zaten yukarıda 0.1)
 		const shouldReset =
 			canvasDuration > 0 && currentTime >= canvasDuration - tolerance;
 
@@ -1189,6 +1211,9 @@ const play = async () => {
 
 		// Canvas animasyonunu başlat
 		animationFrame = requestAnimationFrame(updateCanvas);
+
+		// GIF'leri oynat
+		playAllGifs();
 
 		emit("play");
 	} catch (error) {
@@ -1388,6 +1413,9 @@ const pause = async () => {
 			cancelAnimationFrame(animationFrame);
 			animationFrame = null;
 		}
+
+		// GIF'leri durdur
+		pauseAllGifs();
 
 		// Video yoksa direkt emit et ve çık
 		if (!videoElement) {
