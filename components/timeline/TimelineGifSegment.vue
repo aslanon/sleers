@@ -15,7 +15,6 @@
 			'cursor-grabbing': isDragging || isDraggingLocal,
 			'cursor-grab':
 				!isDragging && !isDraggingLocal && !isSplitMode && !isResizing,
-			'transition-all duration-200': !isDragging && !isDraggingLocal,
 		}"
 		:style="segmentStyle"
 		:data-segment-id="segment.id"
@@ -37,104 +36,121 @@
 				filter: 'blur(0.5px)',
 			}"
 		>
+			<!-- GIF için mavi/mor gradient, Image için yeşil/turuncu gradient -->
 			<div
-				class="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-purple-600/20"
+				class="absolute inset-0"
+				:class="{
+					'bg-gradient-to-r from-blue-600/20 to-purple-600/20':
+						segment.gif.type === 'gif',
+					'bg-gradient-to-r from-green-600/20 to-orange-600/20':
+						segment.gif.type === 'image',
+					'bg-gradient-to-r from-red-600/20 to-pink-600/20':
+						segment.gif.type === 'video',
+				}"
 			></div>
 		</div>
 
-		<!-- Segment Content - Responsive layout based on timeline hover -->
+		<!-- Segment Content - Video segment stilini kullan -->
 		<div
-			class="absolute inset-0 flex items-center justify-center text-center pointer-events-none"
+			class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
 		>
-			<!-- Video segment'leri için clip segment stilini kullan -->
-			<div
-				v-if="segment.gif.type === 'video'"
-				class="absolute inset-0 flex flex-col items-center justify-center"
-			>
-				<!-- Top Row: Video Icon + Label -->
-				<div class="flex items-center justify-center gap-1.5 mb-1">
-					<!-- Video Icon -->
-					<svg
-						class="w-3 h-3 text-white/70"
-						viewBox="0 0 24 24"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							d="M3.375 19.5H20.625M3.375 19.5C2.75368 19.5 2.25 18.9963 2.25 18.375M3.375 19.5H4.875C5.49632 19.5 6 18.9963 6 18.375M2.25 18.375V5.625M2.25 18.375V16.875C2.25 16.2537 2.75368 15.75 3.375 15.75M21.75 18.375V5.625M21.75 18.375C21.75 18.9963 21.2463 19.5 20.625 19.5M21.75 18.375V16.875C21.75 16.2537 21.2463 15.75 20.625 15.75M20.625 19.5H19.125C18.5037 19.5 18 18.9963 18 18.375M20.625 4.5H3.375M20.625 4.5C21.2463 4.5 21.75 5.00368 21.75 5.625M20.625 4.5H19.125C18.5037 4.5 18 5.00368 18 5.625M21.75 5.625V7.125C21.75 7.74632 21.2463 8.25 20.625 8.25M3.375 4.5C2.75368 4.5 2.25 5.00368 2.25 5.625M3.375 4.5H4.875C5.49632 4.5 6 5.00368 6 5.625M2.25 5.625V7.125C2.25 7.74632 2.75368 8.25 3.375 8.25M3.375 8.25H4.875M3.375 8.25C2.75368 8.25 2.25 8.75368 2.25 9.375V10.875C2.25 11.4963 2.75368 12 3.375 12M4.875 8.25C5.49632 8.25 6 7.74632 6 7.125V5.625M4.875 8.25C5.49632 8.25 6 8.75368 6 9.375V10.875M6 5.625V10.875M6 5.625C6 5.00368 6.50368 4.5 7.125 4.5H16.875C17.4963 4.5 18 5.00368 18 5.625M19.125 8.25H20.625M19.125 8.25C18.5037 8.25 18 7.74632 18 7.125V5.625M19.125 8.25C18.5037 8.25 18 8.75368 18 9.375V10.875M20.625 8.25C21.2463 8.25 21.75 8.75368 21.75 9.375V10.875C21.75 11.4963 21.2463 12 20.625 12M18 5.625V10.875M7.125 12H16.875M7.125 12C6.50368 12 6 11.4963 6 10.875M7.125 12C6.50368 12 6 12.5037 6 13.125M6 10.875C6 11.4963 5.49632 12 4.875 12M18 10.875C18 11.4963 17.4963 12 16.875 12M18 10.875C18 11.4963 18.5037 12 19.125 12M16.875 12C17.4963 12 18 12.5037 18 13.125M6 18.375V13.125M6 18.375C6 18.9963 6.50368 19.5 7.125 19.5H16.875C17.4963 19.5 18 18.9963 18 18.375M6 18.375V16.875C6 16.2537 5.49632 15.75 4.875 15.75M18 18.375V13.125M18 18.375V16.875C18 16.2537 18.5037 15.75 19.125 15.75M18 13.125V14.625C18 15.2463 18.5037 15.75 19.125 15.75M18 13.125C18 12.5037 18.5037 12 19.125 12M6 13.125V14.625C6 15.2463 5.49632 15.75 4.875 15.75M6 13.125C6 12.5037 5.49632 12 4.875 12M3.375 12H4.875M3.375 12C2.75368 12 2.25 12.5037 2.25 13.125V14.625C2.25 15.2463 2.75368 15.75 3.375 15.75M19.125 12H20.625M20.625 12C21.2463 12 21.75 12.5037 21.75 13.125V14.625C21.75 15.2463 21.2463 15.75 20.625 15.75M3.375 15.75H4.875M19.125 15.75H20.625"
-							stroke="white"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						/>
-					</svg>
-					<span class="text-white/70 text-[10px] font-medium tracking-wide">
-						Clip - {{ segment.gif.title }}
-					</span>
-				</div>
+			<!-- Top Row: Icon + Label -->
+			<div class="flex items-center justify-center gap-1.5 mb-1">
+				<!-- GIF Icon -->
+				<svg
+					v-if="segment.gif.type === 'gif'"
+					class="w-3 h-3 text-white/70"
+					viewBox="0 0 24 24"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<path
+						d="M12 2L2 7L12 12L22 7L12 2Z"
+						stroke="white"
+						stroke-width="1.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<path
+						d="M2 17L12 22L22 17"
+						stroke="white"
+						stroke-width="1.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<path
+						d="M2 12L12 17L22 12"
+						stroke="white"
+						stroke-width="1.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
 
-				<!-- Bottom Row: Duration -->
-				<div class="flex items-center justify-center gap-1.5">
-					<span class="text-white/90 text-sm font-medium tracking-wide">
-						{{ formattedDuration }}
-					</span>
-				</div>
+				<!-- Image Icon -->
+				<svg
+					v-else-if="segment.gif.type === 'image'"
+					class="w-3 h-3 text-white/70"
+					viewBox="0 0 24 24"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<path
+						d="M21 19V5C21 3.9 20.1 3 19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19Z"
+						stroke="white"
+						stroke-width="1.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<path
+						d="M8.5 10C9.32843 10 10 9.32843 10 8.5C10 7.67157 9.32843 7 8.5 7C7.67157 7 7 7.67157 7 8.5C7 9.32843 7.67157 10 8.5 10Z"
+						stroke="white"
+						stroke-width="1.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<path
+						d="M21 15L16 10L5 21"
+						stroke="white"
+						stroke-width="1.5"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
+
+				<!-- Video Icon -->
+				<svg
+					v-else-if="segment.gif.type === 'video'"
+					class="w-3 h-3 text-white/70"
+					viewBox="0 0 24 24"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<path
+						d="M3.375 19.5H20.625M3.375 19.5C2.75368 19.5 2.25 18.9963 2.25 18.375M3.375 19.5H4.875C5.49632 19.5 6 18.9963 6 18.375M2.25 18.375V5.625M2.25 18.375V16.875C2.25 16.2537 2.75368 15.75 3.375 15.75M21.75 18.375V5.625M21.75 18.375C21.75 18.9963 21.2463 19.5 20.625 19.5M21.75 18.375V16.875C21.75 16.2537 21.2463 15.75 20.625 15.75M20.625 19.5H19.125C18.5037 19.5 18 18.9963 18 18.375M20.625 4.5H3.375M20.625 4.5C21.2463 4.5 21.75 5.00368 21.75 5.625M20.625 4.5H19.125C18.5037 4.5 18 5.00368 18 5.625M21.75 5.625V7.125C21.75 7.74632 21.2463 8.25 20.625 8.25M3.375 4.5C2.75368 4.5 2.25 5.00368 2.25 5.625M3.375 4.5H4.875C5.49632 4.5 6 5.00368 6 5.625M2.25 5.625V7.125C2.25 7.74632 2.75368 8.25 3.375 8.25M3.375 8.25H4.875M3.375 8.25C2.75368 8.25 2.25 8.75368 2.25 9.375V10.875C2.25 11.4963 2.75368 12 3.375 12M4.875 8.25C5.49632 8.25 6 7.74632 6 7.125V5.625M4.875 8.25C5.49632 8.25 6 8.75368 6 9.375V10.875M6 5.625V10.875M6 5.625C6 5.00368 6.50368 4.5 7.125 4.5H16.875C17.4963 4.5 18 5.00368 18 5.625M19.125 8.25H20.625M19.125 8.25C18.5037 8.25 18 7.74632 18 7.125V5.625M19.125 8.25C18.5037 8.25 18 8.75368 18 9.375V10.875M20.625 8.25C21.2463 8.25 21.75 8.75368 21.75 9.375V10.875C21.75 11.4963 21.2463 12 20.625 12M18 5.625V10.875M7.125 12H16.875M7.125 12C6.50368 12 6 11.4963 6 10.875M7.125 12C6.50368 12 6 12.5037 6 13.125M6 10.875C6 11.4963 5.49632 12 4.875 12M18 10.875C18 11.4963 17.4963 12 16.875 12M18 10.875C18 11.4963 18.5037 12 19.125 12M16.875 12C17.4963 12 18 12.5037 18 13.125M6 18.375V13.125M6 18.375C6 18.9963 6.50368 19.5 7.125 19.5H16.875C17.4963 19.5 18 18.9963 18 18.375M6 18.375V16.875C6 16.2537 5.49632 15.75 4.875 15.75M18 18.375V13.125M18 18.375V16.875C18 16.2537 18.5037 15.75 19.125 15.75M18 13.125V14.625C18 15.2463 18.5037 15.75 19.125 15.75M18 13.125C18 12.5037 18.5037 12 19.125 12M6 13.125V14.625C6 15.2463 5.49632 15.75 4.875 15.75M6 13.125C6 12.5037 5.49632 12 4.875 12M3.375 12H4.875M3.375 12C2.75368 12 2.25 12.5037 2.25 13.125V14.625C2.25 15.2463 2.75368 15.75 3.375 15.75M19.125 12H20.625M20.625 12C21.2463 12 21.75 12.5037 21.75 13.125V14.625C21.75 15.2463 21.2463 15.75 20.625 15.75M3.375 15.75H4.875M19.125 15.75H20.625"
+						stroke="white"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
+
+				<span class="text-white/70 text-[10px] font-medium tracking-wide">
+					{{
+						segment.gif.type === "image"
+							? "IMAGE"
+							: segment.gif.type === "video"
+							? "CLIP"
+							: "GIF"
+					}}
+					- {{ segment.gif.title }}
+				</span>
 			</div>
 
-			<!-- GIF ve Image segment'leri için mevcut stil -->
-			<div v-else>
-				<!-- Timeline Hovered: Vertical layout (icon above text) -->
-				<div
-					v-if="isTimelineHovered"
-					class="flex flex-col items-center justify-center"
-				>
-					<span
-						class="text-white/70 text-[10px] font-medium tracking-wide mb-0.5"
-					>
-						{{ segment.gif.type === "image" ? "IMAGE" : "GIF" }}
-					</span>
-					<span
-						class="text-white/90 text-sm font-medium tracking-wide truncate max-w-[100px]"
-					>
-						{{ segment.gif.title }}
-					</span>
-				</div>
-
-				<!-- Timeline Not Hovered: Horizontal layout (icon and text side by side) -->
-				<div v-else class="flex items-center justify-center gap-1.5">
-					<svg
-						v-if="segment.gif.type === 'image'"
-						class="w-3 h-3 text-white/70 flex-shrink-0"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							d="M12.75 8.25V15.75M18.75 8.25H15.75V12M15.75 12V15.75M15.75 12H18M9.75 9.34835C8.72056 7.88388 7.05152 7.88388 6.02208 9.34835C4.99264 10.8128 4.99264 13.1872 6.02208 14.6517C7.05152 16.1161 8.72056 16.1161 9.75 14.6517V12H8.25M4.5 19.5H19.5C20.7426 19.5 21.75 18.4926 21.75 17.25V6.75C21.75 5.50736 20.7426 4.5 19.5 4.5H4.5C3.25736 4.5 2.25 5.50736 2.25 6.75V17.25C2.25 18.4926 3.25736 19.5 4.5 19.5Z"
-							stroke="white"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						/>
-					</svg>
-					<svg
-						v-else
-						class="w-3 h-3 text-white/70 flex-shrink-0"
-						fill="none"
-						stroke="currentColor"
-						viewBox="0 0 24 24"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="1.5"
-							d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8 M14 16H18V12"
-						/>
-					</svg>
-					<span
-						class="text-white/90 text-xs font-medium tracking-wide truncate max-w-[120px]"
-					>
-						{{ segment.gif.title }}
-					</span>
-				</div>
+			<!-- Bottom Row: Duration -->
+			<div class="flex items-center justify-center gap-1.5">
+				<span class="text-white/90 text-sm font-medium tracking-wide">
+					{{ formattedDuration }}
+				</span>
 			</div>
 		</div>
 
@@ -216,6 +232,10 @@ const props = defineProps({
 		type: Boolean,
 		default: false,
 	},
+	hasVideo: {
+		type: Boolean,
+		default: false,
+	},
 });
 
 const emit = defineEmits([
@@ -283,8 +303,16 @@ const segmentStyle = computed(() => {
 		left: `${startX}px`,
 		width: `${Math.max(width, 50)}px`,
 		backgroundColor: "rgba(59, 130, 246, 0.1)", // Blue background for GIF segments
-		borderRadius: props.isTimelineHovered ? "10px" : "6px",
-		height: props.isTimelineHovered ? "100%" : "46%",
+		borderRadius: props.hasVideo
+			? props.isTimelineHovered
+				? "10px"
+				: "6px"
+			: "10px",
+		height: props.hasVideo
+			? props.isTimelineHovered
+				? "100%"
+				: "46%"
+			: "100%",
 		border: props.isActive
 			? "1px solid rgba(255, 255, 255, 0.5)"
 			: "0.5px solid rgba(255, 255, 255, 0.2)",
