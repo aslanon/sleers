@@ -1626,8 +1626,8 @@ const handleResize = () => {
 		}
 	}
 
-	// DPR'ı kullanarak canvas çözünürlüğünü artır
-	const dpr = window.devicePixelRatio || 1;
+	// Canvas çözünürlüğünü sabit tut - DPR'dan bağımsız
+	const dpr = 1; // Sabit DPR kullan
 	canvasRef.value.width = canvasWidth * dpr * scaleValue;
 	canvasRef.value.height = canvasHeight * dpr * scaleValue;
 
@@ -1695,8 +1695,8 @@ const updateCropArea = () => {
 		}
 	}
 
-	// DPR'ı kullanarak canvas çözünürlüğünü artır
-	const dpr = window.devicePixelRatio || 1;
+	// Canvas çözünürlüğünü sabit tut - DPR'dan bağımsız
+	const dpr = 1; // Sabit DPR kullan
 	canvasRef.value.width = canvasWidth * dpr * scaleValue;
 	canvasRef.value.height = canvasHeight * dpr * scaleValue;
 
@@ -2176,8 +2176,8 @@ const drawMousePositions = (customCtx = null) => {
 		currentCursorType.value = prevPos.cursorType;
 	}
 
-	// DPR'ı hesaba kat
-	const dpr = window.devicePixelRatio || 1;
+	// DPR'ı sabit tut
+	const dpr = 1;
 
 	// Calculate movement distance
 	const moveDistance = Math.sqrt(
@@ -2813,7 +2813,7 @@ const drawMousePositions = (customCtx = null) => {
 	if (cameraSettings.value.followMouse && isMouseOverCamera.value) {
 		// Kamera alanı koordinatlarını hesapla
 		const cameraRect = getCameraDisplayRect(); // getCameraDisplayRect fonksiyonu yoksa, camera'nın canvas üzerindeki x, y, width, height değerlerini hesapla
-		drawCameraFollowTooltip(ctx, cameraRect, window.devicePixelRatio || 1);
+		drawCameraFollowTooltip(ctx, cameraRect, 1);
 	}
 };
 
@@ -2821,7 +2821,7 @@ const drawMousePositions = (customCtx = null) => {
 function getCameraDisplayRect() {
 	if (!canvasRef.value || !cameraElement)
 		return { x: 0, y: 0, width: 0, height: 0 };
-	const dpr = window.devicePixelRatio || 1;
+	const dpr = 1;
 	const canvasWidth = canvasRef.value.width;
 	const canvasHeight = canvasRef.value.height;
 	let sourceWidth = cameraElement.videoWidth;
@@ -2871,7 +2871,7 @@ watch(backgroundColor, () => {
 
 watch([dockSize, showDock], () => {
 	if (!ctx || !canvasRef.value) return;
-	drawMacOSDock(ctx, window.devicePixelRatio || 1);
+	drawMacOSDock(ctx, 1);
 	if (videoElement && !videoState.value.isPlaying) {
 		requestAnimationFrame(updateCanvas);
 	}
@@ -2944,7 +2944,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 	try {
 		// DPR'ı al
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 
 		// Video pozisyonunu güncelle
 		if (isVideoDragging.value) {
@@ -3871,7 +3871,7 @@ const onVideoMetadataLoaded = () => {
 		}
 
 		// DPR'ı kullanarak canvas çözünürlüğünü artır
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		canvasRef.value.width = canvasWidth * dpr * scaleValue;
 		canvasRef.value.height = canvasHeight * dpr * scaleValue;
 
@@ -4873,7 +4873,7 @@ const handleMouseDown = (e) => {
 	if (!canvasRef.value) return;
 
 	const rect = canvasRef.value.getBoundingClientRect();
-	const dpr = window.devicePixelRatio || 1;
+	const dpr = 1;
 	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
 	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
 
@@ -5331,7 +5331,7 @@ const roundedRect = (ctx, x, y, width, height, radius) => {
 function getVideoDisplayRect() {
 	if (!canvasRef.value || !videoElement)
 		return { x: 0, y: 0, width: 0, height: 0 };
-	const dpr = window.devicePixelRatio || 1;
+	const dpr = 1;
 	const canvasWidth = canvasRef.value.width;
 	const canvasHeight = canvasRef.value.height;
 	let sourceWidth, sourceHeight;
@@ -5377,7 +5377,7 @@ const handleWheel = (event) => {
 	const mouseY = event.clientY - rect.top;
 
 	// Canvas coordinate'larına çevir (DPR ile)
-	const dpr = window.devicePixelRatio || 1;
+	const dpr = 1;
 	const canvasMouseX = mouseX * dpr;
 	const canvasMouseY = mouseY * dpr;
 
