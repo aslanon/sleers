@@ -4452,6 +4452,7 @@ onMounted(() => {
 	window.addEventListener("gif-interaction-ended", handleGifInteractionEnded);
 
 	window.addEventListener("paste", handlePaste);
+	window.addEventListener("keydown", handleCopy);
 });
 
 onUnmounted(() => {
@@ -4499,6 +4500,7 @@ onUnmounted(() => {
 	);
 
 	window.removeEventListener("paste", handlePaste);
+	window.removeEventListener("keydown", handleCopy);
 });
 
 // Props değişikliklerini izle
@@ -5734,8 +5736,16 @@ const handleWheel = (event) => {
 };
 
 const handlePaste = (event) => {
-	// Handle paste event for clipboard images
+	// Handle paste event for clipboard images or copied GIFs
 	event.preventDefault();
+
+	// First check if we have a copied GIF
+	if (window.copiedGifData) {
+		const { addGifToCanvas } = useGifManager();
+		addGifToCanvas(window.copiedGifData);
+		console.log("Copied GIF pasted:", window.copiedGifData.title);
+		return;
+	}
 
 	const { clipboardData } = event;
 	if (!clipboardData) return;
@@ -5789,6 +5799,34 @@ const handlePaste = (event) => {
 				img.src = imageUrl;
 				console.log("Pasted image added:", imageObject);
 				break;
+			}
+		}
+	}
+};
+
+const handleCopy = (event) => {
+	// Handle copy event for selected GIF/image
+	if ((event.ctrlKey || event.metaKey) && event.key === "c") {
+		event.preventDefault();
+
+		// Get selected GIF from useGifManager
+		const { selectedGifId, activeGifs } = useGifManager();
+
+		if (selectedGifId.value) {
+			const selectedGif = activeGifs.value.find(
+				(gif) => gif.id === selectedGifId.value
+			);
+
+			if (selectedGif) {
+				// Store copied GIF data in clipboard or global state
+				window.copiedGifData = {
+					...selectedGif,
+					id: `copied_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // New unique ID
+					x: selectedGif.x + 50, // Offset position for pasted copy
+					y: selectedGif.y + 50,
+				};
+
+				console.log("GIF copied:", selectedGif.title);
 			}
 		}
 	}
