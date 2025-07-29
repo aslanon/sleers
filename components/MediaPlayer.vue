@@ -1982,41 +1982,47 @@ const drawMousePositions = (customCtx = null) => {
 		// Video süresini al
 		const videoDuration = videoElement.duration || 0;
 		const currentVideoTime = videoElement.currentTime;
-		
+
 		if (videoDuration > 0 && props.mousePositions.length > 1) {
 			// Mevcut zaman için mouse position'ı bul
 			const totalFrames = props.mousePositions.length;
 			const frameTime = videoDuration / totalFrames;
 			const currentFrameIndex = Math.floor(currentVideoTime / frameTime);
-			
+
 			// 2 saniye (2000ms) süresince hareketsizlik kontrolü
 			const IDLE_THRESHOLD = 2000; // 2 saniye
-			const currentPos = props.mousePositions[Math.min(currentFrameIndex, totalFrames - 1)];
-			
+			const currentPos =
+				props.mousePositions[Math.min(currentFrameIndex, totalFrames - 1)];
+
 			if (currentPos) {
 				// Geriye doğru bakarak son hareket zamanını bul
 				let lastMovementTime = currentPos.timestamp;
 				const movementThreshold = 10; // 10 pixel hareket threshold
-				
-				for (let i = currentFrameIndex; i >= Math.max(0, currentFrameIndex - 120); i--) { // Son 2 saniye (~60fps * 2)
+
+				for (
+					let i = currentFrameIndex;
+					i >= Math.max(0, currentFrameIndex - 120);
+					i--
+				) {
+					// Son 2 saniye (~60fps * 2)
 					const pos = props.mousePositions[i];
 					const prevPos = props.mousePositions[i - 1];
-					
+
 					if (pos && prevPos) {
 						const distance = Math.sqrt(
 							Math.pow(pos.x - prevPos.x, 2) + Math.pow(pos.y - prevPos.y, 2)
 						);
-						
+
 						if (distance > movementThreshold) {
 							lastMovementTime = pos.timestamp;
 							break;
 						}
 					}
 				}
-				
+
 				// Hareketsizlik süresini hesapla
 				const idleTime = currentPos.timestamp - lastMovementTime;
-				
+
 				if (idleTime > IDLE_THRESHOLD) {
 					// 2 saniyeden fazla hareketsizse cursor'u gizle
 					return;
@@ -5037,7 +5043,57 @@ const handleMouseDown = (e) => {
 
 const handleMouseMove = (e) => {
 	checkCursorInactivity();
-	// ... mevcut kod ...
+	if (!canvasRef.value) return;
+
+	// Mouse görünürlüğü kapalıysa sadece pozisyonu güncelle, canvas'ı güncelleme
+	const rect = canvasRef.value.getBoundingClientRect();
+	const dpr = 1;
+	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
+	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
+
+	// Mouse pozisyonlarını güncelle
+	mousePosition.value = { x: mouseX, y: mouseY };
+
+	// GIF drag/resize handling (highest priority)
+	if (dragState.isDragging || dragState.isResizing) {
+		// Call GIF manager's mouse move handler
+		handleGifMouseMove(e);
+		// Update canvas to show drag/resize in real-time
+		requestAnimationFrame(() => {
+			updateCanvas(performance.now(), mouseX, mouseY);
+		});
+		return; // Don't handle other interactions while dragging/resizing GIF
+	}
+
+	// Resize sırasında handle resize işlemini yap
+	if (isCameraResizing.value) {
+		const resizeResult = handleCameraResize(e);
+		if (resizeResult) {
+			// Camera size'ı güncelle - remove size limits
+			const newSizePercent =
+				(resizeResult.size.width / canvasRef.value.width) * 100;
+			cameraSettings.value.size = newSizePercent; // Remove size constraints
+
+			// Camera pozisyonunu güncelle (merkez origin için)
+			if (resizeResult.position) {
+				lastCameraPosition.value = resizeResult.position;
+				cameraPosition.value = resizeResult.position;
+			}
+		}
+	}
+
+	// Video drag sırasında handle drag işlemini yap
+	if (isVideoDragging.value) {
+		handleVideoDrag(e);
+	}
+
+	// Video hover detection
+	updateVideoHoverState(mouseX, mouseY);
+
+	// Canvas'ı sürekli güncelle (hover efekti için)
+	requestAnimationFrame(() => {
+		updateCanvas(performance.now(), mouseX, mouseY);
+	});
 };
 
 const handleMouseUp = () => {

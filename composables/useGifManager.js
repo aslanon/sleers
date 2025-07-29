@@ -360,7 +360,7 @@ export const useGifManager = () => {
 
 	// Handle GIF click on canvas
 	const handleGifClick = (event, canvasRect) => {
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const scaleValue = 3; // Match MediaPlayer scale value
 
 		const x = (event.clientX - canvasRect.left) * dpr * scaleValue;
@@ -411,7 +411,7 @@ export const useGifManager = () => {
 						dragState.startY = y;
 
 						// Store original dimensions for resize calculations (in canvas coordinates)
-						const dpr = window.devicePixelRatio || 1;
+						const dpr = 1;
 						dragState.originalWidth = gif.width * dpr;
 						dragState.originalHeight = gif.height * dpr;
 						dragState.originalX = gif.x * dpr;
@@ -517,7 +517,7 @@ export const useGifManager = () => {
 		if (!dragState.isDragging && !dragState.isResizing && !dragState.isRotating)
 			return;
 
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const scaleValue = 3; // Match MediaPlayer scale value
 
 		// Get canvas bounds
@@ -595,7 +595,7 @@ export const useGifManager = () => {
 	const handleGifRotate = (gif, mouseX, mouseY) => {
 		if (!gif) return;
 
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const scaleValue = 3; // Match MediaPlayer scale value
 
 		// Get canvas bounds
@@ -669,7 +669,7 @@ export const useGifManager = () => {
 	const handleGifResize = (gif, mouseX, mouseY, handle) => {
 		if (!gif || !handle) return;
 
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const canvas = document.getElementById("canvasID");
 		if (!canvas) {
 			console.warn("Canvas element not found during GIF resize");

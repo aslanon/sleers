@@ -7,7 +7,7 @@ export const useVideoDrag = () => {
 
 	const startDrag = (e, currentPosition, mouseX, mouseY) => {
 		isDragging.value = true;
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 
 		// Mouse ile video arasındaki offset'i hesapla
 		dragOffset.value = {
@@ -24,7 +24,7 @@ export const useVideoDrag = () => {
 	const handleDrag = (e) => {
 		if (!isDragging.value) return;
 
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const rect = document.getElementById("canvasID").getBoundingClientRect();
 		const mouseX = (e.clientX - rect.left) * dpr * 3; // scaleValue = 3
 		const mouseY = (e.clientY - rect.top) * dpr * 3;

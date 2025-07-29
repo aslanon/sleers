@@ -988,7 +988,7 @@ export const useCamera = () => {
 	// ===== DRAG VE RESIZE FONKSİYONLARI =====
 	const startDrag = (e, currentPosition, mouseX, mouseY) => {
 		isDragging.value = true;
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 
 		dragOffset.value = {
 			x: mouseX - currentPosition.x,
@@ -1004,7 +1004,7 @@ export const useCamera = () => {
 	const handleDrag = (e) => {
 		if (!isDragging.value) return;
 
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const canvas = document.getElementById("canvasID");
 
 		if (!canvas) {
@@ -1083,7 +1083,7 @@ export const useCamera = () => {
 	const handleResize = (e) => {
 		if (!isResizing.value) return;
 
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = 1;
 		const canvas = document.getElementById("canvasID");
 
 		if (!canvas) {
