@@ -136,7 +136,16 @@ export const useMouseCursor = () => {
 	// Cursor hareketsizlik takibi için değişkenler
 	const lastMovementTime = ref(Date.now());
 	const inactivityTimeout = ref(null);
-	const INACTIVITY_DURATION = 3000; // 3 saniye
+	const INACTIVITY_DURATION = 2000; // 2 saniye
+
+	// Debug için isVisible değişikliklerini izle
+	watch(isVisible, (newValue, oldValue) => {
+		if (newValue !== oldValue) {
+			console.log(
+				`[Cursor Visibility] Changed from ${oldValue} to ${newValue}`
+			);
+		}
+	});
 
 	// Cursor hareketsizlik kontrolü
 	const checkCursorInactivity = () => {
@@ -146,18 +155,20 @@ export const useMouseCursor = () => {
 			return;
 		}
 
-		if (inactivityTimeout.value) {
-			clearTimeout(inactivityTimeout.value);
-		}
-
-		inactivityTimeout.value = setTimeout(() => {
-			isVisible.value = false;
-		}, INACTIVITY_DURATION);
-
 		// Eğer cursor gizliyse ve hareket varsa göster
 		if (!isVisible.value) {
 			isVisible.value = true;
 		}
+
+		// Önceki timeout'u temizle
+		if (inactivityTimeout.value) {
+			clearTimeout(inactivityTimeout.value);
+		}
+
+		// Yeni timeout başlat
+		inactivityTimeout.value = setTimeout(() => {
+			isVisible.value = false;
+		}, INACTIVITY_DURATION);
 
 		lastMovementTime.value = Date.now();
 	};
@@ -568,16 +579,9 @@ export const useMouseCursor = () => {
 			visible = true,
 		} = options;
 
-		// Mouse hareketi varsa inaktivite kontrolünü başlat
-		if (x !== cursorX.value || y !== cursorY.value) {
-			checkCursorInactivity();
-		}
-
 		if (!isVisible.value) {
 			return;
 		}
-
-		isVisible.value = true;
 		dpr.value = devicePixelRatio;
 
 		// Size değiştiğinde cursor boyutunu güncelle
@@ -1461,5 +1465,6 @@ export const useMouseCursor = () => {
 		isEffectActive,
 		pendingCursorType,
 		applyPendingCursorType,
+		checkCursorInactivity,
 	};
 };

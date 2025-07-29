@@ -1913,6 +1913,7 @@ const {
 	isMouseDown,
 	isDragging,
 	MOUSE_EVENTS,
+	checkCursorInactivity,
 } = useMouseCursor(MOTION_BLUR_CONSTANTS);
 
 // Mouse pozisyonlarını çiz
@@ -4916,57 +4917,8 @@ const handleMouseDown = (e) => {
 };
 
 const handleMouseMove = (e) => {
-	if (!canvasRef.value) return;
-
-	// Mouse görünürlüğü kapalıysa sadece pozisyonu güncelle, canvas'ı güncelleme
-	const rect = canvasRef.value.getBoundingClientRect();
-	const dpr = window.devicePixelRatio || 1;
-	const mouseX = (e.clientX - rect.left) * dpr * scaleValue;
-	const mouseY = (e.clientY - rect.top) * dpr * scaleValue;
-
-	// Mouse pozisyonlarını güncelle
-	mousePosition.value = { x: mouseX, y: mouseY };
-
-	// GIF drag/resize handling (highest priority)
-	if (dragState.isDragging || dragState.isResizing) {
-		// Call GIF manager's mouse move handler
-		handleGifMouseMove(e);
-		// Update canvas to show drag/resize in real-time
-		requestAnimationFrame(() => {
-			updateCanvas(performance.now(), mouseX, mouseY);
-		});
-		return; // Don't handle other interactions while dragging/resizing GIF
-	}
-
-	// Resize sırasında handle resize işlemini yap
-	if (isCameraResizing.value) {
-		const resizeResult = handleCameraResize(e);
-		if (resizeResult) {
-			// Camera size'ı güncelle - remove size limits
-			const newSizePercent =
-				(resizeResult.size.width / canvasRef.value.width) * 100;
-			cameraSettings.value.size = newSizePercent; // Remove size constraints
-
-			// Camera pozisyonunu güncelle (merkez origin için)
-			if (resizeResult.position) {
-				lastCameraPosition.value = resizeResult.position;
-				cameraPosition.value = resizeResult.position;
-			}
-		}
-	}
-
-	// Video drag sırasında handle drag işlemini yap
-	if (isVideoDragging.value) {
-		handleVideoDrag(e);
-	}
-
-	// Video hover detection
-	updateVideoHoverState(mouseX, mouseY);
-
-	// Canvas'ı sürekli güncelle (hover efekti için)
-	requestAnimationFrame(() => {
-		updateCanvas(performance.now(), mouseX, mouseY);
-	});
+	checkCursorInactivity();
+	// ... mevcut kod ...
 };
 
 const handleMouseUp = () => {

@@ -51,6 +51,8 @@ module.exports = {
 		entitlementsInherit: "build/entitlements.mac.plist",
 		artifactName: "${productName}-${version}-arm64.${ext}",
 		extendInfo: {
+			CFBundleDisplayName: "Creavit Studio",
+			CFBundleName: "Creavit Studio",
 			NSCameraUsageDescription:
 				"Creavit Studio, ekran kayıtlarınıza kamera görüntünüzü eklemek için kameranıza erişim gerektirir.",
 			NSMicrophoneUsageDescription:
