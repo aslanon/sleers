@@ -45,6 +45,7 @@
 	[class*="btn-"],
 	[class*="cursor-pointer"] {
 		transition: all 0.2s ease;
+		outline: none;
 	}
 
 	button:active,
@@ -59,6 +60,7 @@
 	[class*="btn-"]:active,
 	[class*="cursor-pointer"]:active {
 		transform: scale(0.95);
+		outline: none;
 	}
 
 	/* Özel butonlar için ek animasyonlar */
