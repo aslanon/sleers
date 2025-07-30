@@ -250,6 +250,12 @@ ipcMain.on(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, (event, settings) => {
 		...editorSettings,
 		...settings,
 	};
+	
+	// Ses ayarları güncellenmişse MediaStateManager'a ilet
+	if (settings.audioSettings && mediaStateManager) {
+		console.log("[Main] Ses ayarları güncelleniyor:", settings.audioSettings);
+		mediaStateManager.updateAudioSettings(settings.audioSettings);
+	}
 });
 
 // Kaydedilen handler'ları takip etmek için bir set oluşturalım
@@ -816,16 +822,41 @@ OLD_safeHandle(
 					}
 
 					console.log("[Main] ✅ Ekran kaydı izni mevcut");
+					
+					// Sistem sesi için özel kontrol
+					if (macRecorderOptions.includeSystemAudio) {
+						console.log("[Main] 🔊 Sistem sesi kaydı kontrol ediliyor...");
+						if (!permissions.microphone) {
+							console.error(
+								"[Main] ⚠️ Sistem sesi kaydı için mikrofon izni gerekli!"
+							);
+							console.error(
+								"[Main] Sistem Ayarları > Gizlilik ve Güvenlik > Mikrofon > Creavit Studio'yu etkinleştirin"
+							);
+						}
+						
+						// macOS versiyonu kontrol et
+						const osVersion = require('os').release();
+						console.log("[Main] macOS Kernel version:", osVersion);
+						if (osVersion.startsWith('24.')) { // macOS 15 Sequoia
+							console.warn("[Main] ⚠️ macOS Sequoia'da sistem sesi kaydı sorunları olabilir");
+							console.warn("[Main] Çözüm: SoundFlower veya Loopback kullanabilirsiniz");
+						}
+					}
 				} catch (permError) {
 					console.warn("[Main] İzin kontrolü yapılamadı:", permError.message);
 					console.warn("[Main] Devam ediliyor, ancak kayıt başarısız olabilir");
 				}
 
-				// MacRecorder için doğru format - README'den optimize edildi
+				// MacRecorder için doğru format - YENİ VERSİYON ile güncellenmiş
 				const macRecorderOptions = {
-					// Ses ayarları (README'den) - önce ayarla
+					// Ses ayarları (YENİ VERSİYON) - önce ayarla
 					includeMicrophone: false, // Varsayılan kapalı
-					includeSystemAudio: true, // Varsayılan açık (sistem sesi)
+					includeSystemAudio: false, // Varsayılan kapalı (sistem sesi)
+					
+					// YENİ: Belirli ses cihazları seçimi
+					audioDeviceId: null, // Mikrofon cihazı ID'si
+					systemAudioDeviceId: null, // Sistem ses cihazı ID'si
 
 					// Display/Window seçimi (null = ana ekran)
 					displayId: null,
@@ -846,12 +877,45 @@ OLD_safeHandle(
 					macRecorderOptions.includeMicrophone =
 						audioSettings.microphoneEnabled || false;
 					macRecorderOptions.includeSystemAudio =
-						audioSettings.systemAudioEnabled !== false; // varsayılan true
+						audioSettings.systemAudioEnabled || false;
 
 					console.log("[Main] Ses ayarları MacRecorder'a uygulandı:", {
 						includeMicrophone: macRecorderOptions.includeMicrophone,
 						includeSystemAudio: macRecorderOptions.includeSystemAudio,
 					});
+					
+					// Sistem sesi açıksa debug bilgisi ekle ve cihaz seçimi yap
+					if (macRecorderOptions.includeSystemAudio) {
+						console.log("[Main] ⚠️ Sistem sesi kaydı etkin - macOS izinleri kontrol edilmelidir");
+						console.log("[Main] Gerekli izinler: Screen Recording + Microphone (System Preferences > Security & Privacy)");
+						
+						// YENİ: Sistem ses cihazlarını al ve otomatik seç
+						try {
+							console.log("[Main] 🔊 Sistem ses cihazları kontrol ediliyor...");
+							const audioDevices = await recorder.getAudioDevices();
+							console.log("[Main] Tüm ses cihazları:", audioDevices.map(d => `${d.name} (${d.id})`));
+							
+							// Sistem ses cihazlarını filtrele (BlackHole, Aggregate, iMobie vb.)
+							const systemAudioDevices = audioDevices.filter(device => 
+								device.name.toLowerCase().includes('aggregate') ||
+								device.name.toLowerCase().includes('blackhole') ||
+								device.name.toLowerCase().includes('soundflower') ||
+								device.name.toLowerCase().includes('imobie') ||
+								device.name.toLowerCase().includes('loopback')
+							);
+							
+							if (systemAudioDevices.length > 0) {
+								// İlk bulunan sistem ses cihazını kullan
+								macRecorderOptions.systemAudioDeviceId = systemAudioDevices[0].id;
+								console.log("[Main] 🎯 Sistem ses cihazı seçildi:", systemAudioDevices[0].name, `(${systemAudioDevices[0].id})`);
+							} else {
+								console.warn("[Main] ⚠️ Sistem ses cihazı bulunamadı! BlackHole veya Loopback kurmanız önerilir");
+								console.warn("[Main] Varsayılan cihaz kullanılacak, sistem sesi kayıt edilmeyebilir");
+							}
+						} catch (deviceError) {
+							console.warn("[Main] Ses cihazları alınamadı:", deviceError.message);
+						}
+					}
 				}
 
 				// Kaynak türüne göre uygun seçeneği belirle (README best practices)
@@ -1161,6 +1225,9 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 			quality: "medium",
 			frameRate: 30,
 			captureCursor: false,
+			// YENİ: Ses cihazları seçimi
+			audioDeviceId: null,
+			systemAudioDeviceId: null,
 			...options,
 		};
 
@@ -1169,10 +1236,38 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 			const audioSettings = mediaStateManager.state.audioSettings;
 			if (audioSettings) {
 				recordingOptions.includeMicrophone = audioSettings.microphoneEnabled;
+				recordingOptions.includeSystemAudio = audioSettings.systemAudioEnabled;
 				recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
+				
+				// YENİ: Sistem sesi açıksa cihaz seçimi yap
+				if (recordingOptions.includeSystemAudio) {
+					try {
+						console.log("[Main] 🔊 Sistem ses cihazları aranıyor...");
+						const audioDevices = await recorder.getAudioDevices();
+						const systemAudioDevices = audioDevices.filter(device => 
+							device.name.toLowerCase().includes('aggregate') ||
+							device.name.toLowerCase().includes('blackhole') ||
+							device.name.toLowerCase().includes('soundflower') ||
+							device.name.toLowerCase().includes('imobie') ||
+							device.name.toLowerCase().includes('loopback')
+						);
+						
+						if (systemAudioDevices.length > 0) {
+							recordingOptions.systemAudioDeviceId = systemAudioDevices[0].id;
+							console.log("[Main] 🎯 Sistem ses cihazı:", systemAudioDevices[0].name);
+						} else {
+							console.warn("[Main] ⚠️ Sistem ses cihazı bulunamadı!");
+						}
+					} catch (error) {
+						console.warn("[Main] Ses cihazları alınamadı:", error.message);
+					}
+				}
+				
 				console.log("[Main] Ses ayarları eklendi:", {
 					includeMicrophone: recordingOptions.includeMicrophone,
+					includeSystemAudio: recordingOptions.includeSystemAudio,
 					audioDeviceId: recordingOptions.audioDeviceId,
+					systemAudioDeviceId: recordingOptions.systemAudioDeviceId,
 				});
 			}
 		}
@@ -1227,6 +1322,15 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		}
 
 		console.log("[Main] Final MacRecorder options:", recordingOptions);
+		
+		// YENİ VERSİYON TEST: Ses ayarlarını özellikle logla
+		if (recordingOptions.includeSystemAudio && recordingOptions.systemAudioDeviceId) {
+			console.log("[Main] 🎯 Sistem sesi kaydı YENİ VERSİYON ile aktif:");
+			console.log(`[Main] - includeSystemAudio: ${recordingOptions.includeSystemAudio}`);
+			console.log(`[Main] - systemAudioDeviceId: ${recordingOptions.systemAudioDeviceId}`);
+		} else if (recordingOptions.includeSystemAudio) {
+			console.warn("[Main] ⚠️ Sistem sesi açık ama cihaz ID'si yok! Varsayılan cihaz kullanılacak");
+		}
 
 		// Start synchronized recording session
 		const syncSession = synchronizedRecording.startRecordingSession();
@@ -2744,6 +2848,30 @@ function setupIpcHandlers() {
 			return audioDevices;
 		} catch (error) {
 			console.error("[Main] MacRecorder ses cihazları alınamadı:", error);
+			return [];
+		}
+	});
+
+	// YENİ: Sistem ses cihazlarını filtreli olarak al
+	safeHandle("GET_SYSTEM_AUDIO_DEVICES", async (event) => {
+		try {
+			console.log("[Main] Sistem ses cihazları alınıyor...");
+			const recorder = getMacRecorderInstance();
+			const allDevices = await recorder.getAudioDevices();
+			
+			// Sistem ses cihazlarını filtrele
+			const systemAudioDevices = allDevices.filter(device => 
+				device.name.toLowerCase().includes('aggregate') ||
+				device.name.toLowerCase().includes('blackhole') ||
+				device.name.toLowerCase().includes('soundflower') ||
+				device.name.toLowerCase().includes('imobie') ||
+				device.name.toLowerCase().includes('loopback')
+			);
+			
+			console.log("[Main] Bulunan sistem ses cihazları:", systemAudioDevices.map(d => `${d.name} (${d.id})`));
+			return systemAudioDevices;
+		} catch (error) {
+			console.error("[Main] Sistem ses cihazları alınırken hata:", error);
 			return [];
 		}
 	});

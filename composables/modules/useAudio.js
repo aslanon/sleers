@@ -315,11 +315,31 @@ export const useAudio = () => {
 		} else {
 			initAudioAnalyser();
 		}
+		
+		// Backend'e ses ayarlarını güncelle
+		if (window.electron?.ipcRenderer) {
+			window.electron.ipcRenderer.send("UPDATE_EDITOR_SETTINGS", {
+				audioSettings: {
+					microphoneEnabled: microphoneEnabled.value,
+				},
+			});
+		}
+		
 		return microphoneEnabled.value;
 	};
 
 	const toggleSystemAudio = () => {
 		systemAudioEnabled.value = !systemAudioEnabled.value;
+		
+		// Backend'e ses ayarlarını güncelle
+		if (window.electron?.ipcRenderer) {
+			window.electron.ipcRenderer.send("UPDATE_EDITOR_SETTINGS", {
+				audioSettings: {
+					systemAudioEnabled: systemAudioEnabled.value,
+				},
+			});
+		}
+		
 		return systemAudioEnabled.value;
 	};
 
