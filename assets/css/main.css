@@ -31,6 +31,44 @@
 	.card {
 		@apply bg-gray-800 rounded-lg shadow-lg p-6;
 	}
+
+	/* Tüm butonlar ve tıklanabilir arayüzler için basılma animasyonu */
+	button,
+	[role="button"],
+	.btn,
+	.btn-secondary,
+	.aspect-ratio-button,
+	.btn-project,
+	.btn-layout,
+	.btn-export,
+	.btn-new-record,
+	[class*="btn-"],
+	[class*="cursor-pointer"] {
+		transition: all 0.2s ease;
+	}
+
+	button:active,
+	[role="button"]:active,
+	.btn:active,
+	.btn-secondary:active,
+	.aspect-ratio-button:active,
+	.btn-project:active,
+	.btn-layout:active,
+	.btn-export:active,
+	.btn-new-record:active,
+	[class*="btn-"]:active,
+	[class*="cursor-pointer"]:active {
+		transform: scale(0.95);
+	}
+
+	/* Özel butonlar için ek animasyonlar */
+	.btn-project,
+	.btn-layout,
+	.btn-export,
+	.btn-new-record {
+		cursor: pointer;
+		user-select: none;
+	}
 }
 
 @layer utilities {

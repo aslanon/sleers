@@ -586,14 +586,6 @@ const captureScreenshot = () => {
 	user-select: none;
 }
 
-button {
-	transition: all 0.2s ease;
-}
-
-button:active {
-	transform: scale(0.95);
-}
-
 .aspect-icon {
 	width: 12px;
 	height: 12px;
