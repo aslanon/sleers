@@ -279,6 +279,10 @@ class CameraManager {
 				transparent: true,
 				frame: false,
 				alwaysOnTop: true,
+				// macOS'ta ekran kaydından gizle
+				...(process.platform === 'darwin' && {
+					excludedFromShownWindowsMenu: true,
+				}),
 				webPreferences: {
 					nodeIntegration: false,
 					contextIsolation: true,
@@ -298,6 +302,16 @@ class CameraManager {
 				skipTaskbar: true,
 				movable: true,
 			});
+
+			// macOS'ta kamera penceresini ekran kaydından gizle
+			if (process.platform === 'darwin') {
+				try {
+					this.cameraWindow.setContentProtection(true);
+					console.log("[CameraManager] ✅ Kamera penceresi ekran kaydından gizlendi");
+				} catch (error) {
+					console.warn("[CameraManager] ⚠️ Kamera pencere gizleme başarısız:", error.message);
+				}
+			}
 
 			// Kamera penceresini yapılandır
 			this.cameraWindow.removeMenu();

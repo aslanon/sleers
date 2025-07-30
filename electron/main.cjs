@@ -3081,11 +3081,25 @@ function setupIpcHandlers() {
 			resizable: false,
 			minimizable: false,
 			maximizable: false,
+			// macOS'ta ekran kaydından gizle
+			...(process.platform === 'darwin' && {
+				excludedFromShownWindowsMenu: true,
+			}),
 			webPreferences: {
 				nodeIntegration: true,
 				contextIsolation: false,
 			},
 		});
+
+		// macOS'ta dialog penceresini ekran kaydından gizle
+		if (process.platform === 'darwin') {
+			try {
+				promptWindow.setContentProtection(true);
+				console.log("[Main] ✅ Dialog penceresi ekran kaydından gizlendi");
+			} catch (error) {
+				console.warn("[Main] ⚠️ Dialog pencere gizleme başarısız:", error.message);
+			}
+		}
 
 		// Load HTML content
 		promptWindow.loadURL(`data:text/html,
@@ -3636,10 +3650,13 @@ async function createWindow() {
 		resizable: false,
 		skipTaskbar: false,
 		frame: false,
-
 		transparent: true,
 		hasShadow: true,
 		movable: true,
+		// macOS'ta ekran kaydından gizle
+		...(process.platform === 'darwin' && {
+			excludedFromShownWindowsMenu: true,
+		}),
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
@@ -3770,6 +3787,17 @@ function initializeManagers() {
 }
 
 function setupWindowEvents() {
+	// macOS'ta pencereyi ekran kaydından gizle (native API)
+	if (process.platform === 'darwin') {
+		try {
+			// Electron'un setContentProtection API'sini kullan
+			mainWindow.setContentProtection(true);
+			console.log("[Main] ✅ Ana pencere ekran kaydından gizlendi (setContentProtection)");
+		} catch (error) {
+			console.warn("[Main] ⚠️ Ana pencere gizleme başarısız:", error.message);
+		}
+	}
+
 	mainWindow.on("closed", () => {
 		if (cameraManager) {
 			cameraManager.cleanup();

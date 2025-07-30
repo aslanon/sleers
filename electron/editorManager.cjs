@@ -32,6 +32,10 @@ class EditorManager {
 				minHeight: 800,
 				show: false,
 				frame: false,
+				// macOS'ta ekran kaydından gizle
+				...(process.platform === 'darwin' && {
+					excludedFromShownWindowsMenu: true,
+				}),
 				webPreferences: {
 					nodeIntegration: true,
 					contextIsolation: true,
@@ -50,6 +54,16 @@ class EditorManager {
 				visualEffectState: "active",
 				movable: true,
 			});
+
+			// macOS'ta editor penceresini ekran kaydından gizle
+			if (process.platform === 'darwin') {
+				try {
+					this.editorWindow.setContentProtection(true);
+					console.log("[EditorManager] ✅ Editor penceresi ekran kaydından gizlendi");
+				} catch (error) {
+					console.warn("[EditorManager] ⚠️ Editor pencere gizleme başarısız:", error.message);
+				}
+			}
 
 			// Editör sayfasını yükle
 			const isDev = process.env.NODE_ENV === "development";
