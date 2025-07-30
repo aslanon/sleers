@@ -187,7 +187,7 @@
 						<div
 							v-for="(segment, index) in gifSegments"
 							:key="`gif-row-${segment.id}`"
-							class="timeline-layer-bar w-full rounded-xl relative mb-2"
+							class="timeline-layer-bar w-full rounded-xl relative"
 							@click="handleGifTrackClick"
 							@mousemove="handleGifTrackMouseMove"
 							@mouseenter="isGifTrackHovered = true"
@@ -258,7 +258,7 @@
 						<div
 							v-for="(segment, index) in videoSegments"
 							:key="`video-row-${segment.id}`"
-							class="timeline-layer-bar w-full rounded-xl relative mb-2"
+							class="timeline-layer-bar w-full rounded-xl relative"
 							@click="handleVideoTrackClick"
 							@mousemove="handleVideoTrackMouseMove"
 							@mouseenter="isVideoTrackHovered = true"

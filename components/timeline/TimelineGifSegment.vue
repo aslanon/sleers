@@ -52,10 +52,17 @@
 
 		<!-- Segment Content - Video segment stilini kullan -->
 		<div
+			:class="{
+				'!flex-row gap-2': hasVideo
+					? isTimelineHovered
+						? false
+						: true
+					: false,
+			}"
 			class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
 		>
 			<!-- Top Row: Icon + Label -->
-			<div class="flex items-center justify-center gap-1.5 mb-1">
+			<div class="flex items-center justify-center gap-1.5">
 				<!-- GIF Icon -->
 				<svg
 					v-if="segment.gif.type === 'gif'"
