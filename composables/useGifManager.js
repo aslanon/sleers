@@ -832,6 +832,16 @@ export const useGifManager = () => {
 		searchResults.value = [];
 	};
 
+	// Get maximum duration from all active GIFs
+	const getMaxGifDuration = () => {
+		if (activeGifs.value.length === 0) {
+			return 0;
+		}
+		
+		const maxEndTime = Math.max(...activeGifs.value.map(gif => gif.endTime || 0));
+		return maxEndTime;
+	};
+
 	return {
 		// State
 		searchQuery,
@@ -863,5 +873,6 @@ export const useGifManager = () => {
 		clearAllGifs,
 		playAllGifs,
 		pauseAllGifs,
+		getMaxGifDuration,
 	};
 };

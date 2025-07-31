@@ -310,6 +310,7 @@ const {
 	selectedGifId,
 	playAllGifs,
 	pauseAllGifs,
+	getMaxGifDuration,
 } = useGifManager();
 
 // Canvas-based Zoom yönetimi
@@ -842,10 +843,13 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 					const relativeTime = renderData.relativeTime || 0;
 					const loopTime = relativeTime % gifDuration;
 
+					// Export sırasında daha sık güncelleme yap
+					const isExporting = window.isExporting || false;
+					const threshold = isExporting ? 0.01 : 0.01; // Export sırasında hassas timing
+
 					// Only update video time if significantly different (reduces jitter)
 					const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
-					if (timeDiff > 0.4) {
-						// Increased threshold for more stability
+					if (timeDiff > threshold) {
 						cachedVideo.currentTime = loopTime;
 					}
 
@@ -2141,8 +2145,10 @@ const drawMousePositions = (customCtx = null) => {
 		return;
 	}
 
-	// Current video time
-	const currentVideoTime = videoElement.currentTime;
+	// Current video time - export mode kontrolü
+	const currentVideoTime = window.forceExportTime && window.exportCurrentTime !== undefined 
+		? window.exportCurrentTime 
+		: videoElement.currentTime;
 
 	// Add static variable for tracking transition state between draws
 	// We need to use a closure variable since this function gets called repeatedly
@@ -3074,28 +3080,36 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 	// 	window.gifHandleData.clear();
 	// }
 
-	// FPS kontrolü - GIF'ler için daha düşük FPS kullan
-	const currentFPS = window.gifAnimationActive ? 10 : 60; // GIF'ler için 10 FPS, normal için 60 FPS
-	const currentFrameInterval = 1000 / currentFPS;
+	// Export sırasında FPS throttling'i atla - her frame render edilmeli
+	const isExporting = window.isExporting || false;
+	
+	if (!isExporting) {
+		// FPS kontrolü - GIF'ler için daha düşük FPS kullan (sadece normal modda)
+		const currentFPS = window.gifAnimationActive ? 10 : 60; // GIF'ler için 10 FPS, normal için 60 FPS
+		const currentFrameInterval = 1000 / currentFPS;
 
-	if (timestamp - lastFrameTime < currentFrameInterval) {
-		// Animasyonu devam ettir: video oynatılıyorsa, zoom geçişi varsa, video yoksa (editor modu için)
-		if (
-			videoState.value.isPlaying ||
-			isCanvasZoomTransitioning.value ||
-			!videoElement
-		) {
-			animationFrame = requestAnimationFrame((t) =>
-				updateCanvas(t, mouseX, mouseY)
-			);
+		if (timestamp - lastFrameTime < currentFrameInterval) {
+			// Animasyonu devam ettir: video oynatılıyorsa, zoom geçişi varsa, video yoksa (editor modu için)
+			if (
+				videoState.value.isPlaying ||
+				isCanvasZoomTransitioning.value ||
+				!videoElement
+			) {
+				animationFrame = requestAnimationFrame((t) =>
+					updateCanvas(t, mouseX, mouseY)
+				);
+			}
+			return;
 		}
-		return;
 	}
 
 	lastFrameTime = timestamp;
 
 	// Canvas time'a göre segment kontrolü - responsive segment detection
-	const canvasTime = videoState.value.currentTime;
+	// Export sırasında window.exportTime kullan, yoksa normal currentTime
+	const canvasTime = isExporting && typeof window.exportTime === 'number' 
+		? window.exportTime 
+		: videoState.value.currentTime;
 	const segmentInfo = getSegmentVideoTime(canvasTime);
 	let isInActiveSegment = segmentInfo !== null;
 
@@ -3607,18 +3621,20 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				}
 			});
 
-			// Sadece canvas oynatılırken GIF animasyonunu aktif et
-			if (hasVisibleGifs && videoState.value.isPlaying) {
-				// GIF'ler sadece canvas oynatılırken animate olur
-				if (!window.gifAnimationActive) {
+			// Export sırasında veya canvas oynatılırken GIF animasyonunu aktif et
+			if (hasVisibleGifs && (videoState.value.isPlaying || isExporting)) {
+				// GIF'ler canvas oynatılırken veya export sırasında animate olur
+				if (!window.gifAnimationActive || isExporting) {
 					window.gifAnimationActive = true;
-					// GIF animasyonu için daha düşük FPS kullan
-					setTimeout(() => {
-						window.gifAnimationActive = false;
-						if (ctx) {
-							requestAnimationFrame(() => updateCanvas(performance.now()));
-						}
-					}, 100); // 10 FPS for GIFs
+					// Export sırasında FPS limit'i yok, normal modda daha düşük FPS kullan
+					if (!isExporting) {
+						setTimeout(() => {
+							window.gifAnimationActive = false;
+							if (ctx) {
+								requestAnimationFrame(() => updateCanvas(performance.now()));
+							}
+						}, 100); // 10 FPS for GIFs in normal mode
+					}
 				}
 			}
 		}
@@ -4665,6 +4681,34 @@ defineExpose({
 
 	// Video element access
 	getVideoElement: () => videoElement,
+	getCameraElement: () => cameraElement,
+	// Export time synchronization
+	setExportTime: (exportTime) => {
+		// Export mode için video ve camera elementlerini sync et
+		if (videoElement && Math.abs(videoElement.currentTime - exportTime) > 0.01) {
+			videoElement.currentTime = exportTime;
+		}
+		
+		if (cameraElement) {
+			// Camera için synchronized timestamp varsa kullan
+			if (synchronizedTimestamps.value) {
+				const synchronizedCameraTime = getSynchronizedTimestamp("camera", exportTime * 1000) / 1000;
+				if (Math.abs(cameraElement.currentTime - synchronizedCameraTime) > 0.005) {
+					cameraElement.currentTime = synchronizedCameraTime;
+				}
+			} else {
+				// Fallback to original timing with offset
+				const { cursorOffset } = usePlayerSettings();
+				const targetCameraTime = exportTime + cursorOffset.value;
+				if (Math.abs(cameraElement.currentTime - targetCameraTime) > 0.005) {
+					cameraElement.currentTime = targetCameraTime;
+				}
+			}
+		}
+		
+		// Video state'i güncelle ama timeline emit etme (export mode'da)
+		videoState.value.currentTime = exportTime;
+	},
 
 	// Video frame capture
 	captureFrame: () => {
@@ -4988,7 +5032,28 @@ defineExpose({
 
 	// Toplam canvas süresini export için
 	getTotalCanvasDuration: () => {
-		return props.totalCanvasDuration || 0;
+		// Video varsa segment duration'ını kullan
+		if (videoElement && props.segments && props.segments.length > 0) {
+			return getTotalClippedDuration(props.segments);
+		}
+
+		// Props'dan gelen canvas duration
+		if (props.totalCanvasDuration && props.totalCanvasDuration > 0) {
+			return props.totalCanvasDuration;
+		}
+
+		// Video varsa full duration
+		if (videoElement?.duration && videoElement.duration !== Infinity) {
+			return videoElement.duration;
+		}
+
+		// GIF'lerden maksimum süreyi hesapla (sadece video yoksa)
+		const maxGifDuration = getMaxGifDuration();
+		if (maxGifDuration > 0) {
+			return maxGifDuration;
+		}
+
+		return 0;
 	},
 
 	// Clipped time'dan real time'a dönüştürme fonksiyonu

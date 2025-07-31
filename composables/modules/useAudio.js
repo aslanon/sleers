@@ -77,23 +77,37 @@ export const useAudio = () => {
 
 	const startAudioRecording = async () => {
 		try {
+			// Audio kapalıysa hiç recording başlatma
+			if (!microphoneEnabled.value && !systemAudioEnabled.value) {
+				console.log("[useAudio] Both microphone and system audio disabled, skipping audio recording");
+				isAudioActive.value = false;
+				return null;
+			}
+
 			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 			if (!IPC_EVENTS) {
 				throw new Error("IPC events are not available");
 			}
 
-
-			// Ses kaydı için stream al
-			const audioStream = await navigator.mediaDevices.getUserMedia({
-				audio: {
-					deviceId: selectedAudioDevice.value
-						? { exact: selectedAudioDevice.value }
-						: undefined,
-					echoCancellation: config.value.echoCancellation,
-					noiseSuppression: config.value.noiseSuppression,
-					autoGainControl: config.value.autoGainControl,
-				},
-			});
+			// Sadece mikrofon açıksa stream al
+			let audioStream = null;
+			if (microphoneEnabled.value) {
+				// Ses kaydı için stream al
+				audioStream = await navigator.mediaDevices.getUserMedia({
+					audio: {
+						deviceId: selectedAudioDevice.value
+							? { exact: selectedAudioDevice.value }
+							: undefined,
+						echoCancellation: config.value.echoCancellation,
+						noiseSuppression: config.value.noiseSuppression,
+						autoGainControl: config.value.autoGainControl,
+					},
+				});
+			} else {
+				console.log("[useAudio] Microphone disabled, no audio stream created");
+				isAudioActive.value = false;
+				return null;
+			}
 
 
 			// Dosya yolunu al
@@ -312,6 +326,12 @@ export const useAudio = () => {
 		microphoneEnabled.value = !microphoneEnabled.value;
 		if (!microphoneEnabled.value) {
 			cleanupAudioAnalyser();
+			
+			// Mikrofon kapatıldıysa ve sistem sesi de kapalıysa audio recording'i durdur
+			if (!systemAudioEnabled.value && isAudioActive.value) {
+				console.log("[useAudio] Microphone disabled and system audio disabled, stopping audio recording");
+				stopAudioRecording();
+			}
 		} else {
 			initAudioAnalyser();
 		}
@@ -330,6 +350,12 @@ export const useAudio = () => {
 
 	const toggleSystemAudio = () => {
 		systemAudioEnabled.value = !systemAudioEnabled.value;
+		
+		// Sistem sesi kapatıldıysa ve mikrofon da kapalıysa audio recording'i durdur
+		if (!systemAudioEnabled.value && !microphoneEnabled.value && isAudioActive.value) {
+			console.log("[useAudio] System audio disabled and microphone disabled, stopping audio recording");
+			stopAudioRecording();
+		}
 		
 		// Backend'e ses ayarlarını güncelle
 		if (window.electron?.ipcRenderer) {

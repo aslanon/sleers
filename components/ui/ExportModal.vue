@@ -199,11 +199,16 @@
 						v-model="resolution"
 						class="w-full bg-zinc-800/60 border border-zinc-600/60 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all duration-200"
 					>
-						<option value="720p">720p HD (1280×720)</option>
-						<option value="1080p">1080p Full HD (1920×1080)</option>
-						<option value="480p">480p SD (854×480)</option>
+						<option value="small">Small - Canvas scaled down (50%)</option>
+						<option value="medium">Medium - Canvas scaled (75%)</option>
+						<option value="large">Large - Original canvas size</option>
+						<option value="1080p">HD - Max 1920×1080 (aspect preserved)</option>
+						<option value="4k">4K - Max 3840×2160 (aspect preserved)</option>
 					</select>
 					<p class="text-gray-400 text-xs mt-1">{{ resolutionDescription }}</p>
+					<p v-if="resolution === '4k'" class="text-yellow-400 text-xs mt-1">
+						⚠️ 4K export may take longer and require more memory
+					</p>
 				</div>
 			</div>
 
@@ -226,14 +231,14 @@
 								d="M13 10V3L4 14h7v7l9-11h-7z"
 							/>
 						</svg>
-						Quality & Summary
+						Video Quality & Summary
 					</h3>
 				</div>
 
 				<!-- Quality Selection -->
 				<div>
 					<label class="block text-sm font-medium text-gray-300 mb-3">
-						Quality Settings
+						Video Bitrate
 					</label>
 					<div class="space-y-3">
 						<div
@@ -274,6 +279,123 @@
 					</div>
 				</div>
 
+				<!-- Advanced Settings -->
+				<div>
+					<div class="flex items-center justify-between mb-3">
+						<label class="block text-sm font-medium text-gray-300">
+							Advanced Settings
+						</label>
+						<button
+							@click="showAdvanced = !showAdvanced"
+							class="flex items-center gap-2 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+						>
+							<span>{{ showAdvanced ? 'Hide' : 'Show' }}</span>
+							<svg
+								class="w-3 h-3 transition-transform duration-200"
+								:class="{ 'rotate-180': showAdvanced }"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M19 9l-7 7-7-7"
+								/>
+							</svg>
+						</button>
+					</div>
+					
+					<div v-show="showAdvanced" class="space-y-4 mb-6">
+						<!-- FPS Settings -->
+						<div>
+							<label class="block text-xs font-medium text-gray-400 mb-2">
+								Frame Rate (FPS)
+							</label>
+							<select
+								v-model="fps"
+								class="w-full bg-zinc-800/60 border border-zinc-600/60 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all duration-200"
+							>
+								<option value="15">15 FPS (GIF optimized)</option>
+								<option value="24">24 FPS (Cinematic)</option>
+								<option value="30">30 FPS (Standard)</option>
+								<option value="60">60 FPS (Smooth)</option>
+							</select>
+							<p class="text-gray-500 text-xs mt-1">Higher FPS = smoother motion, larger file</p>
+						</div>
+
+						<!-- Encoding Speed -->
+						<div>
+							<label class="block text-xs font-medium text-gray-400 mb-2">
+								Export Speed Priority
+							</label>
+							<div class="space-y-2">
+								<div
+									v-for="speedOption in speedOptions"
+									:key="speedOption.value"
+									@click="encodingSpeed = speedOption.value"
+									class="p-2 rounded-md border text-xs cursor-pointer transition-all duration-200"
+									:class="
+										encodingSpeed === speedOption.value
+											? 'bg-blue-600/20 border-blue-500 text-blue-300'
+											: 'bg-zinc-800/40 border-zinc-600/60 hover:border-zinc-500/80 text-gray-300'
+									"
+								>
+									<div class="flex items-center justify-between">
+										<span class="font-medium">{{ speedOption.label }}</span>
+										<div
+											class="w-1.5 h-1.5 rounded-full"
+											:class="
+												encodingSpeed === speedOption.value
+													? 'bg-blue-500'
+													: 'bg-zinc-600'
+											"
+										></div>
+									</div>
+									<div class="text-xs opacity-70 mt-1">{{ speedOption.description }}</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Hardware Acceleration -->
+						<div>
+							<div class="flex items-center justify-between">
+								<span class="text-xs font-medium text-gray-400">GPU Acceleration</span>
+								<div
+									class="relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer"
+									:class="useHardwareAccel ? 'bg-blue-600' : 'bg-zinc-600'"
+									@click="useHardwareAccel = !useHardwareAccel"
+								>
+									<div
+										class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200 pointer-events-none"
+										:class="{ 'translate-x-5': useHardwareAccel }"
+									></div>
+								</div>
+							</div>
+							<p class="text-gray-500 text-xs mt-1">
+								{{ useHardwareAccel ? 'Using VideoToolbox (faster)' : 'Using software encoding (slower)' }}
+							</p>
+						</div>
+
+						<!-- Audio Quality (sadece MP4 için) -->
+						<div v-if="format === 'mp4'">
+							<label class="block text-xs font-medium text-gray-400 mb-2">
+								Audio Quality
+							</label>
+							<select
+								v-model="audioQuality"
+								class="w-full bg-zinc-800/60 border border-zinc-600/60 rounded-md px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all duration-200"
+							>
+								<option value="96">96 kbps (Small file)</option>
+								<option value="128">128 kbps (Good quality)</option>
+								<option value="192">192 kbps (High quality)</option>
+								<option value="256">256 kbps (Premium)</option>
+							</select>
+						</div>
+					</div>
+				</div>
+
 				<!-- Export Preview -->
 				<div class="p-4 bg-zinc-800/40 rounded-lg border border-zinc-600/60">
 					<div class="flex items-center gap-2 mb-3">
@@ -310,10 +432,28 @@
 							<span class="text-white">{{ resolutionDescription }}</span>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-400">Quality:</span>
+							<span class="text-gray-400">Bitrate:</span>
 							<span class="text-white">{{
 								quality.charAt(0).toUpperCase() + quality.slice(1)
 							}}</span>
+						</div>
+						<div v-if="showAdvanced" class="border-t border-zinc-600/40 pt-2 mt-3">
+							<div class="flex justify-between">
+								<span class="text-gray-400">Frame Rate:</span>
+								<span class="text-white">{{ fps }} FPS</span>
+							</div>
+							<div class="flex justify-between">
+								<span class="text-gray-400">Speed:</span>
+								<span class="text-white">{{ currentSpeedOption?.label || 'Balanced' }}</span>
+							</div>
+							<div class="flex justify-between">
+								<span class="text-gray-400">GPU Accel:</span>
+								<span class="text-white">{{ useHardwareAccel ? 'Enabled' : 'Disabled' }}</span>
+							</div>
+							<div v-if="format === 'mp4'" class="flex justify-between">
+								<span class="text-gray-400">Audio Quality:</span>
+								<span class="text-white">{{ audioQuality }} kbps</span>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -340,6 +480,101 @@
 					/>
 				</svg>
 				<p class="text-red-400 text-sm">{{ error }}</p>
+			</div>
+		</div>
+
+		<!-- Export Progress Overlay -->
+		<div
+			v-if="isExporting"
+			class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 rounded-2xl"
+		>
+			<div
+				class="bg-zinc-800 p-8 rounded-xl shadow-3xl text-white max-w-md w-full mx-4"
+			>
+				<div class="text-center mb-6">
+					<h3 class="text-xl font-bold mb-2">Exporting Video</h3>
+					<p class="text-gray-300">
+						Please wait while your video is being processed...
+					</p>
+				</div>
+
+				<!-- Progress Bar -->
+				<div class="w-full bg-zinc-700 rounded-full h-3 mb-3">
+					<div
+						class="bg-blue-600 h-3 rounded-full transition-all duration-300 ease-out"
+						:style="`width: ${exportProgress}%`"
+					></div>
+				</div>
+				<p class="text-center text-sm text-gray-400 mb-6">
+					{{ exportProgress }}%
+				</p>
+
+				<!-- Cancel Button -->
+				<div class="flex justify-center">
+					<button
+						@click="cancelExport"
+						class="px-6 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-all duration-200 flex items-center gap-2"
+					>
+						<svg
+							class="w-4 h-4"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+						Cancel Export
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Export Error Overlay -->
+		<div
+			v-if="exportError"
+			class="absolute inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 rounded-2xl"
+		>
+			<div
+				class="bg-zinc-800 p-8 rounded-xl shadow-3xl text-white max-w-md w-full mx-4"
+			>
+				<div class="text-center mb-6">
+					<div
+						class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4"
+					>
+						<svg
+							class="w-8 h-8 text-white"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
+						</svg>
+					</div>
+					<h3 class="text-xl font-bold mb-2 text-red-400">Export Failed</h3>
+					<p class="text-gray-300 max-h-[200px] overflow-y-auto mb-4">
+						{{ exportError }}
+					</p>
+				</div>
+
+				<!-- Close Button -->
+				<div class="flex justify-center">
+					<button
+						@click="clearError"
+						class="px-6 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white font-medium transition-all duration-200"
+					>
+						Close
+					</button>
+				</div>
 			</div>
 		</div>
 
@@ -380,7 +615,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import BaseModal from "./BaseModal.vue";
 
 const props = defineProps({
@@ -396,14 +631,23 @@ const emit = defineEmits(["close", "export"]);
 const isModalOpen = ref(false);
 const isSelectingDirectory = ref(false);
 const isExporting = ref(false);
+const exportProgress = ref(0);
+const exportError = ref("");
 const error = ref("");
 
 // Form data
 const format = ref("mp4");
-const resolution = ref("720p");
+const resolution = ref("medium");
 const quality = ref("high");
 const filename = ref("");
 const directory = ref("");
+
+// Advanced settings
+const showAdvanced = ref(false);
+const fps = ref("30");
+const encodingSpeed = ref("balanced");
+const useHardwareAccel = ref(true);
+const audioQuality = ref("128");
 
 // Watch props
 watch(
@@ -416,26 +660,50 @@ watch(
 	}
 );
 
-// Quality options
+// Quality options - FPS removed (now in advanced)
 const qualityOptions = [
 	{
 		value: "high",
 		label: "High Quality",
-		description: "Premium quality, 60fps, 8 Mbps",
+		description: "Premium bitrate (8 Mbps)",
 		fileSize: "~60MB/min",
 	},
 	{
 		value: "medium",
-		label: "Medium Quality",
-		description: "Great quality, 60fps, 5 Mbps",
+		label: "Medium Quality", 
+		description: "Great bitrate (5 Mbps)",
 		fileSize: "~38MB/min",
 	},
 	{
 		value: "low",
 		label: "Low Quality",
-		description: "Good quality, 30fps, 2.5 Mbps",
+		description: "Good bitrate (2.5 Mbps)",
 		fileSize: "~19MB/min",
 	},
+];
+
+// Speed options
+const speedOptions = [
+	{
+		value: "ultrafast",
+		label: "Ultra Fast",
+		description: "Fastest export, slightly lower quality"
+	},
+	{
+		value: "fast",
+		label: "Fast",
+		description: "Quick export with good quality"
+	},
+	{
+		value: "balanced",
+		label: "Balanced",
+		description: "Good balance of speed and quality"
+	},
+	{
+		value: "quality",
+		label: "Quality First",
+		description: "Slower export, highest quality"
+	}
 ];
 
 // Computed properties
@@ -447,11 +715,17 @@ const formatDescription = computed(() => {
 	}
 });
 
+const currentSpeedOption = computed(() => {
+	return speedOptions.find(option => option.value === encodingSpeed.value);
+});
+
 const resolutionDescription = computed(() => {
 	const resMap = {
-		"480p": "854×480px",
-		"720p": "1280×720px",
-		"1080p": "1920×1080px",
+		"small": "50% of canvas size (faster export)",
+		"medium": "75% of canvas size (balanced)",
+		"large": "Original canvas size (best quality)",
+		"1080p": "HD quality, max 1920×1080, aspect preserved",
+		"4k": "Ultra HD, max 3840×2160, aspect preserved",
 	};
 	return resMap[resolution.value] || "";
 });
@@ -486,6 +760,8 @@ const generateDefaultFilename = () => {
 const resetForm = () => {
 	filename.value = generateDefaultFilename();
 	error.value = "";
+	exportError.value = "";
+	exportProgress.value = 0;
 	setDefaultDirectory();
 };
 
@@ -564,14 +840,74 @@ const exportVideo = () => {
 		quality: quality.value,
 		filename: filename.value.trim(),
 		directory: directory.value,
+		
+		// Advanced settings
+		fps: parseInt(fps.value),
+		encodingSpeed: encodingSpeed.value,
+		useHardwareAccel: useHardwareAccel.value,
+		audioQuality: parseInt(audioQuality.value),
 	};
 
+	// Export başlat
+	isExporting.value = true;
+	exportProgress.value = 0;
+	exportError.value = "";
+
 	emit("export", settings);
-	handleClose();
+	// Modal'ı kapatma - progress overlay gösterilecek
+};
+
+const cancelExport = () => {
+	// Export iptal flag'ini set et
+	window.exportCancelled = true;
+	isExporting.value = false;
+	exportProgress.value = 0;
+	console.log("[ExportModal] Export cancelled by user");
+};
+
+const clearError = () => {
+	exportError.value = "";
+	isExporting.value = false;
+	exportProgress.value = 0;
+};
+
+const updateProgress = (progress) => {
+	const newProgress = Math.round(progress);
+	console.log("[ExportModal] Progress update:", newProgress + "%");
+	
+	// Vue reactivity için nextTick kullan
+	nextTick(() => {
+		exportProgress.value = newProgress;
+	});
+};
+
+const showError = (errorMessage) => {
+	exportError.value = errorMessage;
+	isExporting.value = false;
+};
+
+const completeExport = () => {
+	isExporting.value = false;
+	exportProgress.value = 100;
+	// Modal'ı kapat
+	setTimeout(() => {
+		handleClose();
+	}, 1000);
 };
 
 const handleClose = () => {
+	// Export devam ediyorsa iptal et
+	if (isExporting.value) {
+		cancelExport();
+	}
 	isModalOpen.value = false;
 	emit("close");
 };
+
+// Methods'ları expose et - parent component'ten erişilebilsin
+defineExpose({
+	updateProgress,
+	showError,
+	completeExport,
+});
 </script>

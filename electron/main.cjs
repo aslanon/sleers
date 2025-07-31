@@ -1607,6 +1607,14 @@ function setupIpcHandlers() {
 		return null;
 	});
 
+	// GET_TEMP_AUDIO_PATH handler'ı - audio dosyası için
+	safeHandle("GET_TEMP_AUDIO_PATH", async () => {
+		if (tempFileManager) {
+			return tempFileManager.getFilePath("audio");
+		}
+		return null;
+	});
+
 	// Processing complete handler
 	ipcMain.on(IPC_EVENTS.PROCESSING_COMPLETE, async (event, mediaData) => {
 		console.log("[Main] İşleme tamamlandı bildirimi alındı:", mediaData);
@@ -2599,6 +2607,21 @@ function setupIpcHandlers() {
 	safeHandle(IPC_EVENTS.SAVE_VIDEO, async (event, base64Data, outputPath) => {
 		try {
 			console.log("[main] Video kaydediliyor...");
+			console.log("[main] base64Data type:", typeof base64Data);
+			console.log("[main] outputPath:", outputPath);
+
+			// Input validation
+			if (!base64Data) {
+				throw new Error("base64Data is required but was: " + base64Data);
+			}
+
+			if (typeof base64Data !== 'string') {
+				throw new Error("base64Data must be a string, got: " + typeof base64Data);
+			}
+
+			if (!outputPath) {
+				throw new Error("outputPath is required");
+			}
 
 			// Base64'ten buffer'a çevir
 			const base64String = base64Data.replace(/^data:video\/webm;base64,/, "");
@@ -2997,6 +3020,64 @@ function setupIpcHandlers() {
 			return mediaStateManager.state.audioSettings;
 		}
 		return null;
+	});
+
+	// FFmpeg tabanlı export handler
+	safeHandle("EXPORT_WITH_FFMPEG", async (event, exportData) => {
+		try {
+			console.log("[main] FFmpeg export başlatılıyor...");
+			console.log("Frame count:", exportData.frames.length);
+			console.log("Settings:", exportData.settings);
+
+			const { frames, settings, duration } = exportData;
+			const { 
+				filename, directory, format, width, height, fps, bitrate, 
+				audioSourcePath, audioTrimInfo, encodingSpeed, useHardwareAccel, audioQuality 
+			} = settings;
+
+			// Output path oluştur
+			const outputPath = path.join(directory, `${filename}.${format}`);
+			
+			// Ensure directory exists
+			if (!fs.existsSync(directory)) {
+				fs.mkdirSync(directory, { recursive: true });
+			}
+
+			console.log(`[main] Processing ${frames.length} frames with FFmpegWrapper...`);
+			
+			if (format === 'mp4') {
+				// MP4 export - FFmpegWrapper'a frames array'ini direkt gönder
+				await ffmpegWrapper.createVideoFromFrames(frames, outputPath, {
+					fps: fps || 30,
+					width: width || 1280,
+					height: height || 720,
+					bitrate: bitrate || 5000000,
+					audioPath: audioSourcePath, // Audio source path'i geç
+					audioTrimInfo: audioTrimInfo, // Audio trim bilgisini geç
+					
+					// Advanced settings'leri FFmpeg'e geç
+					encodingSpeed: encodingSpeed || 'balanced',
+					useHardwareAccel: useHardwareAccel !== false,
+					audioQuality: audioQuality || 128,
+				});
+			} else if (format === 'gif') {
+				// GIF export - FFmpegWrapper'a frames array'ini direkt gönder
+				await ffmpegWrapper.createGifFromFrames(frames, outputPath, {
+					fps: Math.min(fps || 15, 15), // GIF için max 15 FPS
+					width: width || 640,
+					height: height || -1 // Aspect ratio korunur
+				});
+			} else {
+				throw new Error(`Unsupported format: ${format}`);
+			}
+			
+			console.log("[main] FFmpeg export completed:", outputPath);
+			return { success: true, filePath: outputPath };
+
+		} catch (error) {
+			console.error("[main] FFmpeg export error:", error);
+			return { success: false, error: error.message };
+		}
 	});
 
 	// GIF kaydetme işleyicisi

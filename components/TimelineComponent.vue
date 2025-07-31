@@ -1,5 +1,5 @@
 <template>
-	<div class="timeline-container h-auto max-h-[400px]">
+	<div class="timeline-container h-auto max-h-[375px]">
 		<!-- Timeline Header -->
 
 		<div

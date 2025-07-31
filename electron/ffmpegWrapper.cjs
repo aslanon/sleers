@@ -314,6 +314,381 @@ class FFmpegWrapper {
             });
         });
     }
+
+    createVideoFromFrames(frames, outputPath, options = {}) {
+        return new Promise(async (resolve, reject) => {
+            console.log('🎬 Creating video from frames...', {
+                frameCount: frames.length,
+                outputPath,
+                options
+            });
+
+            if (!this.ffmpegPath) {
+                reject(new Error('FFmpeg binary not found'));
+                return;
+            }
+
+            if (!frames || frames.length === 0) {
+                reject(new Error('No frames provided'));
+                return;
+            }
+
+            try {
+                // Geçici dizin oluştur
+                const os = require('os');
+                const tempDir = path.join(os.tmpdir(), 'sleer-export-' + Date.now());
+                if (!fs.existsSync(tempDir)) {
+                    fs.mkdirSync(tempDir, { recursive: true });
+                }
+
+                console.log('📁 Temporary directory:', tempDir);
+
+                // Frame'leri geçici dosyalara kaydet - optimize edilmiş
+                console.log(`📁 Writing ${frames.length} frames to disk...`);
+                const writeStartTime = Date.now();
+                
+                for (let i = 0; i < frames.length; i++) {
+                    const frameData = frames[i];
+                    // JPEG veya PNG prefix'ini temizle
+                    const base64Data = frameData.replace(/^data:image\/(png|jpeg);base64,/, '');
+                    const frameBuffer = Buffer.from(base64Data, 'base64');
+                    // JPEG kullanıyorsak .jpg extension
+                    const extension = frameData.includes('jpeg') ? '.jpg' : '.png';
+                    const framePath = path.join(tempDir, `frame_${String(i).padStart(6, '0')}${extension}`);
+                    fs.writeFileSync(framePath, frameBuffer);
+                }
+                
+                const writeTime = Date.now() - writeStartTime;
+                console.log(`✅ Frames written to disk in ${writeTime}ms`);
+                
+                // Frame file pattern'ini güncelle
+                const framePattern = frames[0].includes('jpeg') ? 
+                    path.join(tempDir, 'frame_%06d.jpg') : 
+                    path.join(tempDir, 'frame_%06d.png');
+
+                // FFmpeg argumentları
+                const fps = options.fps || 30;
+                const width = options.width || 1280;
+                const height = options.height || 720;
+                const bitrate = options.bitrate || 5000000; // 5 Mbps default
+                const audioPath = options.audioPath; // Audio source path
+                
+                // Advanced options
+                const encodingSpeed = options.encodingSpeed || 'balanced';
+                const useHardwareAccel = options.useHardwareAccel !== false;
+                const audioQualityBitrate = options.audioQuality || 128;
+                
+                console.log('🎯 Advanced settings:', { encodingSpeed, useHardwareAccel, audioQualityBitrate });
+
+                const args = [
+                    '-framerate', fps.toString(),
+                    '-i', framePattern // Dynamic pattern based on frame format
+                ];
+
+                // Audio input ekle (varsa)
+                if (audioPath && fs.existsSync(audioPath)) {
+                    console.log('🎵 Adding audio input:', audioPath);
+                    
+                    // Audio file size check
+                    const audioStats = fs.statSync(audioPath);
+                    console.log('🎵 Audio file size:', audioStats.size, 'bytes');
+                    
+                    // Audio trimming varsa ekle
+                    if (options.audioTrimInfo) {
+                        const { startTime, duration } = options.audioTrimInfo;
+                        console.log(`🎵 Audio trimming: start=${startTime}s, duration=${duration}s`);
+                        
+                        if (duration > 0) {
+                            args.push(
+                                '-ss', startTime.toString(), // Start time
+                                '-t', duration.toString(),   // Duration
+                                '-i', audioPath
+                            );
+                        } else {
+                            console.log('🎵 Invalid duration, using full audio');
+                            args.push('-i', audioPath);
+                        }
+                    } else {
+                        console.log('🎵 No trimming info, using full audio');
+                        args.push('-i', audioPath);
+                    }
+                } else if (audioPath) {
+                    console.log('❌ Audio file does not exist:', audioPath);
+                } else {
+                    console.log('🔇 No audio path provided');
+                }
+                    
+                // Encoding speed'e göre parametreleri belirle
+                const getEncodingParams = () => {
+                    const baseParams = {
+                        videoCodec: useHardwareAccel ? 'h264_videotoolbox' : 'libx264',
+                        pixFmt: 'yuv420p',
+                        movflags: '+faststart',
+                        threads: '0',
+                        maxMuxingQueue: '1024'
+                    };
+                    
+                    switch (encodingSpeed) {
+                        case 'ultrafast':
+                            return {
+                                ...baseParams,
+                                qualityParam: useHardwareAccel ? '85' : '28',
+                                preset: useHardwareAccel ? null : 'ultrafast',
+                                scaling: 'fast_bilinear',
+                                realtime: '1'
+                            };
+                        case 'fast':
+                            return {
+                                ...baseParams,
+                                qualityParam: useHardwareAccel ? '80' : '26',
+                                preset: useHardwareAccel ? null : 'fast',
+                                scaling: 'fast_bilinear',
+                                realtime: '1'
+                            };
+                        case 'balanced':
+                            return {
+                                ...baseParams,
+                                qualityParam: useHardwareAccel ? '75' : '24',
+                                preset: useHardwareAccel ? null : 'medium',
+                                scaling: 'bilinear',
+                                realtime: null
+                            };
+                        case 'quality':
+                            return {
+                                ...baseParams,
+                                qualityParam: useHardwareAccel ? '65' : '22',
+                                preset: useHardwareAccel ? null : 'slow',
+                                scaling: 'lanczos',
+                                realtime: null
+                            };
+                    }
+                };
+                
+                const encodingParams = getEncodingParams();
+                
+                // Audio var mı yok mu kontrol edip ona göre encoding parametrelerini belirle
+                const hasAudio = audioPath && fs.existsSync(audioPath);
+                
+                if (hasAudio) {
+                    console.log(`🎵 Audio + Video encoding (${encodingSpeed} mode, ${useHardwareAccel ? 'GPU' : 'CPU'})`);
+                    
+                    // Base arguments
+                    args.push('-c:v', encodingParams.videoCodec);
+                    
+                    // Hardware/Software specific params
+                    if (useHardwareAccel) {
+                        args.push('-allow_sw', '1', '-q:v', encodingParams.qualityParam);
+                    } else {
+                        args.push('-preset', encodingParams.preset, '-crf', encodingParams.qualityParam);
+                    }
+                    
+                    // Common params
+                    args.push(
+                        '-c:a', 'aac',
+                        '-b:a', `${audioQualityBitrate}k`,
+                        '-pix_fmt', encodingParams.pixFmt,
+                        '-movflags', encodingParams.movflags,
+                        '-vf', `scale=${width}:${height}:flags=${encodingParams.scaling}`,
+                        '-shortest',
+                        '-threads', encodingParams.threads,
+                        '-max_muxing_queue_size', encodingParams.maxMuxingQueue
+                    );
+                    
+                    if (encodingParams.realtime) {
+                        args.push('-realtime', encodingParams.realtime);
+                    }
+                    
+                    args.push('-y', outputPath);
+                    
+                } else {
+                    console.log(`🔇 Video-only encoding (${encodingSpeed} mode, ${useHardwareAccel ? 'GPU' : 'CPU'})`);
+                    
+                    // Base arguments
+                    args.push('-c:v', encodingParams.videoCodec);
+                    
+                    // Hardware/Software specific params
+                    if (useHardwareAccel) {
+                        args.push('-allow_sw', '1', '-q:v', encodingParams.qualityParam);
+                    } else {
+                        args.push('-preset', encodingParams.preset, '-crf', encodingParams.qualityParam);
+                    }
+                    
+                    // Common params
+                    args.push(
+                        '-pix_fmt', encodingParams.pixFmt,
+                        '-movflags', encodingParams.movflags,
+                        '-vf', `scale=${width}:${height}:flags=${encodingParams.scaling}`,
+                        '-threads', encodingParams.threads,
+                        '-max_muxing_queue_size', encodingParams.maxMuxingQueue
+                    );
+                    
+                    if (encodingParams.realtime) {
+                        args.push('-realtime', encodingParams.realtime);
+                    }
+                    
+                    args.push('-y', outputPath);
+                }
+
+                console.log('🎬 FFmpeg frames to video command:', this.ffmpegPath, args.join(' '));
+
+                const ffmpegProcess = spawn(this.ffmpegPath, args);
+
+                let stderrData = '';
+
+                ffmpegProcess.stdout.on('data', (data) => {
+                    console.log('FFmpeg stdout:', data.toString());
+                });
+
+                ffmpegProcess.stderr.on('data', (data) => {
+                    const output = data.toString();
+                    stderrData += output;
+                    console.log('FFmpeg stderr:', output);
+                });
+
+                ffmpegProcess.on('close', (code) => {
+                    // Geçici dosyaları temizle
+                    try {
+                        fs.rmSync(tempDir, { recursive: true, force: true });
+                        console.log('🧹 Cleaned up temporary directory');
+                    } catch (cleanupError) {
+                        console.warn('⚠️ Could not clean up temporary directory:', cleanupError);
+                    }
+
+                    if (code === 0) {
+                        console.log('✅ Video from frames created successfully');
+                        resolve();
+                    } else {
+                        console.error('❌ Video from frames failed with code:', code);
+                        console.error('Full stderr output:', stderrData);
+                        reject(new Error(`FFmpeg process exited with code ${code}. stderr: ${stderrData}`));
+                    }
+                });
+
+                ffmpegProcess.on('error', (error) => {
+                    // Geçici dosyaları temizle
+                    try {
+                        fs.rmSync(tempDir, { recursive: true, force: true });
+                    } catch (cleanupError) {
+                        console.warn('⚠️ Could not clean up temporary directory:', cleanupError);
+                    }
+
+                    console.error('❌ FFmpeg process error:', error);
+                    reject(new Error(`FFmpeg spawn error: ${error.message} (${error.code})`));
+                });
+
+            } catch (error) {
+                console.error('❌ Error in createVideoFromFrames:', error);
+                reject(error);
+            }
+        });
+    }
+
+    createGifFromFrames(frames, outputPath, options = {}) {
+        return new Promise(async (resolve, reject) => {
+            console.log('🎬 Creating GIF from frames...', {
+                frameCount: frames.length,
+                outputPath,
+                options
+            });
+
+            if (!this.ffmpegPath) {
+                reject(new Error('FFmpeg binary not found'));
+                return;
+            }
+
+            if (!frames || frames.length === 0) {
+                reject(new Error('No frames provided'));
+                return;
+            }
+
+            try {
+                // Geçici dizin oluştur
+                const os = require('os');
+                const tempDir = path.join(os.tmpdir(), 'sleer-gif-export-' + Date.now());
+                if (!fs.existsSync(tempDir)) {
+                    fs.mkdirSync(tempDir, { recursive: true });
+                }
+
+                console.log('📁 Temporary directory for GIF:', tempDir);
+
+                // Frame'leri geçici dosyalara kaydet
+                for (let i = 0; i < frames.length; i++) {
+                    const frameData = frames[i];
+                    // Base64 data:image/png;base64, prefix'ini temizle
+                    const base64Data = frameData.replace(/^data:image\/png;base64,/, '');
+                    const frameBuffer = Buffer.from(base64Data, 'base64');
+                    const framePath = path.join(tempDir, `frame_${String(i).padStart(6, '0')}.png`);
+                    fs.writeFileSync(framePath, frameBuffer);
+                }
+
+                console.log(`✅ Saved ${frames.length} frames for GIF creation`);
+
+                // FFmpeg argumentları - GIF için optimize edilmiş
+                const fps = options.fps || 15; // GIF için daha düşük FPS
+                const width = options.width || 640;
+                const height = options.height || -1; // Aspect ratio korunur
+
+                const args = [
+                    '-framerate', fps.toString(),
+                    '-i', path.join(tempDir, 'frame_%06d.png'),
+                    '-vf', `fps=${fps},scale=${width}:${height}:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`,
+                    '-y', // overwrite output file
+                    outputPath
+                ];
+
+                console.log('🎬 FFmpeg frames to GIF command:', this.ffmpegPath, args.join(' '));
+
+                const ffmpegProcess = spawn(this.ffmpegPath, args);
+
+                let stderrData = '';
+
+                ffmpegProcess.stdout.on('data', (data) => {
+                    console.log('FFmpeg stdout:', data.toString());
+                });
+
+                ffmpegProcess.stderr.on('data', (data) => {
+                    const output = data.toString();
+                    stderrData += output;
+                    console.log('FFmpeg stderr:', output);
+                });
+
+                ffmpegProcess.on('close', (code) => {
+                    // Geçici dosyaları temizle
+                    try {
+                        fs.rmSync(tempDir, { recursive: true, force: true });
+                        console.log('🧹 Cleaned up GIF temporary directory');
+                    } catch (cleanupError) {
+                        console.warn('⚠️ Could not clean up GIF temporary directory:', cleanupError);
+                    }
+
+                    if (code === 0) {
+                        console.log('✅ GIF from frames created successfully');
+                        resolve();
+                    } else {
+                        console.error('❌ GIF from frames failed with code:', code);
+                        console.error('Full stderr output:', stderrData);
+                        reject(new Error(`FFmpeg process exited with code ${code}. stderr: ${stderrData}`));
+                    }
+                });
+
+                ffmpegProcess.on('error', (error) => {
+                    // Geçici dosyaları temizle
+                    try {
+                        fs.rmSync(tempDir, { recursive: true, force: true });
+                    } catch (cleanupError) {
+                        console.warn('⚠️ Could not clean up GIF temporary directory:', cleanupError);
+                    }
+
+                    console.error('❌ FFmpeg GIF process error:', error);
+                    reject(new Error(`FFmpeg spawn error: ${error.message} (${error.code})`));
+                });
+
+            } catch (error) {
+                console.error('❌ Error in createGifFromFrames:', error);
+                reject(error);
+            }
+        });
+    }
 }
 
 module.exports = FFmpegWrapper;

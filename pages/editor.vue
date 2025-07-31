@@ -174,6 +174,7 @@
 
 		<!-- Export Modal -->
 		<ExportModal
+			ref="exportModalRef"
 			:is-open="showExportModal"
 			@close="showExportModal = false"
 			@export="handleExport"
@@ -227,6 +228,7 @@ const isSplitMode = ref(false);
 const isCropMode = ref(false);
 const activeSegmentIndex = ref(0);
 const showExportModal = ref(false);
+const exportModalRef = ref(null);
 
 // Video boyutları
 const videoSize = ref({
@@ -635,24 +637,7 @@ const handleExport = async (settings) => {
 		// Dosya yolunu oluştur
 		const filePath = `${settings.directory}/${filename}`;
 
-		// Kayıt durumu mesajı göster
-		const loadingMessage = document.createElement("div");
-		loadingMessage.className =
-			"fixed inset-0 flex items-center flex-col text-center justify-center bg-black bg-opacity-70 z-50";
-		loadingMessage.innerHTML = `
-            <div class="bg-[#1a1a1a] p-8 rounded-xl shadow-3xl text-white max-w-md">
-                <p class="text-xl font-bold mb-2">Saving Video</p>
-                <p class="text-gray-300 mb-4">Please wait, this process may take several minutes.</p>
-                <div class="w-full bg-gray-700 rounded-full h-3 mb-1">
-                    <div id="export-progress-bar" class="bg-[#432af4] h-3 rounded-full" style="width: 0%"></div>
-                </div>
-                <p id="export-progress-text" class="text-sm text-gray-400">%0</p>
-            </div>
-        `;
-		document.body.appendChild(loadingMessage);
-
-		const progressBar = document.getElementById("export-progress-bar");
-		const progressText = document.getElementById("export-progress-text");
+		// Modal'da progress gösterilecek - DOM element'i gerek yok
 
 		// Playback'i durdur
 		if (mediaPlayerRef.value) {
@@ -661,45 +646,37 @@ const handleExport = async (settings) => {
 
 		// Progress update handler
 		const onProgress = (progress) => {
-			if (progressBar && progressText) {
-				const percent = Math.round(progress);
-				progressBar.style.width = `${percent}%`;
-				progressText.textContent = `%${percent}`;
+			console.log("[editor.vue] Export progress:", progress + "%");
+			if (exportModalRef.value) {
+				exportModalRef.value.updateProgress(progress);
 			}
 		};
 
 		// Completion handler
 		const onComplete = async (exportData) => {
 			try {
-				// Electron'a gönder ve dosyaya kaydet
-				const saveResult = await electron?.ipcRenderer.invoke(
-					exportData.format === "mp4"
-						? IPC_EVENTS.SAVE_VIDEO
-						: IPC_EVENTS.SAVE_GIF,
-					exportData.data,
-					filePath
-				);
-
-				// Loading mesajını kaldır
-				if (loadingMessage.parentNode) {
-					document.body.removeChild(loadingMessage);
-				}
-
-				if (saveResult?.success) {
-					alert(`Video saved successfully: ${filePath}`);
-
-					// Dosyayı Finder/Explorer'da göster
-					electron?.ipcRenderer.send(IPC_EVENTS.SHOW_FILE_IN_FOLDER, filePath);
+				console.log("[editor.vue] Export completed:", exportData);
+				
+				// FFmpeg-based export already saved the file, so just show success
+				if (exportData?.filePath) {
+					// Success - modal'ı kapat
+					if (exportModalRef.value) {
+						exportModalRef.value.completeExport();
+					}
+					
+					// Success mesajı
+					setTimeout(() => {
+						alert(`Video saved successfully: ${exportData.filePath}`);
+						// Dosyayı Finder/Explorer'da göster
+						electron?.ipcRenderer.send(IPC_EVENTS.SHOW_FILE_IN_FOLDER, exportData.filePath);
+					}, 1200);
 				} else {
-					throw new Error(saveResult?.error || "Video could not be saved.");
+					throw new Error("Export completed but no file path provided");
 				}
 			} catch (error) {
 				console.error("[editor.vue] Kayıt tamamlama hatası:", error);
-				alert(`An error occurred while saving video: ${error.message}`);
-
-				// Loading mesajını kaldır
-				if (loadingMessage.parentNode) {
-					document.body.removeChild(loadingMessage);
+				if (exportModalRef.value) {
+					exportModalRef.value.showError(`Save failed: ${error.message}`);
 				}
 			}
 		};
@@ -707,11 +684,8 @@ const handleExport = async (settings) => {
 		// Error handler
 		const onError = (error) => {
 			console.error("[editor.vue] Video kayıt hatası:", error);
-			alert(`An error occurred while saving video: ${error.message}`);
-
-			// Loading mesajını kaldır
-			if (loadingMessage.parentNode) {
-				document.body.removeChild(loadingMessage);
+			if (exportModalRef.value) {
+				exportModalRef.value.showError(error.message);
 			}
 		};
 
