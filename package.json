@@ -21,7 +21,10 @@
 		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false",
 		"electron:build:dmg:signed": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false",
 		"sign:app": "scripts/sign-app.sh",
+		"sign:apple": "scripts/sign-apple-developer.sh",
+		"notarize": "scripts/notarize-app.sh",
 		"build:signed": "scripts/build-and-sign.sh",
+		"build:apple": "scripts/build-apple-developer.sh",
 		"cleanup": "lsof -ti:3002,3003,3004,3005,3006,3007,3008,3009,3010,3011,3012,3013,3014,3015,3016,3017,3018,3019,3020 2>/dev/null | xargs kill -9 2>/dev/null || echo 'No ports to clean up' && echo 'Port cleanup completed'"
 	},
 	"dependencies": {
