@@ -56,7 +56,7 @@
 				'!flex-row gap-2': hasVideo
 					? isTimelineHovered
 						? false
-						: true
+						: segment.gif.type !== 'video'
 					: false,
 			}"
 			class="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none"
@@ -163,7 +163,7 @@
 
 		<!-- Left Edge Handle -->
 		<div
-			class="absolute left-1 top-0 bottom-0 w-1 z-50 flex items-center justify-start opacity-0 transition-opacity duration-200"
+			class="absolute left-1 top-0 bottom-0 w-1 z-50 flex items-center justify-start opacity-0"
 			:class="{
 				'opacity-80': isActive && isTimelineHovered,
 				'group-hover:opacity-80':
@@ -179,7 +179,7 @@
 
 		<!-- Right Edge Handle -->
 		<div
-			class="absolute right-1 top-0 bottom-0 w-1 z-50 flex items-center justify-end opacity-0 transition-opacity duration-200"
+			class="absolute right-1 top-0 bottom-0 w-1 z-50 flex items-center justify-end opacity-0"
 			:class="{
 				'opacity-80': isActive && isTimelineHovered,
 				'group-hover:opacity-80':
@@ -196,7 +196,7 @@
 		<!-- Split Indicator -->
 		<div
 			v-if="isSplitMode && mousePosition.x > 0"
-			class="absolute top-0 bottom-0 w-[1px] bg-white pointer-events-none transition-all duration-75"
+			class="absolute top-0 bottom-0 w-[1px] bg-white pointer-events-none"
 			:style="{
 				left: `${mousePosition.x}px`,
 				opacity: 0.8,
@@ -288,7 +288,6 @@ const segmentStyle = computed(() => {
 			left: `${startX}px`,
 			width: `${Math.max(width, 50)}px`,
 			position: "absolute",
-			transition: props.isDragging ? "none" : "all 0.2s ease",
 			zIndex: props.isActive ? "10" : "1",
 			borderRadius: "10px",
 			backgroundColor: "rgb(140,91,7)",
@@ -313,7 +312,7 @@ const segmentStyle = computed(() => {
 		borderRadius: props.hasVideo
 			? props.isTimelineHovered
 				? "10px"
-				: "6px"
+				: "10px"
 			: "10px",
 		height: props.hasVideo
 			? props.isTimelineHovered
@@ -323,7 +322,6 @@ const segmentStyle = computed(() => {
 		border: props.isActive
 			? "1px solid rgba(255, 255, 255, 0.5)"
 			: "0.5px solid rgba(255, 255, 255, 0.2)",
-		transition: props.isDragging ? "none" : "all 0.2s ease",
 	};
 });
 

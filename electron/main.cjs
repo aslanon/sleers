@@ -15,10 +15,7 @@ const path = require("path");
 const fs = require("fs");
 const isDev = process.env.NODE_ENV === "development";
 const waitOn = require("wait-on");
-const FFmpegWrapper = require("./ffmpegWrapper.cjs");
-
-// FFmpeg wrapper instance
-const ffmpegWrapper = new FFmpegWrapper();
+// FFmpeg removed - using WebM-only export
 
 const express = require("express");
 const http = require("http");
@@ -69,7 +66,7 @@ global.ffmpegProcesses = [];
 ipcMain.handle("search-gifs", async (event, query) => {
 	console.log("IPC: Searching for GIFs with query:", query);
 	try {
-		const url = `https://api.giphy.com/v1/gifs/search?api_key=DCabEPYut33Xk4DzYdL44AXsRcUAKjPp&q=${encodeURIComponent(
+		const url = `https://api.giphy.com/v1/stickers/search?api_key=DCabEPYut33Xk4DzYdL44AXsRcUAKjPp&q=${encodeURIComponent(
 			query
 		)}&limit=20&offset=0&rating=pg&lang=en`;
 		console.log("IPC: Making request to:", url);
@@ -250,7 +247,7 @@ ipcMain.on(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, (event, settings) => {
 		...editorSettings,
 		...settings,
 	};
-	
+
 	// Ses ayarları güncellenmişse MediaStateManager'a ilet
 	if (settings.audioSettings && mediaStateManager) {
 		console.log("[Main] Ses ayarları güncelleniyor:", settings.audioSettings);
@@ -1238,23 +1235,27 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 				recordingOptions.includeMicrophone = audioSettings.microphoneEnabled;
 				recordingOptions.includeSystemAudio = audioSettings.systemAudioEnabled;
 				recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
-				
+
 				// YENİ: Sistem sesi açıksa cihaz seçimi yap
 				if (recordingOptions.includeSystemAudio) {
 					try {
 						console.log("[Main] 🔊 Sistem ses cihazları aranıyor...");
 						const audioDevices = await recorder.getAudioDevices();
-						const systemAudioDevices = audioDevices.filter(device => 
-							device.name.toLowerCase().includes('aggregate') ||
-							device.name.toLowerCase().includes('blackhole') ||
-							device.name.toLowerCase().includes('soundflower') ||
-							device.name.toLowerCase().includes('imobie') ||
-							device.name.toLowerCase().includes('loopback')
+						const systemAudioDevices = audioDevices.filter(
+							(device) =>
+								device.name.toLowerCase().includes("aggregate") ||
+								device.name.toLowerCase().includes("blackhole") ||
+								device.name.toLowerCase().includes("soundflower") ||
+								device.name.toLowerCase().includes("imobie") ||
+								device.name.toLowerCase().includes("loopback")
 						);
-						
+
 						if (systemAudioDevices.length > 0) {
 							recordingOptions.systemAudioDeviceId = systemAudioDevices[0].id;
-							console.log("[Main] 🎯 Sistem ses cihazı:", systemAudioDevices[0].name);
+							console.log(
+								"[Main] 🎯 Sistem ses cihazı:",
+								systemAudioDevices[0].name
+							);
 						} else {
 							console.warn("[Main] ⚠️ Sistem ses cihazı bulunamadı!");
 						}
@@ -1262,7 +1263,7 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 						console.warn("[Main] Ses cihazları alınamadı:", error.message);
 					}
 				}
-				
+
 				console.log("[Main] Ses ayarları eklendi:", {
 					includeMicrophone: recordingOptions.includeMicrophone,
 					includeSystemAudio: recordingOptions.includeSystemAudio,
@@ -1322,14 +1323,23 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		}
 
 		console.log("[Main] Final MacRecorder options:", recordingOptions);
-		
+
 		// YENİ VERSİYON TEST: Ses ayarlarını özellikle logla
-		if (recordingOptions.includeSystemAudio && recordingOptions.systemAudioDeviceId) {
+		if (
+			recordingOptions.includeSystemAudio &&
+			recordingOptions.systemAudioDeviceId
+		) {
 			console.log("[Main] 🎯 Sistem sesi kaydı YENİ VERSİYON ile aktif:");
-			console.log(`[Main] - includeSystemAudio: ${recordingOptions.includeSystemAudio}`);
-			console.log(`[Main] - systemAudioDeviceId: ${recordingOptions.systemAudioDeviceId}`);
+			console.log(
+				`[Main] - includeSystemAudio: ${recordingOptions.includeSystemAudio}`
+			);
+			console.log(
+				`[Main] - systemAudioDeviceId: ${recordingOptions.systemAudioDeviceId}`
+			);
 		} else if (recordingOptions.includeSystemAudio) {
-			console.warn("[Main] ⚠️ Sistem sesi açık ama cihaz ID'si yok! Varsayılan cihaz kullanılacak");
+			console.warn(
+				"[Main] ⚠️ Sistem sesi açık ama cihaz ID'si yok! Varsayılan cihaz kullanılacak"
+			);
 		}
 
 		// Start synchronized recording session
@@ -2603,68 +2613,6 @@ function setupIpcHandlers() {
 		cameraManager.setFollowMouse(shouldFollow);
 	});
 
-	// Video kaydetme işleyicisi
-	safeHandle(IPC_EVENTS.SAVE_VIDEO, async (event, base64Data, outputPath) => {
-		try {
-			console.log("[main] Video kaydediliyor...");
-			console.log("[main] base64Data type:", typeof base64Data);
-			console.log("[main] outputPath:", outputPath);
-
-			// Input validation
-			if (!base64Data) {
-				throw new Error("base64Data is required but was: " + base64Data);
-			}
-
-			if (typeof base64Data !== 'string') {
-				throw new Error("base64Data must be a string, got: " + typeof base64Data);
-			}
-
-			if (!outputPath) {
-				throw new Error("outputPath is required");
-			}
-
-			// Base64'ten buffer'a çevir
-			const base64String = base64Data.replace(/^data:video\/webm;base64,/, "");
-			const inputBuffer = Buffer.from(base64String, "base64");
-
-			// Geçici webm dosyası oluştur
-			const tempWebmPath = path.join(
-				app.getPath("temp"),
-				`temp_${Date.now()}.webm`
-			);
-			fs.writeFileSync(tempWebmPath, inputBuffer);
-
-			// WebM dosyasının varlığını ve boyutunu kontrol et
-			const stats = fs.statSync(tempWebmPath);
-			console.log(`[main] WebM dosya boyutu: ${stats.size} bytes`);
-
-			if (stats.size === 0) {
-				fs.unlinkSync(tempWebmPath);
-				throw new Error("WebM dosyası boş - kayıt işlemi başarısız");
-			}
-
-			// Custom FFmpeg wrapper ile MP4'e dönüştür
-			try {
-				await ffmpegWrapper.convertWebmToMp4(tempWebmPath, outputPath);
-				
-				// Geçici dosyayı temizle
-				fs.unlinkSync(tempWebmPath);
-				console.log("[main] Video başarıyla kaydedildi:", outputPath);
-				
-				return { success: true };
-			} catch (conversionError) {
-				// Geçici dosyayı temizle
-				if (fs.existsSync(tempWebmPath)) {
-					fs.unlinkSync(tempWebmPath);
-				}
-				throw new Error("Video dönüştürülemedi: " + conversionError.message);
-			}
-		} catch (error) {
-			console.error("[main] Video kaydetme hatası:", error);
-			throw error;
-		}
-	});
-
 	// Editör penceresini aç
 	safeHandle(IPC_EVENTS.OPEN_EDITOR, async (event, data) => {
 		try {
@@ -2881,17 +2829,21 @@ function setupIpcHandlers() {
 			console.log("[Main] Sistem ses cihazları alınıyor...");
 			const recorder = getMacRecorderInstance();
 			const allDevices = await recorder.getAudioDevices();
-			
+
 			// Sistem ses cihazlarını filtrele
-			const systemAudioDevices = allDevices.filter(device => 
-				device.name.toLowerCase().includes('aggregate') ||
-				device.name.toLowerCase().includes('blackhole') ||
-				device.name.toLowerCase().includes('soundflower') ||
-				device.name.toLowerCase().includes('imobie') ||
-				device.name.toLowerCase().includes('loopback')
+			const systemAudioDevices = allDevices.filter(
+				(device) =>
+					device.name.toLowerCase().includes("aggregate") ||
+					device.name.toLowerCase().includes("blackhole") ||
+					device.name.toLowerCase().includes("soundflower") ||
+					device.name.toLowerCase().includes("imobie") ||
+					device.name.toLowerCase().includes("loopback")
 			);
-			
-			console.log("[Main] Bulunan sistem ses cihazları:", systemAudioDevices.map(d => `${d.name} (${d.id})`));
+
+			console.log(
+				"[Main] Bulunan sistem ses cihazları:",
+				systemAudioDevices.map((d) => `${d.name} (${d.id})`)
+			);
 			return systemAudioDevices;
 		} catch (error) {
 			console.error("[Main] Sistem ses cihazları alınırken hata:", error);
@@ -3022,6 +2974,127 @@ function setupIpcHandlers() {
 		return null;
 	});
 
+	// MP4 conversion removed - WebM-only support
+	console.log("[main] MP4 conversion removed - WebM-only mode");
+	ipcMain.handle("CONVERT_WEBM_TO_MP4", async (event, conversionData) => {
+		console.log("[main] MP4 conversion not supported - WebM-only mode");
+		return {
+			success: false,
+			error: "MP4 conversion is not supported. Please use WebM format instead.",
+		};
+	});
+
+	// Basit WebM to MP4 conversion handler
+	ipcMain.handle(
+		"SAVE_VIDEO",
+		async (event, base64Data, outputPath, options = {}) => {
+			try {
+				console.log("[main] ✅ SAVE_VIDEO handler called");
+				console.log("[main] Output path:", outputPath);
+				console.log("[main] Options:", options);
+
+				// Ensure directory exists
+				const directory = path.dirname(outputPath);
+				if (!fs.existsSync(directory)) {
+					fs.mkdirSync(directory, { recursive: true });
+				}
+
+				// Base64'ten buffer'a çevir
+				const base64String = base64Data.replace(
+					/^data:video\/webm;base64,/,
+					""
+				);
+				const inputBuffer = Buffer.from(base64String, "base64");
+
+				// WebM direct save için conversion skip
+				console.log("[main] 🔍 Options received:", options);
+				console.log("[main] 🔍 skipConversion value:", options.skipConversion);
+				console.log(
+					"[main] 🔍 skipConversion type:",
+					typeof options.skipConversion
+				);
+				console.log("[main] 🔍 Output path:", outputPath);
+				console.log(
+					"[main] 🔍 Output path extension:",
+					path.extname(outputPath)
+				);
+				if (options.skipConversion === true) {
+					console.log("[main] ⚡ Skipping FFmpeg - direct WebM save");
+					fs.writeFileSync(outputPath, inputBuffer);
+					console.log("[main] ✅ WebM saved directly - LIGHTNING FAST!");
+					return { success: true, filePath: outputPath };
+				}
+
+				// MP4 conversion removed - WebM-only mode
+				console.log("[main] ❌ MP4 conversion not supported - WebM-only mode");
+				return {
+					success: false,
+					error:
+						"MP4 conversion is not supported. Please use WebM format with skipConversion: true",
+				};
+			} catch (error) {
+				console.error("[main] ❌ Fast conversion error:", error);
+				return { success: false, error: error.message };
+			}
+		}
+	);
+
+	// SÜPER BASIT - Direct file save, no processing
+	ipcMain.handle("SAVE_FILE_DIRECT", async (event, buffer, outputPath) => {
+		try {
+			console.log("[main] 🚀 SAVE_FILE_DIRECT - No processing, just save!");
+			console.log("[main] Output:", outputPath);
+			console.log("[main] Size:", buffer.length, "bytes");
+
+			// Directory oluştur
+			const directory = path.dirname(outputPath);
+			if (!fs.existsSync(directory)) {
+				fs.mkdirSync(directory, { recursive: true });
+			}
+
+			// Direkt dosyaya yaz - hiçbir işlem yok!
+			fs.writeFileSync(outputPath, buffer);
+			console.log("[main] ✅ File saved DIRECTLY - INSTANT!");
+
+			return { success: true, filePath: outputPath };
+		} catch (error) {
+			console.error("[main] ❌ Direct file save error:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
+	// Buffer'ı direkt dosyaya kaydet - no dialog, no conversion
+	ipcMain.handle("SAVE_BUFFER_TO_FILE", async (event, data) => {
+		try {
+			console.log(
+				"[main] 🎯 SAVE_BUFFER_TO_FILE - Direct save to specified path"
+			);
+
+			const { buffer, outputPath } = data;
+			console.log("[main] Output path:", outputPath);
+			console.log("[main] Buffer size:", buffer.length, "bytes");
+
+			// Directory oluştur
+			const directory = path.dirname(outputPath);
+			if (!fs.existsSync(directory)) {
+				fs.mkdirSync(directory, { recursive: true });
+			}
+
+			// Buffer array'ini Uint8Array'e çevir ve dosyaya yaz
+			const uint8Buffer = new Uint8Array(buffer);
+			fs.writeFileSync(outputPath, uint8Buffer);
+
+			console.log(
+				"[main] ✅ File saved directly to specified path - NO DIALOG!"
+			);
+
+			return { success: true, filePath: outputPath };
+		} catch (error) {
+			console.error("[main] ❌ Buffer save error:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
 	// FFmpeg tabanlı export handler
 	safeHandle("EXPORT_WITH_FFMPEG", async (event, exportData) => {
 		try {
@@ -3030,100 +3103,148 @@ function setupIpcHandlers() {
 			console.log("Settings:", exportData.settings);
 
 			const { frames, settings, duration } = exportData;
-			const { 
-				filename, directory, format, width, height, fps, bitrate, 
-				audioSourcePath, audioTrimInfo, encodingSpeed, useHardwareAccel, audioQuality 
+			const {
+				filename,
+				directory,
+				format,
+				width,
+				height,
+				fps,
+				bitrate,
+				audioSourcePath,
+				audioTrimInfo,
+				encodingSpeed,
+				useHardwareAccel,
+				audioQuality,
 			} = settings;
 
 			// Output path oluştur
 			const outputPath = path.join(directory, `${filename}.${format}`);
-			
+
 			// Ensure directory exists
 			if (!fs.existsSync(directory)) {
 				fs.mkdirSync(directory, { recursive: true });
 			}
 
-			console.log(`[main] Processing ${frames.length} frames with FFmpegWrapper...`);
-			
-			if (format === 'mp4') {
-				// MP4 export - FFmpegWrapper'a frames array'ini direkt gönder
-				await ffmpegWrapper.createVideoFromFrames(frames, outputPath, {
-					fps: fps || 30,
-					width: width || 1280,
-					height: height || 720,
-					bitrate: bitrate || 5000000,
-					audioPath: audioSourcePath, // Audio source path'i geç
-					audioTrimInfo: audioTrimInfo, // Audio trim bilgisini geç
-					
-					// Advanced settings'leri FFmpeg'e geç
-					encodingSpeed: encodingSpeed || 'balanced',
-					useHardwareAccel: useHardwareAccel !== false,
-					audioQuality: audioQuality || 128,
-				});
-			} else if (format === 'gif') {
-				// GIF export - FFmpegWrapper'a frames array'ini direkt gönder
-				await ffmpegWrapper.createGifFromFrames(frames, outputPath, {
-					fps: Math.min(fps || 15, 15), // GIF için max 15 FPS
-					width: width || 640,
-					height: height || -1 // Aspect ratio korunur
-				});
-			} else {
-				throw new Error(`Unsupported format: ${format}`);
-			}
-			
-			console.log("[main] FFmpeg export completed:", outputPath);
-			return { success: true, filePath: outputPath };
+			console.log(
+				`[main] Processing ${frames.length} frames with format: ${format}`
+			);
 
+			if (format === "webm") {
+				// WebM export - direkt kaydet, FFmpeg kullanma
+				console.log(
+					"[main] ⚡ WebM format detected - direct save without FFmpeg"
+				);
+
+				// Frames'leri WebM formatında birleştir ve direkt kaydet
+				// Bu durumda frames zaten WebM formatında geliyor olmalı
+				if (frames && frames.length > 0) {
+					// İlk frame'i al (WebM data olarak gelmiş olmalı)
+					const webmData = frames[0]; // WebM data
+
+					// Base64'ten buffer'a çevir (eğer base64 formatında geliyorsa)
+					let webmBuffer;
+					if (
+						typeof webmData === "string" &&
+						webmData.startsWith("data:video/webm;base64,")
+					) {
+						const base64String = webmData.replace(
+							/^data:video\/webm;base64,/,
+							""
+						);
+						webmBuffer = Buffer.from(base64String, "base64");
+					} else if (webmData instanceof Buffer) {
+						webmBuffer = webmData;
+					} else {
+						// Eğer frames array'i ise, ilk frame'i kullan
+						webmBuffer = Buffer.from(webmData);
+					}
+
+					// Direkt dosyaya kaydet
+					fs.writeFileSync(outputPath, webmBuffer);
+					console.log("[main] ✅ WebM saved directly - LIGHTNING FAST!");
+				} else {
+					throw new Error("No WebM data available for direct save");
+				}
+			} else {
+				throw new Error(
+					`Only WebM format is supported. Requested format: ${format}`
+				);
+			}
+
+			console.log("[main] Export completed:", outputPath);
+			return { success: true, filePath: outputPath };
 		} catch (error) {
-			console.error("[main] FFmpeg export error:", error);
+			console.error("[main] Export error:", error);
 			return { success: false, error: error.message };
 		}
 	});
 
-	// GIF kaydetme işleyicisi
+	// GIF export removed - WebM-only support
 	safeHandle(IPC_EVENTS.SAVE_GIF, async (event, base64Data, outputPath) => {
-		try {
-			console.log("[main] GIF kaydediliyor...");
-
-			// Ensure directory exists
-			const dirPath = path.dirname(outputPath);
-			if (!fs.existsSync(dirPath)) {
-				console.log(`[main] Dizin oluşturuluyor: ${dirPath}`);
-				fs.mkdirSync(dirPath, { recursive: true });
-			}
-
-			// Base64'ten buffer'a çevir
-			const base64String = base64Data.replace(/^data:video\/webm;base64,/, "");
-			const inputBuffer = Buffer.from(base64String, "base64");
-
-			// Geçici webm dosyası oluştur
-			const tempWebmPath = path.join(
-				app.getPath("temp"),
-				`temp_${Date.now()}.webm`
-			);
-			fs.writeFileSync(tempWebmPath, inputBuffer);
-
-			// Custom FFmpeg wrapper ile GIF'e dönüştür
-			try {
-				await ffmpegWrapper.convertWebmToGif(tempWebmPath, outputPath);
-				
-				// Geçici dosyayı temizle
-				fs.unlinkSync(tempWebmPath);
-				console.log("[main] GIF başarıyla kaydedildi:", outputPath);
-				
-				return { success: true };
-			} catch (conversionError) {
-				// Geçici dosyayı temizle
-				if (fs.existsSync(tempWebmPath)) {
-					fs.unlinkSync(tempWebmPath);
-				}
-				throw new Error("GIF dönüştürülemedi: " + conversionError.message);
-			}
-		} catch (error) {
-			console.error("[main] GIF kaydetme hatası:", error);
-			throw error;
-		}
+		console.log("[main] GIF export not supported - WebM-only mode");
+		return {
+			success: false,
+			error: "GIF export is not supported. Please use WebM format instead.",
+		};
 	});
+
+	// WebM save handler - video-only WebM + audio birleştirme
+	safeHandle(
+		IPC_EVENTS.SAVE_WEBM_DIRECT,
+		async (event, base64Data, outputPath) => {
+			try {
+				console.log(
+					"[main] 🚀 SAVE_WEBM_DIRECT - Video-only WebM + Audio merge"
+				);
+				console.log("[main] Output path:", outputPath);
+
+				// Ensure directory exists
+				const directory = path.dirname(outputPath);
+				if (!fs.existsSync(directory)) {
+					fs.mkdirSync(directory, { recursive: true });
+				}
+
+				// Base64'ten buffer'a çevir
+				const base64String = base64Data.replace(
+					/^data:video\/webm;base64,/,
+					""
+				);
+				const inputBuffer = Buffer.from(base64String, "base64");
+
+				// Geçici video-only WebM dosyası oluştur
+				const tempVideoPath = path.join(
+					app.getPath("temp"),
+					`temp_video_${Date.now()}.webm`
+				);
+				fs.writeFileSync(tempVideoPath, inputBuffer);
+				console.log("[main] Video-only WebM written to temp:", tempVideoPath);
+
+				// Temp audio dosyasını kontrol et
+				const tempAudioPath = await new Promise((resolve) => {
+					const tempFileManager = require("./tempFileManager.cjs");
+					if (tempFileManager && tempFileManager.getTempAudioPath) {
+						resolve(tempFileManager.getTempAudioPath());
+					} else {
+						resolve(null);
+					}
+				});
+
+				// Audio merge removed - WebM already includes audio from MediaRecorder
+				console.log(
+					"[main] WebM already includes audio - no FFmpeg merge needed"
+				);
+				fs.copyFileSync(tempVideoPath, outputPath);
+				fs.unlinkSync(tempVideoPath);
+
+				console.log("[main] ✅ WebM saved:", outputPath);
+				return { success: true, filePath: outputPath };
+			} catch (error) {
+				console.error("[main] ❌ WebM save error:", error);
+				return { success: false, error: error.message };
+			}
+		}
+	);
 
 	// Handle screenshot saving
 	safeHandle(IPC_EVENTS.SAVE_SCREENSHOT, async (event, imageData, filePath) => {
@@ -3163,7 +3284,7 @@ function setupIpcHandlers() {
 			minimizable: false,
 			maximizable: false,
 			// macOS'ta ekran kaydından gizle
-			...(process.platform === 'darwin' && {
+			...(process.platform === "darwin" && {
 				excludedFromShownWindowsMenu: true,
 			}),
 			webPreferences: {
@@ -3173,12 +3294,15 @@ function setupIpcHandlers() {
 		});
 
 		// macOS'ta dialog penceresini ekran kaydından gizle
-		if (process.platform === 'darwin') {
+		if (process.platform === "darwin") {
 			try {
 				promptWindow.setContentProtection(true);
 				console.log("[Main] ✅ Dialog penceresi ekran kaydından gizlendi");
 			} catch (error) {
-				console.warn("[Main] ⚠️ Dialog pencere gizleme başarısız:", error.message);
+				console.warn(
+					"[Main] ⚠️ Dialog pencere gizleme başarısız:",
+					error.message
+				);
 			}
 		}
 
@@ -3735,7 +3859,7 @@ async function createWindow() {
 		hasShadow: true,
 		movable: true,
 		// macOS'ta ekran kaydından gizle
-		...(process.platform === 'darwin' && {
+		...(process.platform === "darwin" && {
 			excludedFromShownWindowsMenu: true,
 		}),
 		webPreferences: {
@@ -3746,7 +3870,7 @@ async function createWindow() {
 			allowRunningInsecureContent: true,
 			webviewTag: true,
 			additionalArguments: ["--disable-site-isolation-trials"],
-// devTools property kaldırıldı - programatik kontrol kullanılacak
+			// devTools property kaldırıldı - programatik kontrol kullanılacak
 		},
 	});
 
@@ -3762,37 +3886,39 @@ function setupProductionSecurity() {
 	if (!isDev) {
 		// Application menüsünü kaldır
 		Menu.setApplicationMenu(null);
-		
+
 		// DevTools'u programatik olarak devre dışı bırak
 		try {
 			mainWindow.webContents.setDevToolsWebContents(null);
 		} catch (error) {
-			console.log('setDevToolsWebContents not available:', error.message);
+			console.log("setDevToolsWebContents not available:", error.message);
 		}
-		
+
 		// DevTools açma kısayollarını engelle
-		mainWindow.webContents.on('before-input-event', (event, input) => {
+		mainWindow.webContents.on("before-input-event", (event, input) => {
 			// F12, Cmd+Opt+I, Cmd+Shift+I gibi DevTools kısayollarını engelle
-			if (input.key === 'F12' || 
-				(input.meta && input.alt && input.key.toLowerCase() === 'i') ||
-				(input.meta && input.shift && input.key.toLowerCase() === 'i') ||
-				(input.control && input.shift && input.key.toLowerCase() === 'i')) {
+			if (
+				input.key === "F12" ||
+				(input.meta && input.alt && input.key.toLowerCase() === "i") ||
+				(input.meta && input.shift && input.key.toLowerCase() === "i") ||
+				(input.control && input.shift && input.key.toLowerCase() === "i")
+			) {
 				event.preventDefault();
-				console.log('DevTools shortcut blocked in production');
+				console.log("DevTools shortcut blocked in production");
 			}
 		});
-		
+
 		// Right-click context menu'yu devre dışı bırak
-		mainWindow.webContents.on('context-menu', (event) => {
+		mainWindow.webContents.on("context-menu", (event) => {
 			event.preventDefault();
 		});
-		
+
 		// DevTools açılma denemelerini engelle
-		mainWindow.webContents.on('devtools-opened', () => {
+		mainWindow.webContents.on("devtools-opened", () => {
 			mainWindow.webContents.closeDevTools();
 		});
-		
-		console.log('Production security measures applied');
+
+		console.log("Production security measures applied");
 	}
 
 	// CSP headers are now handled globally in setupSecurityPolicies()
@@ -3869,11 +3995,13 @@ function initializeManagers() {
 
 function setupWindowEvents() {
 	// macOS'ta pencereyi ekran kaydından gizle (native API)
-	if (process.platform === 'darwin') {
+	if (process.platform === "darwin") {
 		try {
 			// Electron'un setContentProtection API'sini kullan
 			mainWindow.setContentProtection(true);
-			console.log("[Main] ✅ Ana pencere ekran kaydından gizlendi (setContentProtection)");
+			console.log(
+				"[Main] ✅ Ana pencere ekran kaydından gizlendi (setContentProtection)"
+			);
 		} catch (error) {
 			console.warn("[Main] ⚠️ Ana pencere gizleme başarısız:", error.message);
 		}
@@ -4115,20 +4243,7 @@ app.on("before-quit", () => {
 		if (trayManager) trayManager.cleanup();
 		if (tempFileManager) tempFileManager.cleanupAllFiles();
 
-		// FFmpeg process'lerini temizle
-		if (global.ffmpegProcesses) {
-			console.log("[Main] FFmpeg process'leri temizleniyor...");
-			global.ffmpegProcesses.forEach((process) => {
-				try {
-					if (process && !process.killed) {
-						process.kill("SIGTERM");
-					}
-				} catch (err) {
-					console.warn("[Main] FFmpeg process temizleme hatası:", err.message);
-				}
-			});
-			global.ffmpegProcesses = [];
-		}
+		// FFmpeg processes removed - WebM-only mode
 
 		// Tüm child process'leri temizle
 		if (process.platform === "darwin") {

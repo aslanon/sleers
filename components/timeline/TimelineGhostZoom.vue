@@ -1,7 +1,7 @@
 <template>
 	<div
 		v-if="position !== null"
-		class="absolute h-full transition-all rounded-[10px] duration-75 opacity-30 bg-white/20 ring-1 ring-white/20"
+		class="absolute h-full rounded-[10px] opacity-30 bg-white/20 ring-1 ring-white/20"
 		:style="{
 			left: `${position}%`,
 			width: `${width}%`,

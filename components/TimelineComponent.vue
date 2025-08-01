@@ -1,7 +1,7 @@
 <template>
 	<div class="timeline-container h-auto max-h-[375px]">
 		<!-- Timeline Header -->
-
+		<!-- 
 		<div
 			class="flex fixed right-0 bottom-4 z-10 justify-between items-center px-4 py-2"
 		>
@@ -32,7 +32,7 @@
 					</svg>
 				</button>
 			</div>
-		</div>
+		</div> -->
 
 		<!-- Timeline Ruler -->
 		<div
@@ -50,7 +50,7 @@
 				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
-					class="timeline-content min-h-full relative pt-6 transition-[width] duration-100 ease-linear"
+					class="timeline-content min-h-full relative pt-6"
 					:style="{ width: `${timelineWidth}px` }"
 					@click="handleTimelineClick"
 				>
@@ -82,107 +82,10 @@
 					</div>
 					<!-- Video Track -->
 					<div
-						class="max-h-[400px] overflow-y-auto min-h-[400px] pb-[150px] pt-4 overflow-auto flex flex-col gap-2 px-2"
+						class="max-h-[400px] overflow-y-auto min-h-[400px] pb-[250px] overflow-auto flex flex-col gap-2 px-2"
 						@mouseenter="isTimelineHovered = true"
 						@mouseleave="isTimelineHovered = false"
 					>
-						<!-- Layout Track -->
-						<div
-							v-if="hasVideo"
-							class="timeline-layer-bar w-full rounded-xl relative"
-							@click="handleLayoutTrackClick"
-							@mousemove="handleLayoutTrackMouseMove"
-							@mouseenter="isLayoutTrackHovered = true"
-							@mouseleave="handleLayoutTrackLeave"
-						>
-							<div
-								class="flex flex-row h-[42px] relative items-center"
-								:class="{ 'z-50': isLayoutTrackHovered }"
-							>
-								<!-- Empty State Label -->
-								<div
-									v-if="layoutRanges.length === 0"
-									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
-								>
-									<span class="text-sm font-medium tracking-wide"
-										>Add layout effect</span
-									>
-								</div>
-
-								<!-- Layout Ranges -->
-								<TimelineLayoutSegment
-									v-for="(range, index) in layoutRanges"
-									:key="index"
-									:range="range"
-									:index="index"
-									:is-selected="selectedLayoutIndex === index"
-									:is-resizing="isLayoutResizing"
-									:is-dragging="
-										isLayoutDragging && draggedLayoutIndex === index
-									"
-									:is-hovered="isHovered"
-									:duration="maxDuration"
-									:is-timeline-hovered="isTimelineHovered"
-									@click="handleLayoutSegmentClick"
-									@mouse-enter="handleLayoutRangeEnter"
-									@mouse-leave="handleLayoutRangeLeave"
-									@drag-start="handleLayoutDragStart"
-									@resize-start="handleLayoutResizeStart"
-									@delete="handleLayoutDelete"
-								/>
-
-								<!-- Ghost Layout Preview -->
-								<TimelineGhostZoom
-									:position="
-										ghostLayoutPosition !== null &&
-										!isLayoutResizing &&
-										!isLayoutDragging
-											? ghostLayoutPosition
-											: null
-									"
-									:width="calculateGhostBarWidth()"
-									label="Add layout effect"
-								/>
-							</div>
-						</div>
-
-						<!-- GIF Tracks - Each GIF gets its own row (MOVED ABOVE SEGMENTS) -->
-						<div
-							v-if="gifSegments.length === 0"
-							class="timeline-layer-bar w-full rounded-xl relative"
-							@click="handleGifTrackClick"
-							@mousemove="handleGifTrackMouseMove"
-							@mouseenter="isGifTrackHovered = true"
-							@mouseleave="handleGifTrackLeave"
-						>
-							<div
-								v-if="gifSegments.length > 0"
-								class="flex flex-row h-[42px] relative items-center"
-							>
-								<!-- Empty State Label -->
-								<div
-									class="absolute w-[100vw] bg-[#3b82f607] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
-								>
-									<svg
-										class="w-4 h-4"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="1.5"
-											d="M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z M8 12L10 14L16 8"
-										/>
-									</svg>
-									<span class="text-sm font-medium tracking-wide"
-										>Add GIF overlay</span
-									>
-								</div>
-							</div>
-						</div>
-
 						<!-- Individual GIF Track Rows -->
 						<div
 							v-for="(segment, index) in gifSegments"
@@ -202,7 +105,7 @@
 									:segment="segment"
 									:is-active="segment.gif.id === selectedGifId"
 									:is-dragging="isGifDragging && draggedGifIndex === index"
-									:is-timeline-hovered="isTimelineHovered"
+									:is-timeline-hovered="isGifTrackHovered"
 									:time-scale="timeScale"
 									:timeline-width="timelineWidth"
 									:has-video="hasVideo"
@@ -214,43 +117,6 @@
 									@resize-start="handleGifResizeStart"
 									@resize-end="handleGifResizeEnd"
 								/>
-							</div>
-						</div>
-
-						<!-- Video Track -->
-						<div
-							v-if="videoSegments.length === 0"
-							class="timeline-layer-bar w-full rounded-xl relative"
-							@click="handleVideoTrackClick"
-							@mousemove="handleVideoTrackMouseMove"
-							@mouseenter="isVideoTrackHovered = true"
-							@mouseleave="handleVideoTrackLeave"
-						>
-							<div
-								v-if="videoSegments.length > 0"
-								class="flex flex-row h-[42px] relative items-center"
-							>
-								<!-- Empty State Label -->
-								<div
-									class="absolute w-[100vw] bg-[#ef444407] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
-								>
-									<svg
-										class="w-4 h-4"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="1.5"
-											d="M15.75 10.5l4.72-4.72a.75.75 0 014.53 0l-4.72 4.72M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
-										/>
-									</svg>
-									<span class="text-sm font-medium tracking-wide"
-										>Add video overlay</span
-									>
-								</div>
 							</div>
 						</div>
 
@@ -273,7 +139,7 @@
 									:segment="segment"
 									:is-active="segment.gif.id === selectedGifId"
 									:is-dragging="isVideoDragging && draggedVideoIndex === index"
-									:is-timeline-hovered="isTimelineHovered"
+									:is-timeline-hovered="isVideoTrackHovered"
 									:time-scale="timeScale"
 									:timeline-width="timelineWidth"
 									:has-video="hasVideo"
@@ -292,6 +158,8 @@
 						<div
 							v-if="hasVideo"
 							class="timeline-layer-bar w-full rounded-xl relative"
+							@mouseenter="isSegmentTrackHovered = true"
+							@mouseleave="isSegmentTrackHovered = false"
 						>
 							<!-- Video Segments Container -->
 							<div
@@ -307,7 +175,7 @@
 									:index="index"
 									:is-active="segment.id === activeSegmentId"
 									:is-resizing="isResizing && resizingSegmentIndex === index"
-									:is-hovered="isHovered"
+									:is-hovered="isSegmentTrackHovered"
 									:is-split-mode="isSplitMode"
 									:is-dragging="
 										isSegmentDragging && draggedSegmentIndex === index
@@ -386,6 +254,66 @@
 								/>
 							</div>
 						</div>
+
+						<!-- Layout Track -->
+						<div
+							v-if="hasVideo"
+							class="timeline-layer-bar w-full rounded-xl relative"
+							@click="handleLayoutTrackClick"
+							@mousemove="handleLayoutTrackMouseMove"
+							@mouseenter="isLayoutTrackHovered = true"
+							@mouseleave="handleLayoutTrackLeave"
+						>
+							<div
+								class="flex flex-row h-[42px] relative items-center"
+								:class="{ 'z-50': isLayoutTrackHovered }"
+							>
+								<!-- Empty State Label -->
+								<div
+									v-if="layoutRanges.length === 0"
+									class="absolute w-[100vw] bg-[#ffec1a07] rounded-[10px] inset-0 flex items-center justify-center gap-1.5 text-white/20 transition-colors"
+								>
+									<span class="text-sm font-medium tracking-wide"
+										>Add layout effect</span
+									>
+								</div>
+
+								<!-- Layout Ranges -->
+								<TimelineLayoutSegment
+									v-for="(range, index) in layoutRanges"
+									:key="index"
+									:range="range"
+									:index="index"
+									:is-selected="selectedLayoutIndex === index"
+									:is-resizing="isLayoutResizing"
+									:is-dragging="
+										isLayoutDragging && draggedLayoutIndex === index
+									"
+									:is-hovered="isHovered"
+									:duration="maxDuration"
+									:is-timeline-hovered="isLayoutTrackHovered"
+									@click="handleLayoutSegmentClick"
+									@mouse-enter="handleLayoutRangeEnter"
+									@mouse-leave="handleLayoutRangeLeave"
+									@drag-start="handleLayoutDragStart"
+									@resize-start="handleLayoutResizeStart"
+									@delete="handleLayoutDelete"
+								/>
+
+								<!-- Ghost Layout Preview -->
+								<TimelineGhostZoom
+									:position="
+										ghostLayoutPosition !== null &&
+										!isLayoutResizing &&
+										!isLayoutDragging
+											? ghostLayoutPosition
+											: null
+									"
+									:width="calculateLayoutGhostWidth()"
+									label="Add layout effect"
+								/>
+							</div>
+						</div>
 					</div>
 
 					<!-- Preview Playhead -->
@@ -404,24 +332,37 @@
 					<!-- Preview Playhead Handle -->
 					<div
 						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
-						class="absolute top-4 w-3 h-5 z-50 cursor-pointer"
+						class="absolute top-0 w-3 h-5 z-50 cursor-pointer transition-[top] duration-150 ease-out"
 						:style="{
 							left: `${previewPlayheadPosition}%`,
 							transform: 'translateX(-50%)',
+							top: previewPlayheadOffset + 'px',
 						}"
 						@click="handlePreviewPlayheadClick"
 					>
 						<div
-							class="w-3 h-3 rounded-full"
+							class="w-3 h-3 rounded-full relative"
 							:style="{
 								background: 'rgb(26 26 26)',
 							}"
-						></div>
+						>
+							<!-- Damla efekti -->
+							<div
+								class="absolute w-1.5 h-2.5"
+								:style="{
+									background: 'rgb(26 26 26)',
+									top: '55%',
+									left: '50%',
+									transform: 'translateX(-50%)',
+									clipPath: 'polygon(0% 0%, 50% 100%, 100% 0%)',
+								}"
+							></div>
+						</div>
 					</div>
 
 					<!-- Playhead -->
 					<div
-						class="absolute top-0 w-[1px] transition-[left] duration-[250ms] ease-linear will-change-[left] z-[9999] pointer-events-none"
+						class="absolute top-0 w-[1px] z-[9999] pointer-events-none"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -433,7 +374,7 @@
 
 					<!-- Playhead Handle -->
 					<div
-						class="absolute top-0 w-3 h-5 cursor-move transition-[left] duration-[250ms] ease-linear will-change-[left] z-40"
+						class="absolute top-0 w-3 h-5 cursor-move z-40"
 						:style="{
 							left: `${playheadPosition}%`,
 							transform: 'translateX(-50%)',
@@ -441,11 +382,23 @@
 						@mousedown="handlePlayheadDragStart"
 					>
 						<div
-							class="w-3 h-3 rounded-full"
+							class="w-3 h-3 rounded-full relative"
 							:style="{
 								background: 'rgb(67 42 244)',
 							}"
-						></div>
+						>
+							<!-- Damla efekti -->
+							<div
+								class="absolute w-1.5 h-2.5"
+								:style="{
+									background: 'rgb(67 42 244)',
+									top: '55%',
+									left: '50%',
+									transform: 'translateX(-50%)',
+									clipPath: 'polygon(0% 0%, 50% 100%, 100% 0%)',
+								}"
+							></div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -592,6 +545,27 @@ const scrollContainerRef = ref(null);
 const timelineRef = ref(null);
 const currentZoom = ref(3);
 const isDragging = ref(false);
+
+// Video segment uzunluğunu kontrol et ve zoom ayarla
+const checkVideoSegmentDurationAndSetZoom = () => {
+	if (!props.segments || props.segments.length === 0) return;
+
+	// Video segmentlerinin toplam uzunluğunu hesapla
+	const totalVideoDuration = props.segments.reduce((total, segment) => {
+		const segmentDuration =
+			(segment.timelineEnd || segment.end || 0) -
+			(segment.timelineStart || segment.start || 0);
+		return total + segmentDuration;
+	}, 0);
+
+	// Eğer video segment uzunluğu 3-5 saniye arasındaysa zoom'u %50 artır
+	if (parseInt(totalVideoDuration) <= 10) {
+		currentZoom.value = 10; // %50 yakınlaştır
+		console.log(
+			`totalVideoDuration [Timeline] Video segment duration: ${totalVideoDuration}s, zoom increased to: ${currentZoom.value}`
+		);
+	}
+};
 const startDragX = ref(0);
 const startScrollLeft = ref(0);
 const startSegmentStart = ref(0);
@@ -850,6 +824,9 @@ const isVideoTrackHovered = ref(false);
 const isVideoDragging = ref(false);
 const draggedVideoIndex = ref(-1);
 
+// Segment track state
+const isSegmentTrackHovered = ref(false);
+
 // Playhead pozisyonu - artık gerçek video time ile çalışır
 const playheadPosition = computed(() => {
 	// Gerçek video time'ı timeline üzerindeki pozisyona çevir
@@ -860,7 +837,24 @@ const playheadPosition = computed(() => {
 		`[Timeline] Playhead position: realTime=${realTime}, maxDuration=${maxDuration.value}, position=${position}%`
 	);
 
-	return Math.max(0, Math.min(100, position));
+	return Math.max(0, position); // Sadece 0'dan küçük olmamasını kontrol et
+});
+
+// Preview playhead offset - ana playhead ile üst üste geldiğinde 10px aşağı kaydır
+const previewPlayheadOffset = computed(() => {
+	if (previewPlayheadPosition.value === null) return 0;
+
+	// Ana playhead ile preview playhead arasındaki mesafeyi hesapla
+	const distance = Math.abs(
+		previewPlayheadPosition.value - playheadPosition.value
+	);
+
+	// Eğer mesafe 1%'den azsa (yaklaşık üst üste geliyorlarsa) 10px aşağı kaydır
+	if (distance < 0.3) {
+		return 14;
+	}
+
+	return 4;
 });
 
 // Orijinal video zamanını sıkıştırılmış timeline zamanına çevir
@@ -1188,19 +1182,23 @@ const handleZoom = (e) => {
 		);
 
 		if (newZoom !== currentZoom.value) {
-			// Zoom yaparken mouse pozisyonunu merkez al
+			// Zoom yaparken playhead pozisyonunu merkez al
 			const container = scrollContainerRef.value;
-			const mouseX = e.clientX - container.getBoundingClientRect().left;
+			const playheadTime = props.currentTime;
+			const playheadPosition =
+				(playheadTime / maxDuration.value) * timelineWidth.value;
 			const scrollLeftBeforeZoom = container.scrollLeft;
 			const containerWidthBeforeZoom = container.scrollWidth;
 
 			currentZoom.value = newZoom;
 
-			// Zoom sonrası scroll pozisyonunu güncelle
+			// Zoom sonrası scroll pozisyonunu playhead'e göre güncelle
 			nextTick(() => {
 				const scale = container.scrollWidth / containerWidthBeforeZoom;
-				container.scrollLeft =
-					mouseX * (scale - 1) + scrollLeftBeforeZoom * scale;
+				const newPlayheadPosition =
+					(playheadTime / maxDuration.value) * timelineWidth.value;
+				const playheadOffset = newPlayheadPosition - playheadPosition;
+				container.scrollLeft = scrollLeftBeforeZoom + playheadOffset;
 			});
 		}
 	}
@@ -1309,7 +1307,7 @@ const handleTimelineMouseMove = (e) => {
 	const realTime = (x / timelineWidth.value) * maxDuration.value;
 
 	// Artık real time kullan
-	const validRealTime = Math.max(0, Math.min(maxDuration.value, realTime));
+	const validRealTime = Math.max(0, realTime);
 
 	// Preview pozisyonunu hesapla
 	previewPlayheadPosition.value = (validRealTime / maxDuration.value) * 100;
@@ -1329,7 +1327,7 @@ const handlePreviewPlayheadClick = (e) => {
 	const realTime = (x / timelineWidth.value) * maxDuration.value;
 
 	// Artık real time kullan
-	const validRealTime = Math.max(0, Math.min(maxDuration.value, realTime));
+	const validRealTime = Math.max(0, realTime);
 
 	// Real time olarak emit et (linear playback)
 	emit("timeUpdate", validRealTime);
@@ -1692,6 +1690,9 @@ const ghostZoomPosition = ref(null);
 const ghostZoomDuration = ref(1); // Default 1 second
 const ghostZoomScale = ref(2); // Default 2x zoom
 
+// Layout ghost için ayrı süre değişkeni
+const ghostLayoutDuration = ref(2.5); // Default 2.5 seconds for layout ghost
+
 // Ghost zoom pozisyonunu güncelle
 const handleZoomTrackMouseMove = (event) => {
 	if (isZoomResizing.value || isZoomDragging.value) {
@@ -1741,6 +1742,12 @@ const calculateGhostBarWidth = () => {
 	return (ghostZoomDuration.value / maxDuration.value) * 100;
 };
 
+// Layout ghost genişliği hesaplama
+const calculateLayoutGhostWidth = () => {
+	if (ghostLayoutPosition.value === null) return 20;
+	return (ghostLayoutDuration.value / maxDuration.value) * 100;
+};
+
 // Playhead sürükleme state'i
 const isPlayheadDragging = ref(false);
 
@@ -1761,8 +1768,8 @@ const handlePlayheadDrag = (e) => {
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	// Geçerli zaman aralığında olmasını kontrol et
-	const validTime = Math.max(0, Math.min(props.duration, time));
+	// Sadece 0'dan küçük olmamasını kontrol et, üst sınır yok
+	const validTime = Math.max(0, time);
 	emit("timeUpdate", validTime);
 	previewPlayheadPosition.value = null; // Sürükleme sırasında preview'i gizle
 	emit("previewTimeUpdate", null); // Preview'i temizle
@@ -2459,11 +2466,23 @@ const handleVideoResizeEnd = () => {
 	// Handle video resize end
 };
 
+// Video segment uzunluğunu izle ve zoom ayarla
+watch(
+	() => props.segments,
+	() => {
+		checkVideoSegmentDurationAndSetZoom();
+	},
+	{ deep: true }
+);
+
 // Lifecycle hooks
 onMounted(() => {
 	window.addEventListener("click", handleClickOutside);
 	window.addEventListener("keydown", handleKeyDown);
 	window.addEventListener("keydown", handleGifKeyDown);
+
+	// Video segment uzunluğunu kontrol et ve zoom ayarla
+	checkVideoSegmentDurationAndSetZoom();
 });
 
 onUnmounted(() => {

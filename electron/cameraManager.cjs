@@ -15,7 +15,7 @@ class CameraManager {
 		this.lastMousePositions = [];
 		this.lastCameraPosition = null;
 		this.isRecording = false;
-		this.shouldFollowMouse = true;
+		this.shouldFollowMouse = false;
 		this.initializationAttempts = 0;
 		this.maxInitializationAttempts = 3;
 		this.initializationTimeout = null;
@@ -280,7 +280,7 @@ class CameraManager {
 				frame: false,
 				alwaysOnTop: true,
 				// macOS'ta ekran kaydından gizle
-				...(process.platform === 'darwin' && {
+				...(process.platform === "darwin" && {
 					excludedFromShownWindowsMenu: true,
 				}),
 				webPreferences: {
@@ -290,7 +290,7 @@ class CameraManager {
 					preload: path.join(__dirname, "preload.cjs"),
 					webSecurity: false,
 					allowRunningInsecureContent: true,
-// devTools property kaldırıldı - programatik kontrol kullanılacak
+					// devTools property kaldırıldı - programatik kontrol kullanılacak
 				},
 				backgroundColor: "#00000000",
 				hasShadow: false,
@@ -304,12 +304,17 @@ class CameraManager {
 			});
 
 			// macOS'ta kamera penceresini ekran kaydından gizle
-			if (process.platform === 'darwin') {
+			if (process.platform === "darwin") {
 				try {
 					this.cameraWindow.setContentProtection(true);
-					console.log("[CameraManager] ✅ Kamera penceresi ekran kaydından gizlendi");
+					console.log(
+						"[CameraManager] ✅ Kamera penceresi ekran kaydından gizlendi"
+					);
 				} catch (error) {
-					console.warn("[CameraManager] ⚠️ Kamera pencere gizleme başarısız:", error.message);
+					console.warn(
+						"[CameraManager] ⚠️ Kamera pencere gizleme başarısız:",
+						error.message
+					);
 				}
 			}
 
@@ -333,23 +338,28 @@ class CameraManager {
 				try {
 					this.cameraWindow.webContents.setDevToolsWebContents(null);
 				} catch (error) {
-					console.log('setDevToolsWebContents not available:', error.message);
+					console.log("setDevToolsWebContents not available:", error.message);
 				}
-				
-				this.cameraWindow.webContents.on('before-input-event', (event, input) => {
-					if (input.key === 'F12' || 
-						(input.meta && input.alt && input.key.toLowerCase() === 'i') ||
-						(input.meta && input.shift && input.key.toLowerCase() === 'i') ||
-						(input.control && input.shift && input.key.toLowerCase() === 'i')) {
-						event.preventDefault();
+
+				this.cameraWindow.webContents.on(
+					"before-input-event",
+					(event, input) => {
+						if (
+							input.key === "F12" ||
+							(input.meta && input.alt && input.key.toLowerCase() === "i") ||
+							(input.meta && input.shift && input.key.toLowerCase() === "i") ||
+							(input.control && input.shift && input.key.toLowerCase() === "i")
+						) {
+							event.preventDefault();
+						}
 					}
-				});
-				
-				this.cameraWindow.webContents.on('context-menu', (event) => {
+				);
+
+				this.cameraWindow.webContents.on("context-menu", (event) => {
 					event.preventDefault();
 				});
-				
-				this.cameraWindow.webContents.on('devtools-opened', () => {
+
+				this.cameraWindow.webContents.on("devtools-opened", () => {
 					this.cameraWindow.webContents.closeDevTools();
 				});
 			}
@@ -706,11 +716,13 @@ class CameraManager {
 		if (status) {
 			this.showCameraWindow();
 			this.startMouseTracking();
-			
+
 			// Record camera start time for synchronization
 			if (synchronizedRecording && synchronizedRecording.isRecording) {
-				synchronizedRecording.recordStartTime('camera');
-				console.log('[CameraManager] Camera başlangıç zamanı senkronizasyon servisine kaydedildi');
+				synchronizedRecording.recordStartTime("camera");
+				console.log(
+					"[CameraManager] Camera başlangıç zamanı senkronizasyon servisine kaydedildi"
+				);
 			}
 		} else {
 			this.closeCameraWindow();

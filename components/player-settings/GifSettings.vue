@@ -88,12 +88,14 @@
 					class="space-y-2"
 				>
 					<div class="relative bg-zinc-800/30 rounded-lg overflow-hidden">
-						<video
-							:src="selectedVideoPreview"
-							class="w-full h-[300px] object-cover"
-							controls
-							muted
-						/>
+						<div class="w-full h-[160px] flex items-center justify-center">
+							<video
+								:src="selectedVideoPreview"
+								class="max-w-full max-h-full object-contain"
+								controls
+								muted
+							/>
+						</div>
 						<div class="absolute top-2 right-2">
 							<button
 								@click="clearSelectedVideo"
@@ -189,11 +191,13 @@
 				<!-- Selected Image Preview -->
 				<div v-if="selectedImageFile" class="space-y-2">
 					<div class="relative bg-zinc-800/30 rounded-lg overflow-hidden">
-						<img
-							:src="selectedImagePreview"
-							:alt="selectedImageFile.name"
-							class="w-full h-[300px] object-cover"
-						/>
+						<div class="w-full h-[160px] flex items-center justify-center">
+							<img
+								:src="selectedImagePreview"
+								:alt="selectedImageFile.name"
+								class="max-w-full max-h-full object-contain"
+							/>
+						</div>
 						<div class="absolute top-2 right-2">
 							<button
 								@click="clearSelectedImage"
@@ -280,12 +284,14 @@
 					@click="addGifToCanvas(gif, props.duration)"
 					class="relative bg-zinc-800/30 rounded-lg overflow-hidden cursor-pointer hover:bg-zinc-700/50 transition-colors group"
 				>
-					<img
-						:src="gif.images.fixed_width_small.url"
-						:alt="gif.title"
-						class="w-full h-[96px] object-cover"
-						loading="lazy"
-					/>
+					<div class="w-full h-[96px] overflow-hidden rounded">
+						<img
+							:src="gif.images.fixed_width_small.url"
+							:alt="gif.title"
+							class="w-full h-full object-contain"
+							loading="lazy"
+						/>
+					</div>
 					<div
 						class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center"
 					>
@@ -322,11 +328,13 @@
 					class="flex items-center justify-between p-3 bg-zinc-800/30 rounded-lg"
 				>
 					<div class="flex items-center space-x-3">
-						<img
-							:src="gif.url"
-							:alt="gif.title"
-							class="w-12 h-8 object-cover rounded"
-						/>
+						<div class="w-12 h-8 overflow-hidden rounded">
+							<img
+								:src="gif.url"
+								:alt="gif.title"
+								class="w-full h-full object-contain"
+							/>
+						</div>
 						<div>
 							<p class="text-sm text-white max-w-[100px] font-medium truncate">
 								{{ gif.title }}
@@ -517,54 +525,170 @@ const addImageToCanvas = () => {
 // Video handling functions
 const handleVideoFileSelect = (event) => {
 	const file = event.target.files[0];
-	if (file && file.type.startsWith("video/")) {
-		// Reset states
-		videoLoadError.value = null;
-		isVideoLoading.value = true;
+	if (!file) return;
 
-		// Check file size (warn if > 100MB)
-		const maxSize = 100 * 1024 * 1024; // 100MB
-		const fileSize = file.size;
+	console.log("Video file selected:", {
+		name: file.name,
+		type: file.type,
+		size: file.size,
+		lastModified: file.lastModified,
+	});
 
-		if (fileSize > maxSize) {
-			console.warn(
-				`Large video file detected: ${(fileSize / 1024 / 1024).toFixed(1)}MB`
-			);
-		}
+	// Check if it's a video file
+	if (!file.type.startsWith("video/")) {
+		console.warn("File type is not video:", file.type);
+		videoLoadError.value = "Please select a valid video file.";
+		return;
+	}
 
-		selectedVideoFile.value = file;
+	// Check file format - more permissive check
+	const fileName = file.name.toLowerCase();
+	const supportedFormats = [
+		".mp4",
+		".webm",
+		".ogg",
+		".mov",
+		".avi",
+		".mkv",
+		".m4v",
+		".3gp",
+		".flv",
+	];
+	const isSupportedFormat = supportedFormats.some((format) =>
+		fileName.endsWith(format)
+	);
 
-		// Create preview URL with timeout and error handling
-		const reader = new FileReader();
+	// Also check MIME type for additional validation
+	const isVideoMimeType = file.type.startsWith("video/");
 
-		reader.onload = (e) => {
+	if (!isSupportedFormat && !isVideoMimeType) {
+		console.warn(
+			"Unsupported video format:",
+			fileName,
+			"MIME type:",
+			file.type
+		);
+		videoLoadError.value = `Unsupported video format. Supported formats: ${supportedFormats.join(
+			", "
+		)}`;
+		return;
+	}
+
+	// If format is not in our list but MIME type is video, allow it
+	if (!isSupportedFormat && isVideoMimeType) {
+		console.log(
+			"Unknown video format but MIME type is video, allowing:",
+			fileName
+		);
+	}
+
+	// Check file size (max 200MB - increased limit)
+	const maxSize = 200 * 1024 * 1024; // 200MB
+	const fileSize = file.size;
+
+	if (fileSize > maxSize) {
+		console.warn(
+			"Video file too large:",
+			(fileSize / 1024 / 1024).toFixed(1) + "MB"
+		);
+		videoLoadError.value = "Video file is too large. Maximum size is 200MB.";
+		return;
+	}
+
+	// Check if file is empty
+	if (fileSize === 0) {
+		console.warn("Video file is empty");
+		videoLoadError.value =
+			"Video file is empty. Please select a valid video file.";
+		return;
+	}
+
+	// Reset states
+	videoLoadError.value = null;
+	isVideoLoading.value = true;
+
+	console.log(
+		`Loading video: ${file.name}, size: ${(fileSize / 1024 / 1024).toFixed(
+			1
+		)}MB, type: ${file.type}`
+	);
+
+	selectedVideoFile.value = file;
+
+	// Create preview URL with timeout and error handling
+	const reader = new FileReader();
+
+	reader.onload = (e) => {
+		try {
+			console.log("FileReader onload triggered");
+
+			// Validate the result
+			if (!e.target.result || typeof e.target.result !== "string") {
+				throw new Error("Invalid file reader result");
+			}
+
+			// Check if it's a valid data URL
+			if (!e.target.result.startsWith("data:video/")) {
+				console.warn(
+					"File reader result is not a video data URL:",
+					e.target.result.substring(0, 50) + "..."
+				);
+			}
+
 			selectedVideoPreview.value = e.target.result;
 			isVideoLoading.value = false;
-		};
-
-		reader.onerror = () => {
+			console.log(
+				"Video preview created successfully, URL length:",
+				e.target.result.length
+			);
+		} catch (error) {
+			console.error("Error creating video preview:", error);
 			videoLoadError.value =
-				"Failed to load video file. Please try a different file.";
+				"Failed to create video preview. Please try again.";
 			isVideoLoading.value = false;
 			selectedVideoFile.value = null;
-		};
+		}
+	};
 
-		// Add timeout for very large files
-		const loadTimeout = setTimeout(() => {
-			if (isVideoLoading.value) {
-				reader.abort();
-				videoLoadError.value =
-					"Video loading timed out. File may be too large.";
-				isVideoLoading.value = false;
-				selectedVideoFile.value = null;
-			}
-		}, 30000); // 30 second timeout
+	reader.onerror = (error) => {
+		console.error("FileReader error:", error);
+		videoLoadError.value =
+			"Failed to load video file. Please try a different file.";
+		isVideoLoading.value = false;
+		selectedVideoFile.value = null;
+	};
 
-		reader.onloadend = () => {
-			clearTimeout(loadTimeout);
-		};
+	reader.onprogress = (e) => {
+		if (e.lengthComputable) {
+			const progress = (e.loaded / e.total) * 100;
+			console.log(`Video loading progress: ${progress.toFixed(1)}%`);
+		}
+	};
 
+	// Add timeout for very large files
+	const loadTimeout = setTimeout(() => {
+		if (isVideoLoading.value) {
+			console.warn("Video loading timed out");
+			reader.abort();
+			videoLoadError.value = "Video loading timed out. File may be too large.";
+			isVideoLoading.value = false;
+			selectedVideoFile.value = null;
+		}
+	}, 60000); // 60 second timeout - increased for larger files
+
+	reader.onloadend = () => {
+		console.log("FileReader onloadend triggered");
+		clearTimeout(loadTimeout);
+	};
+
+	try {
+		console.log("Starting to read video file...");
 		reader.readAsDataURL(file);
+	} catch (error) {
+		console.error("Error reading file:", error);
+		videoLoadError.value = "Error reading video file. Please try again.";
+		isVideoLoading.value = false;
+		selectedVideoFile.value = null;
 	}
 };
 
@@ -585,12 +709,35 @@ const clearSelectedVideo = () => {
 const addVideoToCanvas = () => {
 	if (!selectedVideoFile.value || isVideoLoading.value) return;
 
+	// Check file format before loading
+	const file = selectedVideoFile.value;
+	const fileName = file.name.toLowerCase();
+	const supportedFormats = [".mp4", ".webm", ".ogg", ".mov", ".avi", ".mkv"];
+	const isSupportedFormat = supportedFormats.some((format) =>
+		fileName.endsWith(format)
+	);
+
+	if (!isSupportedFormat) {
+		videoLoadError.value = `Unsupported video format. Supported formats: ${supportedFormats.join(
+			", "
+		)}`;
+		return;
+	}
+
+	// Check file size (max 100MB)
+	const maxSize = 100 * 1024 * 1024; // 100MB
+	if (file.size > maxSize) {
+		videoLoadError.value = "Video file is too large. Maximum size is 100MB.";
+		return;
+	}
+
 	isVideoLoading.value = true;
 	videoLoadError.value = null;
 
 	// Create a temporary video element to get dimensions
 	const video = document.createElement("video");
 	video.preload = "metadata"; // Only load metadata, not the full video
+	video.crossOrigin = "anonymous"; // Handle CORS issues
 
 	// Set timeout for metadata loading
 	const metadataTimeout = setTimeout(() => {
@@ -606,6 +753,11 @@ const addVideoToCanvas = () => {
 			// Validate video properties
 			if (!video.videoWidth || !video.videoHeight) {
 				throw new Error("Invalid video dimensions");
+			}
+
+			// Check for reasonable dimensions
+			if (video.videoWidth < 1 || video.videoHeight < 1) {
+				throw new Error("Video has invalid dimensions");
 			}
 
 			// Calculate aspect ratio
@@ -660,13 +812,42 @@ const addVideoToCanvas = () => {
 	video.onerror = (e) => {
 		clearTimeout(metadataTimeout);
 		console.error("Video loading error:", e);
-		videoLoadError.value =
-			"Failed to load video. Please check the file format and try again.";
+
+		// More detailed error handling
+		let errorMessage = "Failed to load video. ";
+		if (e.target && e.target.error) {
+			switch (e.target.error.code) {
+				case 1:
+					errorMessage += "The video file is corrupted.";
+					break;
+				case 2:
+					errorMessage += "Network error occurred.";
+					break;
+				case 3:
+					errorMessage += "The video format is not supported.";
+					break;
+				case 4:
+					errorMessage += "The video file is not accessible.";
+					break;
+				default:
+					errorMessage += "Please check the file format and try again.";
+			}
+		} else {
+			errorMessage += "Please check the file format and try again.";
+		}
+
+		videoLoadError.value = errorMessage;
 		isVideoLoading.value = false;
 	};
 
 	// Set video source to trigger loading
-	video.src = selectedVideoPreview.value;
+	try {
+		video.src = selectedVideoPreview.value;
+	} catch (error) {
+		console.error("Error setting video source:", error);
+		videoLoadError.value = "Error setting video source. Please try again.";
+		isVideoLoading.value = false;
+	}
 };
 
 // Update size while preserving aspect ratio for images

@@ -157,7 +157,9 @@
 		</div>
 
 		<div class="w-full flex justify-center items-center space-x-4">
-			<div class="text-sm text-gray-300">{{ formatTime(displayTime) }}</div>
+			<div class="text-sm text-gray-300 text-right min-w-[100px]">
+				{{ formatTime(displayTime) }}
+			</div>
 
 			<button
 				@click="$emit('togglePlayback')"
@@ -225,7 +227,9 @@
 					/>
 				</svg>
 			</button>
-			<div class="text-sm text-gray-300">{{ formatTime(duration) }}</div>
+			<div class="text-sm text-gray-300 text-left min-w-[100px]">
+				{{ formatTime(duration) }}
+			</div>
 		</div>
 
 		<div class="flex flex-row space-x-2">

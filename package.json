@@ -29,7 +29,6 @@
 	},
 	"dependencies": {
 		"@aslanonur/liquid-glass-vue": "^1.1.3",
-		"@ffmpeg-installer/ffmpeg": "^1.1.0",
 		"@nuxtjs/tailwindcss": "^6.10.1",
 		"@tensorflow-models/body-pix": "^2.2.1",
 		"@tensorflow-models/body-segmentation": "^1.0.2",
@@ -42,7 +41,6 @@
 		"electron-store": "^10.0.1",
 		"electron-util": "^0.18.1",
 		"express": "^4.18.2",
-		"fluent-ffmpeg": "^2.1.3",
 		"mousetrap": "^1.6.5",
 		"node-mac-recorder": "^1.2.11",
 		"wait-on": "^7.2.0"

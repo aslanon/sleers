@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="h-full ring-inset relative transition-all duration-200 group"
+		class="h-full ring-inset relative group"
 		:class="{
 			'ring-[1px] ring-white z-50 selected-zoom': isSelected,
 			'hover:!ring-[1px] hover:!ring-white hover:z-50':
@@ -17,7 +17,7 @@
 	>
 		<!-- Left Resize Handle -->
 		<div
-			class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0 transition-opacity duration-200"
+			class="absolute left-1 top-0 bottom-0 w-1 flex items-center justify-start opacity-0"
 			:class="{
 				'opacity-80': isSelected,
 				'group-hover:opacity-80': !isResizing && !isDragging,
@@ -31,7 +31,7 @@
 
 		<!-- Right Resize Handle -->
 		<div
-			class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0 transition-opacity duration-200"
+			class="absolute right-1 top-0 bottom-0 w-1 flex items-center justify-end opacity-0"
 			:class="{
 				'opacity-80': isSelected,
 				'group-hover:opacity-80': !isResizing && !isDragging,
@@ -154,7 +154,6 @@ const zoomStyle = computed(() => {
 		borderRadius: "10px",
 		height: "100%",
 		cursor: props.isDragging ? "grabbing" : "grab",
-		transition: props.isDragging ? "none" : "all 0.2s ease",
 		transform: "translate3d(0,0,0)", // Hardware acceleration
 		willChange: props.isDragging ? "transform" : "auto",
 	};

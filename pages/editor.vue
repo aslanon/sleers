@@ -144,7 +144,6 @@
 					@captureScreenshot="handleCaptureScreenshot"
 					@splitCurrentSegment="handleSplitCurrentSegment"
 					@customResolutionChange="handleCustomResolutionChange"
-					class="mt-4"
 				/>
 			</div>
 		</div>
@@ -656,19 +655,22 @@ const handleExport = async (settings) => {
 		const onComplete = async (exportData) => {
 			try {
 				console.log("[editor.vue] Export completed:", exportData);
-				
+
 				// FFmpeg-based export already saved the file, so just show success
 				if (exportData?.filePath) {
 					// Success - modal'ı kapat
 					if (exportModalRef.value) {
 						exportModalRef.value.completeExport();
 					}
-					
+
 					// Success mesajı
 					setTimeout(() => {
 						alert(`Video saved successfully: ${exportData.filePath}`);
 						// Dosyayı Finder/Explorer'da göster
-						electron?.ipcRenderer.send(IPC_EVENTS.SHOW_FILE_IN_FOLDER, exportData.filePath);
+						electron?.ipcRenderer.send(
+							IPC_EVENTS.SHOW_FILE_IN_FOLDER,
+							exportData.filePath
+						);
 					}, 1200);
 				} else {
 					throw new Error("Export completed but no file path provided");
