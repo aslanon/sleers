@@ -1139,7 +1139,7 @@ watch(videoUrl, (newUrl, oldUrl) => {
 // Oynatma başladığında preview'i temizle
 watch(isPlaying, (playing) => {
 	if (playing) {
-		previewTime.value = null;
+		previewTime.value = 0;
 	}
 });
 
@@ -1163,11 +1163,8 @@ const handleSegmentsReordered = (newSegments) => {
 	}
 };
 
-// Video URL'lerini computed olarak yönet
-const videoSrc = computed(() => videoUrl.value || "");
-
 // Preview time state'i
-const previewTime = ref(null);
+const previewTime = ref(0);
 
 // Preview time güncelleme
 const handlePreviewTimeUpdate = (time) => {

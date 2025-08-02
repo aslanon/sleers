@@ -149,7 +149,7 @@ const props = defineProps({
 	},
 	previewTime: {
 		type: Number,
-		default: null,
+		default: 0,
 	},
 	selectedAspectRatio: {
 		type: String,
@@ -3794,7 +3794,7 @@ watch(
 		requestAnimationFrame(() => {
 			updateCanvas(performance.now());
 			// Preview bitince orijinal pozisyona dön
-			if (props.previewTime === null) {
+			if (props.previewTime === 0) {
 				videoState.value.currentTime = originalTime;
 			}
 		});
@@ -4591,20 +4591,6 @@ watch(
 			play();
 		} else {
 			pause();
-		}
-	}
-);
-
-watch(
-	() => props.currentTime,
-	(newValue) => {
-		if (!videoElement) return;
-
-		// Sadece video oynatılmıyorsa ve preview yapılmıyorsa timeline pozisyonunu güncelle
-		if (!videoState.value.isPlaying && props.previewTime === null) {
-			videoState.value.currentTime = newValue;
-			// Video mapping canvas update'te yapılır
-			requestAnimationFrame(() => updateCanvas(performance.now()));
 		}
 	}
 );

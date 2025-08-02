@@ -334,7 +334,7 @@ const props = defineProps({
 	},
 	previewTime: {
 		type: Number,
-		default: null,
+		default: 0,
 	},
 	duration: {
 		type: Number,

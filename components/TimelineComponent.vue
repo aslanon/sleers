@@ -45,9 +45,7 @@
 				ref="timelineRef"
 				class="timeline-ruler py-4 relative min-h-full select-none"
 				@mousedown="startDragging"
-				@click="handleTimelineClick"
 				@mousemove="handleTimelineMouseMove"
-				@mouseleave="handleTimelineMouseLeave"
 			>
 				<div
 					class="timeline-content min-h-full relative pt-6"
@@ -318,10 +316,9 @@
 
 					<!-- Preview Playhead -->
 					<div
-						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
 						class="absolute top-4 w-[1px] z-[9998] pointer-events-none"
 						:style="{
-							left: `${previewPlayheadPosition}%`,
+							left: `${previewPlayheadPosition || 0}%`,
 							transform: 'translateX(-50%)',
 							height: `${timelineContentHeight - 16}px`,
 							background:
@@ -331,10 +328,9 @@
 
 					<!-- Preview Playhead Handle -->
 					<div
-						v-show="previewPlayheadPosition !== null && !isPlayheadDragging"
 						class="absolute top-0 w-3 h-5 z-50 cursor-pointer transition-[top] duration-150 ease-out"
 						:style="{
-							left: `${previewPlayheadPosition}%`,
+							left: `${previewPlayheadPosition || 0}%`,
 							transform: 'translateX(-50%)',
 							top: previewPlayheadOffset + 'px',
 						}"
@@ -904,17 +900,6 @@ watch(
 	{ immediate: true }
 );
 
-// Oynatma başladığında preview'i temizle
-watch(
-	() => props.isPlaying,
-	(isPlaying) => {
-		if (isPlaying) {
-			previewPlayheadPosition.value = null;
-			emit("previewTimeUpdate", null);
-		}
-	}
-);
-
 // Zaman işaretleri
 const timeMarkers = computed(() => {
 	const markers = [];
@@ -1093,13 +1078,17 @@ const handleTimelineClick = (e) => {
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	emit("timeUpdate", Math.max(0, Math.min(maxDuration.value, time)));
+	// Preview playhead'i tıklanan pozisyonda tut
+	const validTime = Math.max(0, Math.min(maxDuration.value, time));
+
+	emit("timeUpdate", validTime);
 };
 
 const startDragging = (e) => {
-	isDragging.value = true;
-	startDragX.value = e.clientX;
-	startScrollLeft.value = timelineRef.value.scrollLeft;
+	//aslanon
+	// isDragging.value = true;
+	// startDragX.value = e.clientX;
+	// startScrollLeft.value = timelineRef.value.scrollLeft;
 };
 
 const stopDragging = () => {
@@ -1230,20 +1219,16 @@ const handleResizeEnd = (index) => {
 };
 
 // Preview playhead state'i
-const previewPlayheadPosition = ref(null);
+const previewPlayheadPosition = ref(0);
 
 // Timeline üzerinde mouse hareketi - real time olarak çalışır
 const handleTimelineMouseMove = (e) => {
 	if (isDragging.value || isResizing.value || isPlayheadDragging.value) {
-		previewPlayheadPosition.value = null;
-		emit("previewTimeUpdate", null);
 		return;
 	}
 
 	// Video oynatılırken preview devre dışı
 	if (props.isPlaying) {
-		previewPlayheadPosition.value = null;
-		emit("previewTimeUpdate", null);
 		return;
 	}
 
@@ -1256,15 +1241,11 @@ const handleTimelineMouseMove = (e) => {
 	const validRealTime = Math.max(0, realTime);
 
 	// Preview pozisyonunu hesapla
-	previewPlayheadPosition.value = (validRealTime / maxDuration.value) * 100;
+	previewPlayheadPosition.value =
+		(validRealTime / maxDuration.value) * 100 || 0;
 
 	// Preview zamanını MediaPlayer'a gönder (canvas güncellemesi için) - real time olarak
 	emit("previewTimeUpdate", validRealTime);
-};
-
-// Timeline'dan mouse çıkınca preview'i gizle
-const handleTimelineMouseLeave = () => {
-	previewPlayheadPosition.value = null;
 };
 
 // Zoom track için state'ler
@@ -1698,8 +1679,6 @@ const handlePlayheadDrag = (e) => {
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
 	emit("timeUpdate", Math.max(0, time));
-	previewPlayheadPosition.value = null;
-	emit("previewTimeUpdate", null);
 };
 
 // Playhead sürükleme bitirme
