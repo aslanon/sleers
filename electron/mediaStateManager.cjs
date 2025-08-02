@@ -506,17 +506,10 @@ class MediaStateManager {
 	}
 
 	updateState(newState) {
-		const oldState = { ...this.state };
 		this.state = {
 			...this.state,
 			...newState,
 		};
-
-		console.log("MediaState güncellendi:", {
-			oldState,
-			newState,
-			currentState: this.state,
-		});
 
 		this.notifyRenderers();
 	}
@@ -746,7 +739,6 @@ class MediaStateManager {
 	}
 
 	updateAudioSettings(settings) {
-		console.log("[MediaStateManager] Ses ayarları güncelleniyor:", settings);
 		this.updateState({
 			audioSettings: {
 				...this.state.audioSettings,
