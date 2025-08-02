@@ -31,7 +31,9 @@
 					ref="canvasRef"
 					class="rounded-md"
 					style="display: block; position: absolute; margin: auto"
+					tabindex="0"
 					@paste="handlePaste"
+					@keydown="handleKeyboardShortcuts"
 				></canvas>
 			</div>
 
@@ -205,6 +207,8 @@ const {
 	backgroundColor,
 	backgroundImage,
 	backgroundBlur,
+	backgroundType,
+	backgroundGradient,
 	padding,
 	radius,
 	shadowSize,
@@ -3041,17 +3045,71 @@ function getCameraDisplayRect() {
 const bgImageElement = ref(null);
 const bgImageLoaded = ref(false);
 
-// Arkaplan rengi değiştiğinde canvas'ı güncelle
-watch(backgroundColor, () => {
-	if (!ctx || !canvasRef.value) return;
-	ctx.fillStyle = backgroundColor.value;
-	ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
-	bgImageLoaded.value = false;
-	bgImageElement.value = null;
-	if (videoElement && !videoState.value.isPlaying) {
-		requestAnimationFrame(updateCanvas);
+// Create gradient function
+const createGradient = (ctx, width, height, gradientConfig) => {
+	let gradient;
+	
+	if (gradientConfig.type === "radial") {
+		// Radial gradient
+		const centerX = width / 2;
+		const centerY = height / 2;
+		const radius = Math.max(width, height) / 2;
+		gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+	} else {
+		// Linear gradient
+		let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+		
+		switch (gradientConfig.direction) {
+			case "to-top":
+				x0 = 0; y0 = height; x1 = 0; y1 = 0;
+				break;
+			case "to-bottom":
+				x0 = 0; y0 = 0; x1 = 0; y1 = height;
+				break;
+			case "to-left":
+				x0 = width; y0 = 0; x1 = 0; y1 = 0;
+				break;
+			case "to-right":
+				x0 = 0; y0 = 0; x1 = width; y1 = 0;
+				break;
+			case "to-top-left":
+				x0 = width; y0 = height; x1 = 0; y1 = 0;
+				break;
+			case "to-top-right":
+				x0 = 0; y0 = height; x1 = width; y1 = 0;
+				break;
+			case "to-bottom-left":
+				x0 = width; y0 = 0; x1 = 0; y1 = height;
+				break;
+			case "to-bottom-right":
+				x0 = 0; y0 = 0; x1 = width; y1 = height;
+				break;
+			default: // to-bottom
+				x0 = 0; y0 = 0; x1 = 0; y1 = height;
+		}
+		
+		gradient = ctx.createLinearGradient(x0, y0, x1, y1);
 	}
-});
+	
+	// Add color stops
+	gradientConfig.colors.forEach(colorStop => {
+		gradient.addColorStop(colorStop.position / 100, colorStop.color);
+	});
+	
+	return gradient;
+};
+
+// Background değiştiğinde canvas'ı güncelle
+watch([backgroundColor, backgroundType, backgroundGradient], () => {
+	if (!ctx || !canvasRef.value) return;
+	// Background type color veya gradient ise image'ı temizle
+	if (backgroundType.value === "color" || backgroundType.value === "gradient") {
+		bgImageLoaded.value = false;
+		bgImageElement.value = null;
+	}
+	// Canvas'ı updateCanvas ile güncelle (doğru rendering sırası için)
+	requestAnimationFrame(() => updateCanvas(performance.now()));
+}, { deep: true });
 
 watch([dockSize, showDock], () => {
 	if (!ctx || !canvasRef.value) return;
@@ -3063,7 +3121,7 @@ watch([dockSize, showDock], () => {
 
 // Arkaplan resmi değiştiğinde yükle
 watch(backgroundImage, (newImage) => {
-	if (newImage) {
+	if (newImage && backgroundType.value === "image") {
 		bgImageElement.value = new Image();
 		bgImageElement.value.onload = () => {
 			bgImageLoaded.value = true;
@@ -3151,69 +3209,58 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// Canvas'ı temizle
 		ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
-		// Arkaplan - her zaman çiz (segment olmasa da)
-		if (bgImageLoaded.value && bgImageElement.value) {
+		// Arkaplan - background type'a göre çiz
+		const isCameraBackgroundRemovalActive =
+			cameraSettings.value?.optimizedBackgroundRemoval;
+
+		if (!isCameraBackgroundRemovalActive) {
 			try {
-				// Resmi canvas'a sığacak şekilde ölçekle
-				const scale = Math.max(
-					canvasRef.value.width / bgImageElement.value.width,
-					canvasRef.value.height / bgImageElement.value.height
-				);
+				if (backgroundType.value === "image" && bgImageLoaded.value && bgImageElement.value) {
+					// Background Image
+					const scale = Math.max(
+						canvasRef.value.width / bgImageElement.value.width,
+						canvasRef.value.height / bgImageElement.value.height
+					);
 
-				const scaledWidth = bgImageElement.value.width * scale;
-				const scaledHeight = bgImageElement.value.height * scale;
+					const scaledWidth = bgImageElement.value.width * scale;
+					const scaledHeight = bgImageElement.value.height * scale;
 
-				// Resmi ortala
-				const x = (canvasRef.value.width - scaledWidth) / 2;
-				const y = (canvasRef.value.height - scaledHeight) / 2;
+					// Resmi ortala
+					const x = (canvasRef.value.width - scaledWidth) / 2;
+					const y = (canvasRef.value.height - scaledHeight) / 2;
 
-				// Blur efekti uygula
-				if (backgroundBlur.value > 0) {
-					ctx.filter = `blur(${backgroundBlur.value}px)`;
-				}
+					// Blur efekti uygula
+					if (backgroundBlur.value > 0) {
+						ctx.filter = `blur(${backgroundBlur.value}px)`;
+					}
 
-				ctx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
+					ctx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
 
-				// Blur'u sıfırla
-				ctx.filter = "none";
-			} catch (error) {
-				console.error("Error drawing background image:", error);
-				// Camera background removal aktifse arkaplan doldurmayı atla
-				const isCameraBackgroundRemovalActive =
-					cameraSettings.value?.optimizedBackgroundRemoval;
-
-				if (!isCameraBackgroundRemovalActive) {
+					// Blur'u sıfırla
+					ctx.filter = "none";
+				} else if (backgroundType.value === "gradient") {
+					// Background Gradient
+					const gradient = createGradient(
+						ctx, 
+						canvasRef.value.width, 
+						canvasRef.value.height, 
+						backgroundGradient.value
+					);
+					ctx.fillStyle = gradient;
+					ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+				} else {
+					// Background Color (default)
 					ctx.fillStyle = backgroundColor.value;
 					ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 				}
-			}
-		} else {
-			// Camera background removal aktifse arkaplan doldurmayı atla
-			// Bu sayede camera transparency korunur
-			const isCameraBackgroundRemovalActive =
-				cameraSettings.value?.optimizedBackgroundRemoval;
-
-			if (!isCameraBackgroundRemovalActive) {
-				// Video yoksa ve arkaplan resmi yoksa, varsayılan gradient arkaplan kullan
-				if (!videoElement) {
-					// Editor modu için gradient arkaplan
-					const gradient = ctx.createLinearGradient(
-						0,
-						0,
-						canvasRef.value.width,
-						canvasRef.value.height
-					);
-					gradient.addColorStop(0, "#1a1a1a");
-					gradient.addColorStop(0.5, "#2d2d2d");
-					gradient.addColorStop(1, "#1a1a1a");
-					ctx.fillStyle = gradient;
-				} else {
-					ctx.fillStyle = backgroundColor.value;
-				}
+			} catch (error) {
+				console.error("Error drawing background:", error);
+				// Fallback to background color
+				ctx.fillStyle = backgroundColor.value;
 				ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 			}
-			// Background removal aktifse canvas transparent kalır
 		}
+		// Background removal aktifse canvas transparent kalır
 
 		// Ana context state'i kaydet
 		ctx.save();
@@ -4527,8 +4574,14 @@ onMounted(() => {
 	window.addEventListener("gif-handles-refresh", handleGifHandlesRefresh);
 	window.addEventListener("gif-transform-update", handleGifTransformUpdate);
 
-	window.addEventListener("paste", handlePaste);
-	window.addEventListener("keydown", handleCopy);
+	// Canvas handles keyboard shortcuts directly now
+	
+	// Auto-focus canvas for keyboard shortcuts
+	nextTick(() => {
+		if (canvasRef.value) {
+			canvasRef.value.focus();
+		}
+	});
 });
 
 onUnmounted(() => {
@@ -4577,8 +4630,7 @@ onUnmounted(() => {
 	window.removeEventListener("gif-handles-refresh", handleGifHandlesRefresh);
 	window.removeEventListener("gif-transform-update", handleGifTransformUpdate);
 
-	window.removeEventListener("paste", handlePaste);
-	window.removeEventListener("keydown", handleCopy);
+	// Canvas keyboard shortcuts removed automatically
 });
 
 // Props değişikliklerini izle
@@ -5914,7 +5966,18 @@ const handlePaste = (event) => {
 	// First check if we have a copied GIF
 	if (window.copiedGifData) {
 		const { addGifToCanvas } = useGifManager();
-		addGifToCanvas(window.copiedGifData);
+		const pastedGif = addGifToCanvas(window.copiedGifData);
+		
+		console.log('GIF pasted successfully:', pastedGif.title || pastedGif.id);
+		
+		// Visual feedback for successful paste
+		if (typeof window !== 'undefined') {
+			window.dispatchEvent(new CustomEvent('gif-pasted', {
+				detail: { gifId: pastedGif.id }
+			}));
+		}
+		
+		// Don't clear copied data to allow multiple pastes
 		return;
 	}
 
@@ -5965,7 +6028,9 @@ const handlePaste = (event) => {
 					imageObject.height = 200 / imageObject.aspectRatio;
 					// Add to GIF manager
 					const { addGifToCanvas } = useGifManager();
-					addGifToCanvas(imageObject);
+					const pastedImage = addGifToCanvas(imageObject);
+					
+					console.log('Image pasted from clipboard:', pastedImage.title);
 				};
 				img.src = imageUrl;
 				break;
@@ -5974,27 +6039,51 @@ const handlePaste = (event) => {
 	}
 };
 
-const handleCopy = (event) => {
-	// Handle copy event for selected GIF/image
-	if ((event.ctrlKey || event.metaKey) && event.key === "c") {
+// Keyboard shortcuts handler
+const handleKeyboardShortcuts = (event) => {
+	// Prevent default browser shortcuts when canvas is focused
+	if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'v')) {
 		event.preventDefault();
+		
+		if (event.key === 'c') {
+			handleCopy(event);
+		} else if (event.key === 'v') {
+			handlePaste(event);
+		}
+	}
+	
+	// Handle delete key for selected GIF
+	if (event.key === 'Delete' || event.key === 'Backspace') {
+		event.preventDefault();
+		handleGifKeyDown(event);
+	}
+};
 
-		// Get selected GIF from useGifManager
-		const { selectedGifId, activeGifs } = useGifManager();
+const handleCopy = (event) => {
+	// Get selected GIF from useGifManager
+	const { selectedGifId, activeGifs } = useGifManager();
 
-		if (selectedGifId.value) {
-			const selectedGif = activeGifs.value.find(
-				(gif) => gif.id === selectedGifId.value
-			);
+	if (selectedGifId.value) {
+		const selectedGif = activeGifs.value.find(
+			(gif) => gif.id === selectedGifId.value
+		);
 
-			if (selectedGif) {
-				// Store copied GIF data in clipboard or global state
-				window.copiedGifData = {
-					...selectedGif,
-					id: `copied_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // New unique ID
-					x: selectedGif.x + 50, // Offset position for pasted copy
-					y: selectedGif.y + 50,
-				};
+		if (selectedGif) {
+			// Store copied GIF data in global state
+			window.copiedGifData = {
+				...selectedGif,
+				id: `copied_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // New unique ID
+				x: selectedGif.x + 20, // Small offset for visual feedback
+				y: selectedGif.y + 20,
+			};
+			
+			console.log('GIF copied successfully:', selectedGif.title || selectedGif.id);
+			
+			// Visual feedback - briefly highlight the copied element
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('gif-copied', {
+					detail: { gifId: selectedGif.id }
+				}));
 			}
 		}
 	}
@@ -6014,6 +6103,12 @@ canvas {
 	-webkit-transform-style: preserve-3d;
 	transform-style: preserve-3d;
 	-webkit-perspective: 1000;
+	outline: none; /* Remove focus outline */
+}
+
+canvas:focus {
+	outline: 2px solid rgba(59, 130, 246, 0.5); /* Optional: subtle focus indicator */
+	outline-offset: 2px;
 }
 
 video {

@@ -93,6 +93,9 @@ export const useGifManager = () => {
 			gifData.id ||
 			`gif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+		// Check if it's a copied GIF (already processed)
+		const isCopiedGif = gifData.url && !gifData.images && (gifData.type === "gif" || !gifData.type);
+		
 		// Check if it's an image or video (not a GIF)
 		const isImage = gifData.type === "image";
 		const isVideo = gifData.type === "video";
@@ -102,7 +105,13 @@ export const useGifManager = () => {
 
 		let newGif;
 
-		if (isImage) {
+		if (isCopiedGif) {
+			// Handle copied GIFs (already processed)
+			newGif = {
+				...gifData, // Copy all existing properties
+				id: gifId,  // Use new unique ID
+			};
+		} else if (isImage) {
 			// Handle image files
 			newGif = {
 				id: gifId,

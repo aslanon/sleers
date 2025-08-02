@@ -68,6 +68,17 @@
 					>
 						Color
 					</button>
+					<button
+						@click="activeBackgroundTab = 'gradient'"
+						:class="[
+							'py-2 px-4 text-sm font-medium focus:outline-none',
+							activeBackgroundTab === 'gradient'
+								? 'text-blue-500 border-b-2 border-blue-500'
+								: 'text-gray-400 hover:text-gray-300',
+						]"
+					>
+						Gradient
+					</button>
 				</div>
 
 				<!-- Renk Tab İçeriği -->
@@ -86,6 +97,138 @@
 							:style="{ backgroundColor: color }"
 						></button>
 					</div>
+				</div>
+
+				<!-- Gradient Tab İçeriği -->
+				<div v-if="activeBackgroundTab === 'gradient'" class="space-y-4">
+					<!-- Gradient Grid - Color tab tarzında -->
+					<div class="gradient-grid">
+						<button
+							v-for="(gradient, index) in predefinedGradients"
+							:key="index"
+							@click="selectPredefinedGradient(gradient)"
+							class="gradient-button"
+							:class="[
+								JSON.stringify(backgroundGradient.colors) === JSON.stringify(gradient.colors)
+									? 'gradient-button-selected'
+									: 'gradient-button-unselected'
+							]"
+							:style="{
+								background: gradient.type === 'linear' 
+									? `linear-gradient(${gradient.direction === 'to-bottom' ? 'to bottom' : 
+									   gradient.direction === 'to-top' ? 'to top' :
+									   gradient.direction === 'to-left' ? 'to left' :
+									   gradient.direction === 'to-right' ? 'to right' :
+									   gradient.direction === 'to-top-left' ? 'to top left' :
+									   gradient.direction === 'to-top-right' ? 'to top right' :
+									   gradient.direction === 'to-bottom-left' ? 'to bottom left' :
+									   gradient.direction === 'to-bottom-right' ? 'to bottom right' : 'to bottom'}, ${gradient.colors.map(c => `${c.color} ${c.position}%`).join(', ')})`
+									: `radial-gradient(circle, ${gradient.colors.map(c => `${c.color} ${c.position}%`).join(', ')})`
+							}"
+						></button>
+					</div>
+
+					<!-- Advanced Controls - Minimal ve İsteğe Bağlı -->
+					<details class="group">
+						<summary class="flex items-center justify-between cursor-pointer text-sm font-medium text-gray-300 hover:text-white transition-colors">
+							<span>Advanced Settings</span>
+							<svg class="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+							</svg>
+						</summary>
+						
+						<div class="mt-3 space-y-3 pl-2">
+							<!-- Gradient Type -->
+							<div class="space-y-2">
+								<label class="text-xs font-medium text-gray-400">Type</label>
+								<div class="flex gap-1">
+									<button
+										@click="selectGradientType('linear')"
+										:class="[
+											'px-3 py-1.5 text-xs rounded-md transition-all border',
+											backgroundGradient.type === 'linear'
+												? 'bg-blue-500 border-blue-500 text-white shadow-md'
+												: 'bg-zinc-800 border-zinc-700 text-gray-300 hover:bg-zinc-700 hover:border-zinc-600'
+										]"
+									>
+										Linear
+									</button>
+									<button
+										@click="selectGradientType('radial')"
+										:class="[
+											'px-3 py-1.5 text-xs rounded-md transition-all border',
+											backgroundGradient.type === 'radial'
+												? 'bg-blue-500 border-blue-500 text-white shadow-md'
+												: 'bg-zinc-800 border-zinc-700 text-gray-300 hover:bg-zinc-700 hover:border-zinc-600'
+										]"
+									>
+										Radial
+									</button>
+								</div>
+							</div>
+
+							<!-- Direction (linear için) -->
+							<div v-if="backgroundGradient.type === 'linear'" class="space-y-2">
+								<label class="text-xs font-medium text-gray-400">Direction</label>
+								<div class="grid grid-cols-3 gap-1">
+									<button
+										v-for="direction in ['to-top-left', 'to-top', 'to-top-right', 'to-left', 'center', 'to-right', 'to-bottom-left', 'to-bottom', 'to-bottom-right']"
+										:key="direction"
+										@click="selectGradientDirection(direction)"
+										:class="[
+											'px-2 py-1 text-xs rounded transition-all border text-center',
+											backgroundGradient.direction === direction
+												? 'bg-blue-500 border-blue-500 text-white shadow-md'
+												: 'bg-zinc-800 border-zinc-700 text-gray-300 hover:bg-zinc-700 hover:border-zinc-600'
+										]"
+									>
+										{{ direction.replace('to-', '').replace('-', ' ').toUpperCase() }}
+									</button>
+								</div>
+							</div>
+
+							<!-- Custom Colors -->
+							<div class="space-y-2">
+								<div class="flex items-center justify-between">
+									<label class="text-xs font-medium text-gray-400">Custom Colors</label>
+									<button
+										@click="addNewGradientColor"
+										class="px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors shadow-sm"
+									>
+										+ Add
+									</button>
+								</div>
+								<div class="space-y-2">
+									<div
+										v-for="(colorStop, index) in backgroundGradient.colors"
+										:key="index"
+										class="flex items-center gap-2"
+									>
+										<input
+											:value="colorStop.color"
+											@input="updateGradientColorAtIndex(index, $event.target.value)"
+											type="color"
+											class="w-7 h-7 rounded border-0 cursor-pointer bg-transparent"
+										/>
+										<input
+											:value="colorStop.color"
+											@input="updateGradientColorAtIndex(index, $event.target.value)"
+											type="text"
+											class="flex-1 px-2 py-1 text-xs bg-zinc-800 border border-zinc-700 rounded text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors"
+											placeholder="#ffffff"
+										/>
+										<button
+											v-if="backgroundGradient.colors.length > 2"
+											@click="removeGradientColorAtIndex(index)"
+											class="w-7 h-7 flex items-center justify-center text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors shadow-sm"
+										>
+											×
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</details>
 				</div>
 
 				<!-- Görsel Tab İçeriği -->
@@ -245,6 +388,8 @@ const props = defineProps({
 
 const {
 	backgroundColor,
+	backgroundType,
+	backgroundGradient,
 	padding,
 	radius,
 	shadowSize,
@@ -254,6 +399,11 @@ const {
 	backgroundBlur,
 	videoBorderSettings,
 	updateBackgroundColor,
+	updateBackgroundType,
+	updateBackgroundGradient,
+	updateGradientColor,
+	addGradientColor,
+	removeGradientColor,
 	updatePadding,
 	updateRadius,
 	updateShadowSize,
@@ -343,12 +493,355 @@ const activeBackgroundTab = ref("image"); // Varsayılan olarak renk tab'ı akti
 const selectColor = (color) => {
 	selectedColor.value = color;
 	updateBackgroundColor(color);
+	updateBackgroundType("color");
+};
+
+// Gradient fonksiyonları
+const selectGradientType = (type) => {
+	updateBackgroundGradient({
+		...backgroundGradient.value,
+		type: type
+	});
+	updateBackgroundType("gradient");
+};
+
+const selectGradientDirection = (direction) => {
+	updateBackgroundGradient({
+		...backgroundGradient.value,
+		direction: direction
+	});
+	updateBackgroundType("gradient");
+};
+
+const updateGradientColorAtIndex = (index, color) => {
+	updateGradientColor(index, color);
+	updateBackgroundType("gradient");
+};
+
+const addNewGradientColor = () => {
+	addGradientColor("#ffffff", 50); // Add white at 50%
+	updateBackgroundType("gradient");
+};
+
+const removeGradientColorAtIndex = (index) => {
+	removeGradientColor(index);
+	updateBackgroundType("gradient");
+};
+
+// Predefined gradients - expanded collection
+const predefinedGradients = [
+	// First row - warm colors
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#ff7eb3", position: 0 },
+			{ color: "#ff758c", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#f093fb", position: 0 },
+			{ color: "#f5576c", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#ff9a9e", position: 0 },
+			{ color: "#fecfef", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#ffecd2", position: 0 },
+			{ color: "#fcb69f", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#ff6b6b", position: 0 },
+			{ color: "#ffa500", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#ff4081", position: 0 },
+			{ color: "#ff6ec7", position: 100 }
+		]
+	},
+	// Second row - cool colors  
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#2196F3", position: 0 },
+			{ color: "#21CBF3", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#667eea", position: 0 },
+			{ color: "#764ba2", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#4facfe", position: 0 },
+			{ color: "#00f2fe", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-top",
+		colors: [
+			{ color: "#11998e", position: 0 },
+			{ color: "#38ef7d", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#3b82f6", position: 0 },
+			{ color: "#1d4ed8", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#06b6d4", position: 0 },
+			{ color: "#0891b2", position: 100 }
+		]
+	},
+	// Third row - dark & elegant
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#232526", position: 0 },
+			{ color: "#414345", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#1a1a1a", position: 0 },
+			{ color: "#2d2d2d", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#434343", position: 0 },
+			{ color: "#000000", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#667eea", position: 0 },
+			{ color: "#764ba2", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#ff7eb3", position: 0 },
+			{ color: "#ff758c", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#11998e", position: 0 },
+			{ color: "#38ef7d", position: 100 }
+		]
+	},
+	// Fourth row - vibrant & neon
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#a8edea", position: 0 },
+			{ color: "#fed6e3", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#ff6b35", position: 0 },
+			{ color: "#f7931e", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#74b9ff", position: 0 },
+			{ color: "#0984e3", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-top-right",
+		colors: [
+			{ color: "#fd79a8", position: 0 },
+			{ color: "#fdcb6e", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom-left",
+		colors: [
+			{ color: "#6c5ce7", position: 0 },
+			{ color: "#a29bfe", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#fd79a8", position: 0 },
+			{ color: "#6c5ce7", position: 100 }
+		]
+	},
+	// Fifth row - nature & earth
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#56ab2f", position: 0 },
+			{ color: "#a8e6cf", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#8360c3", position: 0 },
+			{ color: "#2ebf91", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#ff7f50", position: 0 },
+			{ color: "#87ceeb", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-top",
+		colors: [
+			{ color: "#91eae4", position: 0 },
+			{ color: "#86a8e7", position: 50 },
+			{ color: "#7f7fd5", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#f83600", position: 0 },
+			{ color: "#f9d423", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#56ab2f", position: 0 },
+			{ color: "#a8e6cf", position: 100 }
+		]
+	},
+	// Sixth row - galaxy & cosmic
+	{
+		type: "linear",
+		direction: "to-bottom-right",
+		colors: [
+			{ color: "#8b5cf6", position: 0 },
+			{ color: "#06b6d4", position: 50 },
+			{ color: "#10b981", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-right",
+		colors: [
+			{ color: "#4c1d95", position: 0 },
+			{ color: "#7c3aed", position: 50 },
+			{ color: "#c084fc", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-bottom",
+		colors: [
+			{ color: "#1e3a8a", position: 0 },
+			{ color: "#3b82f6", position: 50 },
+			{ color: "#06b6d4", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#4c1d95", position: 0 },
+			{ color: "#1e3a8a", position: 100 }
+		]
+	},
+	{
+		type: "linear",
+		direction: "to-top-left",
+		colors: [
+			{ color: "#f59e0b", position: 0 },
+			{ color: "#ef4444", position: 50 },
+			{ color: "#dc2626", position: 100 }
+		]
+	},
+	{
+		type: "radial",
+		direction: "center",
+		colors: [
+			{ color: "#f59e0b", position: 0 },
+			{ color: "#ef4444", position: 50 },
+			{ color: "#7c2d12", position: 100 }
+		]
+	}
+];
+
+const selectPredefinedGradient = (gradient) => {
+	updateBackgroundGradient(gradient);
+	updateBackgroundType("gradient");
 };
 
 // Arkaplan görseli seçimi
 const selectBackgroundImage = (imageName) => {
 	selectedWallpaper.value = imageName;
 	updateBackgroundImage(`/backgrounds/${imageName}.jpg`);
+	updateBackgroundType("image");
 };
 
 // Padding değişikliğini izle
@@ -569,6 +1062,22 @@ watch(
 }
 
 .color-button-unselected {
+	@apply border-transparent;
+}
+
+.gradient-grid {
+	@apply grid grid-cols-9 gap-2 w-max mt-4;
+}
+
+.gradient-button {
+	@apply w-6 h-6 m-auto rounded-lg border-2 border-white/20 transition-all hover:scale-150;
+}
+
+.gradient-button-selected {
+	@apply border-white shadow-lg;
+}
+
+.gradient-button-unselected {
 	@apply border-transparent;
 }
 

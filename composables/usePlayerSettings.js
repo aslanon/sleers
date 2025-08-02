@@ -18,6 +18,15 @@ const synchronizedTimestamps = ref(null); // Synchronized recording timestamps
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
+const backgroundType = ref("color"); // "color", "image", "gradient"
+const backgroundGradient = ref({
+	type: "linear", // "linear", "radial"
+	direction: "to-bottom", // "to-top", "to-bottom", "to-left", "to-right", "to-top-right", etc.
+	colors: [
+		{ color: "#ff7eb3", position: 0 },
+		{ color: "#ff758c", position: 100 }
+	]
+});
 const basePadding = ref(128);
 const baseRadius = ref(64);
 const baseShadowSize = ref(50);
@@ -181,6 +190,40 @@ export const usePlayerSettings = (hasVideoRef) => {
 		backgroundBlur.value = value;
 	};
 
+	const updateBackgroundType = (type) => {
+		backgroundType.value = type;
+	};
+
+	const updateBackgroundGradient = (gradient) => {
+		backgroundGradient.value = gradient;
+	};
+
+	const addGradientColor = (color, position) => {
+		backgroundGradient.value.colors.push({ color, position });
+		// Sort by position
+		backgroundGradient.value.colors.sort((a, b) => a.position - b.position);
+	};
+
+	const removeGradientColor = (index) => {
+		if (backgroundGradient.value.colors.length > 2) { // Keep at least 2 colors
+			backgroundGradient.value.colors.splice(index, 1);
+		}
+	};
+
+	const updateGradientColor = (index, color) => {
+		if (backgroundGradient.value.colors[index]) {
+			backgroundGradient.value.colors[index].color = color;
+		}
+	};
+
+	const updateGradientPosition = (index, position) => {
+		if (backgroundGradient.value.colors[index]) {
+			backgroundGradient.value.colors[index].position = position;
+			// Re-sort by position
+			backgroundGradient.value.colors.sort((a, b) => a.position - b.position);
+		}
+	};
+
 	const updatePadding = (value) => {
 		basePadding.value = value;
 	};
@@ -306,6 +349,8 @@ export const usePlayerSettings = (hasVideoRef) => {
 		backgroundColor,
 		backgroundImage,
 		backgroundBlur,
+		backgroundType,
+		backgroundGradient,
 		padding,
 		radius,
 		shadowSize,
@@ -336,6 +381,12 @@ export const usePlayerSettings = (hasVideoRef) => {
 		updateBackgroundColor,
 		updateBackgroundImage,
 		updateBackgroundBlur,
+		updateBackgroundType,
+		updateBackgroundGradient,
+		addGradientColor,
+		removeGradientColor,
+		updateGradientColor,
+		updateGradientPosition,
 		updatePadding,
 		updateRadius,
 		updateShadowSize,
