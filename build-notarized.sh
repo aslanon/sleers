@@ -6,15 +6,21 @@
 set -e  # Exit on any error
 
 # =========================
-# APPLE DEVELOPER SETTINGS
+# LOAD ENVIRONMENT VARIABLES
 # =========================
-# Update these values with your Apple Developer credentials:
-export APPLE_ID="aslanon@icloud.com"
-export APPLE_APP_SPECIFIC_PASSWORD=""  # Add your app-specific password here
-export APPLE_TEAM_ID=""                # Add your team ID here
+# Set production environment for build
+export NODE_ENV=production
 
-# Note: You can also set these as environment variables before running the script
-# if you prefer not to store them in the file
+# Load environment variables from .env file if it exists
+if [ -f ".env" ]; then
+    echo -e "${BLUE}📄 Loading environment variables from .env file...${NC}"
+    export $(grep -v '^#' .env | xargs)
+else
+    echo -e "${YELLOW}⚠️ No .env file found. Please create one with your Apple Developer credentials.${NC}"
+    echo -e "${YELLOW}💡 You can copy .env.example to .env and fill in your values.${NC}"
+fi
+
+echo -e "${GREEN}🔧 Environment: ${NODE_ENV}${NC}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -48,11 +54,9 @@ check_env_vars() {
         for var in "${missing_vars[@]}"; do
             echo -e "${RED}   - $var${NC}"
         done
-        echo -e "${YELLOW}💡 Please update the values at the top of this script:${NC}"
-        echo -e "${YELLOW}   APPLE_ID=\"aslanon@icloud.com\"${NC}"
-        echo -e "${YELLOW}   APPLE_APP_SPECIFIC_PASSWORD=\"your-app-specific-password\"${NC}"
-        echo -e "${YELLOW}   APPLE_TEAM_ID=\"your-team-id\"${NC}"
-        echo -e "${YELLOW}   Or set them as environment variables before running the script${NC}"
+        echo -e "${YELLOW}💡 Please create a .env file with your Apple Developer credentials:${NC}"
+        echo -e "${YELLOW}   cp .env.example .env${NC}"
+        echo -e "${YELLOW}   Then edit .env and fill in your actual values${NC}"
         exit 1
     fi
     
