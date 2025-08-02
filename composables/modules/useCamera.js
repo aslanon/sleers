@@ -73,12 +73,36 @@ export const useCamera = () => {
 	const initialSize = ref({ width: 0, height: 0 });
 	const initialPosition = ref({ x: 0, y: 0 });
 
+	// ===== CURSOR INTERSECTION SİSTEMİ =====
+	const cursorIntersectionOffset = ref({ x: 0, y: 0 });
+	const isCursorOverCamera = ref(false);
+
 	// ===== KAMERA CİHAZ FONKSİYONLARI =====
 	const updateConfig = (newConfig) => {
 		config.value = {
 			...config.value,
 			...newConfig,
 		};
+	};
+
+	// Cursor intersection offset'ini güncelle
+	const updateCursorIntersectionOffset = (offset, isOver) => {
+		cursorIntersectionOffset.value = offset;
+		isCursorOverCamera.value = isOver;
+	};
+
+	// Camera size'ını geçici olarak küçült (cursor intersection için)
+	const temporarilyReduceCameraSize = (reductionPercent = 0.3) => {
+		const currentSize = cameraSettings.value.size || 10;
+		const reducedSize = currentSize * (1 - reductionPercent);
+		// Kullanıcının ayarlarına müdahale etme, sadece geçici offset uygula
+		return Math.max(reducedSize, 5); // Minimum %5
+	};
+
+	// Camera size'ını orijinal boyutuna geri döndür
+	const restoreCameraSize = () => {
+		// Kullanıcının ayarlarına dokunma, sadece geçici offset'i kaldır
+		return cameraSettings.value.size || 10;
 	};
 
 	const getVideoDevices = async () => {
@@ -274,7 +298,10 @@ export const useCamera = () => {
 	// ===== RENDER FONKSİYONLARI =====
 	const updateHoverScale = () => {
 		// Background removal aktifken hover efekti olmasın
-		const targetScale = (isMouseOverCamera.value && !backgroundRemovalActive.value) ? HOVER_SCALE : 1;
+		const targetScale =
+			isMouseOverCamera.value && !backgroundRemovalActive.value
+				? HOVER_SCALE
+				: 1;
 		hoverScale.value += (targetScale - hoverScale.value) * TRANSITION_SPEED;
 	};
 
@@ -639,6 +666,12 @@ export const useCamera = () => {
 					targetY,
 				});
 
+				// Cursor intersection offset'ini ekle
+				if (isCursorOverCamera.value && cursorIntersectionOffset.value) {
+					targetX += cursorIntersectionOffset.value.x;
+					targetY += cursorIntersectionOffset.value.y;
+				}
+
 				// Video pozisyonunu ekle
 				targetX += videoPosition.x;
 				targetY += videoPosition.y;
@@ -783,22 +816,22 @@ export const useCamera = () => {
 			// Shadow'ı video çiziminden önce çiz (arka planda kalması için)
 			if (cameraSettings.value?.shadow > 0) {
 				ctx.save();
-				
+
 				// Background removal aktifse siluet bazında shadow çiz
 				if (backgroundRemovalActive.value && lastProcessedFrame.value) {
 					// Shadow offset'i uygula
 					ctx.translate(0, 6 * dpr);
-					
+
 					// Shadow blur ve color ayarla
 					ctx.shadowColor = "rgba(0,0,0,1)";
 					ctx.shadowBlur = safeShadowBlur;
 					ctx.shadowOffsetX = 0;
 					ctx.shadowOffsetY = 0; // translate ile offset uyguladık
-					
+
 					// Processed frame'i shadow olarak çiz (globalAlpha ile)
 					ctx.globalAlpha = 0.8;
 					ctx.globalCompositeOperation = "multiply";
-					
+
 					ctx.drawImage(
 						lastProcessedFrame.value,
 						sourceX,
@@ -828,7 +861,7 @@ export const useCamera = () => {
 					ctx.fillStyle = "rgba(0,0,0,0.8)";
 					ctx.fill();
 				}
-				
+
 				ctx.restore();
 			}
 
@@ -1210,6 +1243,13 @@ export const useCamera = () => {
 		toggleBackgroundRemoval,
 		isBackgroundRemovalLoading,
 		isBackgroundRemovalActive,
+
+		// Cursor intersection sistemi
+		cursorIntersectionOffset,
+		isCursorOverCamera,
+		updateCursorIntersectionOffset,
+		temporarilyReduceCameraSize,
+		restoreCameraSize,
 
 		// Drag ve resize sistemi
 		isDragging,

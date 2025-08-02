@@ -665,7 +665,7 @@ const handleExport = async (settings) => {
 
 					// Success mesajı
 					setTimeout(() => {
-						alert(`Video saved successfully: ${exportData.filePath}`);
+						// alert(`Video saved successfully: ${exportData.filePath}`);
 						// Dosyayı Finder/Explorer'da göster
 						electron?.ipcRenderer.send(
 							IPC_EVENTS.SHOW_FILE_IN_FOLDER,
@@ -739,26 +739,18 @@ const startNewRecording = () => {
 	}
 };
 
-// Video zamanı güncellendiğinde
+// Video zamanı güncellendiğinde - sadece currentTime güncelle
 const onTimeUpdate = (time) => {
 	if (!isNaN(time)) {
 		currentTime.value = time;
 		currentVideoTime.value = time;
-
-		// Oynatma sırasında preview'i temizle
-		if (isPlaying.value) {
-			previewTime.value = null;
-		}
 	}
 };
 
-// Timeline'dan gelen zaman güncellemesi
+// Timeline'dan gelen zaman güncellemesi - direkt seek
 const handleTimeUpdate = (time) => {
-	if (!isNaN(time)) {
-		currentTime.value = time;
-		if (mediaPlayerRef.value) {
-			mediaPlayerRef.value.seek(time);
-		}
+	if (!isNaN(time) && mediaPlayerRef.value) {
+		mediaPlayerRef.value.seek(time);
 	}
 };
 

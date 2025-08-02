@@ -325,7 +325,7 @@
 							transform: 'translateX(-50%)',
 							height: `${timelineContentHeight - 16}px`,
 							background:
-								'linear-gradient(to bottom, rgb(26 26 26) 0%, transparent 100%)',
+								'linear-gradient(to bottom, rgb(48,48,48) 0%, transparent 100%)',
 						}"
 					></div>
 
@@ -338,19 +338,18 @@
 							transform: 'translateX(-50%)',
 							top: previewPlayheadOffset + 'px',
 						}"
-						@click="handlePreviewPlayheadClick"
 					>
 						<div
 							class="w-3 h-3 rounded-full relative"
 							:style="{
-								background: 'rgb(26 26 26)',
+								background: 'rgb(48,48,48)',
 							}"
 						>
 							<!-- Damla efekti -->
 							<div
 								class="absolute w-1.5 h-2.5"
 								:style="{
-									background: 'rgb(26 26 26)',
+									background: 'rgb(48,48,48)',
 									top: '55%',
 									left: '50%',
 									transform: 'translateX(-50%)',
@@ -514,9 +513,6 @@ const {
 
 // usePlayerSettings'deki zoomRanges'i kullan
 const zoomRanges = computed(() => {
-	console.log(
-		`[Timeline] Zoom ranges: ${defaultZoomRanges.value.length} segment`
-	);
 	return defaultZoomRanges.value;
 });
 
@@ -561,9 +557,6 @@ const checkVideoSegmentDurationAndSetZoom = () => {
 	// Eğer video segment uzunluğu 3-5 saniye arasındaysa zoom'u %50 artır
 	if (parseInt(totalVideoDuration) <= 10) {
 		currentZoom.value = 10; // %50 yakınlaştır
-		console.log(
-			`totalVideoDuration [Timeline] Video segment duration: ${totalVideoDuration}s, zoom increased to: ${currentZoom.value}`
-		);
 	}
 };
 const startDragX = ref(0);
@@ -587,10 +580,6 @@ const compactedSegments = computed(() => {
 		return [];
 	}
 
-	console.log(
-		`[TimelineComponent] compactedSegments: ${props.segments.length} segments received`
-	);
-
 	// Segment filtreleme kaldırıldı - tüm segment'leri göster
 	const result = props.segments.map((segment, index) => {
 		const segmentTimelineStart = segment.timelineStart || segment.start || 0;
@@ -610,9 +599,6 @@ const compactedSegments = computed(() => {
 		return realPositionSegment;
 	});
 
-	console.log(
-		`[TimelineComponent] compactedSegments: ${result.length} segments returned (no filtering)`
-	);
 	return result;
 });
 
@@ -634,10 +620,6 @@ const maxDuration = computed(() => {
 
 	// Timeline uzunluğu = default ile son segment'in maksimumu
 	const timelineEndTime = Math.max(defaultTimelineDuration, lastSegmentEndTime);
-
-	console.log(
-		`[Timeline] maxDuration: defaultDuration=${defaultTimelineDuration}, lastSegmentEnd=${lastSegmentEndTime}, finalDuration=${timelineEndTime}`
-	);
 
 	return timelineEndTime;
 });
@@ -678,32 +660,8 @@ const canvasDuration = computed(() => {
 	// Canvas uzunluğu minimum video uzunluğu kadar olmalı
 	const actualCanvasDuration = Math.max(allSegmentsEndTime, props.duration);
 
-	console.log(
-		`[Timeline] canvasDuration: videoSegmentsEnd=${videoSegmentsEndTime}, layoutSegmentsEnd=${layoutSegmentsEndTime}, zoomSegmentsEnd=${zoomSegmentsEndTime}, allSegmentsEnd=${allSegmentsEndTime}, videoDuration=${props.duration}, actualCanvas=${actualCanvasDuration}`
-	);
-
 	return actualCanvasDuration;
 });
-
-// Canvas duration değiştiğinde MediaPlayer'a bildir (finalCanvasDuration tanımlandıktan sonra taşınacak)
-
-// Segments props'unu izle - segment silme işleminden sonra güncellenip güncellenmediğini kontrol et
-watch(
-	() => props.segments,
-	(newSegments, oldSegments) => {
-		console.log(`[TimelineComponent] Segments props changed:`, {
-			oldCount: oldSegments?.length || 0,
-			newCount: newSegments?.length || 0,
-			newSegments: newSegments?.map(
-				(s, i) =>
-					`${i}: timeline(${s.timelineStart || s.start}-${
-						s.timelineEnd || s.end
-					}) video(${s.videoStart || s.startTime}-${s.videoEnd || s.endTime})`
-			),
-		});
-	},
-	{ deep: true }
-);
 
 // Timeline genişliği
 const timelineWidth = computed(() => {
@@ -768,10 +726,6 @@ const finalCanvasDuration = computed(() => {
 		0
 	);
 
-	console.log(
-		`[Timeline] finalCanvasDuration: baseCanvasDuration=${baseCanvasDuration}, gifSegmentsEnd=${gifSegmentsEndTime}, videoOverlaySegmentsEnd=${videoOverlaySegmentsEndTime}, allSegmentsEnd=${allSegmentsEndTime}`
-	);
-
 	return allSegmentsEndTime;
 });
 
@@ -833,10 +787,6 @@ const playheadPosition = computed(() => {
 	const realTime = props.currentTime;
 	const position = (realTime / maxDuration.value) * 100;
 
-	console.log(
-		`[Timeline] Playhead position: realTime=${realTime}, maxDuration=${maxDuration.value}, position=${position}%`
-	);
-
 	return Math.max(0, position); // Sadece 0'dan küçük olmamasını kontrol et
 });
 
@@ -850,7 +800,7 @@ const previewPlayheadOffset = computed(() => {
 	);
 
 	// Eğer mesafe 1%'den azsa (yaklaşık üst üste geliyorlarsa) 10px aşağı kaydır
-	if (distance < 0.3) {
+	if (distance <= 0.1) {
 		return 14;
 	}
 
@@ -1134,20 +1084,16 @@ const handleSegmentDragEnd = () => {
 	};
 };
 
-// Timeline tıklama - clipped time olarak emit et
+// Timeline tıklama - direkt timeUpdate emit et
 const handleTimelineClick = (e) => {
 	if (isDragging.value || isResizing.value) return;
 
 	const container = timelineRef.value;
 	const rect = container.getBoundingClientRect();
 	const x = e.clientX - rect.left + container.scrollLeft;
-	const realTime = (x / timelineWidth.value) * maxDuration.value;
+	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	// Artık real time emit et - segment clipping yok
-	const validRealTime = Math.max(0, Math.min(maxDuration.value, realTime));
-
-	// Real time olarak emit et (linear playback)
-	emit("timeUpdate", validRealTime);
+	emit("timeUpdate", Math.max(0, Math.min(maxDuration.value, time)));
 };
 
 const startDragging = (e) => {
@@ -1314,23 +1260,6 @@ const handleTimelineMouseMove = (e) => {
 
 	// Preview zamanını MediaPlayer'a gönder (canvas güncellemesi için) - real time olarak
 	emit("previewTimeUpdate", validRealTime);
-};
-
-// Preview playhead'e tıklayınca o pozisyona git - real time olarak çalışır
-const handlePreviewPlayheadClick = (e) => {
-	e.stopPropagation();
-
-	// Preview playhead'in bulunduğu zaman pozisyonunu hesapla
-	const container = timelineRef.value;
-	const rect = container.getBoundingClientRect();
-	const x = e.clientX - rect.left + container.scrollLeft;
-	const realTime = (x / timelineWidth.value) * maxDuration.value;
-
-	// Artık real time kullan
-	const validRealTime = Math.max(0, realTime);
-
-	// Real time olarak emit et (linear playback)
-	emit("timeUpdate", validRealTime);
 };
 
 // Timeline'dan mouse çıkınca preview'i gizle
@@ -1768,11 +1697,9 @@ const handlePlayheadDrag = (e) => {
 	const x = e.clientX - rect.left + container.scrollLeft;
 	const time = (x / timelineWidth.value) * maxDuration.value;
 
-	// Sadece 0'dan küçük olmamasını kontrol et, üst sınır yok
-	const validTime = Math.max(0, time);
-	emit("timeUpdate", validTime);
-	previewPlayheadPosition.value = null; // Sürükleme sırasında preview'i gizle
-	emit("previewTimeUpdate", null); // Preview'i temizle
+	emit("timeUpdate", Math.max(0, time));
+	previewPlayheadPosition.value = null;
+	emit("previewTimeUpdate", null);
 };
 
 // Playhead sürükleme bitirme
@@ -1807,9 +1734,6 @@ const handleKeyDown = (event) => {
 		selectedZoomIndex.value !== null &&
 		(event.key === "Delete" || event.key === "Backspace")
 	) {
-		console.log(
-			`[TimelineComponent] Zoom segmenti silme: index ${selectedZoomIndex.value}`
-		);
 		removeZoomRange(selectedZoomIndex.value);
 		selectedZoomIndex.value = null;
 		// activeSegmentId.value'yu koru - zoom segment silme işlemi clip segmentleri etkilememeli
@@ -1829,9 +1753,6 @@ const handleKeyDown = (event) => {
 			(s) => s.id === activeSegmentId.value
 		);
 		if (activeIndex !== -1) {
-			console.log(
-				`[TimelineComponent] Timeline delete triggered for segment index: ${activeIndex}`
-			);
 			emit("deleteSegment", activeIndex);
 		}
 		return;
@@ -1859,9 +1780,6 @@ const dragStartRange = ref(null);
 const handleSegmentUpdate = (updatedSegment, index) => {
 	// Segment silme işlemi sırasında segmentUpdate emit etme
 	if (props.isDeletingSegment) {
-		console.log(
-			"[TimelineComponent] Segment silme işlemi devam ediyor, segmentUpdate emit edilmiyor"
-		);
 		return;
 	}
 
@@ -1912,10 +1830,6 @@ const handleSegmentDragStart = (data) => {
 
 	// Drag preview için segment listesini kopyala
 	dragPreviewSegments.value = [...props.segments];
-
-	console.log(
-		`[Timeline] Segment drag started: index ${data.index}, timeline start: ${data.startTime}`
-	);
 };
 
 // Segment sürükleme
@@ -2018,12 +1932,6 @@ const handleVideoSegmentDragEnd = (data) => {
 
 		// Segment'leri güncelle
 		emit("segmentUpdate", updatedSegments);
-
-		console.log(
-			`[Timeline] Segment dragged to: ${newTimelineStart} - ${newTimelineEnd}`
-		);
-	} else {
-		console.log(`[Timeline] Segment drag blocked due to collision`);
 	}
 
 	// Drag state'ini resetle

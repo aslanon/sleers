@@ -475,93 +475,118 @@ const gifHoverState = ref(new Map());
 const gifSelectionState = ref(new Map());
 
 // New GIF border and transform handles system - removed blue border for now
-const drawGifBorder = (ctx, x, y, width, height, dpr, scale, isHovered = false, isSelected = false) => {
+const drawGifBorder = (
+	ctx,
+	x,
+	y,
+	width,
+	height,
+	dpr,
+	scale,
+	isHovered = false,
+	isSelected = false
+) => {
 	// Blue border removed for now - only handles will show selection
 	return;
 };
 
-const drawTransformHandles = (ctx, x, y, width, height, dpr, scale, renderData = null) => {
+const drawTransformHandles = (
+	ctx,
+	x,
+	y,
+	width,
+	height,
+	dpr,
+	scale,
+	renderData = null
+) => {
 	ctx.save();
-	
+
 	const handleSize = 14 * dpr * scale; // 14px handles (even bigger for better UX)
 	const halfHandle = handleSize / 2;
-	
+
 	// Calculate element center for rotation
 	const centerX = x + width / 2;
 	const centerY = y + height / 2;
-	const rotation = (renderData?.rotation || 0) * Math.PI / 180; // Convert to radians
-	
+	const rotation = ((renderData?.rotation || 0) * Math.PI) / 180; // Convert to radians
+
 	// Calculate handle positions in world coordinates FIRST (before any canvas transform)
 	const baseHandles = [
 		// Corners
-		{ x: x - halfHandle, y: y - halfHandle, type: 'nw' }, // top-left
-		{ x: x + width - halfHandle, y: y - halfHandle, type: 'ne' }, // top-right
-		{ x: x + width - halfHandle, y: y + height - halfHandle, type: 'se' }, // bottom-right
-		{ x: x - halfHandle, y: y + height - halfHandle, type: 'sw' }, // bottom-left
+		{ x: x - halfHandle, y: y - halfHandle, type: "nw" }, // top-left
+		{ x: x + width - halfHandle, y: y - halfHandle, type: "ne" }, // top-right
+		{ x: x + width - halfHandle, y: y + height - halfHandle, type: "se" }, // bottom-right
+		{ x: x - halfHandle, y: y + height - halfHandle, type: "sw" }, // bottom-left
 		// Edges
-		{ x: x + width/2 - halfHandle, y: y - halfHandle, type: 'n' }, // top-middle
-		{ x: x + width - halfHandle, y: y + height/2 - halfHandle, type: 'e' }, // right-middle
-		{ x: x + width/2 - halfHandle, y: y + height - halfHandle, type: 's' }, // bottom-middle
-		{ x: x - halfHandle, y: y + height/2 - halfHandle, type: 'w' }, // left-middle
+		{ x: x + width / 2 - halfHandle, y: y - halfHandle, type: "n" }, // top-middle
+		{ x: x + width - halfHandle, y: y + height / 2 - halfHandle, type: "e" }, // right-middle
+		{ x: x + width / 2 - halfHandle, y: y + height - halfHandle, type: "s" }, // bottom-middle
+		{ x: x - halfHandle, y: y + height / 2 - halfHandle, type: "w" }, // left-middle
 	];
-	
+
 	// Apply rotation to get world coordinates for click detection
 	const cos = Math.cos(rotation);
 	const sin = Math.sin(rotation);
-	
-	const worldHandles = baseHandles.map(h => {
+
+	const worldHandles = baseHandles.map((h) => {
 		const handleCenterX = h.x + halfHandle;
 		const handleCenterY = h.y + halfHandle;
-		
+
 		// Apply rotation transform to get world coordinates
 		const dx = handleCenterX - centerX;
 		const dy = handleCenterY - centerY;
-		
+
 		const worldCenterX = centerX + dx * cos - dy * sin;
 		const worldCenterY = centerY + dx * sin + dy * cos;
-		
+
 		return {
 			x: worldCenterX - halfHandle,
 			y: worldCenterY - halfHandle,
 			width: handleSize,
 			height: handleSize,
-			type: h.type
+			type: h.type,
 		};
 	});
-	
+
 	// Now apply canvas transform and draw handles
 	ctx.translate(centerX, centerY);
 	ctx.rotate(rotation);
 	ctx.translate(-centerX, -centerY);
-	
+
 	// Draw each handle with shadow for better visibility
-	baseHandles.forEach(handle => {
+	baseHandles.forEach((handle) => {
 		// Draw shadow first
 		ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
 		const shadowOffset = 2 * dpr * scale;
 		const radius = handleSize / 2; // Fully rounded
-		
+
 		ctx.beginPath();
-		ctx.roundRect(handle.x + shadowOffset, handle.y + shadowOffset, handleSize, handleSize, radius);
+		ctx.roundRect(
+			handle.x + shadowOffset,
+			handle.y + shadowOffset,
+			handleSize,
+			handleSize,
+			radius
+		);
 		ctx.fill();
-		
+
 		// Draw main handle - BLACK background with WHITE border
 		ctx.fillStyle = "#000000"; // Black inside
 		ctx.strokeStyle = "#FFFFFF"; // White border
 		ctx.lineWidth = 2 * dpr * scale; // 2px border as requested
-		
+
 		ctx.beginPath();
 		ctx.roundRect(handle.x, handle.y, handleSize, handleSize, radius);
 		ctx.fill();
 		ctx.stroke();
 	});
-	
+
 	// Store handle data for interaction detection - use world coordinates
 	if (renderData?.id) {
 		if (!window.gifHandleData) {
 			window.gifHandleData = new Map();
 		}
-		
+
 		window.gifHandleData.set(renderData.id, {
 			handles: worldHandles,
 			gifBounds: {
@@ -572,7 +597,7 @@ const drawTransformHandles = (ctx, x, y, width, height, dpr, scale, renderData =
 			},
 		});
 	}
-	
+
 	ctx.restore();
 };
 
@@ -581,88 +606,112 @@ const updateGifHoverStates = (mouseX, mouseY) => {
 	const currentTime = props.previewTime ?? props.currentTime;
 	const currentGifs = getGifsAtTime(currentTime);
 	const dpr = 1;
-	
+
 	// Clear all hover states first
 	gifHoverState.value.clear();
-	
+
 	// Clear rotate zones from previous mouse move
 	if (typeof window !== "undefined" && window.gifRotateZones) {
 		window.gifRotateZones.clear();
 	}
-	
+
 	// Reset cursor
-	let newCursor = 'default';
-	
+	let newCursor = "default";
+
 	// Check for handle hover and rotate zones first (higher priority)
 	if (window.gifHandleData && window.gifHandleData.size > 0) {
 		for (const [gifId, handleData] of window.gifHandleData.entries()) {
 			const handles = handleData.handles;
 			if (handles && handles.length > 0) {
 				// First check for rotate zones at diagonal corners from handles
-				const cornerHandles = handles.filter(h => ['nw', 'ne', 'se', 'sw'].includes(h.type));
+				const cornerHandles = handles.filter((h) =>
+					["nw", "ne", "se", "sw"].includes(h.type)
+				);
 				for (const handle of cornerHandles) {
 					const handleCenterX = handle.x + handle.width / 2;
 					const handleCenterY = handle.y + handle.height / 2;
-					
+
 					// Calculate diagonal rotation zone position based on handle type
 					// Since handles are already rotated, we need to calculate diagonal direction from element center
-					const gif = activeGifs.value.find(g => g.id === gifId);
+					const gif = activeGifs.value.find((g) => g.id === gifId);
 					if (!gif) continue;
-					
+
 					// Get element center in canvas coordinates
-					const elementCenterX = (gif.x * dpr * scaleValue) + (gif.width * dpr * scaleValue) / 2;
-					const elementCenterY = (gif.y * dpr * scaleValue) + (gif.height * dpr * scaleValue) / 2;
-					
+					const elementCenterX =
+						gif.x * dpr * scaleValue + (gif.width * dpr * scaleValue) / 2;
+					const elementCenterY =
+						gif.y * dpr * scaleValue + (gif.height * dpr * scaleValue) / 2;
+
 					// Calculate direction from element center to handle center
 					const toCenterX = handleCenterX - elementCenterX;
 					const toCenterY = handleCenterY - elementCenterY;
-					
+
 					// Normalize the direction and extend beyond handle
-					const dirLength = Math.sqrt(toCenterX * toCenterX + toCenterY * toCenterY);
+					const dirLength = Math.sqrt(
+						toCenterX * toCenterX + toCenterY * toCenterY
+					);
 					if (dirLength === 0) continue;
-					
+
 					const dirX = toCenterX / dirLength;
 					const dirY = toCenterY / dirLength;
-					
+
 					const diagonalDistance = 18 * dpr * scaleValue; // Distance to diagonal rotate zone (closer to handles)
-					
+
 					// Place rotate zone further along the same direction from element center
 					const rotateZoneX = handleCenterX + dirX * diagonalDistance;
 					const rotateZoneY = handleCenterY + dirY * diagonalDistance;
-					
+
 					// Check if mouse is in rotate zone (diagonal corner area)
 					const distanceFromRotateZone = Math.sqrt(
-						Math.pow(mouseX - rotateZoneX, 2) + Math.pow(mouseY - rotateZoneY, 2)
+						Math.pow(mouseX - rotateZoneX, 2) +
+							Math.pow(mouseY - rotateZoneY, 2)
 					);
-					
+
 					const rotateZoneRadius = 12 * dpr * scaleValue; // Rotation zone radius
-					
+
 					if (distanceFromRotateZone <= rotateZoneRadius) {
-						newCursor = 'alias'; // Rotation cursor (alias shows rotation/move operation)
+						newCursor = "alias"; // Rotation cursor (alias shows rotation/move operation)
 						// Store rotate info for click detection
 						if (!window.gifRotateZones) window.gifRotateZones = new Map();
 						window.gifRotateZones.set(gifId, {
 							handleType: handle.type,
 							centerX: rotateZoneX,
 							centerY: rotateZoneY,
-							isDiagonal: true
+							isDiagonal: true,
 						});
 						break;
 					}
 				}
-				
+
 				// If not in rotate zone, check for handle hover
-				if (newCursor === 'default') {
+				if (newCursor === "default") {
 					for (const handle of handles) {
-						if (mouseX >= handle.x && mouseX <= handle.x + handle.width && 
-							mouseY >= handle.y && mouseY <= handle.y + handle.height) {
+						if (
+							mouseX >= handle.x &&
+							mouseX <= handle.x + handle.width &&
+							mouseY >= handle.y &&
+							mouseY <= handle.y + handle.height
+						) {
 							// Set cursor based on handle type
 							switch (handle.type) {
-								case 'nw': case 'se': newCursor = 'nw-resize'; break;
-								case 'ne': case 'sw': newCursor = 'ne-resize'; break;
-								case 'n': case 's': newCursor = 'ns-resize'; break;
-								case 'e': case 'w': newCursor = 'ew-resize'; break;
-								default: newCursor = 'grab';
+								case "nw":
+								case "se":
+									newCursor = "nw-resize";
+									break;
+								case "ne":
+								case "sw":
+									newCursor = "ne-resize";
+									break;
+								case "n":
+								case "s":
+									newCursor = "ns-resize";
+									break;
+								case "e":
+								case "w":
+									newCursor = "ew-resize";
+									break;
+								default:
+									newCursor = "grab";
 							}
 							break;
 						}
@@ -671,27 +720,32 @@ const updateGifHoverStates = (mouseX, mouseY) => {
 			}
 		}
 	}
-	
+
 	// Check each GIF for hover (for cursor only, no visual changes)
-	currentGifs.forEach(gif => {
+	currentGifs.forEach((gif) => {
 		const renderData = getGifRenderData(gif.id, currentTime);
 		if (!renderData || !renderData.isVisible) return;
-		
+
 		// Calculate GIF bounds
 		const x = renderData.x * dpr * scaleValue;
 		const y = renderData.y * dpr * scaleValue;
 		const width = renderData.width * dpr * scaleValue;
 		const height = renderData.height * dpr * scaleValue;
-		
+
 		// Check if mouse is over this GIF
-		if (mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height) {
+		if (
+			mouseX >= x &&
+			mouseX <= x + width &&
+			mouseY >= y &&
+			mouseY <= y + height
+		) {
 			// Only set cursor, no visual hover state since we removed blue border
-			if (newCursor === 'default') {
-				newCursor = 'grab';
+			if (newCursor === "default") {
+				newCursor = "grab";
 			}
 		}
 	});
-	
+
 	// Apply cursor to canvas
 	if (canvasRef.value) {
 		canvasRef.value.style.cursor = newCursor;
@@ -743,10 +797,10 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			if (cachedImage.complete && cachedImage.naturalWidth > 0) {
 				// Preserve transparency for images
 				const originalComposite = ctx.globalCompositeOperation;
-				ctx.globalCompositeOperation = 'source-over';
-				
+				ctx.globalCompositeOperation = "source-over";
+
 				ctx.drawImage(cachedImage, x, y, width, height);
-				
+
 				// Restore original composite operation
 				ctx.globalCompositeOperation = originalComposite;
 			}
@@ -826,10 +880,10 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 					// Preserve transparency for videos
 					const originalComposite = ctx.globalCompositeOperation;
-					ctx.globalCompositeOperation = 'source-over';
-					
+					ctx.globalCompositeOperation = "source-over";
+
 					ctx.drawImage(cachedVideo, x, y, width, height);
-					
+
 					// Restore original composite operation
 					ctx.globalCompositeOperation = originalComposite;
 				} catch (error) {
@@ -884,8 +938,11 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 			// Export sırasında daha esnek readyState kontrolü
 			const isExporting = window.isExporting || false;
 			const minReadyState = isExporting ? 1 : 2; // Export sırasında HAVE_METADATA yeterli
-			
-			if (cachedVideo.readyState >= minReadyState && cachedVideo.videoWidth > 0) {
+
+			if (
+				cachedVideo.readyState >= minReadyState &&
+				cachedVideo.videoWidth > 0
+			) {
 				// HAVE_CURRENT_DATA
 				try {
 					// More stable video sync - reduce time updates
@@ -904,7 +961,10 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 						try {
 							cachedVideo.currentTime = loopTime;
 						} catch (error) {
-							console.warn(`[MediaPlayer] Export: GIF time update failed for ${renderData.id}:`, error);
+							console.warn(
+								`[MediaPlayer] Export: GIF time update failed for ${renderData.id}:`,
+								error
+							);
 						}
 					} else if (timeDiff > threshold) {
 						cachedVideo.currentTime = loopTime;
@@ -930,29 +990,41 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 					// GIF animasyon için video kullan, beyaz arkaplanı hızlı chroma key ile kaldır
 					ctx.save();
-					
+
 					try {
 						// Küçük temporary canvas for faster processing
-						const tempCanvas = document.createElement('canvas');
+						const tempCanvas = document.createElement("canvas");
 						const scale = 0.5; // Half resolution for speed
 						tempCanvas.width = Math.ceil(width * scale);
 						tempCanvas.height = Math.ceil(height * scale);
-						const tempCtx = tempCanvas.getContext('2d', { alpha: true });
-						
+						const tempCtx = tempCanvas.getContext("2d", { alpha: true });
+
 						// Draw video to temp canvas at half resolution
-						tempCtx.drawImage(cachedVideo, 0, 0, tempCanvas.width, tempCanvas.height);
-						
+						tempCtx.drawImage(
+							cachedVideo,
+							0,
+							0,
+							tempCanvas.width,
+							tempCanvas.height
+						);
+
 						// Fast white removal
-						const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+						const imageData = tempCtx.getImageData(
+							0,
+							0,
+							tempCanvas.width,
+							tempCanvas.height
+						);
 						const data = imageData.data;
-						
+
 						// Optimized white removal - only check every 4th pixel for speed
 						const threshold = 230;
-						for (let i = 0; i < data.length; i += 16) { // Skip pixels for speed
+						for (let i = 0; i < data.length; i += 16) {
+							// Skip pixels for speed
 							const r = data[i];
 							const g = data[i + 1];
 							const b = data[i + 2];
-							
+
 							// If white/near-white, make transparent
 							if (r > threshold && g > threshold && b > threshold) {
 								data[i + 3] = 0;
@@ -962,21 +1034,20 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 								if (i + 15 < data.length) data[i + 15] = 0;
 							}
 						}
-						
+
 						tempCtx.putImageData(imageData, 0, 0);
-						
+
 						// Draw processed result at full size
-						ctx.globalCompositeOperation = 'source-over';
+						ctx.globalCompositeOperation = "source-over";
 						ctx.imageSmoothingEnabled = true;
-						ctx.imageSmoothingQuality = 'high';
+						ctx.imageSmoothingQuality = "high";
 						ctx.drawImage(tempCanvas, x, y, width, height);
-						
 					} catch (chromaError) {
 						// Fallback to normal drawing
-						ctx.globalCompositeOperation = 'source-over';
+						ctx.globalCompositeOperation = "source-over";
 						ctx.drawImage(cachedVideo, x, y, width, height);
 					}
-					
+
 					ctx.restore();
 				} catch (error) {
 					console.warn("Error drawing cached GIF video:", error);
@@ -1025,7 +1096,7 @@ const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
 
 	// Draw selection system (AFTER drawing GIF for proper z-index)
 	const isSelected = renderData.isSelected;
-	
+
 	// Only draw transform handles when selected and not during rotation operations
 	if (isSelected && !dragState.isRotating) {
 		drawTransformHandles(ctx, x, y, width, height, dpr, scale, renderData);
@@ -1048,10 +1119,10 @@ const drawGifAsImage = (ctx, renderData, dpr, x, y, width, height) => {
 			try {
 				// Preserve transparency for GIF images
 				const originalComposite = ctx.globalCompositeOperation;
-				ctx.globalCompositeOperation = 'source-over';
-				
+				ctx.globalCompositeOperation = "source-over";
+
 				ctx.drawImage(cachedImg, x, y, width, height);
-				
+
 				// Restore original composite operation
 				ctx.globalCompositeOperation = originalComposite;
 			} catch (error) {
@@ -1105,16 +1176,6 @@ const getSortedSegments = () => {
 		return timelineStartA - timelineStartB;
 	});
 
-	// Debug log
-	console.log(
-		`[MediaPlayer] getSortedSegments:`,
-		sorted.map(
-			(s, i) =>
-				`${i}: timeline(${s.timelineStart || s.start}-${
-					s.timelineEnd || s.end
-				}) video(${s.videoStart || s.startTime}-${s.videoEnd || s.endTime})`
-		)
-	);
 	return sorted;
 };
 
@@ -1133,16 +1194,6 @@ const findSegmentAtTime = (time, segments) => {
 const calculateClippedTime = (realTime, segments) => {
 	let clippedTime = 0;
 
-	console.log(
-		`[MediaPlayer] calculateClippedTime: realTime=${realTime}, segments:`,
-		segments.map(
-			(s) =>
-				`timeline(${s.timelineStart || s.start}-${
-					s.timelineEnd || s.end
-				}) video(${s.videoStart || s.startTime}-${s.videoEnd || s.endTime})`
-		)
-	);
-
 	for (const segment of segments) {
 		// Timeline pozisyonlarını kullan (timelineStart/timelineEnd)
 		const timelineStart = segment.timelineStart || segment.start || 0;
@@ -1151,30 +1202,18 @@ const calculateClippedTime = (realTime, segments) => {
 		if (realTime >= timelineStart && realTime <= timelineEnd) {
 			// We're in this segment
 			clippedTime += realTime - timelineStart;
-			console.log(
-				`[MediaPlayer] calculateClippedTime: Found in segment ${timelineStart}-${timelineEnd}, clipped=${clippedTime}`
-			);
+
 			break;
 		} else if (realTime > timelineEnd) {
 			// We've passed this segment completely
 			clippedTime += timelineEnd - timelineStart;
-			console.log(
-				`[MediaPlayer] calculateClippedTime: Passed segment ${timelineStart}-${timelineEnd}, clipped+=${
-					timelineEnd - timelineStart
-				} -> ${clippedTime}`
-			);
 		} else {
 			// We haven't reached this segment yet
-			console.log(
-				`[MediaPlayer] calculateClippedTime: Haven't reached segment ${timelineStart}-${timelineEnd} yet`
-			);
+
 			break;
 		}
 	}
 
-	console.log(
-		`[MediaPlayer] calculateClippedTime: Final clipped time=${clippedTime}`
-	);
 	return clippedTime;
 };
 
@@ -1238,7 +1277,6 @@ const play = async () => {
 		const isAtEnd = videoState.value.currentTime >= canvasDuration - tolerance;
 
 		if (isAtEnd) {
-			console.log("[MediaPlayer] Timeline sonunda, başa dönülüyor");
 			videoState.value.currentTime = 0;
 			// Video varsa onu da başa sar
 			if (videoElement) {
@@ -1311,18 +1349,9 @@ const play = async () => {
 			canvasDuration > 0 && currentTime >= canvasDuration - tolerance;
 
 		if (shouldReset) {
-			console.log(
-				`[MediaPlayer] Timeline sonunda, başa dönülüyor: ${currentTime.toFixed(
-					3
-				)}s -> 0s (canvas: ${canvasDuration.toFixed(3)}s)`
-			);
 			videoState.value.currentTime = 0;
 			emit("timeUpdate", 0);
 		}
-
-		console.log(
-			`[MediaPlayer] Timeline oynatma başlatılıyor - position: ${videoState.value.currentTime}`
-		);
 
 		// Mevcut sync interval'ı temizle
 		if (syncInterval) {
@@ -1362,10 +1391,6 @@ const play = async () => {
 // Tüm elementleri senkronize etme fonksiyonu
 const synchronizeAllElements = async (realTime, clippedTime) => {
 	try {
-		console.log(
-			`[MediaPlayer] synchronizeAllElements: realTime=${realTime}, clippedTime=${clippedTime}`
-		);
-
 		// Video'yu pozisyona getir
 		videoElement.currentTime = realTime;
 
@@ -1435,11 +1460,6 @@ const startSyncCheck = () => {
 			canvasDuration > 0 && currentTime >= canvasDuration - tolerance;
 
 		if (shouldStop) {
-			console.log(
-				`[MediaPlayer] Canvas sonuna gelindi, oynatma durduruluyor: ${currentTime.toFixed(
-					3
-				)}s >= ${canvasDuration.toFixed(3)}s (tolerance: ${tolerance}s)`
-			);
 			// Timeline'ı durdur
 			isTimelinePlaying.value = false;
 			videoState.value.isPlaying = false;
@@ -1497,10 +1517,6 @@ const syncVideoToTimeline = () => {
 			videoElement.currentTime = requiredVideoTime;
 			if (cameraElement) cameraElement.currentTime = requiredVideoTime;
 			if (audioRef.value) audioRef.value.currentTime = requiredVideoTime;
-
-			console.log(
-				`[MediaPlayer] Segment geçiş (immediate): ${segmentInfo.segmentId}, video time: ${requiredVideoTime}`
-			);
 		} else if (timeDiff > 0.05) {
 			// Normal sync - daha agresif tolerance (responsive geçiş)
 			videoElement.currentTime = requiredVideoTime;
@@ -1527,10 +1543,6 @@ const syncVideoToTimeline = () => {
 const pause = async () => {
 	try {
 		if (!isTimelinePlaying.value) return;
-
-		console.log(
-			`[MediaPlayer] Timeline oynatma durduruluyor - position: ${videoState.value.currentTime}`
-		);
 
 		// Timeline'ı durdur
 		isTimelinePlaying.value = false;
@@ -1701,32 +1713,9 @@ const onTimeUpdate = () => {
 	}
 };
 
-// Helper function to jump to a specific time and sync all elements
-const jumpToTime = async (targetTime) => {
-	if (!videoElement) return;
-
-	console.log(
-		`[MediaPlayer] jumpToTime called: ${targetTime}, current playing state: ${videoState.value.isPlaying}`
-	);
-
-	try {
-		// Artık sadece real time jump - segment clipping yok
-		const canvasDuration = props.totalCanvasDuration || 0;
-		const constrainedTime = Math.max(0, Math.min(targetTime, canvasDuration));
-		await synchronizeAllElements(constrainedTime, constrainedTime);
-	} catch (error) {
-		console.error("[MediaPlayer] jumpToTime error:", error);
-	}
-};
-
 // Helper function to stop playback (used by error handlers)
 const jumpToSegmentEnd = async () => {
 	try {
-		console.log(
-			`[MediaPlayer] jumpToSegmentEnd called - stopping playback, current sync interval:`,
-			!!syncInterval
-		);
-		console.trace("[MediaPlayer] jumpToSegmentEnd stack trace:");
 		// Stop playback immediately
 		videoState.value.isPlaying = false;
 		videoState.value.isPaused = true;
@@ -1735,7 +1724,6 @@ const jumpToSegmentEnd = async () => {
 		if (syncInterval) {
 			clearInterval(syncInterval);
 			syncInterval = null;
-			console.log(`[MediaPlayer] Sync interval durduruldu`);
 		}
 
 		// Pause all media elements with proper await
@@ -1762,7 +1750,6 @@ const jumpToSegmentEnd = async () => {
 		// Başa dön (loop logic artık timeline'da)
 		videoState.value.currentTime = 0;
 		emit("timeUpdate", 0);
-		console.log(`[MediaPlayer] Playback durduruldu, başa dönüldü: 0`);
 
 		// Final canvas update
 		updateCanvas(performance.now());
@@ -1939,21 +1926,12 @@ const updateDragPosition = (e) => {
 
 // Video bittiğinde
 const onVideoEnded = () => {
-	console.log(
-		`[MediaPlayer] onVideoEnded called - isPlaying: ${videoState.value.isPlaying}, real time: ${videoElement?.currentTime}`
-	);
-
 	// Segment sistemi varsa özel logic
 	if (props.segments && props.segments.length > 0) {
 		// Sadece video oynatılırken ended event'i kabul et
 		// Elle seek yapılırken ended olmamalı
 		if (videoState.value.isPlaying) {
-			console.log(
-				`[MediaPlayer] Video ended during playback - calling jumpToSegmentEnd`
-			);
 			jumpToSegmentEnd();
-		} else {
-			console.log(`[MediaPlayer] Video ended while paused - ignoring`);
 		}
 		return;
 	}
@@ -1998,7 +1976,6 @@ const onVideoError = (error) => {
 	});
 
 	// Video error durumunda playback'i durdur
-	console.log("[MediaPlayer] Video error - calling jumpToSegmentEnd");
 	jumpToSegmentEnd();
 };
 
@@ -2021,7 +1998,6 @@ const onAudioWaiting = () => {
 };
 
 const onAudioCanPlay = () => {
-	console.log("[MediaPlayer] Audio can play - buffer ready");
 	// Audio buffer size'ı artırmaya çalış
 	if (audioRef.value) {
 		audioRef.value.preload = "auto";
@@ -2186,17 +2162,7 @@ const drawMousePositions = (customCtx = null) => {
 
 	// Mouse görünürlüğü kapalıysa çizme
 	if (!mouseVisible.value) {
-		if (drawMousePositions.debugCounter % 60 === 0) {
-			console.log(
-				"[MediaPlayer] Mouse cursor visibility disabled - skipping draw"
-			);
-		}
 		return;
-	}
-
-	// Mouse visible olduğunda da log
-	if (drawMousePositions.debugCounter % 60 === 0) {
-		console.log("[MediaPlayer] Mouse cursor is visible, drawing...");
 	}
 
 	if (!props.mousePositions || !canvasRef.value || !videoElement) {
@@ -2314,7 +2280,6 @@ const drawMousePositions = (customCtx = null) => {
 		// Use current video time directly
 		effectiveTime = currentVideoTime;
 		effectiveDuration = videoDuration;
-		console.log("[DIRECT VIDEO TIME]", { currentVideoTime, videoDuration });
 	} else {
 		// Original complex calculation
 		effectiveTime = currentVideoTime;
@@ -2353,18 +2318,6 @@ const drawMousePositions = (customCtx = null) => {
 	const estimatedTimestamp = synchronizedTimestamps.value
 		? getSynchronizedTimestamp("mouse", baseCursorTime * 1000) / 1000
 		: baseCursorTime;
-
-	// console.log('[DIRECT MAPPING]', {
-	// 	currentVideoTime: currentVideoTime.toFixed(3),
-	// 	totalVideoDuration: totalVideoDuration.toFixed(3),
-	// 	firstCursorTime: firstCursorTime,
-	// 	lastCursorTime: lastCursorTime,
-	// 	cursorDurationMs: cursorDurationMs,
-	// 	cursorDurationSeconds: cursorDurationSeconds.toFixed(3),
-	// 	mappedCursorTime: mappedCursorTime.toFixed(3),
-	// 	estimatedTimestamp: estimatedTimestamp.toFixed(3),
-	// 	mousePositionsLength: props.mousePositions.length
-	// });
 
 	// EMERGENCY: Check if we have any cursor data at all
 	if (cursorDurationMs <= 0 || !totalVideoDuration) {
@@ -2405,15 +2358,6 @@ const drawMousePositions = (customCtx = null) => {
 	if (nextIndex === -1 || nextIndex === prevIndex)
 		nextIndex = Math.min(prevIndex + 1, totalFrames - 1);
 
-	console.log("[CURSOR POSITION FINDING]", {
-		estimatedTimestamp: estimatedTimestamp.toFixed(3),
-		prevIndex,
-		nextIndex,
-		totalFrames,
-		prevTimeDiff: prevTimeDiff.toFixed(3),
-		nextTimeDiff: nextTimeDiff.toFixed(3),
-	});
-
 	const prevPos = props.mousePositions[prevIndex];
 	const nextPos = props.mousePositions[nextIndex];
 
@@ -2450,17 +2394,6 @@ const drawMousePositions = (customCtx = null) => {
 				).toFixed(3),
 		  }
 		: null;
-
-	// console.log("[CURSOR POSITION DEBUG]", {
-	// 	videoCurrentTime: currentVideoTime,
-	// 	estimatedTimestamp: estimatedTimestamp.toFixed(3),
-	// 	estimatedTimestampUnit: "seconds",
-	// 	prevIndex,
-	// 	nextIndex,
-	// 	prevPos: debugPrevPos,
-	// 	nextPos: debugNextPos,
-	// 	totalFrames,
-	// });
 
 	// Update cursor type based on current position
 	if (prevPos.cursorType) {
@@ -2708,14 +2641,6 @@ const drawMousePositions = (customCtx = null) => {
 	if (zoomScale > 1.01) {
 		// Cursor boyutunu zoom'a göre ayarla ama pozisyonu değiştirme
 		const cursorSizeMultiplier = 1.0 / zoomScale; // Zoom arttıkça cursor küçülsün
-
-		// Debug zoom tracking
-		console.log("[CURSOR SIZE DEBUG]", {
-			zoomScale,
-			cursorSizeMultiplier,
-			canvasX,
-			canvasY,
-		});
 	}
 
 	// Canvas sınırları içinde tut
@@ -2748,38 +2673,6 @@ const drawMousePositions = (customCtx = null) => {
 		effectiveTime,
 		effectiveDuration
 	);
-
-	// Debug cursor position
-	console.log("[CURSOR DRAW DEBUG]", {
-		prevPos: prevPos
-			? { x: prevPos.x, y: prevPos.y, timestamp: prevPos.timestamp }
-			: null,
-		nextPos: nextPos
-			? { x: nextPos.x, y: nextPos.y, timestamp: nextPos.timestamp }
-			: null,
-		interpolatedX: interpolatedX,
-		interpolatedY: interpolatedY,
-		canvasX: canvasX,
-		canvasY: canvasY,
-		canvasWidth: canvasWidth,
-		canvasHeight: canvasHeight,
-		zoomScale: zoomScale,
-		videoX: videoX,
-		videoY: videoY,
-		displayWidth: displayWidth,
-		displayHeight: displayHeight,
-		visible: !!prevPos && !!nextPos,
-	});
-
-	// Use original positioning with timeline-based motion effects
-	console.log("[CURSOR DRAW CALL]", {
-		canvasX: canvasX,
-		canvasY: canvasY,
-		mouseVisible: mouseVisible.value,
-		mouseSize: mouseSize.value,
-		prevPos: prevPos ? { x: prevPos.x, y: prevPos.y } : null,
-		nextPos: nextPos ? { x: nextPos.x, y: nextPos.y } : null,
-	});
 
 	drawMousePosition(ctx, {
 		x: canvasX,
@@ -3556,7 +3449,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawY,
 					drawWidth,
 					drawHeight,
-					0 // Set radius to 0 for no rounded corners
+					radius.value * dpr // Use actual radius value
 				);
 				renderContext.shadowColor = "rgba(0, 0, 0, 0.75)";
 				renderContext.shadowBlur = shadowSize.value * dpr;
@@ -3576,7 +3469,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 				drawY,
 				drawWidth,
 				drawHeight,
-				0 // Set radius to 0 for no rounded corners
+				radius.value * dpr // Use actual radius value
 			);
 			renderContext.clip();
 
@@ -3622,7 +3515,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					drawY,
 					drawWidth,
 					drawHeight,
-					0 // Set radius to 0 for no rounded corners
+					radius.value * dpr // Use actual radius value
 				);
 				renderContext.strokeStyle =
 					videoBorderSettings.value.color || "rgba(0, 0, 0, 1)";
@@ -3736,95 +3629,6 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// 🎬 GIF Overlay Rendering (HIGHEST Z-INDEX - on top of everything including camera)
 		const currentGifs = getGifsAtTime(canvasTime);
-		if (currentGifs.length > 0) {
-			// Export sırasında GIF preloading artık ExportService tarafından yapılıyor
-			// Bu kod sadece debug bilgisi için kontrol eder
-			if (false && isExporting && !window.gifsPreloaded) {
-				console.log(`[MediaPlayer] Export: Preloading all GIFs for export...`);
-				window.gifsPreloaded = true;
-				
-				// Tüm aktif GIF'leri preload et
-				activeGifs.value.forEach((gif) => {
-					const cacheKey = gif.id || gif.url;
-					if (!window.gifVideoCache || !window.gifVideoCache.has(cacheKey)) {
-						console.log(`[MediaPlayer] Export: Force loading GIF ${gif.id}`);
-						
-						// Force GIF video element yüklenmesi
-						const gifVideo = document.createElement("video");
-						gifVideo.crossOrigin = "anonymous";
-						gifVideo.muted = true;
-						gifVideo.loop = true;
-						gifVideo.playsInline = true;
-						gifVideo.preload = "auto";
-						
-						const videoUrl = gif.mp4Url || gif.url;
-						
-						gifVideo.onloadeddata = () => {
-							console.log(`[MediaPlayer] Export: GIF ${gif.id} preloaded successfully`);
-							if (!window.gifVideoCache) window.gifVideoCache = new Map();
-							window.gifVideoCache.set(cacheKey, gifVideo);
-							
-							// Export sırasında oynat
-							if (isExporting) {
-								gifVideo.play().catch(console.warn);
-							}
-						};
-						
-						gifVideo.onerror = () => {
-							console.warn(`[MediaPlayer] Export: Failed to preload GIF ${gif.id}`);
-						};
-						
-						gifVideo.src = videoUrl;
-					}
-				});
-			}
-			
-			// Export debugging
-			if (isExporting && Math.floor(canvasTime * 10) % 10 === 0) {
-				console.log(`[MediaPlayer] Export GIF Debug: Time ${canvasTime.toFixed(2)}s, Found ${currentGifs.length} GIFs`);
-				
-				// Cache durumunu kontrol et
-				currentGifs.forEach((gif) => {
-					const cacheKey = gif.id || gif.url;
-					const isCached = window.gifVideoCache && window.gifVideoCache.has(cacheKey);
-					console.log(`[MediaPlayer] Export GIF Cache: ${gif.id} - ${isCached ? 'CACHED' : 'NOT CACHED'}`);
-				});
-			}
-			
-			// Video segment'i olmasa bile GIF ve video overlay'ler render edilebilir
-			let hasVisibleGifs = false;
-			currentGifs.forEach((gif) => {
-				const renderData = getGifRenderData(gif.id, canvasTime);
-				if (renderData && renderData.isVisible) {
-					hasVisibleGifs = true;
-					drawGifOverlay(ctx, renderData, dpr, scaleValue);
-					
-					// Export debugging
-					if (isExporting && Math.floor(canvasTime * 10) % 10 === 0) {
-						console.log(`[MediaPlayer] Export GIF Rendered: ${gif.id} at ${canvasTime.toFixed(2)}s`);
-					}
-				} else if (isExporting && Math.floor(canvasTime * 10) % 10 === 0) {
-					console.log(`[MediaPlayer] Export GIF Skipped: ${gif.id} - renderData:`, renderData?.isVisible);
-				}
-			});
-
-			// Export sırasında veya canvas oynatılırken GIF animasyonunu aktif et
-			if (hasVisibleGifs && (videoState.value.isPlaying || isExporting)) {
-				// GIF'ler canvas oynatılırken veya export sırasında animate olur
-				if (!window.gifAnimationActive || isExporting) {
-					window.gifAnimationActive = true;
-					// Export sırasında FPS limit'i yok, normal modda daha düşük FPS kullan
-					if (!isExporting) {
-						setTimeout(() => {
-							window.gifAnimationActive = false;
-							if (ctx) {
-								requestAnimationFrame(() => updateCanvas(performance.now()));
-							}
-						}, 100); // 10 FPS for GIFs in normal mode
-					}
-				}
-			}
-		}
 
 		// 🌟 Zoom Overlay (EN ÜST LAYER - her şeyin üstünde)
 		if (canvasZoomScale.value > 1.01) {
@@ -4150,18 +3954,6 @@ const initVideo = () => {
 
 		// Error handling
 		videoElement.addEventListener("error", (e) => {
-			console.error("[MediaPlayer] Video loading error:", {
-				error: videoElement.error,
-				errorCode: videoElement.error?.code,
-				errorMessage: videoElement.error?.message,
-				networkState: videoElement.networkState,
-				readyState: videoElement.readyState,
-			});
-
-			// Video loading error durumunda playback'i durdur
-			console.log(
-				"[MediaPlayer] Video loading error - calling jumpToSegmentEnd"
-			);
 			jumpToSegmentEnd();
 		});
 
@@ -4544,18 +4336,12 @@ onMounted(() => {
 	// Audio buffer optimization - stuttering fix
 	nextTick(() => {
 		if (audioRef.value) {
-			console.log(
-				"[MediaPlayer] Optimizing audio settings for smooth playback"
-			);
-
 			// Better audio settings
 			audioRef.value.preload = "auto";
 			audioRef.value.volume = 1.0;
 
 			// Force audio context resume (browser autoplay policy)
 			audioRef.value.addEventListener("loadeddata", () => {
-				console.log("[MediaPlayer] Audio loaded, ensuring smooth playback");
-
 				// Try to create audio context for better performance
 				try {
 					if (window.AudioContext || window.webkitAudioContext) {
@@ -4914,16 +4700,31 @@ defineExpose({
 			)
 		);
 
-		// Timeline pozisyonunu set et
-		videoState.value.currentTime = targetTime;
+		// Video element'inin currentTime'ını güncelle
+		videoElement.currentTime = targetTime;
 
-		// Canvas'ı güncelle (video mapping burada yapılır)
+		// Audio element'inin currentTime'ını da güncelle
+		if (audioRef.value) {
+			audioRef.value.currentTime = targetTime;
+		}
+
+		// Camera element'inin currentTime'ını güncelle
+		if (cameraElement) {
+			if (synchronizedTimestamps.value) {
+				const synchronizedCameraTime =
+					getSynchronizedTimestamp("camera", targetTime * 1000) / 1000;
+				cameraElement.currentTime = synchronizedCameraTime;
+			} else {
+				const { cursorOffset } = usePlayerSettings();
+				cameraElement.currentTime = targetTime + cursorOffset.value;
+			}
+		}
+
+		// Timeline pozisyonunu set et ve canvas'ı güncelle
+		videoState.value.currentTime = targetTime;
 		requestAnimationFrame(() => {
 			updateCanvas(performance.now());
 		});
-
-		// Timeline position'ı emit et
-		emit("timeUpdate", targetTime);
 	},
 
 	// Video element access
@@ -5109,8 +4910,6 @@ defineExpose({
 
 			// Canvas'ı hemen güncelle
 			requestAnimationFrame(() => updateCanvas(performance.now()));
-
-			console.log(`Canvas size changed to: ${width}×${height}`);
 		} catch (error) {
 			console.error("[MediaPlayer] Canvas size change error:", error);
 		}
@@ -5379,7 +5178,7 @@ defineExpose({
 			};
 		}
 	},
-	
+
 	// GIF selection management
 	clearAllSelections,
 });
@@ -5622,7 +5421,7 @@ const handleMouseMove = (e) => {
 
 	// Mouse pozisyonlarını güncelle
 	mousePosition.value = { x: mouseX, y: mouseY };
-	
+
 	// Update GIF hover states
 	updateGifHoverStates(mouseX, mouseY);
 
@@ -5631,22 +5430,35 @@ const handleMouseMove = (e) => {
 		// Set appropriate cursor during drag/resize/rotate
 		if (canvasRef.value) {
 			if (dragState.isDragging) {
-				canvasRef.value.style.cursor = 'grabbing';
+				canvasRef.value.style.cursor = "grabbing";
 			} else if (dragState.isRotating) {
-				canvasRef.value.style.cursor = 'grabbing'; // or a rotate cursor if available
+				canvasRef.value.style.cursor = "grabbing"; // or a rotate cursor if available
 			} else if (dragState.isResizing) {
 				// Keep the resize cursor based on handle type
 				const handleType = dragState.resizeHandle;
 				switch (handleType) {
-					case 'nw': case 'se': canvasRef.value.style.cursor = 'nw-resize'; break;
-					case 'ne': case 'sw': canvasRef.value.style.cursor = 'ne-resize'; break;
-					case 'n': case 's': canvasRef.value.style.cursor = 'ns-resize'; break;
-					case 'e': case 'w': canvasRef.value.style.cursor = 'ew-resize'; break;
-					default: canvasRef.value.style.cursor = 'grabbing';
+					case "nw":
+					case "se":
+						canvasRef.value.style.cursor = "nw-resize";
+						break;
+					case "ne":
+					case "sw":
+						canvasRef.value.style.cursor = "ne-resize";
+						break;
+					case "n":
+					case "s":
+						canvasRef.value.style.cursor = "ns-resize";
+						break;
+					case "e":
+					case "w":
+						canvasRef.value.style.cursor = "ew-resize";
+						break;
+					default:
+						canvasRef.value.style.cursor = "grabbing";
 				}
 			}
 		}
-		
+
 		// Call GIF manager's mouse move handler
 		handleGifMouseMove(e);
 		// Update canvas immediately for smooth real-time feedback
@@ -5782,12 +5594,10 @@ watch(
 watch(
 	mouseVisible,
 	(newValue) => {
-		console.log("[MediaPlayer] mouseVisible changed to:", newValue);
 		if (!ctx || !canvasRef.value) return;
 
 		// Canvas'ı hemen güncelle
 		requestAnimationFrame(() => {
-			console.log("[MediaPlayer] Updating canvas due to mouseVisible change");
 			updateCanvas(performance.now());
 		});
 	},
@@ -6100,7 +5910,6 @@ const handlePaste = (event) => {
 	if (window.copiedGifData) {
 		const { addGifToCanvas } = useGifManager();
 		addGifToCanvas(window.copiedGifData);
-		console.log("Copied GIF pasted:", window.copiedGifData.title);
 		return;
 	}
 
@@ -6154,7 +5963,6 @@ const handlePaste = (event) => {
 					addGifToCanvas(imageObject);
 				};
 				img.src = imageUrl;
-				console.log("Pasted image added:", imageObject);
 				break;
 			}
 		}
@@ -6182,8 +5990,6 @@ const handleCopy = (event) => {
 					x: selectedGif.x + 50, // Offset position for pasted copy
 					y: selectedGif.y + 50,
 				};
-
-				console.log("GIF copied:", selectedGif.title);
 			}
 		}
 	}
