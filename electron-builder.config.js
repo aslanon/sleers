@@ -53,6 +53,7 @@ module.exports = {
 		entitlements: "build/entitlements.mac.plist",
 		entitlementsInherit: "build/entitlements.mac.plist",
 		artifactName: "${productName}-${version}-arm64.${ext}",
+		notarize: false, // Will be enabled via environment variables
 		extendInfo: {
 			CFBundleDisplayName: "Creavit Studio",
 			CFBundleName: "Creavit Studio",
