@@ -6107,8 +6107,30 @@ canvas {
 }
 
 canvas:focus {
-	outline: 2px solid rgba(59, 130, 246, 0.5); /* Optional: subtle focus indicator */
-	outline-offset: 2px;
+	outline: none; /* Remove focus outline completely */
+}
+
+/* Remove any container focus outline */
+.relative:focus,
+.relative:focus-visible {
+	outline: none !important;
+	border: none !important;
+	box-shadow: none !important;
+}
+
+/* Remove all possible focus borders */
+*:focus,
+*:focus-visible {
+	outline: none !important;
+	border-color: transparent !important;
+}
+
+/* Specifically for canvas container */
+#canvasID:focus,
+#canvasID:focus-visible {
+	outline: none !important;
+	border: none !important;
+	box-shadow: none !important;
 }
 
 video {

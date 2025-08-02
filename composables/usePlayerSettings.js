@@ -18,13 +18,13 @@ const synchronizedTimestamps = ref(null); // Synchronized recording timestamps
 const backgroundColor = ref("");
 const backgroundImage = ref(`/backgrounds/image7.jpg`);
 const backgroundBlur = ref(0);
-const backgroundType = ref("color"); // "color", "image", "gradient"
+const backgroundType = ref("image"); // "color", "image", "gradient" - default to image
 const backgroundGradient = ref({
 	type: "linear", // "linear", "radial"
-	direction: "to-bottom", // "to-top", "to-bottom", "to-left", "to-right", "to-top-right", etc.
+	direction: "to-right", // "to-top", "to-bottom", "to-left", "to-right", "to-top-right", etc.
 	colors: [
-		{ color: "#ff7eb3", position: 0 },
-		{ color: "#ff758c", position: 100 }
+		{ color: "#2196F3", position: 0 }, // Blue Ocean gradient (7th gradient)
+		{ color: "#21CBF3", position: 100 }
 	]
 });
 const basePadding = ref(128);
