@@ -796,7 +796,7 @@ const previewPlayheadOffset = computed(() => {
 	);
 
 	// Eğer mesafe 1%'den azsa (yaklaşık üst üste geliyorlarsa) 10px aşağı kaydır
-	if (distance <= 0.1) {
+	if (distance <= 0.35) {
 		return 14;
 	}
 

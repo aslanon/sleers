@@ -3629,6 +3629,25 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// 🎬 GIF Overlay Rendering (HIGHEST Z-INDEX - on top of everything including camera)
 		const currentGifs = getGifsAtTime(canvasTime);
+		
+		// Render all GIFs for current time
+		currentGifs.forEach((gif) => {
+			const renderData = getGifRenderData(gif.id, canvasTime);
+			if (renderData && renderData.isVisible) {
+				drawGifOverlay(ctx, renderData, dpr, scaleValue);
+				
+				// Draw transform handles for selected GIF
+				if (renderData.isSelected) {
+					drawGifBorder(ctx, 
+						renderData.x * dpr * scaleValue,
+						renderData.y * dpr * scaleValue, 
+						renderData.width * dpr * scaleValue,
+						renderData.height * dpr * scaleValue,
+						renderData, dpr, scaleValue
+					);
+				}
+			}
+		});
 
 		// 🌟 Zoom Overlay (EN ÜST LAYER - her şeyin üstünde)
 		if (canvasZoomScale.value > 1.01) {

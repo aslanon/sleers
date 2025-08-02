@@ -249,6 +249,8 @@ export const useGifManager = () => {
 
 	// Select GIF for editing
 	const selectGif = (gifId) => {
+		console.log('[selectGif] Selecting GIF:', gifId);
+		
 		// Deselect all other GIFs
 		activeGifs.value.forEach((gif) => {
 			gif.isSelected = gif.id === gifId;
@@ -256,25 +258,19 @@ export const useGifManager = () => {
 
 		selectedGifId.value = gifId;
 
-		// Clear handle data when selection changes to force recalculation
-		if (typeof window !== "undefined" && window.gifHandleData) {
-			window.gifHandleData.clear();
-		}
+		// DON'T clear handle data - let it persist for better re-selection
+		// The handles will be recalculated naturally on next render
 
-		// Emit selection event
+		// Emit selection event immediately without debouncing for faster response
 		if (typeof window !== "undefined") {
-			// Debounce event dispatch to prevent excessive updates
-			if (window.gifEventTimeout) {
-				clearTimeout(window.gifEventTimeout);
-			}
-			window.gifEventTimeout = setTimeout(() => {
-				window.dispatchEvent(
-					new CustomEvent("gif-selected", {
-						detail: { gifId },
-					})
-				);
-			}, 50);
+			window.dispatchEvent(
+				new CustomEvent("gif-selected", {
+					detail: { gifId },
+				})
+			);
 		}
+		
+		console.log('[selectGif] Selected GIF ID set to:', selectedGifId.value);
 	};
 
 	// Update GIF position
@@ -463,6 +459,10 @@ export const useGifManager = () => {
 								dragState.originalHeight = gif.height * dpr * scaleValue;
 								dragState.originalX = gif.x * dpr * scaleValue;
 								dragState.originalY = gif.y * dpr * scaleValue;
+								
+								// Store handle offset for natural resize behavior
+								dragState.handleOffsetX = x - handle.x;
+								dragState.handleOffsetY = y - handle.y;
 
 								// Add mouse move and up listeners
 								document.addEventListener("mousemove", handleMouseMove);
@@ -509,10 +509,27 @@ export const useGifManager = () => {
 			return clickedGif;
 		}
 
-		// If no GIF clicked, deselect all (empty canvas click)
-		clearAllSelections();
-
+		// No GIF clicked - return null without clearing selections
+		console.log('[handleGifClick] No GIF clicked');
 		return null;
+	};
+
+	// Helper function to get normalized coordinates
+	const getNormalizedCoordinates = (event) => {
+		const canvas = document.querySelector("#canvasID");
+		if (!canvas) return null;
+
+		const rect = canvas.getBoundingClientRect();
+		const dpr = 1;
+		const scaleValue = 3;
+		
+		return {
+			x: (event.clientX - rect.left) * dpr * scaleValue,
+			y: (event.clientY - rect.top) * dpr * scaleValue,
+			dpr,
+			scaleValue,
+			rect
+		};
 	};
 
 	// Mouse event handlers for drag, resize and rotate - optimized for smooth performance
@@ -520,77 +537,62 @@ export const useGifManager = () => {
 		if (!dragState.isDragging && !dragState.isResizing && !dragState.isRotating)
 			return;
 
-		// Cache frequently used values
-		const dpr = 1;
-		const scaleValue = 3; // Match MediaPlayer scale value
-
-		// Get canvas bounds - cache this for better performance
-		const canvas = document.querySelector("#canvasID");
-		if (!canvas) return;
-
-		// Pre-calculate mouse position once
-		const rect = canvas.getBoundingClientRect();
-		const x = (event.clientX - rect.left) * dpr * scaleValue;
-		const y = (event.clientY - rect.top) * dpr * scaleValue;
+		const coords = getNormalizedCoordinates(event);
+		if (!coords) return;
 
 		// Find the GIF being manipulated once
 		const gif = activeGifs.value.find((g) => g.id === dragState.draggedGifId);
 		if (!gif) return;
 
 		if (dragState.isDragging) {
-			// Direct position calculation for smooth dragging
-			gif.x = (x - dragState.offsetX) / (dpr * scaleValue);
-			gif.y = (y - dragState.offsetY) / (dpr * scaleValue);
+			// Natural 1:1 dragging - mouse position directly controls element position
+			const newX = (coords.x - dragState.offsetX) / (coords.dpr * coords.scaleValue);
+			const newY = (coords.y - dragState.offsetY) / (coords.dpr * coords.scaleValue);
+			
+			// Immediate position update for natural feel - no rounding for smooth movement
+			gif.x = newX;
+			gif.y = newY;
 
-			// Throttle position updates to reduce UI flicker
-			if (!window.gifUpdateThrottle) {
-				window.gifUpdateThrottle = true;
-				requestAnimationFrame(() => {
-					updateGifPosition();
-					window.gifUpdateThrottle = false;
-				});
-			}
+			// Immediate update without throttling for 1:1 mouse sync
+			updateGifPosition();
 		} else if (dragState.isResizing) {
-			// Direct resize handling for smooth resizing
+			// Natural resize handling with immediate feedback
 			handleGifResize(
 				gif,
 				event.clientX,
 				event.clientY,
 				dragState.resizeHandle
 			);
+			
+			// Immediate updates for natural feel
+			updateGifPosition();
+			updateGifSize();
 		} else if (dragState.isRotating) {
-			// Calculate rotation based on mouse position relative to element center
-			const currentMouseX = (event.clientX - rect.left) * dpr * scaleValue;
-			const currentMouseY = (event.clientY - rect.top) * dpr * scaleValue;
-
-			// Calculate angle from element center to current mouse position
-			const deltaX = currentMouseX - dragState.elementCenterX;
-			const deltaY = currentMouseY - dragState.elementCenterY;
+			// Natural rotation - calculate angle from center to current mouse position
+			const deltaX = coords.x - dragState.elementCenterX;
+			const deltaY = coords.y - dragState.elementCenterY;
 			const currentAngle = Math.atan2(deltaY, deltaX);
 
-			// Calculate angle from element center to start mouse position
+			// Calculate the initial angle when rotation started
 			const startDeltaX = dragState.startX - dragState.elementCenterX;
 			const startDeltaY = dragState.startY - dragState.elementCenterY;
 			const startAngle = Math.atan2(startDeltaY, startDeltaX);
 
-			// Calculate rotation difference in degrees
+			// Calculate the rotation difference in degrees
 			let rotationDelta = (currentAngle - startAngle) * (180 / Math.PI);
 
-			// Apply new rotation
-			gif.rotation = dragState.originalRotation + rotationDelta;
+			// Apply smooth natural rotation
+			const newRotation = dragState.originalRotation + rotationDelta;
+			
+			// Normalize to 0-360 range
+			let normalizedRotation = newRotation % 360;
+			if (normalizedRotation < 0) normalizedRotation += 360;
 
-			// Normalize rotation to 0-360 range
-			while (gif.rotation < 0) gif.rotation += 360;
-			while (gif.rotation >= 360) gif.rotation -= 360;
+			// Apply rotation with 5-degree snapping for more natural feel
+			gif.rotation = Math.round(normalizedRotation / 5) * 5;
 
-			// Throttle rotation updates to reduce UI flicker
-			if (!window.gifRotateThrottle) {
-				window.gifRotateThrottle = true;
-				requestAnimationFrame(() => {
-					updateGifRotation();
-					window.gifRotateThrottle = false;
-				});
-			}
+			// Immediate update for natural responsiveness
+			updateGifRotation();
 		}
 
 		// Force immediate canvas update for smooth visual feedback during interaction
@@ -610,22 +612,22 @@ export const useGifManager = () => {
 			dragState.originalRotation = 0;
 			dragState.elementCenterX = 0;
 			dragState.elementCenterY = 0;
+			dragState.handleOffsetX = 0;
+			dragState.handleOffsetY = 0;
 
 			// Clear rotate zones
 			if (typeof window !== "undefined" && window.gifRotateZones) {
 				window.gifRotateZones.clear();
 			}
 
-			// Clear old handle data to force recalculation - CRITICAL FIX
-			if (typeof window !== "undefined" && window.gifHandleData) {
-				window.gifHandleData.clear();
-			}
+			// DON'T clear handle data - let it persist for stable re-selection
 
 			// Clear throttle flags to prevent stale state
 			if (typeof window !== "undefined") {
 				window.gifUpdateThrottle = false;
 				window.gifRotateThrottle = false;
 				window.gifSizeThrottle = false;
+				window.gifResizeThrottle = false;
 				window.transformUpdatePending = false;
 			}
 
@@ -633,7 +635,7 @@ export const useGifManager = () => {
 			document.removeEventListener("mousemove", handleMouseMove);
 			document.removeEventListener("mouseup", handleMouseUp);
 
-			// Force multiple canvas updates to ensure handles are properly calculated with new positions/rotation
+			// Force canvas update to refresh handles
 			if (typeof window !== "undefined") {
 				// Immediate update to refresh handle positions
 				window.dispatchEvent(new CustomEvent("gif-interaction-ended"));
@@ -880,21 +882,15 @@ export const useGifManager = () => {
 				return;
 		}
 
-		// Apply the new values directly for immediate response
+		// Apply the new values for natural movement
 		// Convert back from canvas coordinates to gif coordinates
 		gif.x = newX / (dpr * scaleValue);
 		gif.y = newY / (dpr * scaleValue);
 		gif.width = newW / (dpr * scaleValue);
 		gif.height = newH / (dpr * scaleValue);
 
-		// Throttle size updates to reduce UI flicker
-		if (!window.gifSizeThrottle) {
-			window.gifSizeThrottle = true;
-			requestAnimationFrame(() => {
-				updateGifSize();
-				window.gifSizeThrottle = false;
-			});
-		}
+		// Immediate size update for natural feel - no throttling
+		updateGifSize();
 	};
 
 	// Legacy resize function for compatibility
