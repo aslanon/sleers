@@ -36,7 +36,6 @@ class MediaStateManager {
 				error: null,
 			},
 		};
-		this.recordingCheckInterval = null;
 		this.fileCheckAttempts = 0;
 		this.maxFileCheckAttempts = 50; // 5 saniye (100ms * 50)
 		this.mousePositions = [];
@@ -314,8 +313,6 @@ class MediaStateManager {
 					);
 
 					if (isValid) {
-						clearInterval(this.recordingCheckInterval);
-
 						// Dosyanın tamamen yazılmasını bekle
 						await new Promise((resolve) => setTimeout(resolve, 500));
 
@@ -426,7 +423,6 @@ class MediaStateManager {
 					this.fileCheckAttempts >= maxAttempts ||
 					elapsedTime >= maxWaitTime
 				) {
-					clearInterval(this.recordingCheckInterval);
 					console.warn(
 						"[MediaStateManager] Dosya bekleme süresi/deneme aşıldı:",
 						{
@@ -505,9 +501,6 @@ class MediaStateManager {
 				}
 			};
 
-			// Her 100ms'de bir kontrol et
-			this.recordingCheckInterval = setInterval(checkFiles, 100);
-			// İlk kontrolü hemen yap
 			checkFiles();
 		});
 	}
@@ -583,11 +576,6 @@ class MediaStateManager {
 
 		try {
 			if (status) {
-				// Kayıt başladığında
-				if (this.recordingCheckInterval) {
-					clearInterval(this.recordingCheckInterval);
-				}
-
 				// Önceki kayıtları temizle
 				this.resetState();
 
@@ -609,14 +597,22 @@ class MediaStateManager {
 				});
 
 				// Medya dosyalarını bekle ve kontrol et
-				const result = await this.waitForMediaFiles(tempFileManager);
+				const result = await Promise.race([
+					this.waitForMediaFiles(tempFileManager),
+					new Promise((resolve) =>
+						setTimeout(
+							() =>
+								resolve({
+									success: false,
+									error: "Medya dosyaları 3 saniye içinde hazırlanamadı",
+								}),
+							5000
+						)
+					),
+				]);
 
 				if (result.success) {
 					// Interval'i temizle
-					if (this.recordingCheckInterval) {
-						clearInterval(this.recordingCheckInterval);
-						this.recordingCheckInterval = null;
-					}
 
 					console.log("-------4", result.cameraPath);
 
@@ -742,10 +738,6 @@ class MediaStateManager {
 	}
 
 	cleanup() {
-		if (this.recordingCheckInterval) {
-			clearInterval(this.recordingCheckInterval);
-			this.recordingCheckInterval = null;
-		}
 		this.clearMousePositions();
 		// Temizlik sırasında son log durumlarını da sıfırla
 		if (this._lastLoggedPaths) {
