@@ -24,4 +24,4 @@ logs
 !.env.example
 
 # Build scripts (contains sensitive info)
-#build-notarized.sh
+build-notarized.sh
