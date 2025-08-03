@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useOffscreenRenderer } from "./useOffscreenRenderer";
+import { useCursorPositioning } from "./useCursorPositioning";
 
 export const useCursorOffscreen = () => {
 	const {
@@ -8,6 +9,9 @@ export const useCursorOffscreen = () => {
 		createCursorRenderer,
 		createBlurRenderer
 	} = useOffscreenRenderer();
+
+	// Cursor positioning system
+	const positioning = useCursorPositioning();
 
 	// Cursor offscreen renderers
 	const cursorRenderer = ref(null);
@@ -24,13 +28,18 @@ export const useCursorOffscreen = () => {
 	const cacheMisses = ref(0);
 
 	// Initialize cursor renderers
-	const initializeCursorRenderers = (width, height) => {
+	const initializeCursorRenderers = (width, height, canvas = null) => {
 		if (!isSupported.value) {
 			console.log("[CursorOffscreen] OffscreenCanvas not supported, using fallback");
 			return false;
 		}
 
 		try {
+			// Update positioning system with canvas info
+			if (canvas) {
+				positioning.updateCanvasInfo(canvas);
+			}
+
 			// Main cursor renderer
 			cursorRenderer.value = createCursorRenderer(width, height);
 			
@@ -47,7 +56,8 @@ export const useCursorOffscreen = () => {
 			console.log("[CursorOffscreen] Cursor renderers initialized", {
 				cursor: !!cursorRenderer.value,
 				blur: !!blurRenderer.value,
-				trail: !!trailRenderer.value
+				trail: !!trailRenderer.value,
+				positioning: !!positioning
 			});
 
 			return true;
@@ -71,9 +81,11 @@ export const useCursorOffscreen = () => {
 		}
 
 		const {
-			x, y, cursorType, size, image,
-			hotspot = { x: 0, y: 0 }
+			x, y, cursorType, size, image
 		} = cursorData;
+
+		// Use positioning system to calculate render position
+		const renderPos = positioning.calculateRenderPosition(x, y, cursorType, size, effects.scale || 1);
 
 		const {
 			rotation = 0,
@@ -92,8 +104,8 @@ export const useCursorOffscreen = () => {
 			
 			if (cached) {
 				cacheHits.value++;
-				// Just position the cached cursor
-				return positionCursor(cached, x, y, hotspot);
+				// Just position the cached cursor using positioning system
+				return positionCursor(cached, x, y, cursorType, size);
 			} else {
 				cacheMisses.value++;
 			}
@@ -106,16 +118,15 @@ export const useCursorOffscreen = () => {
 			// Clear cursor canvas
 			ctx.clearRect(0, 0, width, height);
 
-			// Calculate cursor dimensions
-			const cursorWidth = size * scale;
-			const cursorHeight = size * scale;
-			const drawX = x - hotspot.x;
-			const drawY = y - hotspot.y;
+			// Use calculated render position from positioning system
+			const { width: cursorWidth, height: cursorHeight, hotspot } = renderPos;
+			const drawX = renderPos.x;
+			const drawY = renderPos.y;
 
 			// Save context for transforms
 			ctx.save();
 
-			// Move to cursor position
+			// Move to cursor position using normalized coordinates
 			ctx.translate(drawX + cursorWidth / 2, drawY + cursorHeight / 2);
 
 			// Apply transforms
@@ -223,7 +234,7 @@ export const useCursorOffscreen = () => {
 	};
 
 	// Position cached cursor on main canvas
-	const positionCursor = (cachedCursor, x, y, hotspot) => {
+	const positionCursor = (cachedCursor, x, y, cursorType, size) => {
 		if (!cursorRenderer.value) return null;
 
 		const ctx = cursorRenderer.value.context;
@@ -232,9 +243,10 @@ export const useCursorOffscreen = () => {
 		// Clear canvas
 		ctx.clearRect(0, 0, width, height);
 
-		// Draw cached cursor at position
-		const drawX = x - hotspot.x - 10; // Account for cache padding
-		const drawY = y - hotspot.y - 10;
+		// Use positioning system for accurate placement
+		const renderPos = positioning.calculateRenderPosition(x, y, cursorType, size);
+		const drawX = renderPos.x - 10; // Account for cache padding
+		const drawY = renderPos.y - 10;
 		
 		ctx.drawImage(cachedCursor, drawX, drawY);
 
@@ -368,6 +380,9 @@ export const useCursorOffscreen = () => {
 		
 		// Performance
 		getCursorPerformanceStats,
+		
+		// Positioning system
+		positioning,
 		
 		// State
 		isSupported,

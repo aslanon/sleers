@@ -1,5 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useOffscreenRenderer } from "./useOffscreenRenderer";
+import { useHighQualityVideoZoom } from "./useHighQualityVideoZoom";
 
 export const useMediaPlayerOffscreen = (canvasRef, options = {}) => {
 	const {
@@ -20,6 +21,9 @@ export const useMediaPlayerOffscreen = (canvasRef, options = {}) => {
 		createRenderPipeline,
 		compositeToCanvas
 	} = useOffscreenRenderer();
+
+	// High-quality video zoom system
+	const highQualityZoom = useHighQualityVideoZoom();
 
 	// Offscreen renderers
 	const videoRenderer = ref(null);
@@ -65,6 +69,9 @@ export const useMediaPlayerOffscreen = (canvasRef, options = {}) => {
 		gifRenderer.value = createGifRenderer(width, height);
 		blurRenderer.value = createBlurRenderer(width, height);
 
+		// Initialize high-quality zoom system
+		highQualityZoom.initializeHighResCanvases(width, height);
+
 		console.log("[MediaPlayerOffscreen] Offscreen renderers initialized", {
 			video: !!videoRenderer.value,
 			camera: !!cameraRenderer.value,
@@ -98,39 +105,81 @@ export const useMediaPlayerOffscreen = (canvasRef, options = {}) => {
 		console.log("[MediaPlayerOffscreen] Render pipeline created with", layers.length, "layers");
 	};
 
-	// Render video frame to offscreen canvas
-	const renderVideoFrame = (videoElement, videoState) => {
+	// Render video frame to offscreen canvas with high-quality zoom
+	const renderVideoFrame = (videoElement, videoState, zoomLevel = 1.0, zoomOrigin = { x: 50, y: 50 }) => {
 		if (!videoRenderer.value || !videoElement) return;
 
 		const ctx = videoRenderer.value.context;
 		if (!ctx || videoElement.readyState < 2) return;
 
 		try {
-			// Clear video canvas
-			ctx.clearRect(0, 0, width, height);
-			
-			// Calculate video positioning
-			const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
-			const canvasAspect = width / height;
-			
-			let drawWidth, drawHeight, x, y;
-			if (videoAspect > canvasAspect) {
-				drawHeight = height;
-				drawWidth = drawHeight * videoAspect;
-				x = (width - drawWidth) / 2;
-				y = 0;
-			} else {
-				drawWidth = width;
-				drawHeight = drawWidth / videoAspect;
-				x = 0;
-				y = (height - drawHeight) / 2;
-			}
+			// Check if we need high-quality zoom rendering
+			if (zoomLevel > 1.001) {
+				// Use high-quality zoom system
+				const highQualityResult = highQualityZoom.renderHighQualityVideo(
+					videoElement, 
+					zoomLevel, 
+					zoomOrigin
+				);
 
-			// Draw video to offscreen canvas
-			ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
+				if (highQualityResult) {
+					// Apply zoom viewport to our video canvas
+					ctx.clearRect(0, 0, width, height);
+					
+					const success = highQualityZoom.applyZoomViewport(
+						highQualityResult.canvas,
+						zoomLevel,
+						zoomOrigin,
+						videoRenderer.value.canvas
+					);
+
+					if (!success) {
+						// Fallback to standard rendering
+						renderVideoFrameStandard(videoElement, ctx);
+					}
+				} else {
+					// Fallback to standard rendering
+					renderVideoFrameStandard(videoElement, ctx);
+				}
+			} else {
+				// Standard rendering for no zoom
+				renderVideoFrameStandard(videoElement, ctx);
+			}
 		} catch (error) {
 			console.warn("[MediaPlayerOffscreen] Video render error:", error);
+			// Fallback to standard rendering
+			renderVideoFrameStandard(videoElement, ctx);
 		}
+	};
+
+	// Standard video rendering (fallback)
+	const renderVideoFrameStandard = (videoElement, ctx) => {
+		// Clear video canvas
+		ctx.clearRect(0, 0, width, height);
+		
+		// Calculate video positioning
+		const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
+		const canvasAspect = width / height;
+		
+		let drawWidth, drawHeight, x, y;
+		if (videoAspect > canvasAspect) {
+			drawHeight = height;
+			drawWidth = drawHeight * videoAspect;
+			x = (width - drawWidth) / 2;
+			y = 0;
+		} else {
+			drawWidth = width;
+			drawHeight = drawWidth / videoAspect;
+			x = 0;
+			y = (height - drawHeight) / 2;
+		}
+
+		// Enhanced rendering settings
+		ctx.imageSmoothingEnabled = true;
+		ctx.imageSmoothingQuality = 'high';
+
+		// Draw video to offscreen canvas
+		ctx.drawImage(videoElement, x, y, drawWidth, drawHeight);
 	};
 
 	// Render camera frame to offscreen canvas
@@ -252,8 +301,13 @@ export const useMediaPlayerOffscreen = (canvasRef, options = {}) => {
 			// Fallback to direct canvas rendering
 			renderDirectToCanvas(renderData);
 		} else {
-			// Render to offscreen canvases
-			renderVideoFrame(renderData.videoElement, renderData.videoState);
+			// Render to offscreen canvases with zoom support
+			renderVideoFrame(
+				renderData.videoElement, 
+				renderData.videoState,
+				renderData.zoomLevel || 1.0,
+				renderData.zoomOrigin || { x: 50, y: 50 }
+			);
 			renderCameraFrame(renderData.cameraElement, renderData.cameraSettings, renderData.cameraPosition);
 			renderCursorFrame(renderData.cursorData);
 			renderGifFrame(renderData.gifElements);
@@ -388,6 +442,9 @@ export const useMediaPlayerOffscreen = (canvasRef, options = {}) => {
 		
 		// Performance
 		getPerformanceStats,
+		
+		// High-quality zoom
+		highQualityZoom,
 		
 		// State
 		isSupported,
