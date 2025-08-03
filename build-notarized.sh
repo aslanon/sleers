@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Notarized Build Script for Sleer
+# Notarized Build Script for Creavit Studio
 # This script checks for notarization prerequisites and builds a notarized DMG
 
 set -e  # Exit on any error
@@ -14,7 +14,14 @@ export NODE_ENV=production
 # Load environment variables from .env file if it exists
 if [ -f ".env" ]; then
     echo -e "${BLUE}📄 Loading environment variables from .env file...${NC}"
-    export $(grep -v '^#' .env | xargs)
+    while IFS= read -r line; do
+        if [[ $line != *=* ]]; then
+            continue
+        fi
+        key=$(echo "$line" | cut -d'=' -f1)
+        value=$(echo "$line" | cut -d'=' -f2-)
+        export $key="$value"
+    done < .env
 else
     echo -e "${YELLOW}⚠️ No .env file found. Please create one with your Apple Developer credentials.${NC}"
     echo -e "${YELLOW}💡 You can copy .env.example to .env and fill in your values.${NC}"
@@ -29,7 +36,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🚀 Starting Sleer Notarized Build Process${NC}"
+echo -e "${BLUE}🚀 Starting Creavit Studio Notarized Build Process${NC}"
 
 # Check if required environment variables are set
 check_env_vars() {
@@ -151,12 +158,43 @@ build_app() {
     echo -e "${GREEN}✅ Application built successfully${NC}"
 }
 
+# Sign the application
+sign_app() {
+    echo -e "${YELLOW}🔐 Signing application...${NC}"
+    
+    APP_PATH="dist/mac-arm64/Creavit Studio.app"
+    CERT_ID="790F632019AE0FEBFC485B9AE0A6AB7FF03CC40A"
+    
+    # Check if signing script exists
+    if [ -f "scripts/sign-apple-developer.sh" ]; then
+        echo -e "${BLUE}Running Apple Developer signing with parameters...${NC}"
+        scripts/sign-apple-developer.sh "$APP_PATH" "$CERT_ID"
+    elif [ -f "scripts/sign-app.sh" ]; then
+        echo -e "${BLUE}Running app signing...${NC}"
+        scripts/sign-app.sh "$APP_PATH"
+    else
+        echo -e "${YELLOW}⚠️ No signing script found, skipping additional signing...${NC}"
+        echo -e "${YELLOW}App was already signed by electron-builder during build${NC}"
+    fi
+    
+    echo -e "${GREEN}✅ Application signing completed${NC}"
+}
+
 # Create and sign DMG
 create_dmg() {
     echo -e "${YELLOW}💿 Creating signed DMG...${NC}"
-    npm run electron:build:dmg:signed
     
-    echo -e "${GREEN}✅ Signed DMG created successfully${NC}"
+    # Use the existing npm script for DMG creation
+    echo -e "${BLUE}Running DMG creation command...${NC}"
+    NODE_ENV=production npx electron-builder --mac --arm64 --config.removePackageScripts=false
+    
+    # Check if DMG was created
+    if find . -name "*.dmg" -type f | head -1 | read dmg_file; then
+        echo -e "${GREEN}✅ DMG created: $dmg_file${NC}"
+    else
+        echo -e "${RED}❌ DMG creation failed${NC}"
+        exit 1
+    fi
 }
 
 # Notarize the DMG
@@ -216,7 +254,7 @@ verify_notarization() {
 # Main execution
 main() {
     echo -e "${BLUE}=========================${NC}"
-    echo -e "${BLUE} Sleer Notarized Build${NC}"
+    echo -e "${BLUE} Creavit Studio Notarized Build${NC}"
     echo -e "${BLUE}=========================${NC}"
     echo ""
     
@@ -225,6 +263,7 @@ main() {
     check_certificates
     clean_builds
     build_app
+    sign_app
     create_dmg
     notarize_dmg
     verify_notarization
