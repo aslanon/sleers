@@ -310,7 +310,8 @@ const {
 	canUndo,
 	canRedo,
 	lastAction,
-	nextRedoAction
+	nextRedoAction,
+	isUndoRedoInProgress
 } = useUndoRedo();
 
 // IPC event isimlerini al
@@ -842,6 +843,8 @@ const createStateProviders = () => {
 		getPlayerSettings: () => mediaPlayerRef.value?.getPlayerSettings?.() || {},
 		getZoomRanges: () => playerZoomRanges.value || [],
 		getLayoutRanges: () => layoutRanges.value || [],
+		getVideoPosition: () => mediaPlayerRef.value?.getVideoPosition?.() || { x: 0, y: 0 },
+		getCameraPosition: () => mediaPlayerRef.value?.getCameraPosition?.() || { x: 0, y: 0 },
 		getCameraSettings: () => ({
 			...cameraSettings.value,
 			visible: true, // Add any additional camera state here
@@ -898,10 +901,18 @@ const saveCurrentState = (actionType, description = '') => {
 // Smart settings change handler - only saves state for significant changes
 let settingsChangeTimeout = null;
 const handleSettingsChange = (settingType, description, value) => {
+	// Don't save state during undo/redo operations
+	if (isUndoRedoInProgress.value) {
+		return;
+	}
+	
 	// Debounce rapid changes to avoid too many undo states
 	clearTimeout(settingsChangeTimeout);
 	settingsChangeTimeout = setTimeout(() => {
-		saveCurrentState(settingType, `${description}: ${JSON.stringify(value)}`);
+		// Double check flag hasn't changed during timeout
+		if (!isUndoRedoInProgress.value) {
+			saveCurrentState(settingType, `${description}: ${JSON.stringify(value)}`);
+		}
 	}, 300); // 300ms debounce
 };
 
@@ -1002,7 +1013,15 @@ const restoreState = async (state) => {
 			await mediaPlayerRef.value.restoreSettings(state.playerSettings);
 		}
 		
-		// 10. Force canvas update
+		// 10. Restore video and camera positions
+		if (state.videoPosition && mediaPlayerRef.value && mediaPlayerRef.value.setVideoPosition) {
+			mediaPlayerRef.value.setVideoPosition(state.videoPosition);
+		}
+		if (state.cameraPosition && mediaPlayerRef.value && mediaPlayerRef.value.setCameraPosition) {
+			mediaPlayerRef.value.setCameraPosition(state.cameraPosition);
+		}
+		
+		// 11. Force canvas update
 		if (mediaPlayerRef.value && mediaPlayerRef.value.forceUpdate) {
 			mediaPlayerRef.value.forceUpdate();
 		}
@@ -1073,24 +1092,28 @@ const handleTotalDurationUpdate = (newTotalDuration) => {
 
 // Zoom Range Operations with Undo/Redo Support
 const handleZoomRangeAdded = (zoomRange) => {
-	saveCurrentState('ZOOM_ADD', `Added zoom range ${zoomRange.start.toFixed(2)}s - ${zoomRange.end.toFixed(2)}s`);
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('ZOOM_ADD', `Added zoom range ${zoomRange.start.toFixed(2)}s - ${zoomRange.end.toFixed(2)}s`);
+	}
 };
 
 const handleZoomRangeRemoved = (index) => {
 	const zoomRange = playerZoomRanges.value[index];
-	if (zoomRange) {
+	if (zoomRange && !isUndoRedoInProgress.value) {
 		saveCurrentState('ZOOM_DELETE', `Removed zoom range ${zoomRange.start.toFixed(2)}s - ${zoomRange.end.toFixed(2)}s`);
 	}
 };
 
 // Layout Range Operations with Undo/Redo Support  
 const handleLayoutRangeAdded = (layoutRange) => {
-	saveCurrentState('LAYOUT_ADD', `Added layout range ${layoutRange.start.toFixed(2)}s - ${layoutRange.end.toFixed(2)}s (${layoutRange.type})`);
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('LAYOUT_ADD', `Added layout range ${layoutRange.start.toFixed(2)}s - ${layoutRange.end.toFixed(2)}s (${layoutRange.type})`);
+	}
 };
 
 const handleLayoutRangeRemoved = (index) => {
 	const layoutRange = layoutRanges.value[index];
-	if (layoutRange) {
+	if (layoutRange && !isUndoRedoInProgress.value) {
 		saveCurrentState('LAYOUT_DELETE', `Removed layout range ${layoutRange.start.toFixed(2)}s - ${layoutRange.end.toFixed(2)}s (${layoutRange.type})`);
 	}
 };
@@ -1168,7 +1191,7 @@ const handleSegmentUpdate = async (newSegments) => {
 	}
 	
 	// Save state for undo/redo - only for significant changes like drag/resize operations
-	if (newSegments.length === segments.value.length) {
+	if (newSegments.length === segments.value.length && !isUndoRedoInProgress.value) {
 		const hasSignificantChange = newSegments.some((newSeg, index) => {
 			const oldSeg = segments.value[index];
 			return oldSeg && (
@@ -1255,7 +1278,9 @@ const handleSegmentSelect = async (index) => {
 // Segment trim işlemi tamamlandığında
 const handleSegmentTrimmed = async (index) => {
 	// Save state for undo/redo
-	saveCurrentState('TIMELINE_TRIM', `Trimmed segment ${index + 1}`);
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('TIMELINE_TRIM', `Trimmed segment ${index + 1}`);
+	}
 	
 	// MediaPlayer otomatik olarak segment clipping uygulayacak
 	// Sadece oynatmayı durduralım
@@ -1438,7 +1463,9 @@ const handleSegmentSplit = ({
 	totalDuration,
 }) => {
 	// Save state for undo/redo
-	saveCurrentState('TIMELINE_SPLIT', `Split segment at ${splitTime?.toFixed(2) || 'unknown'}s`);
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('TIMELINE_SPLIT', `Split segment at ${splitTime?.toFixed(2) || 'unknown'}s`);
+	}
 	
 	// Orijinal segmentleri kopyala
 	const updatedSegments = [...segments.value];
@@ -1550,7 +1577,9 @@ watch(isPlaying, (playing) => {
 // Segment yönetimi
 const handleSegmentsReordered = (newSegments) => {
 	// Save state for undo/redo
-	saveCurrentState('TIMELINE_REORDER', 'Reordered timeline segments');
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('TIMELINE_REORDER', 'Reordered timeline segments');
+	}
 	
 	// Yeni segment sıralamasını uygula
 	segments.value = newSegments;
@@ -1972,7 +2001,9 @@ const handleSegmentDelete = async (index) => {
 
 	// Save state for undo/redo before deletion
 	const segmentToDelete = segments.value[index];
-	saveCurrentState('TIMELINE_DELETE', `Deleted segment ${index + 1} (${segmentToDelete.duration?.toFixed(2) || 'unknown'}s)`);
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('TIMELINE_DELETE', `Deleted segment ${index + 1} (${segmentToDelete.duration?.toFixed(2) || 'unknown'}s)`);
+	}
 
 	// Set deletion guard and timestamp
 	isDeletingSegment.value = true;
@@ -2311,7 +2342,9 @@ const handleSplitCurrentSegment = () => {
 	segments.value.splice(segmentIndex, 1, leftSegment, rightSegment);
 	
 	// Save state for undo/redo
-	saveCurrentState('TIMELINE_SPLIT_CURRENT', `Split current segment at ${splitPoint.toFixed(2)}s`);
+	if (!isUndoRedoInProgress.value) {
+		saveCurrentState('TIMELINE_SPLIT_CURRENT', `Split current segment at ${splitPoint.toFixed(2)}s`);
+	}
 
 	// Segmentleri sıkıştır - SİLİNDİ: Bu çağrı segment silme işleminden sonra timeline'ı bozuyor
 	// compactSegments();

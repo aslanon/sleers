@@ -4,6 +4,19 @@ import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useBackgroundRemoval } from "~/composables/useBackgroundRemoval";
 import { useTensorFlowWebcam } from "~/composables/useTensorFlowWebcam";
 
+// Undo/Redo callback for camera transformations
+let cameraUndoRedoCallback = null;
+
+const setCameraUndoRedoCallback = (callback) => {
+	cameraUndoRedoCallback = callback;
+};
+
+const triggerCameraUndoRedoSave = (actionType, description) => {
+	if (cameraUndoRedoCallback) {
+		cameraUndoRedoCallback(actionType, description);
+	}
+};
+
 export const useCamera = () => {
 	// ===== KAMERA CİHAZ YÖNETİMİ =====
 	const videoDevices = ref([]);
@@ -1209,6 +1222,10 @@ export const useCamera = () => {
 	};
 
 	const stopResize = () => {
+		if (isResizing.value) {
+			// Save state for undo/redo before stopping resize
+			triggerCameraUndoRedoSave('CAMERA_RESIZE', 'Camera resized');
+		}
 		isResizing.value = false;
 		resizeHandle.value = null;
 		window.removeEventListener("mousemove", handleResize);
@@ -1216,6 +1233,10 @@ export const useCamera = () => {
 	};
 
 	const stopDrag = () => {
+		if (isDragging.value) {
+			// Save state for undo/redo before stopping drag
+			triggerCameraUndoRedoSave('CAMERA_MOVE', 'Camera moved');
+		}
 		isDragging.value = false;
 		window.removeEventListener("mousemove", handleDrag);
 		window.removeEventListener("mouseup", stopDrag);
@@ -1263,5 +1284,11 @@ export const useCamera = () => {
 		handleResize,
 		stopResize,
 		detectHandle,
+		
+		// Undo/Redo support
+		setCameraUndoRedoCallback,
 	};
 };
+
+// Export the callback setter for external access
+export { setCameraUndoRedoCallback };

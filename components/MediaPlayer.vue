@@ -96,6 +96,8 @@ import { useRoundRect } from "~/composables/useRoundRect";
 import VideoCropModal from "~/components/player-settings/VideoCropModal.vue";
 import { useLayoutRenderer } from "~/composables/useLayoutRenderer";
 import { useGifManager } from "~/composables/useGifManager";
+import { setCameraUndoRedoCallback } from "~/composables/modules/useCamera";
+import { setVideoUndoRedoCallback } from "~/composables/useVideoDrag";
 
 const emit = defineEmits([
 	"videoLoaded",
@@ -4460,6 +4462,8 @@ const forceUpdate = () => {
 // Setup undo/redo callback
 const setupUndoRedoCallback = (callback) => {
 	setUndoRedoCallback(callback);
+	setCameraUndoRedoCallback(callback);
+	setVideoUndoRedoCallback(callback);
 };
 
 // Component lifecycle
@@ -5334,6 +5338,8 @@ defineExpose({
 	// Undo/redo support functions
 	getActiveGifs,
 	getPlayerSettings, 
+	getVideoPosition: () => videoPosition.value || { x: 0, y: 0 },
+	getCameraPosition: () => cameraPosition.value || { x: 0, y: 0 },
 	restoreGifs,
 	restoreSettings,
 	forceUpdate,

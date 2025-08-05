@@ -4,10 +4,17 @@ import { ref, computed } from 'vue'
 const undoStack = ref([])
 const redoStack = ref([])
 const maxHistorySize = ref(50) // Limit history to prevent memory issues
+const isUndoRedoInProgress = ref(false) // Flag to prevent state saving during undo/redo
 
 export const useUndoRedo = () => {
   // Add state to undo stack
   const saveState = (actionType, state, description = '') => {
+    // Don't save state during undo/redo operations
+    if (isUndoRedoInProgress.value) {
+      console.log(`[UndoRedo] Skipping state save during undo/redo operation: ${actionType}`)
+      return
+    }
+    
     // Create deep copy of state to prevent mutation
     const stateCopy = JSON.parse(JSON.stringify(state))
     
@@ -41,17 +48,27 @@ export const useUndoRedo = () => {
       return null
     }
     
-    // Get current state before undo (for redo)
-    const currentEntry = undoStack.value.pop()
-    redoStack.value.push(currentEntry)
+    // Set flag to prevent state saving during undo
+    isUndoRedoInProgress.value = true
     
-    // Get previous state
-    const previousEntry = undoStack.value[undoStack.value.length - 1]
-    
-    console.log(`[UndoRedo] Undoing: ${currentEntry.actionType} - ${currentEntry.description}`)
-    console.log(`[UndoRedo] Undo stack size: ${undoStack.value.length}, Redo stack size: ${redoStack.value.length}`)
-    
-    return previousEntry ? previousEntry.state : null
+    try {
+      // Get current state before undo (for redo)
+      const currentEntry = undoStack.value.pop()
+      redoStack.value.push(currentEntry)
+      
+      // Get previous state
+      const previousEntry = undoStack.value[undoStack.value.length - 1]
+      
+      console.log(`[UndoRedo] Undoing: ${currentEntry.actionType} - ${currentEntry.description}`)
+      console.log(`[UndoRedo] Undo stack size: ${undoStack.value.length}, Redo stack size: ${redoStack.value.length}`)
+      
+      return previousEntry ? previousEntry.state : null
+    } finally {
+      // Always reset flag, even if there's an error
+      setTimeout(() => {
+        isUndoRedoInProgress.value = false
+      }, 100) // Small delay to ensure all state updates are processed
+    }
   }
   
   // Redo last undone action
@@ -61,13 +78,23 @@ export const useUndoRedo = () => {
       return null
     }
     
-    const redoEntry = redoStack.value.pop()
-    undoStack.value.push(redoEntry)
+    // Set flag to prevent state saving during redo
+    isUndoRedoInProgress.value = true
     
-    console.log(`[UndoRedo] Redoing: ${redoEntry.actionType} - ${redoEntry.description}`)
-    console.log(`[UndoRedo] Undo stack size: ${undoStack.value.length}, Redo stack size: ${redoStack.value.length}`)
-    
-    return redoEntry.state
+    try {
+      const redoEntry = redoStack.value.pop()
+      undoStack.value.push(redoEntry)
+      
+      console.log(`[UndoRedo] Redoing: ${redoEntry.actionType} - ${redoEntry.description}`)
+      console.log(`[UndoRedo] Undo stack size: ${undoStack.value.length}, Redo stack size: ${redoStack.value.length}`)
+      
+      return redoEntry.state
+    } finally {
+      // Always reset flag, even if there's an error
+      setTimeout(() => {
+        isUndoRedoInProgress.value = false
+      }, 100) // Small delay to ensure all state updates are processed
+    }
   }
   
   // Clear all history
@@ -102,6 +129,8 @@ export const useUndoRedo = () => {
         playerSettings: stateProviders.getPlayerSettings?.() || {},
         zoomRanges: stateProviders.getZoomRanges?.() || [],
         layoutRanges: stateProviders.getLayoutRanges?.() || [],
+        videoPosition: stateProviders.getVideoPosition?.() || { x: 0, y: 0 },
+        cameraPosition: stateProviders.getCameraPosition?.() || { x: 0, y: 0 },
         cameraSettings: stateProviders.getCameraSettings?.() || {},
         cursorSettings: stateProviders.getCursorSettings?.() || {},
         backgroundSettings: stateProviders.getBackgroundSettings?.() || {},
@@ -186,6 +215,7 @@ export const useUndoRedo = () => {
     historySize,
     lastAction,
     nextRedoAction,
+    isUndoRedoInProgress: computed(() => isUndoRedoInProgress.value),
     
     // Configuration
     maxHistorySize,

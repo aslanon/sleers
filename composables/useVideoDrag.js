@@ -1,5 +1,18 @@
 import { ref } from "vue";
 
+// Undo/Redo callback for video transformations
+let videoUndoRedoCallback = null;
+
+const setVideoUndoRedoCallback = (callback) => {
+	videoUndoRedoCallback = callback;
+};
+
+const triggerVideoUndoRedoSave = (actionType, description) => {
+	if (videoUndoRedoCallback) {
+		videoUndoRedoCallback(actionType, description);
+	}
+};
+
 export const useVideoDrag = () => {
 	const isDragging = ref(false);
 	const dragOffset = ref({ x: 0, y: 0 });
@@ -37,6 +50,10 @@ export const useVideoDrag = () => {
 	};
 
 	const stopDrag = () => {
+		if (isDragging.value) {
+			// Save state for undo/redo before stopping drag
+			triggerVideoUndoRedoSave('VIDEO_MOVE', 'Video moved');
+		}
 		isDragging.value = false;
 		window.removeEventListener("mousemove", handleDrag);
 		window.removeEventListener("mouseup", stopDrag);
@@ -48,5 +65,11 @@ export const useVideoDrag = () => {
 		startDrag,
 		handleDrag,
 		stopDrag,
+		
+		// Undo/Redo support
+		setVideoUndoRedoCallback,
 	};
 };
+
+// Export the callback setter for external access
+export { setVideoUndoRedoCallback };
