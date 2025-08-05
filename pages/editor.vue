@@ -53,6 +53,70 @@
 
 			<!-- Butonlar -->
 			<div class="flex flex-row gap-2 items-center">
+				<!-- Undo Button -->
+				<button
+					class="btn-undo bg-gray-600 hover:bg-gray-500 disabled:bg-gray-800 disabled:opacity-50 rounded-lg p-2 transition-colors"
+					:disabled="!canUndo"
+					@click="performUndo"
+					title="Geri Al (Cmd+Z)"
+				>
+					<svg
+						class="h-5 w-5 text-white"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M9 14L4 9L9 4"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+						<path
+							d="M20 20V13C20 10.7909 18.2091 9 16 9H4"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				</button>
+
+				<!-- Redo Button -->
+				<button
+					class="btn-redo bg-gray-600 hover:bg-gray-500 disabled:bg-gray-800 disabled:opacity-50 rounded-lg p-2 transition-colors"
+					:disabled="!canRedo"
+					@click="performRedo"
+					title="İleri Al (Cmd+Shift+Z)"
+				>
+					<svg
+						class="h-5 w-5 text-white"
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M15 14L20 9L15 4"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+						<path
+							d="M4 20V13C4 10.7909 5.79086 9 8 9H20"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				</button>
+
 				<button
 					class="btn-export bg-[#432af4] rounded-lg p-2 py-1 flex flex-row gap-2 items-center"
 					@click="showExportModal = true"
@@ -168,6 +232,10 @@
 			@deleteSegment="handleSegmentDelete"
 			@videoEnded="handleVideoEnded"
 			@totalDurationUpdate="handleTotalDurationUpdate"
+			@zoomRangeAdded="handleZoomRangeAdded"
+			@zoomRangeRemoved="handleZoomRangeRemoved" 
+			@layoutRangeAdded="handleLayoutRangeAdded"
+			@layoutRangeRemoved="handleLayoutRangeRemoved"
 			ref="timelineRef"
 		/>
 
@@ -190,9 +258,60 @@ import TimelineComponent from "~/components/TimelineComponent.vue";
 import ProjectManager from "~/components/ui/ProjectManager.vue";
 import ExportModal from "~/components/ui/ExportModal.vue";
 import ExportService from "~/services/ExportService";
+import { useUndoRedo } from "~/composables/useUndoRedo";
+import { useLayoutSettings } from "~/composables/useLayoutSettings";
 
-const { updateCameraSettings, mouseVisible, mouseSize, updateMouseVisible } =
-	usePlayerSettings();
+const { 
+	updateCameraSettings, 
+	mouseVisible, 
+	mouseSize, 
+	updateMouseVisible, 
+	zoomRanges: playerZoomRanges,
+	// Cursor settings
+	motionBlurValue,
+	cursorTransitionType,
+	autoHideCursor,
+	enhancedMotionBlur,
+	motionBlurIntensity,
+	cursorSmoothness,
+	cursorOffset,
+	mouseLoop,
+	// Background settings
+	backgroundColor,
+	backgroundImage,
+	backgroundBlur,
+	backgroundType,
+	backgroundGradient,
+	// Video settings
+	basePadding,
+	baseRadius,
+	baseShadowSize,
+	cropRatio,
+	videoBorderSettings,
+	showDock,
+	dockSize,
+	// Camera settings ref
+	cameraSettings
+} = usePlayerSettings();
+
+const { layoutRanges } = useLayoutSettings();
+
+// Undo/Redo system
+const {
+	saveState,
+	createStateSnapshot,
+	createComprehensiveState,
+	saveTimelineState,
+	captureTimelineState,
+	setStateProviders,
+	undo,
+	redo,
+	clearHistory,
+	canUndo,
+	canRedo,
+	lastAction,
+	nextRedoAction
+} = useUndoRedo();
 
 // IPC event isimlerini al
 const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS || {};
@@ -547,6 +666,11 @@ const onVideoLoaded = (data) => {
 
 			// İlk kez yüklendiği için flag'i set et
 			hasInitializedSegments.value = true;
+			
+			// Save state after video is loaded and segments are initialized
+			nextTick(() => {
+				saveCurrentState('VIDEO_LOADED', 'Video loaded with initial segments');
+			});
 
 			// Mouse tıklama verilerinden otomatik zoom segmentleri oluştur
 			console.log(
@@ -710,6 +834,186 @@ const handleExport = async (settings) => {
 	}
 };
 
+// Comprehensive state providers for undo/redo system
+const createStateProviders = () => {
+	return {
+		getActiveGifs: () => mediaPlayerRef.value?.getActiveGifs?.() || [],
+		getTimelineSegments: () => segments.value || [],
+		getPlayerSettings: () => mediaPlayerRef.value?.getPlayerSettings?.() || {},
+		getZoomRanges: () => playerZoomRanges.value || [],
+		getLayoutRanges: () => layoutRanges.value || [],
+		getCameraSettings: () => ({
+			...cameraSettings.value,
+			visible: true, // Add any additional camera state here
+		}),
+		getCursorSettings: () => ({
+			mouseSize: mouseSize.value,
+			mouseVisible: mouseVisible.value,
+			motionBlurValue: motionBlurValue.value,
+			cursorTransitionType: cursorTransitionType.value,
+			autoHideCursor: autoHideCursor.value,
+			enhancedMotionBlur: enhancedMotionBlur.value,
+			motionBlurIntensity: motionBlurIntensity.value,
+			cursorSmoothness: cursorSmoothness.value,
+			cursorOffset: cursorOffset.value,
+			mouseLoop: mouseLoop.value,
+		}),
+		getBackgroundSettings: () => ({
+			backgroundColor: backgroundColor.value,
+			backgroundImage: backgroundImage.value,
+			backgroundBlur: backgroundBlur.value,
+			backgroundType: backgroundType.value,
+			backgroundGradient: backgroundGradient.value,
+		}),
+		getVideoSettings: () => ({
+			basePadding: basePadding.value,
+			baseRadius: baseRadius.value,
+			baseShadowSize: baseShadowSize.value,
+			cropRatio: cropRatio.value,
+			videoBorderSettings: videoBorderSettings.value,
+			showDock: showDock.value,
+			dockSize: dockSize.value,
+		})
+	};
+};
+
+// Enhanced undo/redo function that captures comprehensive state
+const saveCurrentState = (actionType, description = '') => {
+	try {
+		const stateProviders = createStateProviders();
+		const state = createComprehensiveState(stateProviders);
+		
+		if (state) {
+			saveState(actionType, state, description);
+			console.log(`[UndoRedo] Saved comprehensive state: ${actionType} - ${description}`);
+			console.log(`[UndoRedo] State includes: segments(${state.timelineSegments?.length || 0}), gifs(${state.activeGifs?.length || 0}), zoom(${state.zoomRanges?.length || 0}), layout(${state.layoutRanges?.length || 0})`);
+		} else {
+			console.warn(`[UndoRedo] Failed to create state for: ${actionType}`);
+		}
+	} catch (error) {
+		console.error(`[UndoRedo] Error saving state for ${actionType}:`, error);
+	}
+};
+
+// Smart settings change handler - only saves state for significant changes
+let settingsChangeTimeout = null;
+const handleSettingsChange = (settingType, description, value) => {
+	// Debounce rapid changes to avoid too many undo states
+	clearTimeout(settingsChangeTimeout);
+	settingsChangeTimeout = setTimeout(() => {
+		saveCurrentState(settingType, `${description}: ${JSON.stringify(value)}`);
+	}, 300); // 300ms debounce
+};
+
+const performUndo = async () => {
+	console.log('[UndoRedo] Performing undo...');
+	const previousState = undo();
+	
+	if (previousState) {
+		await restoreState(previousState);
+		console.log('[UndoRedo] Undo completed');
+	}
+};
+
+const performRedo = async () => {
+	console.log('[UndoRedo] Performing redo...');
+	const redoState = redo();
+	
+	if (redoState) {
+		await restoreState(redoState);
+		console.log('[UndoRedo] Redo completed');
+	}
+};
+
+const restoreState = async (state) => {
+	if (!state) return;
+	
+	try {
+		console.log('[UndoRedo] Starting comprehensive state restoration...');
+		
+		// 1. Restore timeline segments
+		if (state.timelineSegments) {
+			segments.value = [...state.timelineSegments];
+		}
+		
+		// 2. Restore zoom ranges
+		if (state.zoomRanges && playerZoomRanges.value !== undefined) {
+			// Clear existing ranges and add new ones
+			playerZoomRanges.value.length = 0;
+			playerZoomRanges.value.push(...state.zoomRanges);
+		}
+		
+		// 3. Restore layout ranges
+		if (state.layoutRanges && layoutRanges.value !== undefined) {
+			// Clear existing ranges and add new ones
+			layoutRanges.value.length = 0;
+			layoutRanges.value.push(...state.layoutRanges);
+		}
+		
+		// 4. Restore cursor settings
+		if (state.cursorSettings) {
+			const cursor = state.cursorSettings;
+			if (cursor.mouseSize !== undefined) mouseSize.value = cursor.mouseSize;
+			if (cursor.mouseVisible !== undefined) mouseVisible.value = cursor.mouseVisible;
+			if (cursor.motionBlurValue !== undefined) motionBlurValue.value = cursor.motionBlurValue;
+			if (cursor.cursorTransitionType !== undefined) cursorTransitionType.value = cursor.cursorTransitionType;
+			if (cursor.autoHideCursor !== undefined) autoHideCursor.value = cursor.autoHideCursor;
+			if (cursor.enhancedMotionBlur !== undefined) enhancedMotionBlur.value = cursor.enhancedMotionBlur;
+			if (cursor.motionBlurIntensity !== undefined) motionBlurIntensity.value = cursor.motionBlurIntensity;
+			if (cursor.cursorSmoothness !== undefined) cursorSmoothness.value = cursor.cursorSmoothness;
+			if (cursor.cursorOffset !== undefined) cursorOffset.value = cursor.cursorOffset;
+			if (cursor.mouseLoop !== undefined) mouseLoop.value = cursor.mouseLoop;
+		}
+		
+		// 5. Restore background settings
+		if (state.backgroundSettings) {
+			const bg = state.backgroundSettings;
+			if (bg.backgroundColor !== undefined) backgroundColor.value = bg.backgroundColor;
+			if (bg.backgroundImage !== undefined) backgroundImage.value = bg.backgroundImage;
+			if (bg.backgroundBlur !== undefined) backgroundBlur.value = bg.backgroundBlur;
+			if (bg.backgroundType !== undefined) backgroundType.value = bg.backgroundType;
+			if (bg.backgroundGradient !== undefined) backgroundGradient.value = bg.backgroundGradient;
+		}
+		
+		// 6. Restore video settings
+		if (state.videoSettings) {
+			const video = state.videoSettings;
+			if (video.basePadding !== undefined) basePadding.value = video.basePadding;
+			if (video.baseRadius !== undefined) baseRadius.value = video.baseRadius;
+			if (video.baseShadowSize !== undefined) baseShadowSize.value = video.baseShadowSize;
+			if (video.cropRatio !== undefined) cropRatio.value = video.cropRatio;
+			if (video.videoBorderSettings !== undefined) videoBorderSettings.value = video.videoBorderSettings;
+			if (video.showDock !== undefined) showDock.value = video.showDock;
+			if (video.dockSize !== undefined) dockSize.value = video.dockSize;
+		}
+		
+		// 7. Restore camera settings
+		if (state.cameraSettings) {
+			Object.assign(cameraSettings.value, state.cameraSettings);
+		}
+		
+		// 8. Restore GIFs through MediaPlayer
+		if (state.activeGifs && mediaPlayerRef.value && mediaPlayerRef.value.restoreGifs) {
+			await mediaPlayerRef.value.restoreGifs(state.activeGifs);
+		}
+		
+		// 9. Restore player settings through MediaPlayer
+		if (state.playerSettings && mediaPlayerRef.value && mediaPlayerRef.value.restoreSettings) {
+			await mediaPlayerRef.value.restoreSettings(state.playerSettings);
+		}
+		
+		// 10. Force canvas update
+		if (mediaPlayerRef.value && mediaPlayerRef.value.forceUpdate) {
+			mediaPlayerRef.value.forceUpdate();
+		}
+		
+		console.log('[UndoRedo] Comprehensive state restored successfully');
+		console.log('[UndoRedo] Restored: segments:', state.timelineSegments?.length || 0, 'gifs:', state.activeGifs?.length || 0, 'zoom:', state.zoomRanges?.length || 0, 'layout:', state.layoutRanges?.length || 0);
+	} catch (error) {
+		console.error('[UndoRedo] Error restoring comprehensive state:', error);
+	}
+};
+
 // Handle custom resolution change
 const handleCustomResolutionChange = (resolution) => {
 	console.log("Custom resolution change:", resolution);
@@ -767,6 +1071,85 @@ const handleTotalDurationUpdate = (newTotalDuration) => {
 	console.log(`[Editor] Total canvas duration updated: ${newTotalDuration}s`);
 };
 
+// Zoom Range Operations with Undo/Redo Support
+const handleZoomRangeAdded = (zoomRange) => {
+	saveCurrentState('ZOOM_ADD', `Added zoom range ${zoomRange.start.toFixed(2)}s - ${zoomRange.end.toFixed(2)}s`);
+};
+
+const handleZoomRangeRemoved = (index) => {
+	const zoomRange = playerZoomRanges.value[index];
+	if (zoomRange) {
+		saveCurrentState('ZOOM_DELETE', `Removed zoom range ${zoomRange.start.toFixed(2)}s - ${zoomRange.end.toFixed(2)}s`);
+	}
+};
+
+// Layout Range Operations with Undo/Redo Support  
+const handleLayoutRangeAdded = (layoutRange) => {
+	saveCurrentState('LAYOUT_ADD', `Added layout range ${layoutRange.start.toFixed(2)}s - ${layoutRange.end.toFixed(2)}s (${layoutRange.type})`);
+};
+
+const handleLayoutRangeRemoved = (index) => {
+	const layoutRange = layoutRanges.value[index];
+	if (layoutRange) {
+		saveCurrentState('LAYOUT_DELETE', `Removed layout range ${layoutRange.start.toFixed(2)}s - ${layoutRange.end.toFixed(2)}s (${layoutRange.type})`);
+	}
+};
+
+// Watch for player settings changes and trigger undo/redo saves
+watch(mouseSize, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('CURSOR_SIZE', 'Mouse cursor size changed', newValue);
+	}
+});
+
+watch(mouseVisible, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('CURSOR_VISIBILITY', 'Mouse cursor visibility changed', newValue);
+	}
+});
+
+watch(motionBlurValue, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('CURSOR_MOTION_BLUR', 'Motion blur value changed', newValue);
+	}
+});
+
+watch(backgroundColor, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('BACKGROUND_COLOR', 'Background color changed', newValue);
+	}
+});
+
+watch(backgroundImage, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('BACKGROUND_IMAGE', 'Background image changed', newValue);
+	}
+});
+
+watch(backgroundType, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('BACKGROUND_TYPE', 'Background type changed', newValue);
+	}
+});
+
+watch(basePadding, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('VIDEO_PADDING', 'Video padding changed', newValue);
+	}
+});
+
+watch(baseRadius, (newValue, oldValue) => {
+	if (oldValue !== undefined && newValue !== oldValue) {
+		handleSettingsChange('VIDEO_RADIUS', 'Video corner radius changed', newValue);
+	}
+});
+
+watch(cameraSettings, (newValue, oldValue) => {
+	if (oldValue !== undefined && JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
+		handleSettingsChange('CAMERA_SETTINGS', 'Camera settings changed', newValue);
+	}
+}, { deep: true });
+
 // Kesme modunu aç/kapa
 const toggleTrimMode = () => {
 	isTrimMode.value = !isTrimMode.value;
@@ -782,6 +1165,21 @@ const handleSegmentUpdate = async (newSegments) => {
 		);
 		segments.value = newSegments;
 		return;
+	}
+	
+	// Save state for undo/redo - only for significant changes like drag/resize operations
+	if (newSegments.length === segments.value.length) {
+		const hasSignificantChange = newSegments.some((newSeg, index) => {
+			const oldSeg = segments.value[index];
+			return oldSeg && (
+				Math.abs((newSeg.timelineStart || newSeg.start || 0) - (oldSeg.timelineStart || oldSeg.start || 0)) > 0.1 ||
+				Math.abs((newSeg.timelineEnd || newSeg.end || 0) - (oldSeg.timelineEnd || oldSeg.end || 0)) > 0.1
+			);
+		});
+		
+		if (hasSignificantChange) {
+			saveCurrentState('TIMELINE_UPDATE', 'Updated segment positions/durations');
+		}
 	}
 
 	// Segment'leri normalize et - yeni field isimlerini kullan
@@ -856,6 +1254,9 @@ const handleSegmentSelect = async (index) => {
 
 // Segment trim işlemi tamamlandığında
 const handleSegmentTrimmed = async (index) => {
+	// Save state for undo/redo
+	saveCurrentState('TIMELINE_TRIM', `Trimmed segment ${index + 1}`);
+	
 	// MediaPlayer otomatik olarak segment clipping uygulayacak
 	// Sadece oynatmayı durduralım
 	if (isPlaying.value && mediaPlayerRef.value) {
@@ -1036,6 +1437,9 @@ const handleSegmentSplit = ({
 	splitTime,
 	totalDuration,
 }) => {
+	// Save state for undo/redo
+	saveCurrentState('TIMELINE_SPLIT', `Split segment at ${splitTime?.toFixed(2) || 'unknown'}s`);
+	
 	// Orijinal segmentleri kopyala
 	const updatedSegments = [...segments.value];
 
@@ -1145,6 +1549,9 @@ watch(isPlaying, (playing) => {
 
 // Segment yönetimi
 const handleSegmentsReordered = (newSegments) => {
+	// Save state for undo/redo
+	saveCurrentState('TIMELINE_REORDER', 'Reordered timeline segments');
+	
 	// Yeni segment sıralamasını uygula
 	segments.value = newSegments;
 
@@ -1173,6 +1580,21 @@ const handlePreviewTimeUpdate = (time) => {
 
 // Klavye event handler'ı
 const handleKeyDown = async (event) => {
+	// Handle Undo/Redo keyboard shortcuts
+	if ((event.metaKey || event.ctrlKey) && event.key === 'z') {
+		event.preventDefault();
+		
+		if (event.shiftKey) {
+			// Cmd+Shift+Z = Redo
+			performRedo();
+			return;
+		} else {
+			// Cmd+Z = Undo
+			performUndo();
+			return;
+		}
+	}
+
 	// TODO: Fix selectedZoomIndex reference - currently undefined
 	// Zoom segmenti seçiliyse, clip segmenti silme işlemini yapma
 	// if (selectedZoomIndex.value !== null) {
@@ -1345,6 +1767,25 @@ onMounted(async () => {
 			if (paths.audioPath) await loadMedia(paths.audioPath, "audio");
 		});
 
+		// Setup undo/redo callback for canvas operations
+		nextTick(() => {
+			if (mediaPlayerRef.value && mediaPlayerRef.value.setupUndoRedoCallback) {
+				mediaPlayerRef.value.setupUndoRedoCallback(saveCurrentState);
+				console.log("[editor.vue] Undo/Redo callback setup completed");
+			}
+			
+			// Setup state providers for automatic state capture
+			const stateProviders = createStateProviders();
+			setStateProviders(stateProviders);
+			console.log("[editor.vue] Undo/Redo state providers configured");
+			
+			// Save initial state after everything is set up
+			setTimeout(() => {
+				saveCurrentState('INITIAL_STATE', 'Initial editor state');
+				console.log("[editor.vue] Initial state saved for undo/redo");
+			}, 500);
+		});
+
 		console.log("[editor.vue] Editor başlatıldı");
 	} catch (error) {
 		console.error("[editor.vue] Başlangıç hatası:", error);
@@ -1366,6 +1807,11 @@ onUnmounted(() => {
 
 	// Klavye event listener'ını temizle
 	window.removeEventListener("keydown", handleKeyDown);
+	
+	// Settings change timeout'u temizle
+	if (settingsChangeTimeout) {
+		clearTimeout(settingsChangeTimeout);
+	}
 
 	if (window.electron) {
 		window.electron.ipcRenderer.removeAllListeners("MEDIA_PATHS");
@@ -1523,6 +1969,10 @@ const handleSegmentDelete = async (index) => {
 		console.warn("[editor.vue] Geçersiz segment index:", index);
 		return;
 	}
+
+	// Save state for undo/redo before deletion
+	const segmentToDelete = segments.value[index];
+	saveCurrentState('TIMELINE_DELETE', `Deleted segment ${index + 1} (${segmentToDelete.duration?.toFixed(2) || 'unknown'}s)`);
 
 	// Set deletion guard and timestamp
 	isDeletingSegment.value = true;
@@ -1859,6 +2309,9 @@ const handleSplitCurrentSegment = () => {
 
 	// Orijinal segmenti iki yeni segment ile değiştir
 	segments.value.splice(segmentIndex, 1, leftSegment, rightSegment);
+	
+	// Save state for undo/redo
+	saveCurrentState('TIMELINE_SPLIT_CURRENT', `Split current segment at ${splitPoint.toFixed(2)}s`);
 
 	// Segmentleri sıkıştır - SİLİNDİ: Bu çağrı segment silme işleminden sonra timeline'ı bozuyor
 	// compactSegments();

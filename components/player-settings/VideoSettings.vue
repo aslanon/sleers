@@ -47,7 +47,7 @@
 				</h4>
 				<div class="flex border-b border-zinc-700 mb-4">
 					<button
-						@click="activeBackgroundTab = 'image'"
+						@click="setActiveBackgroundTab('image')"
 						:class="[
 							'py-2 px-4 text-sm font-medium focus:outline-none',
 							activeBackgroundTab === 'image'
@@ -58,7 +58,7 @@
 						Image
 					</button>
 					<button
-						@click="activeBackgroundTab = 'color'"
+						@click="setActiveBackgroundTab('color')"
 						:class="[
 							'py-2 px-4 text-sm font-medium focus:outline-none',
 							activeBackgroundTab === 'color'
@@ -69,7 +69,7 @@
 						Color
 					</button>
 					<button
-						@click="activeBackgroundTab = 'gradient'"
+						@click="setActiveBackgroundTab('gradient')"
 						:class="[
 							'py-2 px-4 text-sm font-medium focus:outline-none',
 							activeBackgroundTab === 'gradient'
@@ -486,8 +486,8 @@ const borderOpacityValue = ref(videoBorderSettings.value?.opacity || 1);
 const borderColorValue = ref(
 	hexToRgba(borderColorHex.value, borderOpacityValue.value)
 );
-// Tab yapısı için state
-const activeBackgroundTab = ref("image"); // Varsayılan olarak renk tab'ı aktif
+// Tab yapısı için state - backgroundType ile senkronize
+const activeBackgroundTab = ref(backgroundType.value || "image");
 
 // Renk seçimi
 const selectColor = (color) => {
@@ -837,6 +837,12 @@ const selectPredefinedGradient = (gradient) => {
 	updateBackgroundType("gradient");
 };
 
+// Background tab değiştirme - sadece UI tab'ını değiştir, backgroundType'ı değiştirme
+const setActiveBackgroundTab = (tabType) => {
+	activeBackgroundTab.value = tabType;
+	// backgroundType'ı değiştirme - sadece kullanıcı konkret seçim yaptığında değişsin
+};
+
 // Arkaplan görseli seçimi
 const selectBackgroundImage = (imageName) => {
 	selectedWallpaper.value = imageName;
@@ -862,6 +868,13 @@ watch(shadowValue, (newValue) => {
 // Blur değişikliğini izle
 watch(blurValue, (newValue) => {
 	updateBackgroundBlur(Number(newValue));
+});
+
+// backgroundType değiştiğinde activeBackgroundTab'ı senkronize et
+watch(backgroundType, (newType) => {
+	if (activeBackgroundTab.value !== newType) {
+		activeBackgroundTab.value = newType;
+	}
 });
 
 // Border ayarları değişikliklerini izle

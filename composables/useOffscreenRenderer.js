@@ -12,7 +12,8 @@ export const useOffscreenRenderer = () => {
 		CAMERA: "camera", 
 		CURSOR: "cursor",
 		GIF: "gif",
-		BLUR: "blur"
+		BLUR: "blur",
+		BACKGROUND: "background"
 	};
 
 	// Check OffscreenCanvas support
@@ -312,7 +313,6 @@ export const useOffscreenRenderer = () => {
 		createVideoRenderer,
 		createCameraRenderer,
 		createCursorRenderer,
-		createTimelineRenderer,
 		createGifRenderer,
 		createBlurRenderer,
 		

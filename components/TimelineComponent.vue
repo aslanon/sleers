@@ -497,6 +497,10 @@ const emit = defineEmits([
 	"videoEnded",
 	"zoomSegmentSelect",
 	"totalDurationUpdate",
+	"zoomRangeAdded",
+	"zoomRangeRemoved",
+	"layoutRangeAdded",
+	"layoutRangeRemoved",
 ]);
 
 const {
@@ -1314,6 +1318,7 @@ const handleZoomTrackClick = (event) => {
 	};
 
 	addZoomRange(zoomRange);
+	emit("zoomRangeAdded", zoomRange);
 	hideGhostZoom();
 };
 
@@ -1713,6 +1718,7 @@ const handleKeyDown = (event) => {
 		selectedZoomIndex.value !== null &&
 		(event.key === "Delete" || event.key === "Backspace")
 	) {
+		emit("zoomRangeRemoved", selectedZoomIndex.value);
 		removeZoomRange(selectedZoomIndex.value);
 		selectedZoomIndex.value = null;
 		// activeSegmentId.value'yu koru - zoom segment silme işlemi clip segmentleri etkilememeli
@@ -2203,6 +2209,7 @@ const handleLayoutResizeStart = (event, index, edge) => {
 
 // Add layout delete handler
 const handleLayoutDelete = (index) => {
+	emit("layoutRangeRemoved", index);
 	removeLayoutRange(index);
 	selectedLayoutIndex.value = -1;
 };
@@ -2245,6 +2252,7 @@ const handleLayoutTypeSelect = (type) => {
 
 		if (!wouldOverlap(newLayout, -1)) {
 			layoutRanges.value.push(newLayout);
+			emit("layoutRangeAdded", newLayout);
 		}
 	}
 

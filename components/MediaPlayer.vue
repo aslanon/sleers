@@ -87,6 +87,7 @@ import { useVideoZoom } from "~/composables/useVideoZoom";
 import { useCanvasZoom } from "~/composables/useCanvasZoom";
 import { useMouseCursor } from "~/composables/useMouseCursor";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
+import { useBackgroundOffscreen } from "~/composables/useBackgroundOffscreen";
 import { useCamera } from "~/composables/modules/useCamera";
 import { useVideoDrag } from "~/composables/useVideoDrag";
 import useDockSettings from "~/composables/useDockSettings";
@@ -308,6 +309,9 @@ let cameraElement = null;
 // layout segment için
 const { renderLayout } = useLayoutRenderer();
 
+// Background offscreen rendering
+const { renderBackground, cachedBackground, clearBackgroundCache } = useBackgroundOffscreen();
+
 // GIF manager için
 const {
 	getGifsAtTime,
@@ -323,6 +327,8 @@ const {
 	pauseAllGifs,
 	clearAllSelections,
 	getMaxGifDuration,
+	addGifToCanvas,
+	setUndoRedoCallback,
 } = useGifManager();
 
 // Canvas-based Zoom yönetimi
@@ -3045,68 +3051,46 @@ function getCameraDisplayRect() {
 const bgImageElement = ref(null);
 const bgImageLoaded = ref(false);
 
-// Create gradient function
-const createGradient = (ctx, width, height, gradientConfig) => {
-	let gradient;
-	
-	if (gradientConfig.type === "radial") {
-		// Radial gradient
-		const centerX = width / 2;
-		const centerY = height / 2;
-		const radius = Math.max(width, height) / 2;
-		gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-	} else {
-		// Linear gradient
-		let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
-		
-		switch (gradientConfig.direction) {
-			case "to-top":
-				x0 = 0; y0 = height; x1 = 0; y1 = 0;
-				break;
-			case "to-bottom":
-				x0 = 0; y0 = 0; x1 = 0; y1 = height;
-				break;
-			case "to-left":
-				x0 = width; y0 = 0; x1 = 0; y1 = 0;
-				break;
-			case "to-right":
-				x0 = 0; y0 = 0; x1 = width; y1 = 0;
-				break;
-			case "to-top-left":
-				x0 = width; y0 = height; x1 = 0; y1 = 0;
-				break;
-			case "to-top-right":
-				x0 = 0; y0 = height; x1 = width; y1 = 0;
-				break;
-			case "to-bottom-left":
-				x0 = width; y0 = 0; x1 = 0; y1 = height;
-				break;
-			case "to-bottom-right":
-				x0 = 0; y0 = 0; x1 = width; y1 = height;
-				break;
-			default: // to-bottom
-				x0 = 0; y0 = 0; x1 = 0; y1 = height;
-		}
-		
-		gradient = ctx.createLinearGradient(x0, y0, x1, y1);
-	}
-	
-	// Add color stops
-	gradientConfig.colors.forEach(colorStop => {
-		gradient.addColorStop(colorStop.position / 100, colorStop.color);
-	});
-	
-	return gradient;
-};
+// createGradient function moved to useBackgroundOffscreen composable
 
-// Background değiştiğinde canvas'ı güncelle
-watch([backgroundColor, backgroundType, backgroundGradient], () => {
+// Background değiştiğinde canvas'ı güncelle ve cache'i temizle
+watch([backgroundColor, backgroundType, backgroundGradient, backgroundImage, backgroundBlur], () => {
 	if (!ctx || !canvasRef.value) return;
-	// Background type color veya gradient ise image'ı temizle
-	if (backgroundType.value === "color" || backgroundType.value === "gradient") {
+	
+	// Background cache'ini temizle
+	clearBackgroundCache();
+	
+	// Background type değiştiğinde diğer türleri temizle
+	if (backgroundType.value === "color") {
+		// Color seçildiğinde image'ı temizle
 		bgImageLoaded.value = false;
 		bgImageElement.value = null;
+	} else if (backgroundType.value === "gradient") {
+		// Gradient seçildiğinde image'ı temizle
+		bgImageLoaded.value = false;
+		bgImageElement.value = null;
+	} else if (backgroundType.value === "image") {
+		// Image seçildiğinde image'ı yükle (eğer henüz yüklenmemişse)
+		if (backgroundImage.value && !bgImageLoaded.value) {
+			bgImageElement.value = new Image();
+			bgImageElement.value.onload = () => {
+				bgImageLoaded.value = true;
+				// Image yüklendiğinde cache'i temizle ve canvas'ı güncelle
+				clearBackgroundCache();
+				requestAnimationFrame(() => updateCanvas(performance.now()));
+			};
+			bgImageElement.value.onerror = () => {
+				console.error("Background image failed to load:", backgroundImage.value);
+				bgImageLoaded.value = false;
+				bgImageElement.value = null;
+				// Image yüklenemediğinde cache'i temizle ve canvas'ı güncelle
+				clearBackgroundCache();
+				requestAnimationFrame(() => updateCanvas(performance.now()));
+			};
+			bgImageElement.value.src = backgroundImage.value;
+		}
 	}
+	
 	// Canvas'ı updateCanvas ile güncelle (doğru rendering sırası için)
 	requestAnimationFrame(() => updateCanvas(performance.now()));
 }, { deep: true });
@@ -3209,54 +3193,37 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		// Canvas'ı temizle
 		ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 
-		// Arkaplan - background type'a göre çiz
+		// Arkaplan - offscreen canvas'tan çiz
 		const isCameraBackgroundRemovalActive =
 			cameraSettings.value?.optimizedBackgroundRemoval;
 
 		if (!isCameraBackgroundRemovalActive) {
 			try {
-				if (backgroundType.value === "image" && bgImageLoaded.value && bgImageElement.value) {
-					// Background Image
-					const scale = Math.max(
-						canvasRef.value.width / bgImageElement.value.width,
-						canvasRef.value.height / bgImageElement.value.height
-					);
-
-					const scaledWidth = bgImageElement.value.width * scale;
-					const scaledHeight = bgImageElement.value.height * scale;
-
-					// Resmi ortala
-					const x = (canvasRef.value.width - scaledWidth) / 2;
-					const y = (canvasRef.value.height - scaledHeight) / 2;
-
-					// Blur efekti uygula
-					if (backgroundBlur.value > 0) {
-						ctx.filter = `blur(${backgroundBlur.value}px)`;
-					}
-
-					ctx.drawImage(bgImageElement.value, x, y, scaledWidth, scaledHeight);
-
-					// Blur'u sıfırla
-					ctx.filter = "none";
-				} else if (backgroundType.value === "gradient") {
-					// Background Gradient
-					const gradient = createGradient(
-						ctx, 
-						canvasRef.value.width, 
-						canvasRef.value.height, 
-						backgroundGradient.value
-					);
-					ctx.fillStyle = gradient;
-					ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
+				// Offscreen canvas'ta background render et
+				const backgroundCanvas = renderBackground(
+					backgroundType.value,
+					backgroundColor.value,
+					backgroundGradient.value,
+					backgroundImage.value,
+					backgroundBlur.value,
+					canvasRef.value.width,
+					canvasRef.value.height,
+					bgImageElement.value,
+					bgImageLoaded.value
+				);
+				
+				// Offscreen canvas'ı main canvas'a çiz
+				if (backgroundCanvas) {
+					ctx.drawImage(backgroundCanvas, 0, 0);
 				} else {
-					// Background Color (default)
-					ctx.fillStyle = backgroundColor.value;
+					// Fallback - siyah background
+					ctx.fillStyle = "#000000";
 					ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 				}
 			} catch (error) {
 				console.error("Error drawing background:", error);
-				// Fallback to background color
-				ctx.fillStyle = backgroundColor.value;
+				// Fallback to black background
+				ctx.fillStyle = "#000000";
 				ctx.fillRect(0, 0, canvasRef.value.width, canvasRef.value.height);
 			}
 		}
@@ -4397,6 +4364,104 @@ const onVideoVolumeChange = () => {
 	emit("volumeChange", videoState.value);
 };
 
+// Undo/Redo helper functions for editor integration
+const getActiveGifs = () => {
+	return activeGifs.value || [];
+};
+
+const getPlayerSettings = () => {
+	return {
+		backgroundColor: backgroundColor.value,
+		backgroundType: backgroundType.value,
+		backgroundGradient: backgroundGradient.value,
+		backgroundImage: backgroundImage.value,
+		backgroundBlur: backgroundBlur.value,
+		cameraSettings: cameraSettings.value,
+		mouseSettings: {
+			mouseVisible: mouseVisible.value,
+			mouseSize: mouseSize.value
+		}
+	};
+};
+
+const restoreGifs = async (gifs) => {
+	try {
+		// Clear current GIFs
+		activeGifs.value = [];
+		
+		// Restore GIFs
+		if (gifs && Array.isArray(gifs)) {
+			for (const gif of gifs) {
+				// Add each GIF back with proper state restoration
+				activeGifs.value.push({...gif});
+			}
+		}
+		
+		// Clear selections since we're restoring state
+		clearAllSelections();
+		
+		console.log('[MediaPlayer] GIFs restored:', activeGifs.value.length);
+	} catch (error) {
+		console.error('[MediaPlayer] Error restoring GIFs:', error);
+	}
+};
+
+const restoreSettings = async (settings) => {
+	try {
+		if (settings) {
+			// Restore background settings
+			if (settings.backgroundColor !== undefined) {
+				backgroundColor.value = settings.backgroundColor;
+			}
+			if (settings.backgroundType !== undefined) {
+				backgroundType.value = settings.backgroundType;
+			}
+			if (settings.backgroundGradient !== undefined) {
+				backgroundGradient.value = settings.backgroundGradient;
+			}
+			if (settings.backgroundImage !== undefined) {
+				backgroundImage.value = settings.backgroundImage;
+			}
+			if (settings.backgroundBlur !== undefined) {
+				backgroundBlur.value = settings.backgroundBlur;
+			}
+			
+			// Restore camera settings
+			if (settings.cameraSettings !== undefined) {
+				cameraSettings.value = settings.cameraSettings;
+			}
+			
+			// Restore mouse settings
+			if (settings.mouseSettings) {
+				if (settings.mouseSettings.mouseVisible !== undefined) {
+					mouseVisible.value = settings.mouseSettings.mouseVisible;
+				}
+				if (settings.mouseSettings.mouseSize !== undefined) {
+					mouseSize.value = settings.mouseSettings.mouseSize;
+				}
+			}
+		}
+		
+		console.log('[MediaPlayer] Settings restored');
+	} catch (error) {
+		console.error('[MediaPlayer] Error restoring settings:', error);
+	}
+};
+
+const forceUpdate = () => {
+	// Force canvas update
+	if (ctx) {
+		nextTick(() => {
+			updateCanvas(performance.now(), lastMouseX, lastMouseY);
+		});
+	}
+};
+
+// Setup undo/redo callback
+const setupUndoRedoCallback = (callback) => {
+	setUndoRedoCallback(callback);
+};
+
 // Component lifecycle
 onMounted(() => {
 	// Audio buffer optimization - stuttering fix
@@ -4458,6 +4523,33 @@ onMounted(() => {
 			lastCameraPosition.value = { ...cameraSettings.value.position };
 		}
 	}
+
+	// Add canvas click handler to deselect GIFs when clicking outside
+	nextTick(() => {
+		if (canvasRef.value) {
+			canvasRef.value.addEventListener('mousedown', (event) => {
+				// Check if click was not on a GIF element
+				const rect = canvasRef.value.getBoundingClientRect();
+				const x = event.clientX - rect.left;
+				const y = event.clientY - rect.top;
+				
+				// Check if any GIF is at this position
+				let clickedOnGif = false;
+				for (const gif of activeGifs.value) {
+					if (x >= gif.x && x <= gif.x + gif.width &&
+						y >= gif.y && y <= gif.y + gif.height) {
+						clickedOnGif = true;
+						break;
+					}
+				}
+				
+				// If click was not on a GIF, clear all selections
+				if (!clickedOnGif) {
+					clearAllSelections();
+				}
+			});
+		}
+	});
 
 	let newImage = backgroundImage.value;
 
@@ -5238,6 +5330,14 @@ defineExpose({
 
 	// GIF selection management
 	clearAllSelections,
+	
+	// Undo/redo support functions
+	getActiveGifs,
+	getPlayerSettings, 
+	restoreGifs,
+	restoreSettings,
+	forceUpdate,
+	setupUndoRedoCallback
 });
 
 // Cleanup on unmount
@@ -5959,84 +6059,145 @@ const handleWheel = (event) => {
 	);
 };
 
-const handlePaste = (event) => {
+const handlePaste = async (event) => {
 	// Handle paste event for clipboard images or copied GIFs
-	event.preventDefault();
-
-	// First check if we have a copied GIF
-	if (window.copiedGifData) {
-		const { addGifToCanvas } = useGifManager();
-		const pastedGif = addGifToCanvas(window.copiedGifData);
-		
-		console.log('GIF pasted successfully:', pastedGif.title || pastedGif.id);
-		
-		// Visual feedback for successful paste
-		if (typeof window !== 'undefined') {
-			window.dispatchEvent(new CustomEvent('gif-pasted', {
-				detail: { gifId: pastedGif.id }
-			}));
-		}
-		
-		// Don't clear copied data to allow multiple pastes
-		return;
+	if (event) {
+		event.preventDefault();
 	}
+	
+	console.log('[handlePaste] Paste event triggered');
 
-	const { clipboardData } = event;
-	if (!clipboardData) return;
-
-	// Check for image data in clipboard
-	const items = clipboardData.items;
-	for (let i = 0; i < items.length; i++) {
-		const item = items[i];
-
-		// Check if the item is an image
-		if (item.type.indexOf("image") !== -1) {
-			const file = item.getAsFile();
-			if (file) {
-				// Create a URL for the image
-				const imageUrl = URL.createObjectURL(file);
-
-				// Create image object for GIF manager
-				const imageObject = {
-					id: `pasted_image_${Date.now()}_${Math.random()
-						.toString(36)
-						.substr(2, 9)}`,
-					title: file.name || "Pasted Image",
-					url: imageUrl,
-					type: "image",
-					x: 100,
-					y: 100,
-					width: 200, // will be updated after load
-					height: 150, // will be updated after load
-					opacity: 1,
-					startTime: 0,
-					endTime: 10,
-					file: file,
-					originalWidth: 0, // Will be set when image loads
-					originalHeight: 0, // Will be set when image loads
-					aspectRatio: 1, // Will be set when image loads
-				};
-
-				// Load image to get dimensions
-				const img = new Image();
-				img.onload = () => {
-					imageObject.originalWidth = img.width;
-					imageObject.originalHeight = img.height;
-					imageObject.aspectRatio = img.width / img.height;
-					// Aspect ratio'yu koruyacak şekilde width/height ayarla
-					imageObject.width = 200;
-					imageObject.height = 200 / imageObject.aspectRatio;
-					// Add to GIF manager
-					const { addGifToCanvas } = useGifManager();
-					const pastedImage = addGifToCanvas(imageObject);
+	try {
+		// First check system clipboard for images (priority) using Clipboard API
+		if (navigator.clipboard && navigator.clipboard.read) {
+			console.log('[handlePaste] Using Clipboard API to read clipboard');
+			const clipboardItems = await navigator.clipboard.read();
+			console.log('[handlePaste] Clipboard items count:', clipboardItems.length);
+			
+			for (const clipboardItem of clipboardItems) {
+				console.log('[handlePaste] Clipboard item types:', clipboardItem.types);
+				
+				// Check if this item contains an image
+				for (const type of clipboardItem.types) {
+					if (type.startsWith('image/')) {
+						console.log('[handlePaste] Found image in clipboard, type:', type);
+						const blob = await clipboardItem.getType(type);
+						console.log('[handlePaste] Blob obtained:', blob.size, 'bytes, type:', blob.type);
+						
+						// Convert blob to file for processing
+						const file = new File([blob], 'clipboard-image', { type });
+						console.log('[handlePaste] Processing system clipboard image:', file.name, file.size, 'bytes');
+						handleSystemClipboardImage(file);
+						return;
+					}
+				}
+			}
+			console.log('[handlePaste] No image found in system clipboard via Clipboard API');
+		} else {
+			// Fallback to event.clipboardData if available
+			const { clipboardData } = event || {};
+			console.log('[handlePaste] Fallback - Clipboard data:', clipboardData);
+			
+			if (clipboardData) {
+				// Check for image data in system clipboard
+				const items = clipboardData.items;
+				console.log('[handlePaste] Clipboard items count:', items.length);
+				
+				for (let i = 0; i < items.length; i++) {
+					const item = items[i];
+					console.log('[handlePaste] Item', i, '- Type:', item.type, 'Kind:', item.kind);
 					
-					console.log('Image pasted from clipboard:', pastedImage.title);
-				};
-				img.src = imageUrl;
-				break;
+					// If we find an image in system clipboard, use it (has priority)
+					if (item.type.indexOf("image") !== -1) {
+						console.log('[handlePaste] Found image in clipboard, type:', item.type);
+						const file = item.getAsFile();
+						console.log('[handlePaste] File obtained:', file);
+						if (file) {
+							console.log('[handlePaste] Processing system clipboard image:', file.name, file.size, 'bytes');
+							// Process system clipboard image
+							handleSystemClipboardImage(file);
+							return;
+						}
+					}
+				}
+				console.log('[handlePaste] No image found in system clipboard via event');
 			}
 		}
+	} catch (error) {
+		console.error('[handlePaste] Error reading clipboard:', error);
 	}
+
+	// If no system clipboard image, then check if we have a copied GIF from canvas
+	console.log('[handlePaste] Checking for copied canvas data, window.copiedGifData:', window.copiedGifData);
+	
+	if (window.copiedGifData) {
+		console.log('[handlePaste] Found copied GIF data, attempting to paste:', window.copiedGifData);
+		
+		// Use the already imported addGifToCanvas
+		try {
+			const pastedGif = addGifToCanvas(window.copiedGifData);
+			console.log('[handlePaste] addGifToCanvas returned:', pastedGif);
+			
+			console.log('[handlePaste] GIF pasted successfully:', pastedGif.title || pastedGif.id);
+			
+			// Visual feedback for successful paste
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('gif-pasted', {
+					detail: { gifId: pastedGif.id }
+				}));
+			}
+			
+			// Don't clear copied data to allow multiple pastes
+			return;
+		} catch (error) {
+			console.error('[handlePaste] Error in addGifToCanvas:', error);
+		}
+	} else {
+		console.log('[handlePaste] No copied canvas data found');
+	}
+};
+
+// Handle system clipboard image
+const handleSystemClipboardImage = (file) => {
+	// Create a URL for the image
+	const imageUrl = URL.createObjectURL(file);
+
+	// Create image object for GIF manager
+	const imageObject = {
+		id: `pasted_image_${Date.now()}_${Math.random()
+			.toString(36)
+			.substr(2, 9)}`,
+		title: file.name || "Pasted Image",
+		url: imageUrl,
+		type: "image",
+		x: 100,
+		y: 100,
+		width: 200, // will be updated after load
+		height: 150, // will be updated after load
+		opacity: 1,
+		startTime: 0,
+		endTime: 10,
+		file: file,
+		originalWidth: 0, // Will be set when image loads
+		originalHeight: 0, // Will be set when image loads
+		aspectRatio: 1, // Will be set when image loads
+	};
+
+	// Load image to get dimensions
+	const img = new Image();
+	img.onload = () => {
+		imageObject.originalWidth = img.width;
+		imageObject.originalHeight = img.height;
+		imageObject.aspectRatio = img.width / img.height;
+		// Aspect ratio'yu koruyacak şekilde width/height ayarla
+		imageObject.width = 200;
+		imageObject.height = 200 / imageObject.aspectRatio;
+		// Add to GIF manager - use already imported addGifToCanvas
+		const pastedImage = addGifToCanvas(imageObject);
+		
+		console.log('Image pasted from system clipboard:', pastedImage.title);
+	};
+	img.src = imageUrl;
 };
 
 // Keyboard shortcuts handler
@@ -6060,24 +6221,30 @@ const handleKeyboardShortcuts = (event) => {
 };
 
 const handleCopy = (event) => {
-	// Get selected GIF from useGifManager
-	const { selectedGifId, activeGifs } = useGifManager();
-
+	console.log('[handleCopy] Copy triggered, selectedGifId:', selectedGifId.value);
+	console.log('[handleCopy] activeGifs count:', activeGifs.value.length);
+	
+	// Use the already imported selectedGifId and activeGifs from useGifManager
 	if (selectedGifId.value) {
 		const selectedGif = activeGifs.value.find(
 			(gif) => gif.id === selectedGifId.value
 		);
+		
+		console.log('[handleCopy] Found selected GIF:', selectedGif);
 
 		if (selectedGif) {
-			// Store copied GIF data in global state
+			// Store copied GIF data in global state with new unique ID
 			window.copiedGifData = {
 				...selectedGif,
 				id: `copied_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // New unique ID
+				originalId: selectedGif.id, // Keep reference to original for debugging
 				x: selectedGif.x + 20, // Small offset for visual feedback
 				y: selectedGif.y + 20,
+				isCopy: true // Mark as copied for identification
 			};
 			
-			console.log('GIF copied successfully:', selectedGif.title || selectedGif.id);
+			console.log('[handleCopy] Copied GIF data stored:', window.copiedGifData);
+			console.log('[handleCopy] GIF copied successfully:', selectedGif.title || selectedGif.id);
 			
 			// Visual feedback - briefly highlight the copied element
 			if (typeof window !== 'undefined') {
@@ -6085,9 +6252,16 @@ const handleCopy = (event) => {
 					detail: { gifId: selectedGif.id }
 				}));
 			}
+		} else {
+			console.log('[handleCopy] No selected GIF found to copy');
 		}
+	} else {
+		console.log('[handleCopy] No GIF selected for copying');
 	}
 };
+
+
+
 </script>
 
 <style scoped>

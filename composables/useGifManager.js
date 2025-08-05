@@ -1,6 +1,19 @@
 import { ref, reactive, watch, computed } from "vue";
 import { usePlayerSettings } from "./usePlayerSettings";
 
+// Undo/Redo callback
+let undoRedoCallback = null;
+
+const setUndoRedoCallback = (callback) => {
+	undoRedoCallback = callback;
+};
+
+const triggerUndoRedoSave = (actionType, description) => {
+	if (undoRedoCallback) {
+		undoRedoCallback(actionType, description);
+	}
+};
+
 const searchQuery = ref("");
 const searchResults = ref([]);
 const activeGifs = ref([]);
@@ -89,12 +102,19 @@ export const useGifManager = () => {
 
 	// Add GIF or Image to canvas with unique ID and timeline segment
 	const addGifToCanvas = (gifData, videoDuration = null) => {
-		const gifId =
-			gifData.id ||
-			`gif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
 		// Check if it's a copied GIF (already processed)
 		const isCopiedGif = gifData.url && !gifData.images && (gifData.type === "gif" || !gifData.type);
+		
+		// Always generate new unique ID for copied GIFs to avoid conflicts
+		const shouldGenerateNewId = isCopiedGif || gifData.id?.includes('copied_') || gifData.isCopy;
+		const gifId = shouldGenerateNewId
+			? `gif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+			: gifData.id || `gif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+			
+		// Debug: Log GIF processing for copied elements
+		if (shouldGenerateNewId) {
+			console.log('[addGifToCanvas] Creating new GIF with unique ID:', gifId, 'from original:', gifData.id);
+		}
 		
 		// Check if it's an image or video (not a GIF)
 		const isImage = gifData.type === "image";
@@ -105,10 +125,15 @@ export const useGifManager = () => {
 
 		let newGif;
 
-		if (isCopiedGif) {
+		if (isCopiedGif || gifData.isCopy) {
 			// Handle copied GIFs (already processed)
+			const cleanedGifData = { ...gifData };
+			// Remove copy-specific properties to avoid confusion
+			delete cleanedGifData.isCopy;
+			delete cleanedGifData.originalId;
+			
 			newGif = {
-				...gifData, // Copy all existing properties
+				...cleanedGifData, // Copy all existing properties
 				id: gifId,  // Use new unique ID
 			};
 		} else if (isImage) {
@@ -193,6 +218,9 @@ export const useGifManager = () => {
 		}
 
 		activeGifs.value.push(newGif);
+		
+		// Trigger undo/redo save
+		triggerUndoRedoSave('GIF_ADD', `Added ${newGif.type || 'GIF'}: ${newGif.title || 'Untitled'}`);
 
 		// Create GIF state for animation tracking - initially paused
 		const frameRate = isVideo ? 240 : 60; // Much higher frame rate for videos
@@ -225,6 +253,11 @@ export const useGifManager = () => {
 			}, 50);
 		}
 
+		// Save state for undo/redo
+		const actionType = isCopiedGif ? 'GIF_PASTE' : 'GIF_ADD';
+		const description = isCopiedGif ? `Pasted ${newGif.title || 'GIF'}` : `Added ${newGif.title || 'GIF'}`;
+		triggerUndoRedoSave(actionType, description);
+
 		return newGif;
 	};
 
@@ -232,12 +265,17 @@ export const useGifManager = () => {
 	const removeGif = (gifId) => {
 		const index = activeGifs.value.findIndex((gif) => gif.id === gifId);
 		if (index !== -1) {
+			const removedGif = activeGifs.value[index];
+			
 			activeGifs.value.splice(index, 1);
 			gifStates.delete(gifId);
 
 			if (selectedGifId.value === gifId) {
 				selectedGifId.value = null;
 			}
+
+			// Save state for undo/redo
+			triggerUndoRedoSave('GIF_REMOVE', `Removed ${removedGif.title || 'GIF'}`);
 
 			// Emit event to timeline component to remove segment
 			if (typeof window !== "undefined") {
@@ -612,6 +650,18 @@ export const useGifManager = () => {
 
 	const handleMouseUp = () => {
 		if (dragState.isDragging || dragState.isResizing || dragState.isRotating) {
+			// Save state for undo/redo before resetting
+			const draggedGif = activeGifs.value.find(gif => gif.id === dragState.draggedGifId);
+			if (draggedGif) {
+				if (dragState.isDragging) {
+					triggerUndoRedoSave('GIF_MOVE', `Moved ${draggedGif.title || 'GIF'}`);
+				} else if (dragState.isResizing) {
+					triggerUndoRedoSave('GIF_RESIZE', `Resized ${draggedGif.title || 'GIF'}`);
+				} else if (dragState.isRotating) {
+					triggerUndoRedoSave('GIF_ROTATE', `Rotated ${draggedGif.title || 'GIF'}`);
+				}
+			}
+			
 			// Reset drag state
 			dragState.isDragging = false;
 			dragState.isResizing = false;
@@ -1050,5 +1100,8 @@ export const useGifManager = () => {
 		playAllGifs,
 		pauseAllGifs,
 		getMaxGifDuration,
+		
+		// Undo/Redo integration
+		setUndoRedoCallback,
 	};
 };
