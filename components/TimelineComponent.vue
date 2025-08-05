@@ -556,7 +556,7 @@ const checkVideoSegmentDurationAndSetZoom = () => {
 
 	// Eğer video segment uzunluğu 3-5 saniye arasındaysa zoom'u %50 artır
 	if (parseInt(totalVideoDuration) <= 10) {
-		currentZoom.value = 10; // %50 yakınlaştır
+		currentZoom.value = 6;
 	}
 };
 const startDragX = ref(0);
