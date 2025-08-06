@@ -27,9 +27,8 @@
 		<!-- Ayarlar Butonu -->
 		<div class="relative">
 			<button
-				@click="isSettingsOpen = !isSettingsOpen"
+				@click="openRecordingSettings"
 				class="p-2 hover:bg-gray-700 rounded-lg"
-				:class="{ 'bg-gray-700': isSettingsOpen }"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -78,10 +77,60 @@
 
 		<!-- Kayıt Kontrolleri -->
 		<div class="flex items-center space-x-4 flex-wrap">
+			<!-- Recording Type Selection -->
+			<div class="flex items-center space-x-2">
+				<!-- Screen Recording Button -->
+				<button
+					@click="selectRecordingType('screen')"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Screen Recording"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+					</svg>
+				</button>
+
+				<!-- Window Recording Button -->
+				<button
+					@click="selectRecordingType('window')"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Window Recording"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+					</svg>
+				</button>
+
+				<!-- Dynamic Window Overlay Button -->
+				<button
+					@click="startDynamicOverlay"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Pencere Seç ve Kayıt Başlat (Screen Studio style)"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+					</svg>
+				</button>
+
+				<!-- Area Recording Button -->
+				<button
+					@click="selectRecordingType('area')"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Area Recording"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+					</svg>
+				</button>
+			</div>
+
+
 			<select
 				v-model="selectedVideoDevice"
 				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
 			>
+				<option value="none">No Camera Recording</option>
 				<option
 					v-for="device in videoDevices"
 					:key="device.deviceId"
@@ -188,25 +237,8 @@
 		</div>
 	</div>
 
-	<!-- Ayarlar Paneli -->
-	<RecordSettings
-		v-if="isSettingsOpen"
-		:delay-options="delayOptions"
-		v-model="selectedDelay"
-		v-model:selected-source="selectedSource"
-		v-model:follow-mouse="followMouse"
-		@update:selected-source="selectSource"
-	>
-		<!-- Ayarlar Menüsü -->
-		<div v-if="isSettingsOpen" class="w-full p-4 border border-gray-700">
-			<!-- MacRecorder İzin Kontrol Paneli -->
-			<MacRecorderPermissionChecker />
 
-			<div class="border-t border-gray-700 my-4"></div>
 
-			<!-- İzinler Bölümü -->
-		</div>
-	</RecordSettings>
 </template>
 
 <script setup>
@@ -214,9 +246,6 @@ import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 import { useScreen } from "~/composables/modules/useScreen";
 
-import RecordSettings from "~/components/record-settings/index.vue";
-import PermissionChecker from "~/components/ui/PermissionChecker.vue";
-import MacRecorderPermissionChecker from "~/components/ui/MacRecorderPermissionChecker.vue";
 
 const electron = window.electron;
 const IPC_EVENTS = electron?.ipcRenderer?.IPC_EVENTS || {};
@@ -249,10 +278,13 @@ const closeWindow = () => {
 };
 
 // Delay yönetimi için state
-const isSettingsOpen = ref(false);
 const delayOptions = [0, 1000, 3002, 5000, 10000]; // 1sn, 3sn, 5sn
 const selectedSource = ref(null);
 const followMouse = ref(true);
+
+// Recording type management
+const availableScreens = ref([]);
+const availableWindows = ref([]);
 
 // Cursor tracking state kaldırıldı - artık gerçek kayıt sistemiyle entegre
 
@@ -274,19 +306,6 @@ watch(selectedDelay, (newValue) => {
 	}
 });
 
-// Pencere boyutunu ayarla
-const updateWindowSize = (isOpen) => {
-	if (electron?.ipcRenderer) {
-		electron.ipcRenderer.send("UPDATE_WINDOW_SIZE", {
-			height: isOpen ? 300 : 70, // Ayarlar açıkken 250px, kapalıyken 70px
-		});
-	}
-};
-
-// Ayarlar durumunu izle
-watch(isSettingsOpen, (newValue) => {
-	updateWindowSize(newValue);
-});
 
 // Kayıt düğmesi işlevi
 const onRecordButtonClick = async () => {
@@ -314,7 +333,7 @@ const onRecordButtonClick = async () => {
 
 				recordingOptions = {
 					startScreen: true,
-					startCamera: true,
+					startCamera: selectedVideoDevice.value !== 'none', // No camera if 'none' selected
 					startAudio: true,
 				};
 			} else {
@@ -336,7 +355,7 @@ const onRecordButtonClick = async () => {
 
 				recordingOptions = {
 					startScreen: true,
-					startCamera: true,
+					startCamera: selectedVideoDevice.value !== 'none', // No camera if 'none' selected
 					startAudio: true,
 				};
 			}
@@ -360,6 +379,107 @@ const openEditorMode = () => {
 // toggleCursorTracking fonksiyonu kaldırıldı - cursor capture artık gerçek kayıt sistemiyle entegre
 
 // Yeni Kayıt fonksiyonu kaldırıldı - artık sadece "Kaydet" butonu var
+
+// Recording type selection - now triggers native overlays
+const selectRecordingType = async (type) => {
+	try {
+		if (electron?.ipcRenderer) {
+			if (type === 'screen') {
+				// Trigger native screen selection overlay
+				electron.ipcRenderer.send('SHOW_NATIVE_SCREEN_SELECTOR');
+			} else if (type === 'window') {
+				// Trigger native window selection overlay
+				electron.ipcRenderer.send('SHOW_NATIVE_WINDOW_SELECTOR');
+			} else if (type === 'area') {
+				// Trigger native area selection overlay
+				electron.ipcRenderer.send('SHOW_NATIVE_AREA_SELECTOR');
+			}
+		}
+	} catch (error) {
+		console.error('Error triggering native selector:', error);
+	}
+};
+
+// Dynamic Window Overlay - Screen Studio style with WindowSelector
+const startDynamicOverlay = () => {
+	try {
+		if (window.electronAPI?.startDynamicWindowOverlay) {
+			console.log('Starting native WindowSelector overlay...');
+			window.electronAPI.startDynamicWindowOverlay();
+		} else {
+			console.error('Dynamic window overlay API not available');
+		}
+	} catch (error) {
+		console.error('Error starting dynamic window overlay:', error);
+	}
+};
+
+// Handle window selection and start recording
+onMounted(() => {
+	if (window.electron?.ipcRenderer) {
+		// Handle window selection and start recording immediately
+		window.electron.ipcRenderer.on('START_WINDOW_RECORDING', async (event, data) => {
+			console.log('Starting window recording:', data.windowInfo);
+			
+			// Set selected source for UI display
+			selectedSource.value = data.source;
+			
+			try {
+				// Prepare recording options with crop info
+				const recordingOptions = {
+					startScreen: true,
+					startCamera: selectedVideoDevice.value !== 'none',
+					startAudio: true,
+					systemAudio: systemAudioEnabled.value,
+					microphone: microphoneEnabled.value,
+					microphoneDeviceId: selectedAudioDevice.value,
+					cropArea: data.cropInfo, // Pass crop info for window recording
+					windowId: data.windowInfo.id,
+					selectedSource: data.source
+				};
+				
+				console.log('[Vue] Starting recording with options:', recordingOptions);
+				
+				// Start recording using Sleer's recording system
+				await startRecording(recordingOptions);
+				
+				console.log(`🎬 Kayıt başladı: ${data.windowInfo.title} (${data.windowInfo.appName})`);
+				
+			} catch (error) {
+				console.error('Recording start failed:', error);
+				console.log(`❌ Kayıt başlatılamadı: ${error.message}`);
+			}
+		});
+	}
+});
+
+// Load available screens and windows
+const loadAvailableSources = async () => {
+	try {
+		if (electron?.ipcRenderer) {
+			const [screens, windows] = await Promise.all([
+				electron.ipcRenderer.invoke('GET_MAC_SCREENS') || [],
+				electron.ipcRenderer.invoke('GET_MAC_WINDOWS') || []
+			]);
+			
+			availableScreens.value = screens.map((screen, index) => ({
+				id: screen.id ? `screen:${screen.id}` : `screen:${index}`,
+				name: screen.name || screen.displayName || `Display ${screen.id || index + 1}`,
+				type: 'display',
+				macRecorderId: screen.id || index
+			}));
+			
+			availableWindows.value = windows.map((window, index) => ({
+				id: window.id ? `window:${window.id}` : `window:${index}`,
+				name: window.name || window.title || window.windowName || 'Unknown Window',
+				type: 'window',
+				macRecorderId: window.id || index
+			}));
+		}
+	} catch (error) {
+		console.error('Failed to load recording sources:', error);
+	}
+};
 
 // Kaynak seçimi
 const selectSource = (source) => {
@@ -415,9 +535,20 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 watch(selectedVideoDevice, async (deviceId) => {
 	if (deviceId) {
 		try {
+			// "No Camera Recording" seçilirse kamera penceresini gizle
+			if (deviceId === 'none') {
+				console.log('[index.vue] No camera recording selected - hiding camera window');
+				if (electron?.ipcRenderer) {
+					electron.ipcRenderer.send('HIDE_CAMERA_WINDOW');
+				}
+				return;
+			}
 
 			// Kamera değişikliğini main process'e bildir
 			if (electron?.ipcRenderer) {
+				// Önce kamera penceresini göster (gizlenmişse)
+				electron.ipcRenderer.send('SHOW_CAMERA_WINDOW');
+				// Sonra device değişikliğini gönder
 				electron.ipcRenderer.send(IPC_EVENTS.CAMERA_DEVICE_CHANGED, deviceId);
 			} else {
 				console.error("[index.vue] Electron API bulunamadı");
@@ -470,11 +601,37 @@ const handleGlobalMouseUp = () => {
 	electron?.ipcRenderer.send("END_WINDOW_DRAG");
 };
 
+const openRecordingSettings = () => {
+	if (electron?.ipcRenderer) {
+		electron.ipcRenderer.send('SHOW_RECORDING_SETTINGS');
+	}
+};
+
+const handleSettingsSave = (settings) => {
+	console.log('[index.vue] Recording settings saved:', settings);
+	// TODO: Save settings to localStorage or electron-store
+	// TODO: Apply settings to recording configuration
+	
+	// Example of applying some settings:
+	if (settings.video) {
+		console.log('Applying video settings:', settings.video);
+	}
+	if (settings.audio) {
+		console.log('Applying audio settings:', settings.audio);
+	}
+	if (settings.source) {
+		console.log('Applying source settings:', settings.source);
+	}
+};
+
 onMounted(async () => {
 	const screenModule = useScreen();
 
 	// Cihazları yükle
 	await getDevices();
+
+	// Load available recording sources
+	await loadAvailableSources();
 
 	// MacRecorder test fonksiyonu
 	if (electron?.ipcRenderer) {
@@ -555,6 +712,70 @@ onMounted(async () => {
 			}
 		});
 
+		// Native overlay callbacks
+		electron.ipcRenderer.on("NATIVE_SCREEN_SELECTED", async (event, screenData) => {
+			try {
+				// Set selected screen and start recording
+				await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
+					sourceType: 'display',
+					sourceId: screenData.id,
+					sourceName: screenData.name,
+					macRecorderId: screenData.macRecorderId || 0,
+				});
+				
+				// Start recording
+				await startRecording({
+					startScreen: true,
+					startCamera: selectedVideoDevice.value !== 'none',
+					startAudio: true,
+				});
+			} catch (error) {
+				console.error('Error starting screen recording:', error);
+			}
+		});
+
+		electron.ipcRenderer.on("NATIVE_WINDOW_SELECTED", async (event, windowData) => {
+			try {
+				// Set selected window and start recording
+				await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
+					sourceType: 'window',
+					sourceId: windowData.id,
+					sourceName: windowData.name,
+					macRecorderId: windowData.macRecorderId || 0,
+				});
+				
+				// Start recording
+				await startRecording({
+					startScreen: true,
+					startCamera: selectedVideoDevice.value !== 'none',
+					startAudio: true,
+				});
+			} catch (error) {
+				console.error('Error starting window recording:', error);
+			}
+		});
+
+		electron.ipcRenderer.on("NATIVE_AREA_SELECTED", async (event, areaData) => {
+			try {
+				// Set selected area and start recording
+				await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
+					sourceType: 'area',
+					sourceId: 'area:custom',
+					sourceName: 'Selected Area',
+					bounds: areaData.bounds
+				});
+				
+				// Start recording
+				await startRecording({
+					startScreen: true,
+					startCamera: selectedVideoDevice.value !== 'none',
+					startAudio: true,
+				});
+			} catch (error) {
+				console.error('Error starting area recording:', error);
+			}
+		});
+
 		// Yeni kayıt için sıfırlama
 		electron.ipcRenderer.send("RESET_FOR_NEW_RECORDING");
 	}
@@ -588,6 +809,9 @@ onBeforeUnmount(() => {
 		electron.ipcRenderer.removeAllListeners("STOP_RECORDING_FROM_TRAY");
 		electron.ipcRenderer.removeAllListeners("CAMERA_STATUS_CHANGED");
 		electron.ipcRenderer.removeAllListeners("MOUSE_POSITION");
+		electron.ipcRenderer.removeAllListeners("NATIVE_SCREEN_SELECTED");
+		electron.ipcRenderer.removeAllListeners("NATIVE_WINDOW_SELECTED");
+		electron.ipcRenderer.removeAllListeners("NATIVE_AREA_SELECTED");
 	}
 });
 

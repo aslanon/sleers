@@ -5,6 +5,7 @@ import { useScreen } from "./modules/useScreen";
 import { useAudio } from "./modules/useAudio";
 import { useMouse } from "./modules/useMouse";
 import { useRecordingUtils } from "./modules/useRecordingUtils";
+import synchronizedRecording from "../services/SynchronizedRecordingService.js";
 
 export const useMediaDevices = () => {
 	const router = useRouter();
@@ -55,11 +56,14 @@ export const useMediaDevices = () => {
 			const startCamera = options.startCamera ?? true;
 			const startAudio = options.startAudio ?? true;
 
-
 			if (!startScreen && !startCamera && !startAudio) {
 				console.warn("Hiçbir kayıt türü seçilmedi");
 				return;
 			}
+
+			// Synchronized recording session başlat
+			const recordingSession = synchronizedRecording.startRecordingSession();
+			console.log('[Recording] Synchronized session başlatıldı:', recordingSession);
 
 			// Seçilen kayıtları başlat
 			let screenResult = null;
@@ -67,18 +71,51 @@ export const useMediaDevices = () => {
 			let audioResult = null;
 
 			if (startScreen) {
+				console.log("[Recording] Screen recording başlatılıyor...");
+
 				// MacRecorder kullanarak ekran kaydını başlat
-				screenResult = screenModule.startRecording(null, options);
+				screenResult = await screenModule.startRecording(null, options);
+				console.log("[Recording] Screen recording başlangıç komutu gönderildi");
+
+				// Kamera ve mouse'u hemen başlat (delay kaldırıldı - sync offset ile hallediliyor)
+				console.log(
+					"[Recording] Camera ve mouse hemen başlatılıyor..."
+				);
+
+				// Screen başlangıç zamanını kaydet (delay sonrası)
+				const screenStartTime = Date.now();
+				synchronizedRecording.recordStartTime('screen', screenStartTime);
+
+				if (startCamera) {
+					console.log("[Recording] Camera başlatılıyor (delay sonrası)...");
+					try {
+						const cameraStartTime = Date.now();
+						cameraResult = await cameraModule.startCameraRecording();
+						synchronizedRecording.recordStartTime('camera', cameraStartTime);
+						console.log("[Recording] Camera başlatıldı:", cameraResult);
+					} catch (cameraError) {
+						console.error("[Recording] Camera başlatma hatası:", cameraError);
+					}
+				}
+
+				// Mouse tracking'i başlat
+				console.log(
+					"[Recording] Mouse tracking başlatılıyor (delay sonrası)..."
+				);
+				const mouseStartTime = Date.now();
 				mouseModule.startMouseTracking();
+				synchronizedRecording.recordStartTime('mouse', mouseStartTime);
+				console.log("[Recording] Mouse tracking başlatıldı");
 			} else {
 				console.warn(
 					"🔧 [useMediaDevices] startScreen false olduğu için MacRecorder çağrılmıyor!"
 				);
-			}
 
-			if (startCamera) {
-				// Kamera kaydını başlat - her modül kendi konfigürasyonunu kullanır
-				cameraResult = await cameraModule.startCameraRecording();
+				// Screen olmadan camera ve mouse'u hemen başlat
+				if (startCamera) {
+					cameraResult = await cameraModule.startCameraRecording();
+				}
+				mouseModule.startMouseTracking();
 			}
 
 			if (startAudio && !screenResult?.audioPath) {
@@ -87,10 +124,15 @@ export const useMediaDevices = () => {
 				audioResult = await audioModule.startAudioRecording();
 			}
 
+			// Sync bilgilerini hesapla ve logla
+			const syncData = synchronizedRecording.calculateSynchronizationOffsets();
+			console.log('[Recording] Final sync data:', syncData);
+
 			return {
 				...screenResult,
 				...cameraResult,
 				...audioResult,
+				syncData,
 			};
 		} catch (error) {
 			console.error("Kayıt başlatılırken hata:", error);
@@ -104,7 +146,6 @@ export const useMediaDevices = () => {
 
 	const stopRecording = async () => {
 		try {
-
 			// Tüm kayıtları durdur ve sonuçları bekle
 			const promises = [];
 
@@ -146,7 +187,6 @@ export const useMediaDevices = () => {
 					(typeof cameraResult === "string" ? cameraResult : null),
 				audioPath: audioResult?.audioPath || null,
 			});
-
 		} catch (error) {
 			console.error("Kayıt durdurulurken hata:", error);
 			isRecording.value = false;

@@ -376,6 +376,15 @@ try {
 		searchGifs: async (query) => {
 			return await ipcRenderer.invoke('search-gifs', query);
 		},
+		// Dynamic window overlay functionality
+		startDynamicWindowOverlay: () => {
+			ipcRenderer.send('START_DYNAMIC_WINDOW_OVERLAY');
+		},
+		onUpdateWindowHighlight: (callback) => {
+			ipcRenderer.on('UPDATE_WINDOW_HIGHLIGHT', (event, windowData) => {
+				callback(windowData);
+			});
+		},
 	});
 
 	// Dock API'sini expose et - Ana süreçle iletişim kuran sürüm

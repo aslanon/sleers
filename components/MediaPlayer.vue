@@ -48,10 +48,12 @@
 				:webkit-playsinline="true"
 				:muted="false"
 				:volume="1.0"
+				:crossorigin="'anonymous'"
 				@error="onAudioError"
 				@stalled="onAudioStalled"
 				@waiting="onAudioWaiting"
 				@canplay="onAudioCanPlay"
+				@loadeddata="onAudioLoadedData"
 			></audio>
 		</div>
 
@@ -1411,15 +1413,17 @@ const synchronizeAllElements = async (realTime, clippedTime) => {
 		if (cameraElement && synchronizedTimestamps.value) {
 			const synchronizedCameraTime =
 				getSynchronizedTimestamp("camera", realTime * 1000) / 1000;
-			cameraElement.currentTime = synchronizedCameraTime;
+			// Camera sync offset ekle (kamera geride kalmasın)
+			const { cameraSettings } = usePlayerSettings();
+			cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 		} else if (cameraElement) {
-			// Fallback to original timing
-			const { cursorOffset } = usePlayerSettings();
-			cameraElement.currentTime = realTime + cursorOffset.value;
+			// Fallback to original timing with camera offset
+			const { cursorOffset, cameraSettings } = usePlayerSettings();
+			cameraElement.currentTime = realTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
 		}
 
-		// Sesi senkronize et
-		if (audioRef.value) {
+		// Sesi senkronize et - sadece büyük fark varsa (kesiklik önleme)
+		if (audioRef.value && Math.abs(audioRef.value.currentTime - realTime) > 0.2) {
 			audioRef.value.currentTime = realTime;
 		}
 
@@ -1528,12 +1532,39 @@ const syncVideoToTimeline = () => {
 		if (segmentInfo.isNewSegment) {
 			// Segment değişimi - immediate sync (responsive geçiş)
 			videoElement.currentTime = requiredVideoTime;
-			if (cameraElement) cameraElement.currentTime = requiredVideoTime;
-			if (audioRef.value) audioRef.value.currentTime = requiredVideoTime;
-		} else if (timeDiff > 0.05) {
-			// Normal sync - daha agresif tolerance (responsive geçiş)
+			// Kamera için synchronized timestamp kullan (ana sync ile tutarlı)
+			if (cameraElement && synchronizedTimestamps.value) {
+				const synchronizedCameraTime =
+					getSynchronizedTimestamp("camera", requiredVideoTime * 1000) / 1000;
+				// Camera sync offset ekle
+				const { cameraSettings } = usePlayerSettings();
+				cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+			} else if (cameraElement) {
+				const { cursorOffset, cameraSettings } = usePlayerSettings();
+				cameraElement.currentTime = requiredVideoTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+			}
+			// Audio'yu sadece büyük time farkında sync et (kesiklik önleme)
+			if (audioRef.value && Math.abs(audioRef.value.currentTime - requiredVideoTime) > 0.3) {
+				audioRef.value.currentTime = requiredVideoTime;
+			}
+		} else if (timeDiff > 0.1) { // Audio için tolerance'ı artırdık (0.05 -> 0.1)
+			// Normal sync - video için daha agresif, audio için daha tolerant
 			videoElement.currentTime = requiredVideoTime;
-			if (cameraElement) cameraElement.currentTime = requiredVideoTime;
+			// Kamera için synchronized timestamp kullan (ana sync ile tutarlı)
+			if (cameraElement && synchronizedTimestamps.value) {
+				const synchronizedCameraTime =
+					getSynchronizedTimestamp("camera", requiredVideoTime * 1000) / 1000;
+				// Camera sync offset ekle
+				const { cameraSettings } = usePlayerSettings();
+				cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+			} else if (cameraElement) {
+				const { cursorOffset, cameraSettings } = usePlayerSettings();
+				cameraElement.currentTime = requiredVideoTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+			}
+			// Audio'yu sadece daha büyük farklarda sync et
+			if (audioRef.value && Math.abs(audioRef.value.currentTime - requiredVideoTime) > 0.15) {
+				audioRef.value.currentTime = requiredVideoTime;
+			}
 		}
 	} else {
 		// Boş alan - video element'leri durdur ama timeline ilerler
@@ -2015,6 +2046,27 @@ const onAudioCanPlay = () => {
 	if (audioRef.value) {
 		audioRef.value.preload = "auto";
 		audioRef.value.volume = 1.0;
+	}
+};
+
+const onAudioLoadedData = () => {
+	// Audio tamamen yüklendiğinde optimizasyon ayarları
+	if (audioRef.value) {
+		// Buffer ahead time artırılıyor (daha az kesiklik için)
+		try {
+			// Modern browser'larda audio buffer optimize et
+			if (audioRef.value.buffered.length > 0) {
+				// Audio element'in buffer'ını optimize et
+				audioRef.value.preload = "auto";
+				
+				// Playback rate'i stabilize et
+				if (audioRef.value.playbackRate !== 1.0) {
+					audioRef.value.playbackRate = 1.0;
+				}
+			}
+		} catch (error) {
+			console.warn("[MediaPlayer] Audio buffer optimization failed:", error);
+		}
 	}
 };
 
@@ -4982,11 +5034,13 @@ watch(
 		if (cameraElement && synchronizedTimestamps.value) {
 			const synchronizedCameraTime =
 				getSynchronizedTimestamp("camera", newValue * 1000) / 1000;
-			cameraElement.currentTime = synchronizedCameraTime;
+			// Camera sync offset ekle
+			const { cameraSettings } = usePlayerSettings();
+			cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 		} else if (cameraElement) {
-			// Fallback to original timing
-			const { cursorOffset } = usePlayerSettings();
-			cameraElement.currentTime = newValue + cursorOffset.value;
+			// Fallback to original timing with camera offset
+			const { cursorOffset, cameraSettings } = usePlayerSettings();
+			cameraElement.currentTime = newValue + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
 		}
 		videoState.value.currentTime = newValue;
 
@@ -5049,10 +5103,12 @@ defineExpose({
 			if (synchronizedTimestamps.value) {
 				const synchronizedCameraTime =
 					getSynchronizedTimestamp("camera", targetTime * 1000) / 1000;
-				cameraElement.currentTime = synchronizedCameraTime;
+				// Camera sync offset ekle
+				const { cameraSettings } = usePlayerSettings();
+				cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 			} else {
-				const { cursorOffset } = usePlayerSettings();
-				cameraElement.currentTime = targetTime + cursorOffset.value;
+				const { cursorOffset, cameraSettings } = usePlayerSettings();
+				cameraElement.currentTime = targetTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
 			}
 		}
 
@@ -5085,15 +5141,18 @@ defineExpose({
 			if (synchronizedTimestamps.value) {
 				const synchronizedCameraTime =
 					getSynchronizedTimestamp("camera", exportTime * 1000) / 1000;
+				// Camera sync offset ekle
+				const { cameraSettings } = usePlayerSettings();
+				const targetCameraTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 				if (
-					Math.abs(cameraElement.currentTime - synchronizedCameraTime) > 0.005
+					Math.abs(cameraElement.currentTime - targetCameraTime) > 0.005
 				) {
-					cameraElement.currentTime = synchronizedCameraTime;
+					cameraElement.currentTime = targetCameraTime;
 				}
 			} else {
 				// Fallback to original timing with offset
-				const { cursorOffset } = usePlayerSettings();
-				const targetCameraTime = exportTime + cursorOffset.value;
+				const { cursorOffset, cameraSettings } = usePlayerSettings();
+				const targetCameraTime = exportTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
 				if (Math.abs(cameraElement.currentTime - targetCameraTime) > 0.005) {
 					cameraElement.currentTime = targetCameraTime;
 				}

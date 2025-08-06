@@ -55,6 +55,7 @@ const CameraManager = require("./cameraManager.cjs");
 const EditorManager = require("./editorManager.cjs");
 const SelectionManager = require("./selectionManager.cjs");
 const TempFileManager = require("./tempFileManager.cjs");
+const RecordingSettingsManager = require("./recordingSettingsManager.cjs");
 const MediaStateManager = require("./mediaStateManager.cjs");
 const DockManager = require("./dockManager.cjs");
 const PortManager = require("./portManager.cjs");
@@ -215,6 +216,7 @@ let cameraManager = null;
 let selectionManager = null;
 let editorManager = null;
 let tempFileManager = null;
+let recordingSettingsManager = null;
 let mediaStateManager = null;
 let dockManager = null;
 let editorSettings = {
@@ -1219,8 +1221,38 @@ function setupIpcHandlers() {
 			console.log("[Main] MacRecorder ekranları isteniyor");
 			const recorder = getMacRecorderInstance();
 			const screens = await recorder.getDisplays();
-			console.log("[Main] MacRecorder ekranları:", screens);
-			return screens;
+			console.log("[Main] MacRecorder ekranları:", screens?.length, "adet screen", screens?.[0]);
+			
+			// Thumbnail'ları ekle
+			const screensWithThumbnails = await Promise.all(screens.map(async (screen) => {
+				try {
+					// desktopCapturer kullanarak thumbnail al
+					const sources = await desktopCapturer.getSources({
+						types: ['screen'],
+						thumbnailSize: { width: 320, height: 180 }
+					});
+					
+					const matchingSource = sources.find(source => 
+						source.display_id === screen.id?.toString() || 
+						source.name.includes(screen.displayName || `Display ${screen.id}`)
+					);
+					
+					return {
+						...screen,
+						thumbnail: matchingSource?.thumbnail?.toDataURL() || null,
+						name: screen.displayName || screen.name || `Display ${screen.id}`
+					};
+				} catch (thumbError) {
+					console.error("[Main] Thumbnail alınamadı:", thumbError);
+					return {
+						...screen,
+						thumbnail: null,
+						name: screen.displayName || screen.name || `Display ${screen.id}`
+					};
+				}
+			}));
+			
+			return screensWithThumbnails;
 		} catch (error) {
 			console.error("[Main] MacRecorder ekranları alınamadı:", error);
 			return [];
@@ -1239,10 +1271,40 @@ function setupIpcHandlers() {
 			}
 
 			const windows = await recorder.getWindows();
-			console.log("[Main] MacRecorder pencereleri:", windows.length, "adet");
+			console.log("[Main] MacRecorder pencereleri:", windows?.length, "adet", windows?.[0]);
+
+			// Thumbnail'ları ekle
+			const windowsWithThumbnails = await Promise.all((windows || []).map(async (window) => {
+				try {
+					// desktopCapturer kullanarak thumbnail al
+					const sources = await desktopCapturer.getSources({
+						types: ['window'],
+						thumbnailSize: { width: 320, height: 180 }
+					});
+					
+					const matchingSource = sources.find(source => 
+						source.id.includes(window.id?.toString()) || 
+						source.name === window.name ||
+						source.name === window.windowName
+					);
+					
+					return {
+						...window,
+						thumbnail: matchingSource?.thumbnail?.toDataURL() || null,
+						name: window.name || window.windowName || window.title || 'Unknown Window'
+					};
+				} catch (thumbError) {
+					console.error("[Main] Window thumbnail alınamadı:", thumbError);
+					return {
+						...window,
+						thumbnail: null,
+						name: window.name || window.windowName || window.title || 'Unknown Window'
+					};
+				}
+			}));
 
 			// Production build'de pencere listesi boş olabilir - fallback ekle
-			if (app.isPackaged && (!windows || windows.length === 0)) {
+			if (app.isPackaged && windowsWithThumbnails.length === 0) {
 				console.warn(
 					"[Main] Production build'de pencere listesi boş, fallback kullanılıyor"
 				);
@@ -1252,11 +1314,12 @@ function setupIpcHandlers() {
 						name: "Tüm Ekranlar",
 						ownerName: "System",
 						isOnScreen: true,
+						thumbnail: null
 					},
 				];
 			}
 
-			return windows || [];
+			return windowsWithThumbnails;
 		} catch (error) {
 			console.error("[Main] MacRecorder pencereleri alınamadı:", error);
 			console.error("[Main] Error details:", {
@@ -3007,6 +3070,49 @@ function setupIpcHandlers() {
 		}
 	});
 
+	// Kamera penceresini gizle/göster
+	ipcMain.on(IPC_EVENTS.HIDE_CAMERA_WINDOW, (event) => {
+		console.log("[main.cjs] Kamera penceresi gizleniyor (No camera recording seçildi)");
+		if (cameraManager && cameraManager.cameraWindow && !cameraManager.cameraWindow.isDestroyed()) {
+			cameraManager.cameraWindow.hide();
+		}
+	});
+
+	ipcMain.on(IPC_EVENTS.SHOW_CAMERA_WINDOW, (event) => {
+		console.log("[main.cjs] Kamera penceresi gösteriliyor (Camera source seçildi)");
+		if (cameraManager && cameraManager.cameraWindow && !cameraManager.cameraWindow.isDestroyed()) {
+			cameraManager.cameraWindow.show();
+		}
+	});
+
+	// Recording Settings Window
+	ipcMain.on('SHOW_RECORDING_SETTINGS', async (event) => {
+		console.log("[main.cjs] Recording settings window açılıyor");
+		if (recordingSettingsManager) {
+			await recordingSettingsManager.showSettingsWindow();
+		}
+	});
+
+	ipcMain.handle('SAVE_RECORDING_SETTINGS', (event, settings) => {
+		console.log("[main.cjs] Recording settings kaydediliyor:", settings);
+		// TODO: Save to electron-store
+		return { success: true };
+	});
+
+	ipcMain.handle('GET_OS_INFO', (event) => {
+		return {
+			homedir: os.homedir(),
+			platform: os.platform(),
+			arch: os.arch()
+		};
+	});
+
+	ipcMain.handle('GET_RECORDING_SETTINGS', (event) => {
+		console.log("[main.cjs] Recording settings yükleniyor");
+		// TODO: Load from electron-store
+		return {};
+	});
+
 	// Handle screenshot saving
 	safeHandle(IPC_EVENTS.SAVE_SCREENSHOT, async (event, imageData, filePath) => {
 		try {
@@ -3372,6 +3478,7 @@ function initializeManagers() {
 	selectionManager = new SelectionManager(mainWindow);
 	editorManager = new EditorManager(mainWindow);
 	tempFileManager = new TempFileManager(mainWindow);
+	recordingSettingsManager = new RecordingSettingsManager(mainWindow);
 	mediaStateManager = new MediaStateManager(mainWindow);
 	trayManager = new TrayManager(mainWindow, openEditorMode);
 
@@ -3629,6 +3736,7 @@ app.on("before-quit", () => {
 
 		// Diğer manager'ları temizle
 		if (cameraManager) cameraManager.cleanup();
+		if (recordingSettingsManager) recordingSettingsManager.cleanup();
 		if (trayManager) trayManager.cleanup();
 		if (tempFileManager) tempFileManager.cleanupAllFiles();
 
@@ -3941,3 +4049,957 @@ ${possiblePaths.join("\n")}
 		}
 	});
 }
+
+// Native Overlay System
+let overlayWindows = [];
+let dynamicWindowOverlay = null;
+let mouseTrackingInterval = null;
+
+// Create native overlay window
+function createOverlayWindow(options = {}) {
+	const overlay = new BrowserWindow({
+		width: options.width || screen.getPrimaryDisplay().workAreaSize.width,
+		height: options.height || screen.getPrimaryDisplay().workAreaSize.height,
+		x: options.x || 0,
+		y: options.y || 0,
+		frame: false,
+		transparent: true,
+		alwaysOnTop: true,
+		skipTaskbar: true,
+		resizable: false,
+		movable: false,
+		minimizable: false,
+		maximizable: false,
+		closable: true,
+		focusable: true,
+		fullscreen: options.fullscreen || false,
+		webPreferences: {
+			nodeIntegration: false,
+			contextIsolation: true,
+			enableRemoteModule: false,
+			preload: path.join(__dirname, "preload.cjs"),
+		}
+	});
+
+	// ESC key handler
+	overlay.webContents.on('before-input-event', (event, input) => {
+		if (input.key === 'Escape') {
+			closeAllOverlays();
+		}
+	});
+
+	overlayWindows.push(overlay);
+	return overlay;
+}
+
+// Close all overlay windows
+function closeAllOverlays() {
+	overlayWindows.forEach(overlay => {
+		if (!overlay.isDestroyed()) {
+			overlay.close();
+		}
+	});
+	overlayWindows = [];
+	
+	// Also close dynamic window overlay and stop window selector
+	if (windowSelector) {
+		try {
+			windowSelector.cleanup();
+		} catch (error) {
+			console.error('[Main] Error cleaning up window selector:', error);
+		}
+		windowSelector = null;
+	}
+	
+	hideCustomWindowOverlay();
+	
+	// Stop mouse tracking (legacy)
+	if (mouseTrackingInterval) {
+		clearInterval(mouseTrackingInterval);
+		mouseTrackingInterval = null;
+	}
+}
+
+// Native Screen Selector - Transparent highlight overlays
+ipcMain.on('SHOW_NATIVE_SCREEN_SELECTOR', async () => {
+	try {
+		closeAllOverlays(); // Close any existing overlays
+		
+		const displays = screen.getAllDisplays();
+		
+		for (const display of displays) {
+			const overlay = createOverlayWindow({
+				x: display.bounds.x,
+				y: display.bounds.y,
+				width: display.bounds.width,
+				height: display.bounds.height,
+				fullscreen: false
+			});
+
+			// Create transparent screen highlight HTML
+			const screenHighlightHTML = `
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<style>
+						* {
+							margin: 0;
+							padding: 0;
+							box-sizing: border-box;
+						}
+						body {
+							width: 100vw;
+							height: 100vh;
+							background: transparent;
+							position: relative;
+							cursor: pointer;
+						}
+						.screen-highlight {
+							position: absolute;
+							top: 0;
+							left: 0;
+							width: 100%;
+							height: 100%;
+							border: 4px solid #007aff;
+							border-radius: 12px;
+							background: rgba(0, 122, 255, 0.1);
+							transition: all 0.3s ease;
+							box-shadow: 0 0 20px rgba(0, 122, 255, 0.5);
+						}
+						.screen-highlight:hover {
+							border-color: #0056b3;
+							background: rgba(0, 122, 255, 0.15);
+							box-shadow: 0 0 30px rgba(0, 122, 255, 0.7);
+						}
+						.screen-info {
+							position: absolute;
+							top: 15px;
+							left: 15px;
+							background: rgba(0, 0, 0, 0.9);
+							color: white;
+							padding: 12px 18px;
+							border-radius: 8px;
+							font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+							font-size: 16px;
+							font-weight: 600;
+							backdrop-filter: blur(10px);
+							z-index: 10;
+						}
+						.control-buttons {
+							position: absolute;
+							top: 50%;
+							left: 50%;
+							transform: translate(-50%, -50%);
+							display: flex;
+							gap: 15px;
+							z-index: 10;
+						}
+						.record-button {
+							background: #ff4444;
+							color: white;
+							border: none;
+							padding: 15px 30px;
+							border-radius: 12px;
+							font-size: 18px;
+							font-weight: 600;
+							cursor: pointer;
+							transition: all 0.3s ease;
+							box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
+							backdrop-filter: blur(10px);
+						}
+						.record-button:hover {
+							background: #ff3333;
+							transform: scale(1.05);
+							box-shadow: 0 6px 20px rgba(255, 68, 68, 0.6);
+						}
+						.close-button {
+							position: absolute;
+							top: 15px;
+							right: 15px;
+							width: 35px;
+							height: 35px;
+							background: rgba(255, 68, 68, 0.9);
+							border: none;
+							border-radius: 50%;
+							color: white;
+							font-size: 18px;
+							cursor: pointer;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							backdrop-filter: blur(10px);
+							transition: all 0.3s ease;
+							z-index: 10;
+						}
+						.close-button:hover {
+							background: #ff3333;
+							transform: scale(1.1);
+						}
+					</style>
+				</head>
+				<body onclick="selectScreen()">
+					<div class="screen-highlight"></div>
+					<div class="screen-info">${display.label || 'Display ' + (displays.indexOf(display) + 1)}</div>
+					<div class="control-buttons">
+						<button class="record-button" onclick="event.stopPropagation(); selectScreen();">
+							📹 Start Recording
+						</button>
+					</div>
+					<button class="close-button" onclick="event.stopPropagation(); closeOverlay();" title="Close">
+						✕
+					</button>
+					<script>
+						function selectScreen() {
+							window.electron.ipcRenderer.send('NATIVE_SCREEN_SELECTED', {
+								id: 'screen:${display.id}',
+								name: '${display.label || 'Display ' + (displays.indexOf(display) + 1)}',
+								macRecorderId: ${display.id},
+								bounds: ${JSON.stringify(display.bounds)}
+							});
+						}
+						function closeOverlay() {
+							window.electron.ipcRenderer.send('CLOSE_NATIVE_OVERLAYS');
+						}
+						// ESC key handler
+						document.addEventListener('keydown', (e) => {
+							if (e.key === 'Escape') closeOverlay();
+						});
+					</script>
+				</body>
+				</html>
+			`;
+
+			overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(screenHighlightHTML)}`);
+		}
+	} catch (error) {
+		console.error('Error showing native screen selector:', error);
+	}
+});
+
+// Native Window Selector - Better approach without Mission Control
+ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
+	try {
+		closeAllOverlays();
+		
+		// Get all windows using desktopCapturer first
+		const sources = await desktopCapturer.getSources({ 
+			types: ['window'],
+			fetchWindowIcons: true 
+		});
+		
+		// Filter out system windows and get real application windows
+		const appWindows = sources.filter(source => 
+			source.name && 
+			source.name !== '' && 
+			source.name.length > 1 &&
+			!source.name.includes('Desktop') &&
+			!source.name.includes('Wallpaper') &&
+			!source.name.includes('Window Server') &&
+			!source.name.includes('StatusMenuBar') &&
+			!source.name.includes('Notification') &&
+			!source.name.includes('Control Center') &&
+			source.name !== 'Item-0'
+		);
+
+		console.log('Found windows:', appWindows.map(w => ({ name: w.name, id: w.id })));
+
+		if (appWindows.length === 0) {
+			console.log('No suitable windows found for recording');
+			return;
+		}
+
+		// Use AppleScript to get actual window positions and sizes
+		const { exec } = require('child_process');
+		
+		// Create overlays for each window using AppleScript to get bounds
+		for (let i = 0; i < appWindows.length; i++) {
+			const windowSource = appWindows[i];
+			
+			try {
+				// Get window bounds using AppleScript (this is a simplified version)
+				const getWindowBounds = `
+					tell application "System Events"
+						set windowList to every window of (processes where background only is false)
+						repeat with theWindow in windowList
+							set windowName to name of theWindow
+							if windowName contains "${windowSource.name.substring(0, 10)}" then
+								set windowPosition to position of theWindow
+								set windowSize to size of theWindow
+								return {item 1 of windowPosition, item 2 of windowPosition, item 1 of windowSize, item 2 of windowSize}
+							end if
+						end repeat
+						return {100, 100, 400, 300}
+					end tell
+				`;
+				
+				exec(`osascript -e '${getWindowBounds}'`, (error, stdout, stderr) => {
+					if (error) {
+						console.log('AppleScript error, using fallback position for:', windowSource.name);
+						// Fallback to grid positioning
+						const cols = 3;
+						const row = Math.floor(i / cols);
+						const col = i % cols;
+						const windowWidth = 350;
+						const windowHeight = 250;
+						const spacing = 20;
+						const startX = 100;
+						const startY = 100;
+						
+						createWindowOverlay(
+							windowSource,
+							startX + col * (windowWidth + spacing),
+							startY + row * (windowHeight + spacing),
+							windowWidth,
+							windowHeight
+						);
+					} else {
+						// Parse AppleScript result
+						const bounds = stdout.trim().split(', ').map(n => parseInt(n));
+						if (bounds.length === 4) {
+							createWindowOverlay(windowSource, bounds[0], bounds[1], bounds[2], bounds[3]);
+						} else {
+							// Fallback positioning
+							const cols = 3;
+							const row = Math.floor(i / cols);
+							const col = i % cols;
+							const windowWidth = 350;
+							const windowHeight = 250;
+							const spacing = 20;
+							
+							createWindowOverlay(
+								windowSource,
+								100 + col * (windowWidth + spacing),
+								100 + row * (windowHeight + spacing),
+								windowWidth,
+								windowHeight
+							);
+						}
+					}
+				});
+				
+			} catch (scriptError) {
+				console.error('Script error for window:', windowSource.name, scriptError);
+				// Fallback grid positioning
+				const cols = 3;
+				const row = Math.floor(i / cols);
+				const col = i % cols;
+				const windowWidth = 350;
+				const windowHeight = 250;
+				const spacing = 20;
+				
+				createWindowOverlay(
+					windowSource,
+					100 + col * (windowWidth + spacing),
+					100 + row * (windowHeight + spacing),
+					windowWidth,
+					windowHeight
+				);
+			}
+		}
+		
+		// Create a global close button overlay
+		setTimeout(() => {
+			const closeOverlay = createOverlayWindow({
+				x: screen.getPrimaryDisplay().bounds.width - 80,
+				y: 30,
+				width: 60,
+				height: 60,
+				fullscreen: false
+			});
+			
+			const closeButtonHTML = `
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<style>
+						body {
+							margin: 0;
+							background: transparent;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							height: 100vh;
+						}
+						.close-btn {
+							width: 50px;
+							height: 50px;
+							background: #ff4444;
+							border: none;
+							border-radius: 50%;
+							color: white;
+							font-size: 20px;
+							cursor: pointer;
+							display: flex;
+							align-items: center;
+							justify-content: center;
+							backdrop-filter: blur(10px);
+							transition: all 0.3s ease;
+							box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
+						}
+						.close-btn:hover {
+							background: #ff3333;
+							transform: scale(1.1);
+						}
+					</style>
+				</head>
+				<body>
+					<button class="close-btn" onclick="closeAll()">✕</button>
+					<script>
+						function closeAll() {
+							window.electron.ipcRenderer.send('CLOSE_NATIVE_OVERLAYS');
+						}
+						document.addEventListener('keydown', (e) => {
+							if (e.key === 'Escape') closeAll();
+						});
+					</script>
+				</body>
+				</html>
+			`;
+			
+			closeOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(closeButtonHTML)}`);
+		}, 500);
+		
+	} catch (error) {
+		console.error('Error showing native window selector:', error);
+	}
+});
+
+// Helper function to create window overlay
+function createWindowOverlay(windowSource, x, y, width, height) {
+	const windowOverlay = createOverlayWindow({
+		x: x,
+		y: y,
+		width: width,
+		height: height,
+		fullscreen: false
+	});
+
+	const windowHighlightHTML = `
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<style>
+				* {
+					margin: 0;
+					padding: 0;
+					box-sizing: border-box;
+				}
+				body {
+					width: 100vw;
+					height: 100vh;
+					background: transparent;
+					position: relative;
+					cursor: pointer;
+				}
+				.window-highlight {
+					position: absolute;
+					top: 0;
+					left: 0;
+					width: 100%;
+					height: 100%;
+					border: 3px solid #007aff;
+					border-radius: 8px;
+					background: rgba(0, 122, 255, 0.08);
+					transition: all 0.3s ease;
+					box-shadow: 0 0 20px rgba(0, 122, 255, 0.3);
+				}
+				.window-highlight:hover {
+					border-color: #0056b3;
+					background: rgba(0, 122, 255, 0.15);
+					box-shadow: 0 0 30px rgba(0, 122, 255, 0.5);
+					transform: scale(1.02);
+				}
+				.window-info {
+					position: absolute;
+					top: -40px;
+					left: 0;
+					right: 0;
+					background: rgba(0, 0, 0, 0.9);
+					color: white;
+					padding: 8px 12px;
+					border-radius: 6px;
+					font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+					font-size: 13px;
+					font-weight: 600;
+					backdrop-filter: blur(10px);
+					text-align: center;
+					white-space: nowrap;
+					overflow: hidden;
+					text-overflow: ellipsis;
+				}
+				.record-button {
+					position: absolute;
+					top: 50%;
+					left: 50%;
+					transform: translate(-50%, -50%);
+					background: #ff4444;
+					color: white;
+					border: none;
+					padding: 12px 20px;
+					border-radius: 8px;
+					font-size: 16px;
+					font-weight: 600;
+					cursor: pointer;
+					transition: all 0.3s ease;
+					box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
+					backdrop-filter: blur(10px);
+					opacity: 0;
+					z-index: 10;
+				}
+				.window-highlight:hover .record-button {
+					opacity: 1;
+				}
+				.record-button:hover {
+					background: #ff3333;
+					transform: translate(-50%, -50%) scale(1.05);
+				}
+			</style>
+		</head>
+		<body onclick="selectWindow()">
+			<div class="window-highlight">
+				<div class="window-info">${windowSource.name}</div>
+				<button class="record-button" onclick="event.stopPropagation(); selectWindow();">
+					📹 Record
+				</button>
+			</div>
+			<script>
+				function selectWindow() {
+					// Send window selection
+					window.electron.ipcRenderer.send('NATIVE_WINDOW_SELECTED', {
+						id: '${windowSource.id}',
+						name: '${windowSource.name.replace(/'/g, "\\'")}',
+						macRecorderId: '${windowSource.id}',
+						bounds: { x: ${x}, y: ${y}, width: ${width}, height: ${height} }
+					});
+				}
+				
+				// ESC key handler
+				document.addEventListener('keydown', (e) => {
+					if (e.key === 'Escape') {
+						window.electron.ipcRenderer.send('CLOSE_NATIVE_OVERLAYS');
+					}
+				});
+			</script>
+		</body>
+		</html>
+	`;
+
+	windowOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(windowHighlightHTML)}`);
+}
+
+// Native Area Selector
+ipcMain.on('SHOW_NATIVE_AREA_SELECTOR', () => {
+	try {
+		closeAllOverlays();
+		
+		const primaryDisplay = screen.getPrimaryDisplay();
+		const overlay = createOverlayWindow({
+			x: primaryDisplay.bounds.x,
+			y: primaryDisplay.bounds.y,
+			width: primaryDisplay.bounds.width, 
+			height: primaryDisplay.bounds.height,
+			fullscreen: true
+		});
+
+		const areaSelectorHTML = `
+			<!DOCTYPE html>
+			<html>
+			<head>
+				<style>
+					body {
+						margin: 0;
+						padding: 0;
+						background: rgba(0, 0, 0, 0.3);
+						cursor: crosshair;
+						height: 100vh;
+						overflow: hidden;
+						user-select: none;
+					}
+					.instructions {
+						position: absolute;
+						top: 30px;
+						left: 50%;
+						transform: translateX(-50%);
+						background: rgba(0, 0, 0, 0.8);
+						color: white;
+						padding: 15px 25px;
+						border-radius: 10px;
+						font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+						font-size: 18px;
+						font-weight: 500;
+						z-index: 100;
+					}
+					.selection-area {
+						position: absolute;
+						border: 2px solid #007aff;
+						background: rgba(0, 122, 255, 0.1);
+						display: none;
+						z-index: 50;
+					}
+					.selection-controls {
+						position: absolute;
+						bottom: 10px;
+						right: 10px;
+						display: none;
+						gap: 10px;
+					}
+					.selection-controls button {
+						padding: 10px 20px;
+						border: none;
+						border-radius: 8px;
+						font-size: 14px;
+						font-weight: 600;
+						cursor: pointer;
+					}
+					.start-btn {
+						background: #ff4444;
+						color: white;
+					}
+					.start-btn:hover {
+						background: #ff3333;
+					}
+					.cancel-btn {
+						background: #666;
+						color: white;
+					}
+					.cancel-btn:hover {
+						background: #555;
+					}
+					.close-button {
+						position: absolute;
+						top: 30px;
+						right: 30px;
+						width: 50px;
+						height: 50px;
+						background: #ff4444;
+						border: none;
+						border-radius: 50%;
+						color: white;
+						font-size: 24px;
+						cursor: pointer;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						z-index: 100;
+					}
+					.close-button:hover {
+						background: #ff3333;
+					}
+				</style>
+			</head>
+			<body>
+				<div class="instructions">Click and drag to select recording area</div>
+				<button class="close-button" onclick="closeOverlay()" title="Close">&times;</button>
+				<div class="selection-area" id="selectionArea">
+					<div class="selection-controls">
+						<button class="start-btn" onclick="startAreaRecording()">Start Record</button>
+						<button class="cancel-btn" onclick="closeOverlay()">Cancel</button>
+					</div>
+				</div>
+				<script>
+					let isSelecting = false;
+					let startX, startY;
+					let selectionArea = document.getElementById('selectionArea');
+					
+					document.addEventListener('mousedown', (e) => {
+						if (e.target.classList.contains('close-button') || e.target.closest('.selection-controls')) return;
+						
+						isSelecting = true;
+						startX = e.clientX;
+						startY = e.clientY;
+						
+						selectionArea.style.left = startX + 'px';
+						selectionArea.style.top = startY + 'px';
+						selectionArea.style.width = '0px';
+						selectionArea.style.height = '0px';
+						selectionArea.style.display = 'block';
+						selectionArea.querySelector('.selection-controls').style.display = 'none';
+					});
+					
+					document.addEventListener('mousemove', (e) => {
+						if (!isSelecting) return;
+						
+						const currentX = e.clientX;
+						const currentY = e.clientY;
+						
+						const width = Math.abs(currentX - startX);
+						const height = Math.abs(currentY - startY);
+						const left = Math.min(currentX, startX);
+						const top = Math.min(currentY, startY);
+						
+						selectionArea.style.left = left + 'px';
+						selectionArea.style.top = top + 'px';
+						selectionArea.style.width = width + 'px';
+						selectionArea.style.height = height + 'px';
+					});
+					
+					document.addEventListener('mouseup', (e) => {
+						if (!isSelecting) return;
+						
+						isSelecting = false;
+						
+						const rect = selectionArea.getBoundingClientRect();
+						if (rect.width > 10 && rect.height > 10) {
+							selectionArea.querySelector('.selection-controls').style.display = 'flex';
+						} else {
+							selectionArea.style.display = 'none';
+						}
+					});
+					
+					function startAreaRecording() {
+						const rect = selectionArea.getBoundingClientRect();
+						window.electron.ipcRenderer.send('NATIVE_AREA_SELECTED', {
+							bounds: {
+								x: rect.left,
+								y: rect.top,
+								width: rect.width,
+								height: rect.height
+							}
+						});
+					}
+					
+					function closeOverlay() {
+						window.electron.ipcRenderer.send('CLOSE_NATIVE_OVERLAYS');
+					}
+					
+					// ESC key handler
+					document.addEventListener('keydown', (e) => {
+						if (e.key === 'Escape') closeOverlay();
+					});
+				</script>
+			</body>
+			</html>
+		`;
+
+		overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(areaSelectorHTML)}`);
+	} catch (error) {
+		console.error('Error showing native area selector:', error);
+	}
+});
+
+// Bring window to front
+ipcMain.on('BRING_WINDOW_TO_FRONT', (event, windowId) => {
+	try {
+		// Use AppleScript to bring window to front
+		const { exec } = require('child_process');
+		// This is a simplified approach - in real implementation you'd use proper window management
+		exec('osascript -e "tell application \\"System Events\\" to keystroke tab using command down"');
+	} catch (error) {
+		console.error('Error bringing window to front:', error);
+	}
+});
+
+// Handle overlay events
+ipcMain.on('NATIVE_SCREEN_SELECTED', (event, screenData) => {
+	closeAllOverlays();
+	// Forward to renderer
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.webContents.send('NATIVE_SCREEN_SELECTED', screenData);
+	}
+});
+
+ipcMain.on('NATIVE_WINDOW_SELECTED', (event, windowData) => {
+	closeAllOverlays();
+	// Forward to renderer
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.webContents.send('NATIVE_WINDOW_SELECTED', windowData);
+	}
+});
+
+ipcMain.on('NATIVE_AREA_SELECTED', (event, areaData) => {
+	closeAllOverlays();
+	// Forward to renderer
+	if (mainWindow && !mainWindow.isDestroyed()) {
+		mainWindow.webContents.send('NATIVE_AREA_SELECTED', areaData);
+	}
+});
+
+ipcMain.on('CLOSE_NATIVE_OVERLAYS', () => {
+	closeAllOverlays();
+});
+
+// Dynamic Window Overlay System - Using native WindowSelector
+let windowSelector = null;
+
+async function startDynamicWindowOverlay() {
+	try {
+		closeAllOverlays(); // Close any existing overlays
+		
+		// Import WindowSelector
+		const WindowSelector = require('node-mac-recorder/window-selector');
+		windowSelector = new WindowSelector();
+		
+		console.log('[Main] Starting native WindowSelector...');
+		
+		// Set up event listeners
+		windowSelector.on('windowEntered', (windowInfo) => {
+			console.log('[Main] Window entered:', windowInfo.title, windowInfo.appName);
+			
+			// Create our custom overlay to match the window
+			createCustomWindowOverlay(windowInfo);
+		});
+		
+		windowSelector.on('windowLeft', (windowInfo) => {
+			console.log('[Main] Window left:', windowInfo.title);
+			
+			// Hide our custom overlay
+			hideCustomWindowOverlay();
+		});
+		
+		windowSelector.on('windowSelected', async (windowInfo) => {
+			console.log('[Main] Window selected, starting recording:', windowInfo.title);
+			
+			// Stop selection first
+			await stopDynamicWindowOverlay();
+			
+			// Prepare crop info for window recording
+			const cropInfo = {
+				x: windowInfo.x,
+				y: windowInfo.y,
+				width: windowInfo.width,
+				height: windowInfo.height
+			};
+			
+			// Send to renderer to trigger recording with crop info
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				mainWindow.webContents.send('START_WINDOW_RECORDING', {
+					windowInfo: windowInfo,
+					cropInfo: cropInfo,
+					source: {
+						id: windowInfo.id.toString(),
+						name: windowInfo.title,
+						appName: windowInfo.appName,
+						type: 'window',
+						...cropInfo
+					}
+				});
+			}
+			
+			console.log('[Main] Window recording request sent:', windowInfo.title, cropInfo);
+		});
+		
+		windowSelector.on('error', (error) => {
+			console.error('[Main] WindowSelector error:', error);
+		});
+		
+		// Start the window selection
+		await windowSelector.startSelection();
+		
+		console.log('[Main] Native WindowSelector started successfully');
+		
+	} catch (error) {
+		console.error('[Main] Error starting native WindowSelector:', error);
+	}
+}
+
+// Create custom overlay to enhance native selection
+function createCustomWindowOverlay(windowInfo) {
+	// Close existing custom overlay
+	hideCustomWindowOverlay();
+	
+	// Create enhanced overlay window that matches the selected window exactly  
+	dynamicWindowOverlay = createOverlayWindow({
+		x: windowInfo.x,
+		y: windowInfo.y,
+		width: windowInfo.width,
+		height: windowInfo.height,
+		fullscreen: false
+	});
+	
+	// Create enhanced overlay HTML - Screen Studio style
+	const enhancedOverlayHTML = `
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<style>
+				* {
+					margin: 0;
+					padding: 0;
+					box-sizing: border-box;
+				}
+				body {
+					width: 100vw;
+					height: 100vh;
+					background: transparent;
+					position: relative;
+					overflow: hidden;
+				}
+				.window-highlight {
+					position: absolute;
+					top: 0;
+					left: 0;
+					right: 0;
+					bottom: 0;
+					border: 4px solid #007AFF;
+					border-radius: 12px;
+					background: rgba(0, 122, 255, 0.08);
+					box-shadow: 
+						0 0 20px rgba(0, 122, 255, 0.5),
+						inset 0 0 20px rgba(0, 122, 255, 0.1);
+					pointer-events: none;
+					animation: pulseGlow 2s ease-in-out infinite alternate;
+				}
+				.window-info {
+					position: absolute;
+					top: -50px;
+					left: 50%;
+					transform: translateX(-50%);
+					background: rgba(0, 122, 255, 0.95);
+					color: white;
+					padding: 8px 16px;
+					border-radius: 8px;
+					font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+					font-size: 13px;
+					font-weight: 500;
+					white-space: nowrap;
+					backdrop-filter: blur(15px);
+					border: 1px solid rgba(0, 122, 255, 0.3);
+					box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+				}
+				@keyframes pulseGlow {
+					0% { box-shadow: 0 0 20px rgba(0, 122, 255, 0.5), inset 0 0 20px rgba(0, 122, 255, 0.1); }
+					100% { box-shadow: 0 0 30px rgba(0, 122, 255, 0.8), inset 0 0 25px rgba(0, 122, 255, 0.15); }
+				}
+			</style>
+		</head>
+		<body>
+			<div class="window-highlight">
+				<div class="window-info">${windowInfo.appName} - ${windowInfo.title}</div>
+			</div>
+		</body>
+		</html>
+	`;
+	
+	dynamicWindowOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(enhancedOverlayHTML)}`);
+}
+
+function hideCustomWindowOverlay() {
+	if (dynamicWindowOverlay && !dynamicWindowOverlay.isDestroyed()) {
+		dynamicWindowOverlay.close();
+		dynamicWindowOverlay = null;
+	}
+}
+
+async function stopDynamicWindowOverlay() {
+	try {
+		if (windowSelector) {
+			await windowSelector.cleanup();
+			windowSelector = null;
+		}
+		
+		hideCustomWindowOverlay();
+		
+		console.log('[Main] Dynamic window overlay stopped');
+		
+	} catch (error) {
+		console.error('[Main] Error stopping window overlay:', error);
+	}
+}
+
+ipcMain.on('START_DYNAMIC_WINDOW_OVERLAY', startDynamicWindowOverlay);
+ipcMain.on('STOP_DYNAMIC_WINDOW_OVERLAY', stopDynamicWindowOverlay);
+
+// Clean up overlays on app quit
+app.on('before-quit', () => {
+	closeAllOverlays();
+});

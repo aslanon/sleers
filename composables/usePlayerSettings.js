@@ -62,6 +62,7 @@ const cameraSettings = ref({
 		targetFps: 30,
 	},
 	mergeWithCursor: false, // New setting for cursor-following camera with blue background
+	syncOffset: -1.2, // Camera sync offset in seconds (negative = camera ahead of video)
 });
 
 // Ekran kaydı videosu için border ayarları
