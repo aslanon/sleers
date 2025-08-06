@@ -49,6 +49,7 @@ class TrayManager {
 		this.mainWindow = mainWindow;
 		this.tray = null;
 		this.isRecording = false;
+		this.isEditorOpen = false;
 		this.openEditorMode = openEditorMode;
 
 		// Store oluştur (güvenli)
@@ -87,22 +88,24 @@ class TrayManager {
 	}
 
 	createTrayMenu() {
+		// During recording, return empty menu (no menu shown)
+		if (this.isRecording) {
+			return Menu.buildFromTemplate([]);
+		}
+
+		// Normal menu when not recording
 		return Menu.buildFromTemplate([
 			{
-				label: this.isRecording ? "Kaydı Durdur" : "Kaydı Başlat",
+				label: "Start Recording",
 				click: () => {
-					if (this.isRecording) {
-						this.mainWindow.webContents.send("STOP_RECORDING_FROM_TRAY");
-					} else {
-						this.mainWindow.webContents.send("START_RECORDING_FROM_TRAY");
-						this.mainWindow.hide();
-					}
-					this.isRecording = !this.isRecording;
+					this.mainWindow.webContents.send("START_RECORDING_FROM_TRAY");
+					this.mainWindow.hide();
+					this.isRecording = true;
 					this.updateTrayIcon();
 				},
 			},
 			{
-				label: "Editör Modunu Aç",
+				label: "Open Editor",
 				click: () => {
 					if (this.openEditorMode) {
 						this.openEditorMode();
@@ -112,11 +115,11 @@ class TrayManager {
 				},
 			},
 			{
-				label: "Pencereyi Göster",
+				label: "Show Window",
 				click: () => {
-					// Editor açıkken ana pencereyi gösterme
+					// Don't show main window when editor is open
 					if (this.editorManager && this.editorManager.isEditorWindowOpen()) {
-						console.log("[TrayManager] Editor açık, ana pencere gösterilmiyor");
+						console.log("[TrayManager] Editor is open, not showing main window");
 						return;
 					}
 					this.mainWindow.show();
@@ -124,7 +127,7 @@ class TrayManager {
 			},
 			{ type: "separator" },
 			{
-				label: "Çıkış",
+				label: "Quit",
 				click: () => {
 					app.quit();
 				},
@@ -188,9 +191,10 @@ class TrayManager {
 
 			this.tray.setImage(trayIcon);
 			this.tray.setContextMenu(this.createTrayMenu());
+			this.updateToolTip();
 
 			console.log(
-				`[TrayManager] Tray icon updated - Recording: ${this.isRecording}`
+				`[TrayManager] Tray icon updated - Recording: ${this.isRecording}, Editor: ${this.isEditorOpen}`
 			);
 		} catch (error) {
 			console.error("Tray ikonunu güncellerken hata:", error);
@@ -207,7 +211,19 @@ class TrayManager {
 
 			if (!this.tray) {
 				this.tray = new Tray(trayIcon);
-				this.tray.setToolTip("Creavit Studio Screen Recorder");
+				this.updateToolTip();
+				
+				// Add direct click handler for recording mode
+				this.tray.on('click', () => {
+					if (this.isRecording) {
+						// Direct click during recording stops recording
+						this.mainWindow.webContents.send("STOP_RECORDING_FROM_TRAY");
+						this.isRecording = false;
+						this.updateTrayIcon();
+						console.log("[TrayManager] Recording stopped via direct tray click");
+					}
+				});
+				
 				this.tray.setContextMenu(this.createTrayMenu());
 				console.log("[TrayManager] Tray created successfully");
 			} else {
@@ -218,9 +234,29 @@ class TrayManager {
 		}
 	}
 
+	updateToolTip() {
+		if (!this.tray) return;
+		
+		let tooltip = "Sleer Screen Recorder";
+		if (this.isRecording) {
+			tooltip += " - Recording (Click to stop)";
+		} else if (this.isEditorOpen) {
+			tooltip += " - Editor Mode";
+		}
+		
+		this.tray.setToolTip(tooltip);
+	}
+
 	setRecordingStatus(status) {
 		this.isRecording = status;
 		this.updateTrayIcon();
+		this.updateToolTip();
+	}
+
+	setEditorStatus(status) {
+		this.isEditorOpen = status;
+		this.updateTrayIcon(); // This will show/hide menu items
+		this.updateToolTip();
 	}
 
 	cleanup() {

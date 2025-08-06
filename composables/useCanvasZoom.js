@@ -251,8 +251,22 @@ export const useCanvasZoom = () => {
 
 	// Canvas zoom scale'ini yumuşak bir şekilde güncelle
 	const updateCanvasZoomScale = () => {
-		const lerpFactor = 0.08; // Daha yumuşak geçiş
 		const prevScale = canvasZoomScale.value;
+		const targetScale = targetCanvasZoomScale.value;
+		
+		// Zoom in ve zoom out için farklı hızlar kullan
+		const isZoomingIn = targetScale > prevScale;
+		const isZoomingOut = targetScale < prevScale;
+		
+		// Zoom in için daha yumuşak geçiş (zoom out ile aynı hız)
+		let lerpFactor;
+		if (isZoomingIn) {
+			lerpFactor = 0.08; // Zoom in için yumuşak geçiş
+		} else if (isZoomingOut) {
+			lerpFactor = 0.08; // Zoom out için yumuşak geçiş (önceki gibi)
+		} else {
+			lerpFactor = 0.08; // Sabit zoom için
+		}
 
 		canvasZoomScale.value =
 			canvasZoomScale.value +

@@ -41,6 +41,24 @@
 			</label>
 		</div>
 
+		<!-- Merge with Cursor -->
+		<div v-if="cameraVisible" class="flex items-center justify-between">
+			<div>
+				<h4 class="text-base font-semibold text-white">
+					Merge with Cursor
+				</h4>
+				<p class="text-sm font-normal text-gray-500">
+					Replace camera and cursor with new cursor-following camera
+				</p>
+			</div>
+			<label class="relative inline-flex items-center cursor-pointer">
+				<input type="checkbox" v-model="mergeWithCursor" class="sr-only peer" />
+				<div
+					class="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"
+				></div>
+			</label>
+		</div>
+
 		<!-- Optimized Background Removal -->
 		<OptimizedBackgroundRemovalSettings
 			v-if="cameraVisible"
@@ -297,6 +315,7 @@ const cameraVisible = ref(
 		? cameraSettings.value.visible
 		: true
 );
+const mergeWithCursor = ref(cameraSettings.value?.mergeWithCursor || false);
 const selectedAspectRatio = ref(cameraSettings.value?.aspectRatio || "1:1");
 // Özel oran için değişkenler
 const customRatioWidth = ref(cameraSettings.value?.customRatioWidth || 16);
@@ -672,6 +691,7 @@ watch(
 		followMouse,
 		mirrorCamera,
 		cameraVisible,
+		mergeWithCursor,
 		selectedAspectRatio,
 		customRatioWidth,
 		customRatioHeight,
@@ -687,6 +707,7 @@ watch(
 		follow,
 		mirror,
 		visible,
+		merge,
 		aspectRatio,
 		customWidth,
 		customHeight,
@@ -703,6 +724,7 @@ watch(
 			followMouse: follow,
 			mirror,
 			visible,
+			mergeWithCursor: merge,
 			aspectRatio,
 			customRatioWidth: customWidth,
 			customRatioHeight: customHeight,

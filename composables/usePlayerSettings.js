@@ -61,6 +61,7 @@ const cameraSettings = ref({
 		flipHorizontal: false,
 		targetFps: 30,
 	},
+	mergeWithCursor: false, // New setting for cursor-following camera with blue background
 });
 
 // Ekran kaydı videosu için border ayarları

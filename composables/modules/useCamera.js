@@ -438,7 +438,8 @@ export const useCamera = () => {
 		if (!cameraElement) return false;
 
 		const now = performance.now();
-		if (now - lastFrameTime.value < frameLimiter.value && !dragPosition) {
+		// Remove frame limiting for followMouse mode to ensure instant tracking
+		if (now - lastFrameTime.value < frameLimiter.value && !dragPosition && !cameraSettings.value.followMouse) {
 			return isMouseOverCamera.value;
 		}
 		lastFrameTime.value = now;
@@ -453,7 +454,7 @@ export const useCamera = () => {
 		if (zoomScale > 1.01 && !backgroundRemovalActive.value) {
 			// Custom cursor gibi sadece biraz küçült
 			const targetScale = 0.8; // Hedef küçültme oranı
-			const lerpFactor = 0.15; // Yumuşak geçiş faktörü
+			const lerpFactor = 0.08; // Yumuşak geçiş faktörü (zoom out ile aynı hız)
 
 			// Smooth lerp ile zoom scale'i güncelle
 			cameraZoomScale.value =
@@ -463,7 +464,7 @@ export const useCamera = () => {
 		} else {
 			// Zoom yoksa veya background removal varsa normal boyuta dön
 			const targetScale = 1.0; // Normal boyut (1.0 = %100)
-			const lerpFactor = 0.08; // Daha yumuşak geçiş faktörü (çıkış için daha slow)
+			const lerpFactor = 0.08; // Yumuşak geçiş faktörü (zoom in ile aynı hız)
 
 			cameraZoomScale.value =
 				cameraZoomScale.value +
@@ -654,30 +655,12 @@ export const useCamera = () => {
 				// Edge detection MediaPlayer'da yapılıyor, burada sadece basit pozisyonlama
 				let targetX = mouseX - cameraWidth / 2;
 
-				// Dinamik offset hesapla - camera size'ına ve cursor size'ına göre
+				// Custom cursor height + 30px offset below cursor
 				const { mouseSize } = usePlayerSettings();
-				const cursorSize = mouseSize.value || 180; // Gerçek cursor size'ını al
-				const cameraSizePercent = cameraSettings.value.size || 10;
-				const cameraSizePixels = (canvasWidth * cameraSizePercent) / 100;
-
-				// Offset'i camera size'ına göre ayarla
-				const baseOffset = Math.max(cameraSizePixels * 0.3, 60 * dpr); // Camera'nın %30'u veya minimum 60px
-				const cursorOffset = cursorSize * 0.2; // Cursor size'ının %20'si
-				const dynamicOffset = baseOffset + cursorOffset;
-
-				let targetY = mouseY + dynamicOffset; // Dinamik offset
-
-				// Debug dinamik offset hesaplaması
-				console.log("[DYNAMIC OFFSET DEBUG]", {
-					cursorSize,
-					cameraSizePercent,
-					cameraSizePixels,
-					baseOffset,
-					cursorOffset,
-					dynamicOffset,
-					mouseY,
-					targetY,
-				});
+				const cursorHeight = mouseSize.value || 180; // Custom cursor height
+				const cursorBottomOffset = 30 * dpr; // Fixed 30px offset below cursor
+				
+				let targetY = mouseY + cursorHeight + cursorBottomOffset;
 
 				// Cursor intersection offset'ini ekle
 				if (isCursorOverCamera.value && cursorIntersectionOffset.value) {
@@ -689,9 +672,9 @@ export const useCamera = () => {
 				targetX += videoPosition.x;
 				targetY += videoPosition.y;
 
-				// Smooth lerp - zoom'a göre hız ayarı
-				const baseLerpFactor = 0.3;
-				const zoomSpeedMultiplier = zoomScale > 1.01 ? 2.5 : 1; // Zoom'da daha hızlı
+				// Smooth lerp - zoom'a göre hız ayarı (birebir takip için daha yüksek)
+				const baseLerpFactor = 0.9; // Increased from 0.3 to 0.9 for near-instant following
+				const zoomSpeedMultiplier = zoomScale > 1.01 ? 1.1 : 1; // Slightly faster in zoom
 				const lerpFactor = baseLerpFactor * zoomSpeedMultiplier;
 
 				const lastX = lastCameraPosition.value?.x || targetX;

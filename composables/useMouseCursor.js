@@ -133,6 +133,8 @@ export const useMouseCursor = () => {
 	});
 
 	const currentCursorType = ref("default");
+	const previousCursorType = ref("default");
+	const cursorTransitionProgress = ref(1.0); // 1.0 = fully visible, 0.0 = invisible
 	const isMouseDown = ref(false);
 	const isDragging = ref(false);
 	const isHovering = ref(false);
@@ -457,11 +459,28 @@ export const useMouseCursor = () => {
 		}
 	};
 
-	// Cursor tipi değişikliğini uygula
+	// Cursor transition progress'ini güncelle
+	const updateCursorTransition = () => {
+		if (cursorTransitionProgress.value < 1.0) {
+			const transitionSpeed = 0.12; // Smooth cursor geçiş hızı
+			cursorTransitionProgress.value = Math.min(
+				1.0, 
+				cursorTransitionProgress.value + transitionSpeed
+			);
+		}
+	};
+
+	// Cursor tipi değişikliğini uygula - smooth transition ile
 	const applyCursorTypeChange = (normalizedType, event, prevType) => {
+		// Eğer tip değişikliği yoksa return
+		if (normalizedType === currentCursorType.value) return;
+		
 		// Eğer bu cursor type için görsel varsa güncelle
 		if (cursorImages.value[normalizedType]) {
+			// Previous cursor'ı kaydet ve transition başlat
+			previousCursorType.value = currentCursorType.value;
 			currentCursorType.value = normalizedType;
+			cursorTransitionProgress.value = 0.0; // Fade out başla
 			pendingCursorType.value = null; // Pending'i temizle
 
 			if (event.recordChange) {
@@ -473,7 +492,9 @@ export const useMouseCursor = () => {
 				});
 			}
 		} else {
+			previousCursorType.value = currentCursorType.value;
 			currentCursorType.value = "default";
+			cursorTransitionProgress.value = 0.0;
 			pendingCursorType.value = null;
 		}
 	};
@@ -789,6 +810,8 @@ export const useMouseCursor = () => {
 
 	// Cursor çizim fonksiyonu (ana canvas'a)
 	const drawMousePosition = (ctx, options) => {
+		// Cursor transition'ını güncelle
+		updateCursorTransition();
 		const {
 			x,
 			y,
@@ -1011,9 +1034,9 @@ export const useMouseCursor = () => {
 				motionPhase.timelinePhaseStability = 0;
 			}
 
-			// Smooth blur intensity transitions - daha yavaş geçişler
+			// Smooth blur intensity transitions - çok daha yumuşak geçişler
 			const blurTransitionSpeed =
-				targetBlurIntensity > currentBlurIntensity.value ? 0.08 : 0.12; // Daha yavaş
+				targetBlurIntensity > currentBlurIntensity.value ? 0.02 : 0.06; // Başlangıç çok yumuşak, bitiş biraz hızlı
 			currentBlurIntensity.value +=
 				(targetBlurIntensity - currentBlurIntensity.value) *
 				blurTransitionSpeed;
@@ -1027,7 +1050,7 @@ export const useMouseCursor = () => {
 			// Daha stabil phase detection ile stabilite kontrolü
 			let suggestedPhase;
 
-			if (realMouseSpeed.value < 1.5) {
+			if (realMouseSpeed.value < 2.5) { // Biraz düşürüldü - küçük hareketlerde blur için
 				suggestedPhase = "idle";
 			} else if (
 				realMouseSpeed.value > speedThreshold &&
@@ -1079,10 +1102,10 @@ export const useMouseCursor = () => {
 				currentMotionPhase === "peak" ||
 				currentMotionPhase === "decelerating"
 			) {
-				// Hız oranına göre blur intensity hesapla
-				const blurSpeedRatio = Math.min(realMouseSpeed.value / 30, 1);
-				const minBlur = 0.1; // Minimum blur
-				const maxBlur = 0.9; // Maksimum blur
+				// Hız oranına göre blur intensity hesapla - küçük hareketler için daha hassas
+				const blurSpeedRatio = Math.min(realMouseSpeed.value / 25, 1); // 30'dan 25'e - daha hassas
+				const minBlur = 0.15; // Daha düşük minimum - küçük hareketlerde görünür
+				const maxBlur = 0.65; // Daha düşük maksimum - çok uzamaması için
 
 				// Hız arttıkça blur güçlenir, hız azaldıkça blur zayıflar
 				targetBlurIntensity = minBlur + blurSpeedRatio * (maxBlur - minBlur);
@@ -1100,7 +1123,7 @@ export const useMouseCursor = () => {
 				blurActiveFrames.value < minActiveFrames
 			) {
 				// Minimum süre boyunca blur'u sürdür - azalarak biten trail
-				targetBlurIntensity = Math.max(currentBlurIntensity.value * 0.9, 0.1); // Daha hızlı azalma
+				targetBlurIntensity = Math.max(currentBlurIntensity.value * 0.9, 0.05); // Daha düşük minimum
 				blurActiveFrames.value++;
 			} else {
 				blurActiveFrames.value = Math.max(0, blurActiveFrames.value - 2); // Daha hızlı azalma
@@ -1109,21 +1132,21 @@ export const useMouseCursor = () => {
 
 		// Yumuşak geçiş için current blur intensity'yi güncelle - azalarak biten trail
 		const blurTransitionSpeed =
-			targetBlurIntensity > currentBlurIntensity.value ? 0.08 : 0.12; // Daha hızlı azalma
+			targetBlurIntensity > currentBlurIntensity.value ? 0.02 : 0.06; // Başlangıç çok yumuşak, bitiş biraz hızlı
 		currentBlurIntensity.value +=
 			(targetBlurIntensity - currentBlurIntensity.value) * blurTransitionSpeed;
 
-		// Motion blur sadece intensity > 0.1 olduğunda uygula
+		// Motion blur sadece intensity > 0.1 olduğunda uygula (küçük hareketler için düşürüldü)
 		const shouldActivateBlur =
 			motionEnabled &&
 			enhancedMotionBlur.value &&
 			currentBlurIntensity.value > 0.1;
 
 		if (shouldActivateBlur) {
-			// Hıza göre dinamik blur radius - gerçek dinamik
-			const radiusSpeedRatio = Math.min(realMouseSpeed.value / 30, 1);
-			const minRadius = 2; // Minimum radius
-			const maxRadius = 8; // Maksimum radius
+			// Hıza göre dinamik blur radius - daha kontrollü
+			const radiusSpeedRatio = Math.min(realMouseSpeed.value / 25, 1); // Daha hassas
+			const minRadius = 1.5; // Daha küçük minimum - küçük hareketlerde belirgin
+			const maxRadius = 5; // Daha küçük maksimum - çok uzamaması için
 
 			// Hız arttıkça radius büyür, hız azaldıkça radius küçülür
 			const blurRadius = Math.max(
@@ -1540,9 +1563,19 @@ export const useMouseCursor = () => {
 			}
 		}
 
-		// Draw the main cursor
-		ctx.globalAlpha = visible ? 1 : 0;
+		// Draw the main cursor with transition
+		const cursorAlpha = visible ? cursorTransitionProgress.value : 0;
+		ctx.globalAlpha = cursorAlpha;
 		ctx.drawImage(currentImage, 0, 0, cursorWidth, cursorHeight);
+		
+		// If transitioning, also draw previous cursor fading out
+		if (cursorTransitionProgress.value < 1.0 && previousCursorType.value !== currentCursorType.value) {
+			const previousImage = cursorImages.value[previousCursorType.value];
+			if (previousImage && visible) {
+				ctx.globalAlpha = (1.0 - cursorTransitionProgress.value) * (visible ? 1 : 0);
+				ctx.drawImage(previousImage, 0, 0, cursorWidth, cursorHeight);
+			}
+		}
 
 		ctx.restore();
 

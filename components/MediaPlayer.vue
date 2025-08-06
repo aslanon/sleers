@@ -312,7 +312,8 @@ let cameraElement = null;
 const { renderLayout } = useLayoutRenderer();
 
 // Background offscreen rendering
-const { renderBackground, cachedBackground, clearBackgroundCache } = useBackgroundOffscreen();
+const { renderBackground, cachedBackground, clearBackgroundCache } =
+	useBackgroundOffscreen();
 
 // GIF manager için
 const {
@@ -2628,6 +2629,9 @@ const drawMousePositions = (customCtx = null) => {
 	const canvasWidth = canvasRef.value.width;
 	const canvasHeight = canvasRef.value.height;
 	const zoomScale = canvasZoomScale.value;
+	
+	// Cursor zoom scale'ini smooth transition ile güncelle
+	updateCursorZoomScale(zoomScale);
 
 	// Video'nun canvas içindeki pozisyonunu hesapla
 	const videoX = displayX + position.value.x;
@@ -2719,7 +2723,7 @@ const drawMousePositions = (customCtx = null) => {
 			tiltAngle: timelineEffects?.tiltAngle || 0,
 			skewX: timelineEffects?.skewX || 0,
 		},
-		size: zoomScale > 1.01 ? mouseSize.value * 0.8 : mouseSize.value * 1.5, // Zoom varsa cursor'ı biraz küçült
+		size: mouseSize.value * cursorZoomScale.value, // Smooth transition ile cursor boyutu
 		dpr,
 		motionEnabled: mouseMotionEnabled.value,
 		motionBlurValue: motionBlurValue.value,
@@ -3049,6 +3053,153 @@ function getCameraDisplayRect() {
 	};
 }
 
+// Merge with cursor mode: Draw cursor-following camera with blue background and arrow
+function drawMergedCursorCamera(ctx, cameraElement, canvasTime, dpr) {
+	if (!cameraElement || cameraElement.readyState < 2) return;
+
+	// Get cursor position at current time
+	let cursorX = canvasRef.value.width / 2,
+		cursorY = canvasRef.value.height / 2; // Default to center
+	if (props.mousePositions && videoElement?.duration) {
+		const cursorPos = getCursorPositionAtTime(
+			props.mousePositions,
+			canvasTime,
+			videoElement.duration
+		);
+		if (cursorPos) {
+			// Transform cursor position to canvas coordinates
+			const transformedCursor = transformCursorToCanvasCoords(
+				cursorPos.x,
+				cursorPos.y,
+				videoElement,
+				canvasRef.value,
+				cropArea.value,
+				padding.value,
+				dpr
+			);
+			if (transformedCursor) {
+				cursorX = transformedCursor.x;
+				cursorY = transformedCursor.y;
+			}
+		}
+	}
+
+	// Camera size based on settings (reduced by half for merge mode)
+	const cameraSize = cameraSettings.value.size || 20;
+	const baseCameraSize =
+		Math.min(canvasRef.value.width, canvasRef.value.height) *
+		(cameraSize / 100) *
+		0.5;
+
+	// 32px padding as requested
+	const cameraPadding = 32 * dpr;
+	const totalCameraSize = baseCameraSize + cameraPadding * 2;
+
+	// Position camera at cursor location (centered)
+	const cameraX = cursorX - totalCameraSize / 2;
+	const cameraY = cursorY - totalCameraSize / 2;
+
+	ctx.save();
+
+	// First draw the large arrow cursor indicator behind everything
+	const actualCameraRadius = baseCameraSize / 2;
+	const cameraCenterX = cameraX + cameraPadding + actualCameraRadius;
+	const cameraCenterY = cameraY + cameraPadding + actualCameraRadius;
+	// Keep arrow size based on original camera size (before 0.5 reduction)
+	const originalCameraRadius =
+		(Math.min(canvasRef.value.width, canvasRef.value.height) *
+			(cameraSize / 100)) /
+		2;
+	const arrowSize = originalCameraRadius * 1.6; // Much larger arrow, 160% of original camera radius
+
+	// Position arrow to be properly tangent to camera circle
+	// Use camera's tangent points for proper positioning - shorter tip
+	const arrowX = cameraCenterX - actualCameraRadius - arrowSize * 0.25; // Closer to camera circle (shorter tip)
+	const arrowY = cameraCenterY - actualCameraRadius - arrowSize * 0.25; // Closer to camera circle (shorter tip)
+
+	ctx.fillStyle = "#007AFF"; // Same blue as background
+	ctx.strokeStyle = "#005BBB"; // Darker blue for border
+	ctx.lineWidth = 2 * dpr;
+
+	// Draw simple triangle cursor - shorter tip, much wider base touching camera circle
+	ctx.beginPath();
+	ctx.moveTo(arrowX, arrowY); // Triangle tip (outside camera, now shorter)
+	// Left edge - ends even further along camera circle for much wider base
+	ctx.lineTo(
+		cameraCenterX - actualCameraRadius * 0.6,
+		cameraCenterY + actualCameraRadius * 1.3
+	);
+	// Bottom edge - ends even further along camera circle for much wider base
+	ctx.lineTo(
+		cameraCenterX + actualCameraRadius * 0.55,
+		cameraCenterY - actualCameraRadius * 1.2
+	);
+	ctx.closePath(); // Back to tip
+
+	ctx.fill();
+	ctx.stroke();
+
+	// Now draw blue background as full circle ON TOP of arrow
+	ctx.fillStyle = "#007AFF"; // iOS blue
+	const backgroundRadius = totalCameraSize / 2;
+	const centerX = cameraX + backgroundRadius;
+	const centerY = cameraY + backgroundRadius;
+
+	// Draw circle for blue background
+	ctx.beginPath();
+	ctx.arc(centerX, centerY, backgroundRadius, 0, Math.PI * 2);
+	ctx.fill();
+
+	// Draw camera video inside (with crop settings applied)
+	const crop = cameraSettings.value.crop || {
+		x: 0,
+		y: 0,
+		width: 100,
+		height: 100,
+	};
+	const actualCameraSize = baseCameraSize;
+	const actualCameraX = cameraX + cameraPadding;
+	const actualCameraY = cameraY + cameraPadding;
+
+	// Apply camera crop and mirror settings
+	ctx.save();
+
+	// Create circular clipping path for camera
+	ctx.beginPath();
+	ctx.arc(cameraCenterX, cameraCenterY, actualCameraRadius, 0, Math.PI * 2);
+	ctx.clip();
+
+	// Mirror camera if needed
+	if (cameraSettings.value.mirror) {
+		ctx.translate(cameraCenterX, cameraCenterY);
+		ctx.scale(-1, 1);
+		ctx.translate(-cameraCenterX, -cameraCenterY);
+	}
+
+	// Calculate source dimensions based on crop
+	const sourceX = (crop.x / 100) * cameraElement.videoWidth;
+	const sourceY = (crop.y / 100) * cameraElement.videoHeight;
+	const sourceWidth = (crop.width / 100) * cameraElement.videoWidth;
+	const sourceHeight = (crop.height / 100) * cameraElement.videoHeight;
+
+	// Draw camera video in circular area
+	ctx.drawImage(
+		cameraElement,
+		sourceX,
+		sourceY,
+		sourceWidth,
+		sourceHeight,
+		actualCameraX,
+		actualCameraY,
+		actualCameraSize,
+		actualCameraSize
+	);
+
+	ctx.restore();
+
+	ctx.restore();
+}
+
 // Arkaplan resmi için
 const bgImageElement = ref(null);
 const bgImageLoaded = ref(false);
@@ -3056,46 +3207,59 @@ const bgImageLoaded = ref(false);
 // createGradient function moved to useBackgroundOffscreen composable
 
 // Background değiştiğinde canvas'ı güncelle ve cache'i temizle
-watch([backgroundColor, backgroundType, backgroundGradient, backgroundImage, backgroundBlur], () => {
-	if (!ctx || !canvasRef.value) return;
-	
-	// Background cache'ini temizle
-	clearBackgroundCache();
-	
-	// Background type değiştiğinde diğer türleri temizle
-	if (backgroundType.value === "color") {
-		// Color seçildiğinde image'ı temizle
-		bgImageLoaded.value = false;
-		bgImageElement.value = null;
-	} else if (backgroundType.value === "gradient") {
-		// Gradient seçildiğinde image'ı temizle
-		bgImageLoaded.value = false;
-		bgImageElement.value = null;
-	} else if (backgroundType.value === "image") {
-		// Image seçildiğinde image'ı yükle (eğer henüz yüklenmemişse)
-		if (backgroundImage.value && !bgImageLoaded.value) {
-			bgImageElement.value = new Image();
-			bgImageElement.value.onload = () => {
-				bgImageLoaded.value = true;
-				// Image yüklendiğinde cache'i temizle ve canvas'ı güncelle
-				clearBackgroundCache();
-				requestAnimationFrame(() => updateCanvas(performance.now()));
-			};
-			bgImageElement.value.onerror = () => {
-				console.error("Background image failed to load:", backgroundImage.value);
-				bgImageLoaded.value = false;
-				bgImageElement.value = null;
-				// Image yüklenemediğinde cache'i temizle ve canvas'ı güncelle
-				clearBackgroundCache();
-				requestAnimationFrame(() => updateCanvas(performance.now()));
-			};
-			bgImageElement.value.src = backgroundImage.value;
+watch(
+	[
+		backgroundColor,
+		backgroundType,
+		backgroundGradient,
+		backgroundImage,
+		backgroundBlur,
+	],
+	() => {
+		if (!ctx || !canvasRef.value) return;
+
+		// Background cache'ini temizle
+		clearBackgroundCache();
+
+		// Background type değiştiğinde diğer türleri temizle
+		if (backgroundType.value === "color") {
+			// Color seçildiğinde image'ı temizle
+			bgImageLoaded.value = false;
+			bgImageElement.value = null;
+		} else if (backgroundType.value === "gradient") {
+			// Gradient seçildiğinde image'ı temizle
+			bgImageLoaded.value = false;
+			bgImageElement.value = null;
+		} else if (backgroundType.value === "image") {
+			// Image seçildiğinde image'ı yükle (eğer henüz yüklenmemişse)
+			if (backgroundImage.value && !bgImageLoaded.value) {
+				bgImageElement.value = new Image();
+				bgImageElement.value.onload = () => {
+					bgImageLoaded.value = true;
+					// Image yüklendiğinde cache'i temizle ve canvas'ı güncelle
+					clearBackgroundCache();
+					requestAnimationFrame(() => updateCanvas(performance.now()));
+				};
+				bgImageElement.value.onerror = () => {
+					console.error(
+						"Background image failed to load:",
+						backgroundImage.value
+					);
+					bgImageLoaded.value = false;
+					bgImageElement.value = null;
+					// Image yüklenemediğinde cache'i temizle ve canvas'ı güncelle
+					clearBackgroundCache();
+					requestAnimationFrame(() => updateCanvas(performance.now()));
+				};
+				bgImageElement.value.src = backgroundImage.value;
+			}
 		}
-	}
-	
-	// Canvas'ı updateCanvas ile güncelle (doğru rendering sırası için)
-	requestAnimationFrame(() => updateCanvas(performance.now()));
-}, { deep: true });
+
+		// Canvas'ı updateCanvas ile güncelle (doğru rendering sırası için)
+		requestAnimationFrame(() => updateCanvas(performance.now()));
+	},
+	{ deep: true }
+);
 
 watch([dockSize, showDock], () => {
 	if (!ctx || !canvasRef.value) return;
@@ -3213,7 +3377,7 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 					bgImageElement.value,
 					bgImageLoaded.value
 				);
-				
+
 				// Offscreen canvas'ı main canvas'a çiz
 				if (backgroundCanvas) {
 					ctx.drawImage(backgroundCanvas, 0, 0);
@@ -3549,7 +3713,10 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			// ❌ Camera drawing off-screen canvas'tan kaldırıldı - zoom sonrası main canvas'a taşınacak
 
 			// Mouse pozisyonlarını çiz (off-screen canvas'a - zoom öncesi) - sadece aktif segment'te
-			drawMousePositions(renderContext);
+			// Merge with cursor aktifse cursor çizme
+			if (!cameraSettings.value.mergeWithCursor) {
+				drawMousePositions(renderContext);
+			}
 
 			// macOS Dock çiz (off-screen canvas'a - zoom öncesi)
 			if (
@@ -3579,59 +3746,68 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// 📷 Camera drawing (zoom sonrası main canvas'a - en üst layer)
 		if (cameraElement && isInActiveSegment) {
-			let cameraPos;
+			// Merge with cursor modu aktifse özel cursor-following camera çiz
+			if (cameraSettings.value.mergeWithCursor) {
+				drawMergedCursorCamera(ctx, cameraElement, canvasTime, dpr);
+			} else {
+				// Normal camera drawing
+				let cameraPos;
 
-			if (isCameraDragging.value) {
-				// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
-				cameraPos = cameraPosition.value;
-			} else if (cameraSettings.value.followMouse && lastCameraPosition.value) {
-				// Mouse takibi aktifse video pozisyonunu ekle
-				cameraPos = {
-					x: lastCameraPosition.value.x,
-					y: lastCameraPosition.value.y,
-				};
-			} else if (cameraPosition.value) {
-				// Kamera pozisyonu varsa onu kullan
-				cameraPos = { ...cameraPosition.value };
-			} else if (cameraSettings.value.position) {
-				// Kamera ayarlarında pozisyon varsa onu kullan
-				cameraPos = { ...cameraSettings.value.position };
-			}
-
-			try {
-				const cameraResult = drawCamera(
-					ctx, // Main canvas context (zoom sonrası)
-					cameraElement,
-					canvasRef.value.width,
-					canvasRef.value.height,
-					dpr, // Device pixel ratio
-					mouseX,
-					mouseY,
-					cameraPos,
-					canvasZoomScale.value, // Canvas zoom scale
-					position.value,
-					cameraSettings.value.optimizedBackgroundRemovalSettings
-						?.backgroundType || "transparent",
-					cameraSettings.value.optimizedBackgroundRemovalSettings
-						?.backgroundColor || "#000000",
-					videoRef.value?.currentTime || 0,
-					videoRef.value?.duration || 0
-				);
-
-				// Kamera pozisyon bilgisini güncelle
-				if (cameraResult?.rect) {
-					currentCameraRect.value = cameraResult.rect;
-					isMouseOverCamera.value = cameraResult.isMouseOver;
+				if (isCameraDragging.value) {
+					// Kamera sürükleniyorsa sadece kamera pozisyonunu kullan
+					cameraPos = cameraPosition.value;
+				} else if (
+					cameraSettings.value.followMouse &&
+					lastCameraPosition.value
+				) {
+					// Mouse takibi aktifse video pozisyonunu ekle
+					cameraPos = {
+						x: lastCameraPosition.value.x,
+						y: lastCameraPosition.value.y,
+					};
+				} else if (cameraPosition.value) {
+					// Kamera pozisyonu varsa onu kullan
+					cameraPos = { ...cameraPosition.value };
+				} else if (cameraSettings.value.position) {
+					// Kamera ayarlarında pozisyon varsa onu kullan
+					cameraPos = { ...cameraSettings.value.position };
 				}
 
-				// Kamera followMouse aktifse ve mouse kamera üstündeyse tooltip çiz
-				if (cameraSettings.value.followMouse && cameraResult?.isMouseOver) {
-					const cameraRect = cameraResult.rect;
-					drawCameraFollowTooltip(ctx, cameraRect, dpr); // Main canvas context
-				}
-			} catch (error) {
-				if (!cameraElement || cameraElement.readyState < 2) {
-					initializeCamera();
+				try {
+					const cameraResult = drawCamera(
+						ctx, // Main canvas context (zoom sonrası)
+						cameraElement,
+						canvasRef.value.width,
+						canvasRef.value.height,
+						dpr, // Device pixel ratio
+						mouseX,
+						mouseY,
+						cameraPos,
+						canvasZoomScale.value, // Canvas zoom scale
+						position.value,
+						cameraSettings.value.optimizedBackgroundRemovalSettings
+							?.backgroundType || "transparent",
+						cameraSettings.value.optimizedBackgroundRemovalSettings
+							?.backgroundColor || "#000000",
+						videoRef.value?.currentTime || 0,
+						videoRef.value?.duration || 0
+					);
+
+					// Kamera pozisyon bilgisini güncelle
+					if (cameraResult?.rect) {
+						currentCameraRect.value = cameraResult.rect;
+						isMouseOverCamera.value = cameraResult.isMouseOver;
+					}
+
+					// Kamera followMouse aktifse ve mouse kamera üstündeyse tooltip çiz
+					if (cameraSettings.value.followMouse && cameraResult?.isMouseOver) {
+						const cameraRect = cameraResult.rect;
+						drawCameraFollowTooltip(ctx, cameraRect, dpr); // Main canvas context
+					}
+				} catch (error) {
+					if (!cameraElement || cameraElement.readyState < 2) {
+						initializeCamera();
+					}
 				}
 			}
 		}
@@ -3645,21 +3821,24 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 
 		// 🎬 GIF Overlay Rendering (HIGHEST Z-INDEX - on top of everything including camera)
 		const currentGifs = getGifsAtTime(canvasTime);
-		
+
 		// Render all GIFs for current time
 		currentGifs.forEach((gif) => {
 			const renderData = getGifRenderData(gif.id, canvasTime);
 			if (renderData && renderData.isVisible) {
 				drawGifOverlay(ctx, renderData, dpr, scaleValue);
-				
+
 				// Draw transform handles for selected GIF
 				if (renderData.isSelected) {
-					drawGifBorder(ctx, 
+					drawGifBorder(
+						ctx,
 						renderData.x * dpr * scaleValue,
-						renderData.y * dpr * scaleValue, 
+						renderData.y * dpr * scaleValue,
 						renderData.width * dpr * scaleValue,
 						renderData.height * dpr * scaleValue,
-						renderData, dpr, scaleValue
+						renderData,
+						dpr,
+						scaleValue
 					);
 				}
 			}
@@ -4381,8 +4560,8 @@ const getPlayerSettings = () => {
 		cameraSettings: cameraSettings.value,
 		mouseSettings: {
 			mouseVisible: mouseVisible.value,
-			mouseSize: mouseSize.value
-		}
+			mouseSize: mouseSize.value,
+		},
 	};
 };
 
@@ -4390,21 +4569,21 @@ const restoreGifs = async (gifs) => {
 	try {
 		// Clear current GIFs
 		activeGifs.value = [];
-		
+
 		// Restore GIFs
 		if (gifs && Array.isArray(gifs)) {
 			for (const gif of gifs) {
 				// Add each GIF back with proper state restoration
-				activeGifs.value.push({...gif});
+				activeGifs.value.push({ ...gif });
 			}
 		}
-		
+
 		// Clear selections since we're restoring state
 		clearAllSelections();
-		
-		console.log('[MediaPlayer] GIFs restored:', activeGifs.value.length);
+
+		console.log("[MediaPlayer] GIFs restored:", activeGifs.value.length);
 	} catch (error) {
-		console.error('[MediaPlayer] Error restoring GIFs:', error);
+		console.error("[MediaPlayer] Error restoring GIFs:", error);
 	}
 };
 
@@ -4427,12 +4606,12 @@ const restoreSettings = async (settings) => {
 			if (settings.backgroundBlur !== undefined) {
 				backgroundBlur.value = settings.backgroundBlur;
 			}
-			
+
 			// Restore camera settings
 			if (settings.cameraSettings !== undefined) {
 				cameraSettings.value = settings.cameraSettings;
 			}
-			
+
 			// Restore mouse settings
 			if (settings.mouseSettings) {
 				if (settings.mouseSettings.mouseVisible !== undefined) {
@@ -4443,10 +4622,10 @@ const restoreSettings = async (settings) => {
 				}
 			}
 		}
-		
-		console.log('[MediaPlayer] Settings restored');
+
+		console.log("[MediaPlayer] Settings restored");
 	} catch (error) {
-		console.error('[MediaPlayer] Error restoring settings:', error);
+		console.error("[MediaPlayer] Error restoring settings:", error);
 	}
 };
 
@@ -4531,22 +4710,26 @@ onMounted(() => {
 	// Add canvas click handler to deselect GIFs when clicking outside
 	nextTick(() => {
 		if (canvasRef.value) {
-			canvasRef.value.addEventListener('mousedown', (event) => {
+			canvasRef.value.addEventListener("mousedown", (event) => {
 				// Check if click was not on a GIF element
 				const rect = canvasRef.value.getBoundingClientRect();
 				const x = event.clientX - rect.left;
 				const y = event.clientY - rect.top;
-				
+
 				// Check if any GIF is at this position
 				let clickedOnGif = false;
 				for (const gif of activeGifs.value) {
-					if (x >= gif.x && x <= gif.x + gif.width &&
-						y >= gif.y && y <= gif.y + gif.height) {
+					if (
+						x >= gif.x &&
+						x <= gif.x + gif.width &&
+						y >= gif.y &&
+						y <= gif.y + gif.height
+					) {
 						clickedOnGif = true;
 						break;
 					}
 				}
-				
+
 				// If click was not on a GIF, clear all selections
 				if (!clickedOnGif) {
 					clearAllSelections();
@@ -4671,7 +4854,7 @@ onMounted(() => {
 	window.addEventListener("gif-transform-update", handleGifTransformUpdate);
 
 	// Canvas handles keyboard shortcuts directly now
-	
+
 	// Auto-focus canvas for keyboard shortcuts
 	nextTick(() => {
 		if (canvasRef.value) {
@@ -5334,16 +5517,16 @@ defineExpose({
 
 	// GIF selection management
 	clearAllSelections,
-	
+
 	// Undo/redo support functions
 	getActiveGifs,
-	getPlayerSettings, 
+	getPlayerSettings,
 	getVideoPosition: () => videoPosition.value || { x: 0, y: 0 },
 	getCameraPosition: () => cameraPosition.value || { x: 0, y: 0 },
 	restoreGifs,
 	restoreSettings,
 	forceUpdate,
-	setupUndoRedoCallback
+	setupUndoRedoCallback,
 });
 
 // Cleanup on unmount
@@ -5458,6 +5641,18 @@ watch(
 // Kamera pozisyonu için state
 const lastCameraX = ref(0);
 const lastCameraY = ref(0);
+// Cursor zoom scale için smooth transition
+const cursorZoomScale = ref(1.0);
+
+// Cursor zoom scale güncelleme fonksiyonu
+const updateCursorZoomScale = (zoomScale) => {
+	const targetScale = zoomScale > 1.01 ? 0.8 : 1.5; // Zoom varsa 0.8, yoksa 1.5
+	const lerpFactor = 0.08; // Smooth geçiş faktörü (camera ile aynı)
+	
+	cursorZoomScale.value = 
+		cursorZoomScale.value + 
+		(targetScale - cursorZoomScale.value) * lerpFactor;
+};
 
 // Mouse event handlers
 const handleMouseDown = (e) => {
@@ -6070,96 +6265,139 @@ const handlePaste = async (event) => {
 	if (event) {
 		event.preventDefault();
 	}
-	
-	console.log('[handlePaste] Paste event triggered');
+
+	console.log("[handlePaste] Paste event triggered");
 
 	try {
 		// First check system clipboard for images (priority) using Clipboard API
 		if (navigator.clipboard && navigator.clipboard.read) {
-			console.log('[handlePaste] Using Clipboard API to read clipboard');
+			console.log("[handlePaste] Using Clipboard API to read clipboard");
 			const clipboardItems = await navigator.clipboard.read();
-			console.log('[handlePaste] Clipboard items count:', clipboardItems.length);
-			
+			console.log(
+				"[handlePaste] Clipboard items count:",
+				clipboardItems.length
+			);
+
 			for (const clipboardItem of clipboardItems) {
-				console.log('[handlePaste] Clipboard item types:', clipboardItem.types);
-				
+				console.log("[handlePaste] Clipboard item types:", clipboardItem.types);
+
 				// Check if this item contains an image
 				for (const type of clipboardItem.types) {
-					if (type.startsWith('image/')) {
-						console.log('[handlePaste] Found image in clipboard, type:', type);
+					if (type.startsWith("image/")) {
+						console.log("[handlePaste] Found image in clipboard, type:", type);
 						const blob = await clipboardItem.getType(type);
-						console.log('[handlePaste] Blob obtained:', blob.size, 'bytes, type:', blob.type);
-						
+						console.log(
+							"[handlePaste] Blob obtained:",
+							blob.size,
+							"bytes, type:",
+							blob.type
+						);
+
 						// Convert blob to file for processing
-						const file = new File([blob], 'clipboard-image', { type });
-						console.log('[handlePaste] Processing system clipboard image:', file.name, file.size, 'bytes');
+						const file = new File([blob], "clipboard-image", { type });
+						console.log(
+							"[handlePaste] Processing system clipboard image:",
+							file.name,
+							file.size,
+							"bytes"
+						);
 						handleSystemClipboardImage(file);
 						return;
 					}
 				}
 			}
-			console.log('[handlePaste] No image found in system clipboard via Clipboard API');
+			console.log(
+				"[handlePaste] No image found in system clipboard via Clipboard API"
+			);
 		} else {
 			// Fallback to event.clipboardData if available
 			const { clipboardData } = event || {};
-			console.log('[handlePaste] Fallback - Clipboard data:', clipboardData);
-			
+			console.log("[handlePaste] Fallback - Clipboard data:", clipboardData);
+
 			if (clipboardData) {
 				// Check for image data in system clipboard
 				const items = clipboardData.items;
-				console.log('[handlePaste] Clipboard items count:', items.length);
-				
+				console.log("[handlePaste] Clipboard items count:", items.length);
+
 				for (let i = 0; i < items.length; i++) {
 					const item = items[i];
-					console.log('[handlePaste] Item', i, '- Type:', item.type, 'Kind:', item.kind);
-					
+					console.log(
+						"[handlePaste] Item",
+						i,
+						"- Type:",
+						item.type,
+						"Kind:",
+						item.kind
+					);
+
 					// If we find an image in system clipboard, use it (has priority)
 					if (item.type.indexOf("image") !== -1) {
-						console.log('[handlePaste] Found image in clipboard, type:', item.type);
+						console.log(
+							"[handlePaste] Found image in clipboard, type:",
+							item.type
+						);
 						const file = item.getAsFile();
-						console.log('[handlePaste] File obtained:', file);
+						console.log("[handlePaste] File obtained:", file);
 						if (file) {
-							console.log('[handlePaste] Processing system clipboard image:', file.name, file.size, 'bytes');
+							console.log(
+								"[handlePaste] Processing system clipboard image:",
+								file.name,
+								file.size,
+								"bytes"
+							);
 							// Process system clipboard image
 							handleSystemClipboardImage(file);
 							return;
 						}
 					}
 				}
-				console.log('[handlePaste] No image found in system clipboard via event');
+				console.log(
+					"[handlePaste] No image found in system clipboard via event"
+				);
 			}
 		}
 	} catch (error) {
-		console.error('[handlePaste] Error reading clipboard:', error);
+		console.error("[handlePaste] Error reading clipboard:", error);
 	}
 
 	// If no system clipboard image, then check if we have a copied GIF from canvas
-	console.log('[handlePaste] Checking for copied canvas data, window.copiedGifData:', window.copiedGifData);
-	
+	console.log(
+		"[handlePaste] Checking for copied canvas data, window.copiedGifData:",
+		window.copiedGifData
+	);
+
 	if (window.copiedGifData) {
-		console.log('[handlePaste] Found copied GIF data, attempting to paste:', window.copiedGifData);
-		
+		console.log(
+			"[handlePaste] Found copied GIF data, attempting to paste:",
+			window.copiedGifData
+		);
+
 		// Use the already imported addGifToCanvas
 		try {
 			const pastedGif = addGifToCanvas(window.copiedGifData);
-			console.log('[handlePaste] addGifToCanvas returned:', pastedGif);
-			
-			console.log('[handlePaste] GIF pasted successfully:', pastedGif.title || pastedGif.id);
-			
+			console.log("[handlePaste] addGifToCanvas returned:", pastedGif);
+
+			console.log(
+				"[handlePaste] GIF pasted successfully:",
+				pastedGif.title || pastedGif.id
+			);
+
 			// Visual feedback for successful paste
-			if (typeof window !== 'undefined') {
-				window.dispatchEvent(new CustomEvent('gif-pasted', {
-					detail: { gifId: pastedGif.id }
-				}));
+			if (typeof window !== "undefined") {
+				window.dispatchEvent(
+					new CustomEvent("gif-pasted", {
+						detail: { gifId: pastedGif.id },
+					})
+				);
 			}
-			
+
 			// Don't clear copied data to allow multiple pastes
 			return;
 		} catch (error) {
-			console.error('[handlePaste] Error in addGifToCanvas:', error);
+			console.error("[handlePaste] Error in addGifToCanvas:", error);
 		}
 	} else {
-		console.log('[handlePaste] No copied canvas data found');
+		console.log("[handlePaste] No copied canvas data found");
 	}
 };
 
@@ -6170,9 +6408,7 @@ const handleSystemClipboardImage = (file) => {
 
 	// Create image object for GIF manager
 	const imageObject = {
-		id: `pasted_image_${Date.now()}_${Math.random()
-			.toString(36)
-			.substr(2, 9)}`,
+		id: `pasted_image_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
 		title: file.name || "Pasted Image",
 		url: imageUrl,
 		type: "image",
@@ -6200,8 +6436,8 @@ const handleSystemClipboardImage = (file) => {
 		imageObject.height = 200 / imageObject.aspectRatio;
 		// Add to GIF manager - use already imported addGifToCanvas
 		const pastedImage = addGifToCanvas(imageObject);
-		
-		console.log('Image pasted from system clipboard:', pastedImage.title);
+
+		console.log("Image pasted from system clipboard:", pastedImage.title);
 	};
 	img.src = imageUrl;
 };
@@ -6209,34 +6445,40 @@ const handleSystemClipboardImage = (file) => {
 // Keyboard shortcuts handler
 const handleKeyboardShortcuts = (event) => {
 	// Prevent default browser shortcuts when canvas is focused
-	if ((event.ctrlKey || event.metaKey) && (event.key === 'c' || event.key === 'v')) {
+	if (
+		(event.ctrlKey || event.metaKey) &&
+		(event.key === "c" || event.key === "v")
+	) {
 		event.preventDefault();
-		
-		if (event.key === 'c') {
+
+		if (event.key === "c") {
 			handleCopy(event);
-		} else if (event.key === 'v') {
+		} else if (event.key === "v") {
 			handlePaste(event);
 		}
 	}
-	
+
 	// Handle delete key for selected GIF
-	if (event.key === 'Delete' || event.key === 'Backspace') {
+	if (event.key === "Delete" || event.key === "Backspace") {
 		event.preventDefault();
 		handleGifKeyDown(event);
 	}
 };
 
 const handleCopy = (event) => {
-	console.log('[handleCopy] Copy triggered, selectedGifId:', selectedGifId.value);
-	console.log('[handleCopy] activeGifs count:', activeGifs.value.length);
-	
+	console.log(
+		"[handleCopy] Copy triggered, selectedGifId:",
+		selectedGifId.value
+	);
+	console.log("[handleCopy] activeGifs count:", activeGifs.value.length);
+
 	// Use the already imported selectedGifId and activeGifs from useGifManager
 	if (selectedGifId.value) {
 		const selectedGif = activeGifs.value.find(
 			(gif) => gif.id === selectedGifId.value
 		);
-		
-		console.log('[handleCopy] Found selected GIF:', selectedGif);
+
+		console.log("[handleCopy] Found selected GIF:", selectedGif);
 
 		if (selectedGif) {
 			// Store copied GIF data in global state with new unique ID
@@ -6246,28 +6488,30 @@ const handleCopy = (event) => {
 				originalId: selectedGif.id, // Keep reference to original for debugging
 				x: selectedGif.x + 20, // Small offset for visual feedback
 				y: selectedGif.y + 20,
-				isCopy: true // Mark as copied for identification
+				isCopy: true, // Mark as copied for identification
 			};
-			
-			console.log('[handleCopy] Copied GIF data stored:', window.copiedGifData);
-			console.log('[handleCopy] GIF copied successfully:', selectedGif.title || selectedGif.id);
-			
+
+			console.log("[handleCopy] Copied GIF data stored:", window.copiedGifData);
+			console.log(
+				"[handleCopy] GIF copied successfully:",
+				selectedGif.title || selectedGif.id
+			);
+
 			// Visual feedback - briefly highlight the copied element
-			if (typeof window !== 'undefined') {
-				window.dispatchEvent(new CustomEvent('gif-copied', {
-					detail: { gifId: selectedGif.id }
-				}));
+			if (typeof window !== "undefined") {
+				window.dispatchEvent(
+					new CustomEvent("gif-copied", {
+						detail: { gifId: selectedGif.id },
+					})
+				);
 			}
 		} else {
-			console.log('[handleCopy] No selected GIF found to copy');
+			console.log("[handleCopy] No selected GIF found to copy");
 		}
 	} else {
-		console.log('[handleCopy] No GIF selected for copying');
+		console.log("[handleCopy] No GIF selected for copying");
 	}
 };
-
-
-
 </script>
 
 <style scoped>
