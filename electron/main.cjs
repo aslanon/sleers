@@ -2174,7 +2174,7 @@ function setupIpcHandlers() {
 	ipcMain.on("UPDATE_WINDOW_SIZE", (event, { height }) => {
 		if (mainWindow) {
 			const [width] = mainWindow.getSize();
-			mainWindow.setSize(width, height);
+			// mainWindow.setSize(width, height);
 		}
 	});
 
@@ -3475,14 +3475,14 @@ async function createWindow() {
 
 	mainWindow = new BrowserWindow({
 		width: 945,
-		height: 70,
+		height: 76,
 		useContentSize: true,
 		alwaysOnTop: true,
 		resizable: false,
 		minWidth: 945,
 		maxWidth: 945,
-		minHeight: 70,
-		maxHeight: 70,
+		minHeight: 76,
+		maxHeight: 76,
 		skipTaskbar: false,
 		frame: false,
 		transparent: true,

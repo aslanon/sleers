@@ -1,7 +1,7 @@
 <template>
 	<!-- Üst Kontrol Çubuğu -->
 	<div
-		class="w-full sticky top-0 z-50 flex items-center space-x-4 rounded-xl bg-[#1a1b26]/90 backdrop-blur-3xl px-4 py-2 text-white border border-gray-700"
+		class="w-full flex items-center space-x-4 rounded-xl bg-[#1a1b26]/90 backdrop-blur-3xl px-4 py-1 text-white border border-gray-700"
 		:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
 		@mousedown="startDrag"
 	>
