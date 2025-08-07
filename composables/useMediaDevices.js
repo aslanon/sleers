@@ -61,6 +61,25 @@ export const useMediaDevices = () => {
 				return;
 			}
 
+			// Handle overlay recording source (window/screen selection)
+			if (options.recordingSource) {
+				console.log('[Recording] Overlay recording source detected:', options.recordingSource);
+				
+				// Set recording source in MediaStateManager for useScreen to use
+				try {
+					await window.electron?.ipcRenderer.invoke('SET_RECORDING_SOURCE', {
+						sourceType: options.recordingSource.type,
+						sourceId: options.recordingSource.windowId || options.recordingSource.displayId,
+						macRecorderId: options.recordingSource.windowId || options.recordingSource.displayId,
+						cropArea: options.recordingSource.cropArea,
+						windowInfo: options.recordingSource.windowInfo,
+						screenInfo: options.recordingSource.screenInfo
+					});
+				} catch (error) {
+					console.error('[Recording] Failed to set recording source:', error);
+				}
+			}
+
 			// Synchronized recording session başlat
 			const recordingSession = synchronizedRecording.startRecordingSession();
 			console.log('[Recording] Synchronized session başlatıldı:', recordingSession);

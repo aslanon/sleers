@@ -112,6 +112,16 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
 					</svg>
 				</button>
+				<!-- Dynamic Screen Overlay Button -->
+				<button
+					@click="startDynamicScreenOverlay"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Ekran Seç ve Kayıt Başlat (Screen Selection)"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+					</svg>
+				</button>
 
 				<!-- Area Recording Button -->
 				<button
@@ -414,11 +424,72 @@ const startDynamicOverlay = () => {
 	}
 };
 
+// Dynamic Screen Overlay - Screen Studio style with WindowSelector for screens
+const startDynamicScreenOverlay = () => {
+	try {
+		if (window.electronAPI?.startDynamicScreenOverlay) {
+			console.log('Starting native Screen Selector overlay...');
+			window.electronAPI.startDynamicScreenOverlay();
+		} else {
+			console.error('Dynamic screen overlay API not available');
+		}
+	} catch (error) {
+		console.error('Error starting dynamic screen overlay:', error);
+	}
+};
+
+// Test function to trigger screen recording manually
+const testScreenRecording = () => {
+	console.log('[TEST] Manually triggering screen recording...');
+	
+	// Simulate screen selection data
+	const testScreenData = {
+		screenInfo: {
+			id: 1,
+			name: 'Display 1', 
+			x: 0,
+			y: 0,
+			width: 2048,
+			height: 1330
+		},
+		cropInfo: {
+			x: 0,
+			y: 0, 
+			width: 2048,
+			height: 1330
+		},
+		source: {
+			sourceType: 'screen',
+			id: 1,
+			name: 'Display 1',
+			thumbnail: ''
+		}
+	};
+	
+	// Test by sending message to main process, which will echo back
+	console.log('[TEST] Testing screen recording via main process...');
+	
+	// Send test data to main process to simulate overlay selection
+	if (window.electronAPI?.startDynamicScreenOverlay) {
+		// For now, just trigger manual function call
+		// Later we can add a test IPC event
+		console.log('[TEST] Manual test - use real overlay for testing');
+	}
+};
+
+// Add to global for testing
+if (typeof window !== 'undefined') {
+	window.testScreenRecording = testScreenRecording;
+}
+
 // Handle window selection and start recording
 onMounted(() => {
-	if (window.electron?.ipcRenderer) {
+	console.log('[INIT] Mounting component, setting up IPC handlers...');
+	if (window.electronAPI) {
+		console.log('[INIT] ElectronAPI available, registering handlers');
 		// Handle window selection and start recording immediately
-		window.electron.ipcRenderer.on('START_WINDOW_RECORDING', async (event, data) => {
+		window.electronAPI.onStartWindowRecording(async (event, data) => {
+			console.log('[DEBUG] START_WINDOW_RECORDING event received:', data);
 			console.log('Starting window recording:', data.windowInfo);
 			
 			// Set selected source for UI display
@@ -433,9 +504,13 @@ onMounted(() => {
 					systemAudio: systemAudioEnabled.value,
 					microphone: microphoneEnabled.value,
 					microphoneDeviceId: selectedAudioDevice.value,
-					cropArea: data.cropInfo, // Pass crop info for window recording
-					windowId: data.windowInfo.id,
-					selectedSource: data.source
+					// Window specific recording - pass window info for crop recording
+					recordingSource: {
+						type: 'window',
+						windowId: data.windowInfo.id,
+						cropArea: data.cropInfo,
+						windowInfo: data.windowInfo
+					}
 				};
 				
 				console.log('[Vue] Starting recording with options:', recordingOptions);
@@ -450,6 +525,52 @@ onMounted(() => {
 				console.log(`❌ Kayıt başlatılamadı: ${error.message}`);
 			}
 		});
+
+		console.log('[INIT] START_WINDOW_RECORDING handler registered');
+		
+		// Handle screen selection and start recording immediately
+		window.electronAPI.onStartScreenRecording(async (event, data) => {
+			console.log('[DEBUG] START_SCREEN_RECORDING event received:', data);
+			console.log('Starting screen recording:', data.screenInfo);
+			
+			// Set selected source for UI display
+			selectedSource.value = data.source;
+			
+			try {
+				// Prepare recording options with crop info (full screen)
+				const recordingOptions = {
+					startScreen: true,
+					startCamera: selectedVideoDevice.value !== 'none',
+					startAudio: true,
+					systemAudio: systemAudioEnabled.value,
+					microphone: microphoneEnabled.value,
+					microphoneDeviceId: selectedAudioDevice.value,
+					// Screen specific recording - pass screen info for full screen recording
+					recordingSource: {
+						type: 'screen',
+						displayId: data.screenInfo.id,
+						cropArea: data.cropInfo,
+						screenInfo: data.screenInfo
+					}
+				};
+				
+				console.log('[Vue] Starting screen recording with options:', recordingOptions);
+				
+				// Start recording using Sleer's recording system
+				await startRecording(recordingOptions);
+				
+				console.log(`🖥️ Ekran kaydı başladı: ${data.screenInfo.name}`);
+				
+			} catch (error) {
+				console.error('Screen recording start failed:', error);
+				console.log(`❌ Ekran kaydı başlatılamadı: ${error.message}`);
+			}
+		});
+		
+		console.log('[INIT] START_SCREEN_RECORDING handler registered');
+		console.log('[INIT] All IPC handlers setup complete');
+	} else {
+		console.error('[INIT] ElectronAPI not available!');
 	}
 });
 

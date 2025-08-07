@@ -380,10 +380,27 @@ try {
 		startDynamicWindowOverlay: () => {
 			ipcRenderer.send('START_DYNAMIC_WINDOW_OVERLAY');
 		},
+		stopDynamicWindowOverlay: () => {
+			ipcRenderer.send('STOP_DYNAMIC_WINDOW_OVERLAY');
+		},
 		onUpdateWindowHighlight: (callback) => {
 			ipcRenderer.on('UPDATE_WINDOW_HIGHLIGHT', (event, windowData) => {
 				callback(windowData);
 			});
+		},
+		// Dynamic screen overlay functionality  
+		startDynamicScreenOverlay: () => {
+			ipcRenderer.send('START_DYNAMIC_SCREEN_OVERLAY');
+		},
+		stopDynamicScreenOverlay: () => {
+			ipcRenderer.send('STOP_DYNAMIC_SCREEN_OVERLAY');
+		},
+		// Event listeners for recording triggers from overlays
+		onStartWindowRecording: (callback) => {
+			ipcRenderer.on('START_WINDOW_RECORDING', callback);
+		},
+		onStartScreenRecording: (callback) => {
+			ipcRenderer.on('START_SCREEN_RECORDING', callback);
 		},
 	});
 

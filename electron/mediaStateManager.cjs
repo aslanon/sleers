@@ -41,6 +41,27 @@ class MediaStateManager {
 		this.mousePositions = [];
 	}
 
+	// Set recording source from overlay selections
+	setRecordingSource(recordingSource) {
+		try {
+			console.log('[MediaStateManager] Setting recording source:', recordingSource);
+			
+			this.state.recordingSource = {
+				sourceType: recordingSource.sourceType || recordingSource.type,
+				sourceId: recordingSource.sourceId,
+				sourceName: recordingSource.windowInfo?.title || recordingSource.screenInfo?.name,
+				macRecorderId: recordingSource.macRecorderId,
+				cropArea: recordingSource.cropArea,
+				windowInfo: recordingSource.windowInfo,
+				screenInfo: recordingSource.screenInfo
+			};
+			
+			console.log('[MediaStateManager] Recording source updated:', this.state.recordingSource);
+		} catch (error) {
+			console.error('[MediaStateManager] Error setting recording source:', error);
+		}
+	}
+
 	updateRecordingStatus(statusData) {
 		try {
 			console.log(

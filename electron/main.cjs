@@ -991,6 +991,16 @@ function setupIpcHandlers() {
 		return null;
 	});
 
+	// SET_RECORDING_SOURCE handler for overlay selections
+	safeHandle('SET_RECORDING_SOURCE', async (event, recordingSource) => {
+		console.log('[Main] Setting recording source from overlay:', recordingSource);
+		if (mediaStateManager) {
+			mediaStateManager.setRecordingSource(recordingSource);
+			return true;
+		}
+		return false;
+	});
+
 	// SET_MEDIA_STATE handler'ı ekle
 	safeHandle(IPC_EVENTS.SET_MEDIA_STATE, async (event, newState) => {
 		if (mediaStateManager) {
@@ -4847,6 +4857,7 @@ async function startDynamicWindowOverlay() {
 		});
 		
 		windowSelector.on('windowSelected', async (windowInfo) => {
+			console.log('[DEBUG] WindowSelector windowSelected event triggered');
 			console.log('[Main] Window selected, starting recording:', windowInfo.title);
 			
 			// Stop selection first
@@ -4862,7 +4873,7 @@ async function startDynamicWindowOverlay() {
 			
 			// Send to renderer to trigger recording with crop info
 			if (mainWindow && !mainWindow.isDestroyed()) {
-				mainWindow.webContents.send('START_WINDOW_RECORDING', {
+				const eventData = {
 					windowInfo: windowInfo,
 					cropInfo: cropInfo,
 					source: {
@@ -4872,7 +4883,10 @@ async function startDynamicWindowOverlay() {
 						type: 'window',
 						...cropInfo
 					}
-				});
+				};
+				
+				console.log('[DEBUG] Sending START_WINDOW_RECORDING event with data:', eventData);
+				mainWindow.webContents.send('START_WINDOW_RECORDING', eventData);
 			}
 			
 			console.log('[Main] Window recording request sent:', windowInfo.title, cropInfo);
@@ -4998,6 +5012,88 @@ async function stopDynamicWindowOverlay() {
 
 ipcMain.on('START_DYNAMIC_WINDOW_OVERLAY', startDynamicWindowOverlay);
 ipcMain.on('STOP_DYNAMIC_WINDOW_OVERLAY', stopDynamicWindowOverlay);
+
+// Screen Selection System - Using native WindowSelector
+async function startDynamicScreenOverlay() {
+	try {
+		closeAllOverlays(); // Close any existing overlays
+		
+		// Import WindowSelector (same module, different method)
+		const WindowSelector = require('node-mac-recorder/window-selector');
+		windowSelector = new WindowSelector();
+		
+		console.log('[Main] Starting native Screen Selection...');
+		
+		// Use Promise-based screen selection
+		try {
+			console.log('[DEBUG] Waiting for screen selection...');
+			const selectedScreen = await windowSelector.selectScreen();
+			console.log('[DEBUG] Screen selection completed');
+			console.log('[Main] Screen selected, starting recording:', selectedScreen.name);
+			
+			// Stop selection first
+			await stopDynamicScreenOverlay();
+			
+			// Prepare crop info for screen recording (full screen)
+			const cropInfo = {
+				x: selectedScreen.x,
+				y: selectedScreen.y,
+				width: selectedScreen.width,
+				height: selectedScreen.height
+			};
+			
+			// Create screen recording source
+			const source = {
+				sourceType: 'screen',
+				id: selectedScreen.id,
+				name: selectedScreen.name,
+				thumbnail: '', // Will be filled later if needed
+			};
+			
+			// Send to renderer to trigger recording with crop info
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				const eventData = {
+					screenInfo: selectedScreen,
+					cropInfo: cropInfo,
+					source: source
+				};
+				
+				console.log('[DEBUG] Sending START_SCREEN_RECORDING event with data:', eventData);
+				mainWindow.webContents.send('START_SCREEN_RECORDING', eventData);
+			}
+			
+			console.log('[Main] Screen recording request sent:', selectedScreen.name, cropInfo);
+			
+		} catch (selectionError) {
+			if (selectionError.message.includes('cancelled')) {
+				console.log('[Main] Screen selection cancelled by user');
+			} else {
+				console.error('[Main] Screen selection error:', selectionError);
+			}
+		}
+		
+	} catch (error) {
+		console.error('[Main] Error starting native Screen Selection:', error);
+	}
+}
+
+async function stopDynamicScreenOverlay() {
+	try {
+		if (windowSelector) {
+			await windowSelector.stopScreenSelection();
+			await windowSelector.cleanup();
+			windowSelector = null;
+		}
+		
+		console.log('[Main] Dynamic screen overlay stopped');
+		
+	} catch (error) {
+		console.error('[Main] Error stopping screen overlay:', error);
+	}
+}
+
+ipcMain.on('START_DYNAMIC_SCREEN_OVERLAY', startDynamicScreenOverlay);
+ipcMain.on('STOP_DYNAMIC_SCREEN_OVERLAY', stopDynamicScreenOverlay);
 
 // Clean up overlays on app quit
 app.on('before-quit', () => {

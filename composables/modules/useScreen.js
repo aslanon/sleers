@@ -439,9 +439,13 @@ export const useScreen = () => {
 			// Kaynak tipine göre display veya windowId ekle
 			if (sourceType === "window" && macRecorderId) {
 				macRecorderOptions.windowId = macRecorderId;
+				console.log('[DEBUG] Window recording with windowId:', macRecorderId);
 			} else {
 				macRecorderOptions.display = macRecorderId;
+				console.log('[DEBUG] Display recording with displayId:', macRecorderId);
 			}
+			
+			console.log('[DEBUG] Final macRecorderOptions:', macRecorderOptions);
 
 			// MacRecorder kullanarak kayıt başlat - YENİ FORMAT
 
