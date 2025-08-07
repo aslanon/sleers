@@ -24,102 +24,93 @@
 		</button>
 		<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
 
-		<!-- Ayarlar Butonu -->
-		<div class="relative">
-			<button
-				@click="openRecordingSettings"
-				class="p-2 hover:bg-gray-700 rounded-lg"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-					/>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-					/>
-				</svg>
-			</button>
-			<!-- Editör Modu Butonu -->
-			<button
-				@click="openEditorMode"
-				class="p-2 hover:bg-gray-700 rounded-lg"
-				title="Go to Editor Without Recording"
-			>
-				<svg
-					width="24"
-					height="24"
-					class="h-5 w-5"
-					viewBox="0 0 24 24"
-					fill="none"
-					xmlns="http://www.w3.org/2000/svg"
-				>
-					<path
-						d="M3.375 19.5H20.625M3.375 19.5C2.75368 19.5 2.25 18.9963 2.25 18.375M3.375 19.5H4.875C5.49632 19.5 6 18.9963 6 18.375M2.25 18.375V5.625M2.25 18.375V16.875C2.25 16.2537 2.75368 15.75 3.375 15.75M21.75 18.375V5.625M21.75 18.375C21.75 18.9963 21.2463 19.5 20.625 19.5M21.75 18.375V16.875C21.75 16.2537 21.2463 15.75 20.625 15.75M20.625 19.5H19.125C18.5037 19.5 18 18.9963 18 18.375M20.625 4.5H3.375M20.625 4.5C21.2463 4.5 21.75 5.00368 21.75 5.625M20.625 4.5H19.125C18.5037 4.5 18 5.00368 18 5.625M21.75 5.625V7.125C21.75 7.74632 21.2463 8.25 20.625 8.25M3.375 4.5C2.75368 4.5 2.25 5.00368 2.25 5.625M3.375 4.5H4.875C5.49632 4.5 6 5.00368 6 5.625M2.25 5.625V7.125C2.25 7.74632 2.75368 8.25 3.375 8.25M3.375 8.25H4.875M3.375 8.25C2.75368 8.25 2.25 8.75368 2.25 9.375V10.875C2.25 11.4963 2.75368 12 3.375 12M4.875 8.25C5.49632 8.25 6 7.74632 6 7.125V5.625M4.875 8.25C5.49632 8.25 6 8.75368 6 9.375V10.875M6 5.625V10.875M6 5.625C6 5.00368 6.50368 4.5 7.125 4.5H16.875C17.4963 4.5 18 5.00368 18 5.625M19.125 8.25H20.625M19.125 8.25C18.5037 8.25 18 7.74632 18 7.125V5.625M19.125 8.25C18.5037 8.25 18 8.75368 18 9.375V10.875M20.625 8.25C21.2463 8.25 21.75 8.75368 21.75 9.375V10.875C21.75 11.4963 21.2463 12 20.625 12M18 5.625V10.875M7.125 12H16.875M7.125 12C6.50368 12 6 11.4963 6 10.875M7.125 12C6.50368 12 6 12.5037 6 13.125M6 10.875C6 11.4963 5.49632 12 4.875 12M18 10.875C18 11.4963 17.4963 12 16.875 12M18 10.875C18 11.4963 18.5037 12 19.125 12M16.875 12C17.4963 12 18 12.5037 18 13.125M6 18.375V13.125M6 18.375C6 18.9963 6.50368 19.5 7.125 19.5H16.875C17.4963 19.5 18 18.9963 18 18.375M6 18.375V16.875C6 16.2537 5.49632 15.75 4.875 15.75M18 18.375V13.125M18 18.375V16.875C18 16.2537 18.5037 15.75 19.125 15.75M18 13.125V14.625C18 15.2463 18.5037 15.75 19.125 15.75M18 13.125C18 12.5037 18.5037 12 19.125 12M6 13.125V14.625C6 15.2463 5.49632 15.75 4.875 15.75M6 13.125C6 12.5037 5.49632 12 4.875 12M3.375 12H4.875M3.375 12C2.75368 12 2.25 12.5037 2.25 13.125V14.625C2.25 15.2463 2.75368 15.75 3.375 15.75M19.125 12H20.625M20.625 12C21.2463 12 21.75 12.5037 21.75 13.125V14.625C21.75 15.2463 21.2463 15.75 20.625 15.75M3.375 15.75H4.875M19.125 15.75H20.625"
-						stroke="white"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					/>
-				</svg>
-			</button>
-		</div>
-
 		<!-- Kayıt Kontrolleri -->
 		<div class="flex items-center space-x-4 flex-wrap">
 			<!-- Recording Type Selection -->
 			<div class="flex items-center space-x-2">
 				<!-- Screen Recording Button -->
-				<button
+				<!-- <button
 					@click="selectRecordingType('screen')"
 					class="p-2 hover:bg-gray-700 rounded-lg"
 					title="Screen Recording"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+						/>
 					</svg>
-				</button>
+				</button> -->
 
 				<!-- Window Recording Button -->
-				<button
+				<!-- <button
 					@click="selectRecordingType('window')"
 					class="p-2 hover:bg-gray-700 rounded-lg"
 					title="Window Recording"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+						/>
 					</svg>
-				</button>
-
-				<!-- Dynamic Window Overlay Button -->
-				<button
-					@click="startDynamicOverlay"
-					class="p-2 hover:bg-gray-700 rounded-lg"
-					title="Pencere Seç ve Kayıt Başlat (Screen Studio style)"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-					</svg>
-				</button>
+				</button> -->
 				<!-- Dynamic Screen Overlay Button -->
 				<button
 					@click="startDynamicScreenOverlay"
 					class="p-2 hover:bg-gray-700 rounded-lg"
 					title="Ekran Seç ve Kayıt Başlat (Screen Selection)"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M5.75 20.5H17.75M10.25 17.5V20.5M13.25 17.5V20.5M3.125 17.5H20.375C20.9963 17.5 21.5 16.9963 21.5 16.375V5.125C21.5 4.50368 20.9963 4 20.375 4H3.125C2.50368 4 2 4.50368 2 5.125V16.375C2 16.9963 2.50368 17.5 3.125 17.5Z"
+							stroke="white"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				</button>
+				<!-- Dynamic Window Overlay Button -->
+				<button
+					@click="startDynamicOverlay"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Pencere Seç ve Kayıt Başlat (Screen Studio style)"
+				>
+					<svg
+						width="24"
+						height="24"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							fill-rule="evenodd"
+							clip-rule="evenodd"
+							d="M2 6C2 4.34315 3.34315 3 5 3H18.5C20.1569 3 21.5 4.34315 21.5 6V18C21.5 19.6569 20.1569 21 18.5 21H5C3.34315 21 2 19.6569 2 18V6ZM20 9H3.5V18C3.5 18.8284 4.17157 19.5 5 19.5H18.5C19.3284 19.5 20 18.8284 20 18V9ZM5 5.25C4.58579 5.25 4.25 5.58579 4.25 6V6.0075C4.25 6.42171 4.58579 6.7575 5 6.7575H5.0075C5.42171 6.7575 5.7575 6.42171 5.7575 6.0075V6C5.7575 5.58579 5.42171 5.25 5.0075 5.25H5ZM6.5 6C6.5 5.58579 6.83579 5.25 7.25 5.25H7.2575C7.67171 5.25 8.0075 5.58579 8.0075 6V6.0075C8.0075 6.42171 7.67171 6.7575 7.2575 6.7575H7.25C6.83579 6.7575 6.5 6.42171 6.5 6.0075V6ZM9.5 5.25C9.08579 5.25 8.75 5.58579 8.75 6V6.0075C8.75 6.42171 9.08579 6.7575 9.5 6.7575H9.5075C9.92171 6.7575 10.2575 6.42171 10.2575 6.0075V6C10.2575 5.58579 9.92171 5.25 9.5075 5.25H9.5Z"
+							fill="#D9D9D9"
+						/>
 					</svg>
 				</button>
 
@@ -129,12 +120,22 @@
 					class="p-2 hover:bg-gray-700 rounded-lg"
 					title="Area Recording"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+						/>
 					</svg>
 				</button>
 			</div>
-
 
 			<select
 				v-model="selectedVideoDevice"
@@ -232,7 +233,7 @@
 			<!-- Cursor tracking butonu kaldırıldı - artık gerçek kayıt sistemiyle entegre -->
 
 			<!-- Kayıt Toggle Butonu -->
-			<button
+			<!-- <button
 				@click="onRecordButtonClick"
 				class="flex items-center space-x-2 h-[36px] px-4 py-2 rounded-lg"
 				:class="
@@ -243,19 +244,67 @@
 			>
 				<span class="w-2 h-2 rounded-full bg-white" v-if="isRecording"></span>
 				<span>{{ isRecording ? "Stop" : "Record" }}</span>
-			</button>
+			</button> -->
+			<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
+
+			<!-- Ayarlar Butonu -->
+			<div class="relative">
+				<button
+					@click="openRecordingSettings"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-5 w-5"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+						/>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+						/>
+					</svg>
+				</button>
+				<!-- Editör Modu Butonu -->
+				<button
+					@click="openEditorMode"
+					class="p-2 hover:bg-gray-700 rounded-lg"
+					title="Go to Editor Without Recording"
+				>
+					<svg
+						width="24"
+						height="24"
+						class="h-5 w-5"
+						viewBox="0 0 24 24"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M3.375 19.5H20.625M3.375 19.5C2.75368 19.5 2.25 18.9963 2.25 18.375M3.375 19.5H4.875C5.49632 19.5 6 18.9963 6 18.375M2.25 18.375V5.625M2.25 18.375V16.875C2.25 16.2537 2.75368 15.75 3.375 15.75M21.75 18.375V5.625M21.75 18.375C21.75 18.9963 21.2463 19.5 20.625 19.5M21.75 18.375V16.875C21.75 16.2537 21.2463 15.75 20.625 15.75M20.625 19.5H19.125C18.5037 19.5 18 18.9963 18 18.375M20.625 4.5H3.375M20.625 4.5C21.2463 4.5 21.75 5.00368 21.75 5.625M20.625 4.5H19.125C18.5037 4.5 18 5.00368 18 5.625M21.75 5.625V7.125C21.75 7.74632 21.2463 8.25 20.625 8.25M3.375 4.5C2.75368 4.5 2.25 5.00368 2.25 5.625M3.375 4.5H4.875C5.49632 4.5 6 5.00368 6 5.625M2.25 5.625V7.125C2.25 7.74632 2.75368 8.25 3.375 8.25M3.375 8.25H4.875M3.375 8.25C2.75368 8.25 2.25 8.75368 2.25 9.375V10.875C2.25 11.4963 2.75368 12 3.375 12M4.875 8.25C5.49632 8.25 6 7.74632 6 7.125V5.625M4.875 8.25C5.49632 8.25 6 8.75368 6 9.375V10.875M6 5.625V10.875M6 5.625C6 5.00368 6.50368 4.5 7.125 4.5H16.875C17.4963 4.5 18 5.00368 18 5.625M19.125 8.25H20.625M19.125 8.25C18.5037 8.25 18 7.74632 18 7.125V5.625M19.125 8.25C18.5037 8.25 18 8.75368 18 9.375V10.875M20.625 8.25C21.2463 8.25 21.75 8.75368 21.75 9.375V10.875C21.75 11.4963 21.2463 12 20.625 12M18 5.625V10.875M7.125 12H16.875M7.125 12C6.50368 12 6 11.4963 6 10.875M7.125 12C6.50368 12 6 12.5037 6 13.125M6 10.875C6 11.4963 5.49632 12 4.875 12M18 10.875C18 11.4963 17.4963 12 16.875 12M18 10.875C18 11.4963 18.5037 12 19.125 12M16.875 12C17.4963 12 18 12.5037 18 13.125M6 18.375V13.125M6 18.375C6 18.9963 6.50368 19.5 7.125 19.5H16.875C17.4963 19.5 18 18.9963 18 18.375M6 18.375V16.875C6 16.2537 5.49632 15.75 4.875 15.75M18 18.375V13.125M18 18.375V16.875C18 16.2537 18.5037 15.75 19.125 15.75M18 13.125V14.625C18 15.2463 18.5037 15.75 19.125 15.75M18 13.125C18 12.5037 18.5037 12 19.125 12M6 13.125V14.625C6 15.2463 5.49632 15.75 4.875 15.75M6 13.125C6 12.5037 5.49632 12 4.875 12M3.375 12H4.875M3.375 12C2.75368 12 2.25 12.5037 2.25 13.125V14.625C2.25 15.2463 2.75368 15.75 3.375 15.75M19.125 12H20.625M20.625 12C21.2463 12 21.75 12.5037 21.75 13.125V14.625C21.75 15.2463 21.2463 15.75 20.625 15.75M3.375 15.75H4.875M19.125 15.75H20.625"
+							stroke="white"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				</button>
+			</div>
 		</div>
 	</div>
-
-
-
 </template>
 
 <script setup>
 import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
 import { useScreen } from "~/composables/modules/useScreen";
-
 
 const electron = window.electron;
 const IPC_EVENTS = electron?.ipcRenderer?.IPC_EVENTS || {};
@@ -316,7 +365,6 @@ watch(selectedDelay, (newValue) => {
 	}
 });
 
-
 // Kayıt düğmesi işlevi
 const onRecordButtonClick = async () => {
 	try {
@@ -340,10 +388,9 @@ const onRecordButtonClick = async () => {
 
 			// MediaState'de kaynak varsa onu kullan
 			if (currentRecordingSource && currentRecordingSource.sourceId) {
-
 				recordingOptions = {
 					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none', // No camera if 'none' selected
+					startCamera: selectedVideoDevice.value !== "none", // No camera if 'none' selected
 					startAudio: true,
 				};
 			} else {
@@ -359,13 +406,12 @@ const onRecordButtonClick = async () => {
 					macRecorderId: 0,
 				});
 
-
 				// 200ms bekle ki MediaState güncellensin
 				await new Promise((resolve) => setTimeout(resolve, 200));
 
 				recordingOptions = {
 					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none', // No camera if 'none' selected
+					startCamera: selectedVideoDevice.value !== "none", // No camera if 'none' selected
 					startAudio: true,
 				};
 			}
@@ -394,19 +440,19 @@ const openEditorMode = () => {
 const selectRecordingType = async (type) => {
 	try {
 		if (electron?.ipcRenderer) {
-			if (type === 'screen') {
+			if (type === "screen") {
 				// Trigger native screen selection overlay
-				electron.ipcRenderer.send('SHOW_NATIVE_SCREEN_SELECTOR');
-			} else if (type === 'window') {
+				electron.ipcRenderer.send("SHOW_NATIVE_SCREEN_SELECTOR");
+			} else if (type === "window") {
 				// Trigger native window selection overlay
-				electron.ipcRenderer.send('SHOW_NATIVE_WINDOW_SELECTOR');
-			} else if (type === 'area') {
+				electron.ipcRenderer.send("SHOW_NATIVE_WINDOW_SELECTOR");
+			} else if (type === "area") {
 				// Trigger native area selection overlay
-				electron.ipcRenderer.send('SHOW_NATIVE_AREA_SELECTOR');
+				electron.ipcRenderer.send("SHOW_NATIVE_AREA_SELECTOR");
 			}
 		}
 	} catch (error) {
-		console.error('Error triggering native selector:', error);
+		console.error("Error triggering native selector:", error);
 	}
 };
 
@@ -414,13 +460,13 @@ const selectRecordingType = async (type) => {
 const startDynamicOverlay = () => {
 	try {
 		if (window.electronAPI?.startDynamicWindowOverlay) {
-			console.log('Starting native WindowSelector overlay...');
+			console.log("Starting native WindowSelector overlay...");
 			window.electronAPI.startDynamicWindowOverlay();
 		} else {
-			console.error('Dynamic window overlay API not available');
+			console.error("Dynamic window overlay API not available");
 		}
 	} catch (error) {
-		console.error('Error starting dynamic window overlay:', error);
+		console.error("Error starting dynamic window overlay:", error);
 	}
 };
 
@@ -428,149 +474,152 @@ const startDynamicOverlay = () => {
 const startDynamicScreenOverlay = () => {
 	try {
 		if (window.electronAPI?.startDynamicScreenOverlay) {
-			console.log('Starting native Screen Selector overlay...');
+			console.log("Starting native Screen Selector overlay...");
 			window.electronAPI.startDynamicScreenOverlay();
 		} else {
-			console.error('Dynamic screen overlay API not available');
+			console.error("Dynamic screen overlay API not available");
 		}
 	} catch (error) {
-		console.error('Error starting dynamic screen overlay:', error);
+		console.error("Error starting dynamic screen overlay:", error);
 	}
 };
 
 // Test function to trigger screen recording manually
 const testScreenRecording = () => {
-	console.log('[TEST] Manually triggering screen recording...');
-	
+	console.log("[TEST] Manually triggering screen recording...");
+
 	// Simulate screen selection data
 	const testScreenData = {
 		screenInfo: {
 			id: 1,
-			name: 'Display 1', 
+			name: "Display 1",
 			x: 0,
 			y: 0,
 			width: 2048,
-			height: 1330
+			height: 1330,
 		},
 		cropInfo: {
 			x: 0,
-			y: 0, 
+			y: 0,
 			width: 2048,
-			height: 1330
+			height: 1330,
 		},
 		source: {
-			sourceType: 'screen',
+			sourceType: "screen",
 			id: 1,
-			name: 'Display 1',
-			thumbnail: ''
-		}
+			name: "Display 1",
+			thumbnail: "",
+		},
 	};
-	
+
 	// Test by sending message to main process, which will echo back
-	console.log('[TEST] Testing screen recording via main process...');
-	
+	console.log("[TEST] Testing screen recording via main process...");
+
 	// Send test data to main process to simulate overlay selection
 	if (window.electronAPI?.startDynamicScreenOverlay) {
 		// For now, just trigger manual function call
 		// Later we can add a test IPC event
-		console.log('[TEST] Manual test - use real overlay for testing');
+		console.log("[TEST] Manual test - use real overlay for testing");
 	}
 };
 
 // Add to global for testing
-if (typeof window !== 'undefined') {
+if (typeof window !== "undefined") {
 	window.testScreenRecording = testScreenRecording;
 }
 
 // Handle window selection and start recording
 onMounted(() => {
-	console.log('[INIT] Mounting component, setting up IPC handlers...');
+	console.log("[INIT] Mounting component, setting up IPC handlers...");
 	if (window.electronAPI) {
-		console.log('[INIT] ElectronAPI available, registering handlers');
+		console.log("[INIT] ElectronAPI available, registering handlers");
 		// Handle window selection and start recording immediately
 		window.electronAPI.onStartWindowRecording(async (event, data) => {
-			console.log('[DEBUG] START_WINDOW_RECORDING event received:', data);
-			console.log('Starting window recording:', data.windowInfo);
-			
+			console.log("[DEBUG] START_WINDOW_RECORDING event received:", data);
+			console.log("Starting window recording:", data.windowInfo);
+
 			// Set selected source for UI display
 			selectedSource.value = data.source;
-			
+
 			try {
 				// Prepare recording options with crop info
 				const recordingOptions = {
 					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none',
+					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
 					microphone: microphoneEnabled.value,
 					microphoneDeviceId: selectedAudioDevice.value,
 					// Window specific recording - pass window info for crop recording
 					recordingSource: {
-						type: 'window',
+						type: "window",
 						windowId: data.windowInfo.id,
 						cropArea: data.cropInfo,
-						windowInfo: data.windowInfo
-					}
+						windowInfo: data.windowInfo,
+					},
 				};
-				
-				console.log('[Vue] Starting recording with options:', recordingOptions);
-				
+
+				console.log("[Vue] Starting recording with options:", recordingOptions);
+
 				// Start recording using Sleer's recording system
 				await startRecording(recordingOptions);
-				
-				console.log(`🎬 Kayıt başladı: ${data.windowInfo.title} (${data.windowInfo.appName})`);
-				
+
+				console.log(
+					`🎬 Kayıt başladı: ${data.windowInfo.title} (${data.windowInfo.appName})`
+				);
 			} catch (error) {
-				console.error('Recording start failed:', error);
+				console.error("Recording start failed:", error);
 				console.log(`❌ Kayıt başlatılamadı: ${error.message}`);
 			}
 		});
 
-		console.log('[INIT] START_WINDOW_RECORDING handler registered');
-		
+		console.log("[INIT] START_WINDOW_RECORDING handler registered");
+
 		// Handle screen selection and start recording immediately
 		window.electronAPI.onStartScreenRecording(async (event, data) => {
-			console.log('[DEBUG] START_SCREEN_RECORDING event received:', data);
-			console.log('Starting screen recording:', data.screenInfo);
-			
+			console.log("[DEBUG] START_SCREEN_RECORDING event received:", data);
+			console.log("Starting screen recording:", data.screenInfo);
+
 			// Set selected source for UI display
 			selectedSource.value = data.source;
-			
+
 			try {
 				// Prepare recording options with crop info (full screen)
 				const recordingOptions = {
 					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none',
+					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
 					microphone: microphoneEnabled.value,
 					microphoneDeviceId: selectedAudioDevice.value,
 					// Screen specific recording - pass screen info for full screen recording
 					recordingSource: {
-						type: 'screen',
+						type: "screen",
 						displayId: data.screenInfo.id,
 						cropArea: data.cropInfo,
-						screenInfo: data.screenInfo
-					}
+						screenInfo: data.screenInfo,
+					},
 				};
-				
-				console.log('[Vue] Starting screen recording with options:', recordingOptions);
-				
+
+				console.log(
+					"[Vue] Starting screen recording with options:",
+					recordingOptions
+				);
+
 				// Start recording using Sleer's recording system
 				await startRecording(recordingOptions);
-				
+
 				console.log(`🖥️ Ekran kaydı başladı: ${data.screenInfo.name}`);
-				
 			} catch (error) {
-				console.error('Screen recording start failed:', error);
+				console.error("Screen recording start failed:", error);
 				console.log(`❌ Ekran kaydı başlatılamadı: ${error.message}`);
 			}
 		});
-		
-		console.log('[INIT] START_SCREEN_RECORDING handler registered');
-		console.log('[INIT] All IPC handlers setup complete');
+
+		console.log("[INIT] START_SCREEN_RECORDING handler registered");
+		console.log("[INIT] All IPC handlers setup complete");
 	} else {
-		console.error('[INIT] ElectronAPI not available!');
+		console.error("[INIT] ElectronAPI not available!");
 	}
 });
 
@@ -579,26 +628,30 @@ const loadAvailableSources = async () => {
 	try {
 		if (electron?.ipcRenderer) {
 			const [screens, windows] = await Promise.all([
-				electron.ipcRenderer.invoke('GET_MAC_SCREENS') || [],
-				electron.ipcRenderer.invoke('GET_MAC_WINDOWS') || []
+				electron.ipcRenderer.invoke("GET_MAC_SCREENS") || [],
+				electron.ipcRenderer.invoke("GET_MAC_WINDOWS") || [],
 			]);
-			
+
 			availableScreens.value = screens.map((screen, index) => ({
 				id: screen.id ? `screen:${screen.id}` : `screen:${index}`,
-				name: screen.name || screen.displayName || `Display ${screen.id || index + 1}`,
-				type: 'display',
-				macRecorderId: screen.id || index
+				name:
+					screen.name ||
+					screen.displayName ||
+					`Display ${screen.id || index + 1}`,
+				type: "display",
+				macRecorderId: screen.id || index,
 			}));
-			
+
 			availableWindows.value = windows.map((window, index) => ({
 				id: window.id ? `window:${window.id}` : `window:${index}`,
-				name: window.name || window.title || window.windowName || 'Unknown Window',
-				type: 'window',
-				macRecorderId: window.id || index
+				name:
+					window.name || window.title || window.windowName || "Unknown Window",
+				type: "window",
+				macRecorderId: window.id || index,
 			}));
 		}
 	} catch (error) {
-		console.error('Failed to load recording sources:', error);
+		console.error("Failed to load recording sources:", error);
 	}
 };
 
@@ -633,7 +686,6 @@ const throttledUpdateAudioSettings = throttle((settings) => {
 watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 	if (newDeviceId && newDeviceId !== oldDeviceId) {
 		try {
-
 			// Mikrofon değişikliğini main process'e bildir
 			if (electron?.ipcRenderer) {
 				electron.ipcRenderer.send(IPC_EVENTS.AUDIO_DEVICE_CHANGED, newDeviceId);
@@ -657,10 +709,12 @@ watch(selectedVideoDevice, async (deviceId) => {
 	if (deviceId) {
 		try {
 			// "No Camera Recording" seçilirse kamera penceresini gizle
-			if (deviceId === 'none') {
-				console.log('[index.vue] No camera recording selected - hiding camera window');
+			if (deviceId === "none") {
+				console.log(
+					"[index.vue] No camera recording selected - hiding camera window"
+				);
 				if (electron?.ipcRenderer) {
-					electron.ipcRenderer.send('HIDE_CAMERA_WINDOW');
+					electron.ipcRenderer.send("HIDE_CAMERA_WINDOW");
 				}
 				return;
 			}
@@ -668,7 +722,7 @@ watch(selectedVideoDevice, async (deviceId) => {
 			// Kamera değişikliğini main process'e bildir
 			if (electron?.ipcRenderer) {
 				// Önce kamera penceresini göster (gizlenmişse)
-				electron.ipcRenderer.send('SHOW_CAMERA_WINDOW');
+				electron.ipcRenderer.send("SHOW_CAMERA_WINDOW");
 				// Sonra device değişikliğini gönder
 				electron.ipcRenderer.send(IPC_EVENTS.CAMERA_DEVICE_CHANGED, deviceId);
 			} else {
@@ -724,24 +778,24 @@ const handleGlobalMouseUp = () => {
 
 const openRecordingSettings = () => {
 	if (electron?.ipcRenderer) {
-		electron.ipcRenderer.send('SHOW_RECORDING_SETTINGS');
+		electron.ipcRenderer.send("SHOW_RECORDING_SETTINGS");
 	}
 };
 
 const handleSettingsSave = (settings) => {
-	console.log('[index.vue] Recording settings saved:', settings);
+	console.log("[index.vue] Recording settings saved:", settings);
 	// TODO: Save settings to localStorage or electron-store
 	// TODO: Apply settings to recording configuration
-	
+
 	// Example of applying some settings:
 	if (settings.video) {
-		console.log('Applying video settings:', settings.video);
+		console.log("Applying video settings:", settings.video);
 	}
 	if (settings.audio) {
-		console.log('Applying audio settings:', settings.audio);
+		console.log("Applying audio settings:", settings.audio);
 	}
 	if (settings.source) {
-		console.log('Applying source settings:', settings.source);
+		console.log("Applying source settings:", settings.source);
 	}
 };
 
@@ -774,7 +828,6 @@ onMounted(async () => {
 		sourceName: "Display 1",
 		macRecorderId: 0,
 	};
-
 
 	// IPC ile kaynak seçimini bildir
 	if (electron?.ipcRenderer) {
@@ -834,66 +887,72 @@ onMounted(async () => {
 		});
 
 		// Native overlay callbacks
-		electron.ipcRenderer.on("NATIVE_SCREEN_SELECTED", async (event, screenData) => {
-			try {
-				// Set selected screen and start recording
-				await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
-					sourceType: 'display',
-					sourceId: screenData.id,
-					sourceName: screenData.name,
-					macRecorderId: screenData.macRecorderId || 0,
-				});
-				
-				// Start recording
-				await startRecording({
-					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none',
-					startAudio: true,
-				});
-			} catch (error) {
-				console.error('Error starting screen recording:', error);
-			}
-		});
+		electron.ipcRenderer.on(
+			"NATIVE_SCREEN_SELECTED",
+			async (event, screenData) => {
+				try {
+					// Set selected screen and start recording
+					await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
+						sourceType: "display",
+						sourceId: screenData.id,
+						sourceName: screenData.name,
+						macRecorderId: screenData.macRecorderId || 0,
+					});
 
-		electron.ipcRenderer.on("NATIVE_WINDOW_SELECTED", async (event, windowData) => {
-			try {
-				// Set selected window and start recording
-				await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
-					sourceType: 'window',
-					sourceId: windowData.id,
-					sourceName: windowData.name,
-					macRecorderId: windowData.macRecorderId || 0,
-				});
-				
-				// Start recording
-				await startRecording({
-					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none',
-					startAudio: true,
-				});
-			} catch (error) {
-				console.error('Error starting window recording:', error);
+					// Start recording
+					await startRecording({
+						startScreen: true,
+						startCamera: selectedVideoDevice.value !== "none",
+						startAudio: true,
+					});
+				} catch (error) {
+					console.error("Error starting screen recording:", error);
+				}
 			}
-		});
+		);
+
+		electron.ipcRenderer.on(
+			"NATIVE_WINDOW_SELECTED",
+			async (event, windowData) => {
+				try {
+					// Set selected window and start recording
+					await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
+						sourceType: "window",
+						sourceId: windowData.id,
+						sourceName: windowData.name,
+						macRecorderId: windowData.macRecorderId || 0,
+					});
+
+					// Start recording
+					await startRecording({
+						startScreen: true,
+						startCamera: selectedVideoDevice.value !== "none",
+						startAudio: true,
+					});
+				} catch (error) {
+					console.error("Error starting window recording:", error);
+				}
+			}
+		);
 
 		electron.ipcRenderer.on("NATIVE_AREA_SELECTED", async (event, areaData) => {
 			try {
 				// Set selected area and start recording
 				await electron.ipcRenderer.invoke("UPDATE_RECORDING_SOURCE", {
-					sourceType: 'area',
-					sourceId: 'area:custom',
-					sourceName: 'Selected Area',
-					bounds: areaData.bounds
+					sourceType: "area",
+					sourceId: "area:custom",
+					sourceName: "Selected Area",
+					bounds: areaData.bounds,
 				});
-				
+
 				// Start recording
 				await startRecording({
 					startScreen: true,
-					startCamera: selectedVideoDevice.value !== 'none',
+					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 				});
 			} catch (error) {
-				console.error('Error starting area recording:', error);
+				console.error("Error starting area recording:", error);
 			}
 		});
 

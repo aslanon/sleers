@@ -1315,33 +1315,33 @@ export const useMouseCursor = () => {
 		const smoothnessFactor = cursorSmoothness.value;
 		let adaptiveSpeed;
 
-		if (distanceToTarget < 0.5) {
-			// Çok yakın mesafede anında hareket et
+		if (distanceToTarget < 1.0) { // Threshold biraz artırdım
+			// Yakın mesafede anında hareket et - timeline playback için daha responsive
 			cursorX.value = targetX.value;
 			cursorY.value = targetY.value;
 			adaptiveSpeed = 1;
 		} else {
-			// Yüksek smoothness = yüksek hız = daha responsive
-			const baseSpeed = Math.max(smoothnessFactor * 0.3, 0.05); // Min 0.05, max 0.3
-			const distanceFactor = Math.min(distanceToTarget / 20, 1);
+			// Timeline playback için daha hızlı hareket - gecikme azaltılsın
+			const baseSpeed = Math.max(smoothnessFactor * 0.5, 0.1); // Min 0.1, max 0.5 (artırıldı)
+			const distanceFactor = Math.min(distanceToTarget / 15, 1); // 20'den 15'e (hızlandırıldı)
 			adaptiveSpeed = baseSpeed * (1 + distanceFactor);
 		}
 
-		// Smoothness'e göre max speed - yüksek smoothness = daha yüksek max
-		const maxSpeed = Math.max(smoothnessFactor * 0.8, 0.1);
+		// Timeline playback için daha yüksek max speed
+		const maxSpeed = Math.max(smoothnessFactor * 1.2, 0.2); // 0.8'den 1.2'ye artırıldı
 		const normalizedSpeed = Math.min(
 			adaptiveSpeed * (60 * deltaTime),
 			maxSpeed
 		);
 
-		// Pozisyonu güncelle - daha stabil
-		if (distanceToTarget >= 0.5) {
+		// Pozisyonu güncelle - threshold azaltıldı (daha az filtreleme)
+		if (distanceToTarget >= 1.0) { // 0.5'den 1.0'a artırıldı
 			const moveX = (targetX.value - cursorX.value) * normalizedSpeed;
 			const moveY = (targetY.value - cursorY.value) * normalizedSpeed;
 
-			// Çok küçük hareketleri filtrele (stabillik için)
-			if (Math.abs(moveX) > 0.1) cursorX.value += moveX;
-			if (Math.abs(moveY) > 0.1) cursorY.value += moveY;
+			// Filtreleme threshold azaltıldı (daha responsive)
+			if (Math.abs(moveX) > 0.05) cursorX.value += moveX; // 0.1'den 0.05'e
+			if (Math.abs(moveY) > 0.05) cursorY.value += moveY; // 0.1'den 0.05'e
 		}
 
 		// Hareket vektörünü hesapla

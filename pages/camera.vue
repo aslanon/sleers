@@ -270,6 +270,13 @@ onMounted(() => {
 			changeCamera(deviceId);
 		}
 	});
+
+	// Synchronized camera recording başlat
+	electron?.ipcRenderer.on("START_SYNCHRONIZED_CAMERA_RECORDING", () => {
+		console.log("[Camera] 📹 Synchronized camera recording başlatılıyor...");
+		// Camera kaydını başlat - zaten recording state'i camera manager tarafından yönetiliyor
+		// Burada ekstra bir şey yapmaya gerek yok, sadece log
+	});
 });
 
 // Component unmount olduğunda
@@ -279,6 +286,7 @@ onUnmounted(() => {
 		window.electron.ipcRenderer.removeAllListeners("STOP_CAMERA");
 		window.electron.ipcRenderer.removeAllListeners("START_CAMERA");
 		window.electron.ipcRenderer.removeAllListeners("UPDATE_CAMERA_DEVICE");
+		window.electron.ipcRenderer.removeAllListeners("START_SYNCHRONIZED_CAMERA_RECORDING");
 	}
 	// Sürükleme event listener'larını temizle
 	window.removeEventListener("mousemove", handleGlobalMouseMove);

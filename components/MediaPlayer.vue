@@ -1409,21 +1409,37 @@ const synchronizeAllElements = async (realTime, clippedTime) => {
 		// Video'yu pozisyona getir
 		videoElement.currentTime = realTime;
 
-		// Kamerayı senkronize et (synchronized timestamp kullan)
+		// Kamerayı senkronize et (daha responsive ve tolerance check ile)
 		if (cameraElement && synchronizedTimestamps.value) {
 			const synchronizedCameraTime =
 				getSynchronizedTimestamp("camera", realTime * 1000) / 1000;
-			// Camera sync offset ekle (kamera geride kalmasın)
+			// Camera sync offset ekle ama daha az gecikme için biraz azalt
 			const { cameraSettings } = usePlayerSettings();
-			cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+			const syncOffset = (cameraSettings.value.syncOffset || 0) * 0.7; // %30 azaltıldı
+			const targetTime = synchronizedCameraTime + syncOffset;
+
+			// Camera'yı daha agresif sync et (gecikme azaltmak için)
+			if (Math.abs(cameraElement.currentTime - targetTime) > 0.05) {
+				// 50ms tolerance
+				cameraElement.currentTime = targetTime;
+			}
 		} else if (cameraElement) {
-			// Fallback to original timing with camera offset
+			// Fallback to original timing with reduced camera offset
 			const { cursorOffset, cameraSettings } = usePlayerSettings();
-			cameraElement.currentTime = realTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+			const syncOffset = (cameraSettings.value.syncOffset || 0) * 0.7; // %30 azaltıldı
+			const targetTime = realTime + cursorOffset.value + syncOffset;
+
+			// Camera'yı sadece büyük fark varsa sync et
+			if (Math.abs(cameraElement.currentTime - targetTime) > 0.05) {
+				cameraElement.currentTime = targetTime;
+			}
 		}
 
 		// Sesi senkronize et - sadece büyük fark varsa (kesiklik önleme)
-		if (audioRef.value && Math.abs(audioRef.value.currentTime - realTime) > 0.2) {
+		if (
+			audioRef.value &&
+			Math.abs(audioRef.value.currentTime - realTime) > 0.2
+		) {
 			audioRef.value.currentTime = realTime;
 		}
 
@@ -1538,16 +1554,24 @@ const syncVideoToTimeline = () => {
 					getSynchronizedTimestamp("camera", requiredVideoTime * 1000) / 1000;
 				// Camera sync offset ekle
 				const { cameraSettings } = usePlayerSettings();
-				cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+				cameraElement.currentTime =
+					synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 			} else if (cameraElement) {
 				const { cursorOffset, cameraSettings } = usePlayerSettings();
-				cameraElement.currentTime = requiredVideoTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+				cameraElement.currentTime =
+					requiredVideoTime +
+					cursorOffset.value +
+					(cameraSettings.value.syncOffset || 0);
 			}
 			// Audio'yu sadece büyük time farkında sync et (kesiklik önleme)
-			if (audioRef.value && Math.abs(audioRef.value.currentTime - requiredVideoTime) > 0.3) {
+			if (
+				audioRef.value &&
+				Math.abs(audioRef.value.currentTime - requiredVideoTime) > 0.3
+			) {
 				audioRef.value.currentTime = requiredVideoTime;
 			}
-		} else if (timeDiff > 0.1) { // Audio için tolerance'ı artırdık (0.05 -> 0.1)
+		} else if (timeDiff > 0.1) {
+			// Audio için tolerance'ı artırdık (0.05 -> 0.1)
 			// Normal sync - video için daha agresif, audio için daha tolerant
 			videoElement.currentTime = requiredVideoTime;
 			// Kamera için synchronized timestamp kullan (ana sync ile tutarlı)
@@ -1556,13 +1580,20 @@ const syncVideoToTimeline = () => {
 					getSynchronizedTimestamp("camera", requiredVideoTime * 1000) / 1000;
 				// Camera sync offset ekle
 				const { cameraSettings } = usePlayerSettings();
-				cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+				cameraElement.currentTime =
+					synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 			} else if (cameraElement) {
 				const { cursorOffset, cameraSettings } = usePlayerSettings();
-				cameraElement.currentTime = requiredVideoTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+				cameraElement.currentTime =
+					requiredVideoTime +
+					cursorOffset.value +
+					(cameraSettings.value.syncOffset || 0);
 			}
 			// Audio'yu sadece daha büyük farklarda sync et
-			if (audioRef.value && Math.abs(audioRef.value.currentTime - requiredVideoTime) > 0.15) {
+			if (
+				audioRef.value &&
+				Math.abs(audioRef.value.currentTime - requiredVideoTime) > 0.15
+			) {
 				audioRef.value.currentTime = requiredVideoTime;
 			}
 		}
@@ -2058,7 +2089,7 @@ const onAudioLoadedData = () => {
 			if (audioRef.value.buffered.length > 0) {
 				// Audio element'in buffer'ını optimize et
 				audioRef.value.preload = "auto";
-				
+
 				// Playback rate'i stabilize et
 				if (audioRef.value.playbackRate !== 1.0) {
 					audioRef.value.playbackRate = 1.0;
@@ -2681,7 +2712,7 @@ const drawMousePositions = (customCtx = null) => {
 	const canvasWidth = canvasRef.value.width;
 	const canvasHeight = canvasRef.value.height;
 	const zoomScale = canvasZoomScale.value;
-	
+
 	// Cursor zoom scale'ini smooth transition ile güncelle
 	updateCursorZoomScale(zoomScale);
 
@@ -5036,11 +5067,13 @@ watch(
 				getSynchronizedTimestamp("camera", newValue * 1000) / 1000;
 			// Camera sync offset ekle
 			const { cameraSettings } = usePlayerSettings();
-			cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+			cameraElement.currentTime =
+				synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 		} else if (cameraElement) {
 			// Fallback to original timing with camera offset
 			const { cursorOffset, cameraSettings } = usePlayerSettings();
-			cameraElement.currentTime = newValue + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+			cameraElement.currentTime =
+				newValue + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
 		}
 		videoState.value.currentTime = newValue;
 
@@ -5105,10 +5138,14 @@ defineExpose({
 					getSynchronizedTimestamp("camera", targetTime * 1000) / 1000;
 				// Camera sync offset ekle
 				const { cameraSettings } = usePlayerSettings();
-				cameraElement.currentTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+				cameraElement.currentTime =
+					synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
 			} else {
 				const { cursorOffset, cameraSettings } = usePlayerSettings();
-				cameraElement.currentTime = targetTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+				cameraElement.currentTime =
+					targetTime +
+					cursorOffset.value +
+					(cameraSettings.value.syncOffset || 0);
 			}
 		}
 
@@ -5143,16 +5180,18 @@ defineExpose({
 					getSynchronizedTimestamp("camera", exportTime * 1000) / 1000;
 				// Camera sync offset ekle
 				const { cameraSettings } = usePlayerSettings();
-				const targetCameraTime = synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
-				if (
-					Math.abs(cameraElement.currentTime - targetCameraTime) > 0.005
-				) {
+				const targetCameraTime =
+					synchronizedCameraTime + (cameraSettings.value.syncOffset || 0);
+				if (Math.abs(cameraElement.currentTime - targetCameraTime) > 0.005) {
 					cameraElement.currentTime = targetCameraTime;
 				}
 			} else {
 				// Fallback to original timing with offset
 				const { cursorOffset, cameraSettings } = usePlayerSettings();
-				const targetCameraTime = exportTime + cursorOffset.value + (cameraSettings.value.syncOffset || 0);
+				const targetCameraTime =
+					exportTime +
+					cursorOffset.value +
+					(cameraSettings.value.syncOffset || 0);
 				if (Math.abs(cameraElement.currentTime - targetCameraTime) > 0.005) {
 					cameraElement.currentTime = targetCameraTime;
 				}
@@ -5707,10 +5746,9 @@ const cursorZoomScale = ref(1.0);
 const updateCursorZoomScale = (zoomScale) => {
 	const targetScale = zoomScale > 1.01 ? 0.8 : 1.5; // Zoom varsa 0.8, yoksa 1.5
 	const lerpFactor = 0.08; // Smooth geçiş faktörü (camera ile aynı)
-	
-	cursorZoomScale.value = 
-		cursorZoomScale.value + 
-		(targetScale - cursorZoomScale.value) * lerpFactor;
+
+	cursorZoomScale.value =
+		cursorZoomScale.value + (targetScale - cursorZoomScale.value) * lerpFactor;
 };
 
 // Mouse event handlers

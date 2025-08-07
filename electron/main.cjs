@@ -279,6 +279,89 @@ function safeHandle(channel, handler) {
 // Global MacRecorder instance - tek bir instance kullanacağız
 let globalMacRecorder = null;
 
+// Global değişken - recording sırasında window bilgisini saklamak için
+let currentRecordingWindowInfo = null;
+
+// Cursor ve Camera kaydını başlatma fonksiyonu
+async function startCursorAndCameraCapture(recordingDetails) {
+	console.log(
+		"[Main] 🎯 startCursorAndCameraCapture başlatılıyor:",
+		recordingDetails
+	);
+
+	try {
+		// Cursor capture başlat
+		if (globalMacRecorder && !cursorTrackingState.isTracking) {
+			const timestamp = Date.now();
+			const cursorFilePath = path.join(
+				tempFileManager.appDir,
+				`temp_cursor_${timestamp}.json`
+			);
+
+			// Cursor capture options hazırla
+			const cursorCaptureOptions = {};
+
+			// currentRecordingWindowInfo'dan window bilgisini al
+			if (currentRecordingWindowInfo) {
+				cursorCaptureOptions.windowInfo = currentRecordingWindowInfo;
+				cursorCaptureOptions.windowRelative = true;
+				console.log(
+					"[Main] 🎯 Window-relative cursor capture için window:",
+					currentRecordingWindowInfo
+				);
+			} else {
+				console.log(
+					"[Main] 🎯 Global cursor capture kullanılacak (window bilgisi yok)"
+				);
+			}
+
+			console.log(
+				"[Main] 🎯 Synchronized cursor capture başlatılıyor...",
+				cursorCaptureOptions
+			);
+			await globalMacRecorder.startCursorCapture(
+				cursorFilePath,
+				cursorCaptureOptions
+			);
+
+			// State güncelle
+			cursorTrackingState.isTracking = true;
+			cursorTrackingState.outputPath = cursorFilePath;
+			cursorTrackingState.startTime = Date.now();
+
+			// Record mouse tracking start time
+			synchronizedRecording.recordStartTime(
+				"mouse",
+				cursorTrackingState.startTime
+			);
+
+			if (mediaStateManager) {
+				mediaStateManager.updateState({
+					cursorPath: cursorFilePath,
+				});
+			}
+
+			console.log(
+				"[Main] ✅ Synchronized cursor capture başlatıldı:",
+				cursorFilePath
+			);
+		}
+
+		// Camera kaydını başlat (eğer etkin ise)
+		if (cameraManager && cameraManager.cameraWindow) {
+			console.log("[Main] 📹 Camera kaydı synchronized olarak başlatılıyor...");
+			cameraManager.cameraWindow.webContents.send(
+				"START_SYNCHRONIZED_CAMERA_RECORDING"
+			);
+		}
+	} catch (error) {
+		console.error(
+			"[Main] ❌ Synchronized cursor/camera capture hatası:",
+			error
+		);
+	}
+}
+
 // Cursor tracking state için global değişkenler - Yeni cursor capture API
 let cursorTrackingState = {
 	isTracking: false,
@@ -315,8 +398,24 @@ function getMacRecorderInstance(forceReset = false) {
 			console.log("[Main] ✅ MacRecorder instance başarıyla oluşturuldu");
 
 			// Event system setup - README'den eklendi
-			globalMacRecorder.on("started", (outputPath) => {
+
+			// // Yeni recordingStarted eventi - kayıt gerçekten başladığında
+			// globalMacRecorder.on("recordingStarted", (recordingDetails) => {
+			// 	console.log("[MacRecorder] 🎬 Kayıt gerçekten başladı:");
+			// 	console.log("[MacRecorder] recordingDetails:", JSON.stringify(recordingDetails, null, 2));
+
+			// 	// Bu noktada cursor ve camera kaydını başlat
+			// 	startCursorAndCameraCapture(recordingDetails);
+			// });
+
+			globalMacRecorder.on("recordingStarted", (outputPath) => {
 				console.log("[MacRecorder] Kayıt başladı:", outputPath);
+
+				// Cursor ve camera kaydını senkronize başlat
+				console.log(
+					"[MacRecorder] Cursor ve camera senkronize başlatılıyor..."
+				);
+				startCursorAndCameraCapture({ outputPath });
 
 				// Ana pencereye bildir
 				if (mainWindow && mainWindow.webContents) {
@@ -673,6 +772,15 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 					recordingOptions.windowId = windowId;
 					recordingOptions.displayId = null; // Window recording'de displayId null olmalı
 					console.log("[Main] MacRecorder windowId ayarlandı:", windowId);
+
+					// Window bilgisini cursor tracking için sakla
+					if (recordingSource.windowInfo) {
+						currentRecordingWindowInfo = recordingSource.windowInfo;
+						console.log(
+							"[Main] Window bilgisi cursor tracking için saklandı:",
+							currentRecordingWindowInfo
+						);
+					}
 				}
 			} else if (
 				recordingSource.sourceType === "display" ||
@@ -742,44 +850,11 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 			// Record screen recording start time
 			synchronizedRecording.recordStartTime("screen");
 
-			// Start cursor capture with new API
-			try {
-				const timestamp = Date.now();
-				const cursorFilePath = path.join(
-					tempFileManager.appDir,
-					`temp_cursor_${timestamp}.json`
-				);
-
-				console.log("[Main] 🎯 Cursor capture başlatılıyor...");
-				await recorder.startCursorCapture(cursorFilePath);
-
-				// State güncelle
-				cursorTrackingState.isTracking = true;
-				cursorTrackingState.outputPath = cursorFilePath;
-				cursorTrackingState.startTime = Date.now();
-
-				// Record mouse tracking start time
-				synchronizedRecording.recordStartTime(
-					"mouse",
-					cursorTrackingState.startTime
-				);
-
-				if (mediaStateManager) {
-					mediaStateManager.updateState({
-						cursorPath: cursorFilePath,
-						recordingId: syncSession.recordingId,
-						masterStartTime: syncSession.masterStartTime,
-						synchronizedTimestamps: synchronizedRecording.offsets,
-					});
-				}
-
-				console.log("[Main] ✅ Cursor capture başlatıldı:", cursorFilePath);
-			} catch (cursorError) {
-				console.warn(
-					"[Main] Cursor capture hatası (devam ediliyor):",
-					cursorError.message
-				);
-			}
+			// Not: Cursor capture artık recordingStarted eventinde yapılacak
+			// Bu sayede kayıt gerçekten başladığında cursor ve camera senkronize olacak
+			console.log(
+				"[Main] 🎯 Cursor capture recordingStarted eventinde yapılacak - senkronizasyon için"
+			);
 
 			// Update camera manager with synchronized recording
 			if (cameraManager) {
@@ -820,6 +895,10 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 		try {
 			console.log("[Main] 🛑 Cursor capture durduruluyor...");
 			await recorder.stopCursorCapture();
+
+			// Window bilgisini temizle
+			currentRecordingWindowInfo = null;
+			console.log("[Main] Window bilgisi temizlendi");
 
 			// Cursor data'sını düzenle ve MediaStateManager'a ekle
 			if (
@@ -992,8 +1071,11 @@ function setupIpcHandlers() {
 	});
 
 	// SET_RECORDING_SOURCE handler for overlay selections
-	safeHandle('SET_RECORDING_SOURCE', async (event, recordingSource) => {
-		console.log('[Main] Setting recording source from overlay:', recordingSource);
+	safeHandle("SET_RECORDING_SOURCE", async (event, recordingSource) => {
+		console.log(
+			"[Main] Setting recording source from overlay:",
+			recordingSource
+		);
 		if (mediaStateManager) {
 			mediaStateManager.setRecordingSource(recordingSource);
 			return true;
@@ -1231,37 +1313,47 @@ function setupIpcHandlers() {
 			console.log("[Main] MacRecorder ekranları isteniyor");
 			const recorder = getMacRecorderInstance();
 			const screens = await recorder.getDisplays();
-			console.log("[Main] MacRecorder ekranları:", screens?.length, "adet screen", screens?.[0]);
-			
+			console.log(
+				"[Main] MacRecorder ekranları:",
+				screens?.length,
+				"adet screen",
+				screens?.[0]
+			);
+
 			// Thumbnail'ları ekle
-			const screensWithThumbnails = await Promise.all(screens.map(async (screen) => {
-				try {
-					// desktopCapturer kullanarak thumbnail al
-					const sources = await desktopCapturer.getSources({
-						types: ['screen'],
-						thumbnailSize: { width: 320, height: 180 }
-					});
-					
-					const matchingSource = sources.find(source => 
-						source.display_id === screen.id?.toString() || 
-						source.name.includes(screen.displayName || `Display ${screen.id}`)
-					);
-					
-					return {
-						...screen,
-						thumbnail: matchingSource?.thumbnail?.toDataURL() || null,
-						name: screen.displayName || screen.name || `Display ${screen.id}`
-					};
-				} catch (thumbError) {
-					console.error("[Main] Thumbnail alınamadı:", thumbError);
-					return {
-						...screen,
-						thumbnail: null,
-						name: screen.displayName || screen.name || `Display ${screen.id}`
-					};
-				}
-			}));
-			
+			const screensWithThumbnails = await Promise.all(
+				screens.map(async (screen) => {
+					try {
+						// desktopCapturer kullanarak thumbnail al
+						const sources = await desktopCapturer.getSources({
+							types: ["screen"],
+							thumbnailSize: { width: 320, height: 180 },
+						});
+
+						const matchingSource = sources.find(
+							(source) =>
+								source.display_id === screen.id?.toString() ||
+								source.name.includes(
+									screen.displayName || `Display ${screen.id}`
+								)
+						);
+
+						return {
+							...screen,
+							thumbnail: matchingSource?.thumbnail?.toDataURL() || null,
+							name: screen.displayName || screen.name || `Display ${screen.id}`,
+						};
+					} catch (thumbError) {
+						console.error("[Main] Thumbnail alınamadı:", thumbError);
+						return {
+							...screen,
+							thumbnail: null,
+							name: screen.displayName || screen.name || `Display ${screen.id}`,
+						};
+					}
+				})
+			);
+
 			return screensWithThumbnails;
 		} catch (error) {
 			console.error("[Main] MacRecorder ekranları alınamadı:", error);
@@ -1281,37 +1373,53 @@ function setupIpcHandlers() {
 			}
 
 			const windows = await recorder.getWindows();
-			console.log("[Main] MacRecorder pencereleri:", windows?.length, "adet", windows?.[0]);
+			console.log(
+				"[Main] MacRecorder pencereleri:",
+				windows?.length,
+				"adet",
+				windows?.[0]
+			);
 
 			// Thumbnail'ları ekle
-			const windowsWithThumbnails = await Promise.all((windows || []).map(async (window) => {
-				try {
-					// desktopCapturer kullanarak thumbnail al
-					const sources = await desktopCapturer.getSources({
-						types: ['window'],
-						thumbnailSize: { width: 320, height: 180 }
-					});
-					
-					const matchingSource = sources.find(source => 
-						source.id.includes(window.id?.toString()) || 
-						source.name === window.name ||
-						source.name === window.windowName
-					);
-					
-					return {
-						...window,
-						thumbnail: matchingSource?.thumbnail?.toDataURL() || null,
-						name: window.name || window.windowName || window.title || 'Unknown Window'
-					};
-				} catch (thumbError) {
-					console.error("[Main] Window thumbnail alınamadı:", thumbError);
-					return {
-						...window,
-						thumbnail: null,
-						name: window.name || window.windowName || window.title || 'Unknown Window'
-					};
-				}
-			}));
+			const windowsWithThumbnails = await Promise.all(
+				(windows || []).map(async (window) => {
+					try {
+						// desktopCapturer kullanarak thumbnail al
+						const sources = await desktopCapturer.getSources({
+							types: ["window"],
+							thumbnailSize: { width: 320, height: 180 },
+						});
+
+						const matchingSource = sources.find(
+							(source) =>
+								source.id.includes(window.id?.toString()) ||
+								source.name === window.name ||
+								source.name === window.windowName
+						);
+
+						return {
+							...window,
+							thumbnail: matchingSource?.thumbnail?.toDataURL() || null,
+							name:
+								window.name ||
+								window.windowName ||
+								window.title ||
+								"Unknown Window",
+						};
+					} catch (thumbError) {
+						console.error("[Main] Window thumbnail alınamadı:", thumbError);
+						return {
+							...window,
+							thumbnail: null,
+							name:
+								window.name ||
+								window.windowName ||
+								window.title ||
+								"Unknown Window",
+						};
+					}
+				})
+			);
 
 			// Production build'de pencere listesi boş olabilir - fallback ekle
 			if (app.isPackaged && windowsWithThumbnails.length === 0) {
@@ -1324,7 +1432,7 @@ function setupIpcHandlers() {
 						name: "Tüm Ekranlar",
 						ownerName: "System",
 						isOnScreen: true,
-						thumbnail: null
+						thumbnail: null,
 					},
 				];
 			}
@@ -3082,42 +3190,54 @@ function setupIpcHandlers() {
 
 	// Kamera penceresini gizle/göster
 	ipcMain.on(IPC_EVENTS.HIDE_CAMERA_WINDOW, (event) => {
-		console.log("[main.cjs] Kamera penceresi gizleniyor (No camera recording seçildi)");
-		if (cameraManager && cameraManager.cameraWindow && !cameraManager.cameraWindow.isDestroyed()) {
+		console.log(
+			"[main.cjs] Kamera penceresi gizleniyor (No camera recording seçildi)"
+		);
+		if (
+			cameraManager &&
+			cameraManager.cameraWindow &&
+			!cameraManager.cameraWindow.isDestroyed()
+		) {
 			cameraManager.cameraWindow.hide();
 		}
 	});
 
 	ipcMain.on(IPC_EVENTS.SHOW_CAMERA_WINDOW, (event) => {
-		console.log("[main.cjs] Kamera penceresi gösteriliyor (Camera source seçildi)");
-		if (cameraManager && cameraManager.cameraWindow && !cameraManager.cameraWindow.isDestroyed()) {
+		console.log(
+			"[main.cjs] Kamera penceresi gösteriliyor (Camera source seçildi)"
+		);
+		if (
+			cameraManager &&
+			cameraManager.cameraWindow &&
+			!cameraManager.cameraWindow.isDestroyed()
+		) {
 			cameraManager.cameraWindow.show();
 		}
 	});
 
 	// Recording Settings Window
-	ipcMain.on('SHOW_RECORDING_SETTINGS', async (event) => {
+	ipcMain.on("SHOW_RECORDING_SETTINGS", async (event) => {
 		console.log("[main.cjs] Recording settings window açılıyor");
 		if (recordingSettingsManager) {
 			await recordingSettingsManager.showSettingsWindow();
 		}
 	});
 
-	ipcMain.handle('SAVE_RECORDING_SETTINGS', (event, settings) => {
+	ipcMain.handle("SAVE_RECORDING_SETTINGS", (event, settings) => {
 		console.log("[main.cjs] Recording settings kaydediliyor:", settings);
 		// TODO: Save to electron-store
 		return { success: true };
 	});
 
-	ipcMain.handle('GET_OS_INFO', (event) => {
+	ipcMain.handle("GET_OS_INFO", (event) => {
 		return {
 			homedir: os.homedir(),
 			platform: os.platform(),
-			arch: os.arch()
+			arch: os.arch(),
 		};
 	});
 
-	ipcMain.handle('GET_RECORDING_SETTINGS', (event) => {
+	ipcMain.handle("GET_RECORDING_SETTINGS", (event) => {
 		console.log("[main.cjs] Recording settings yükleniyor");
 		// TODO: Load from electron-store
 		return {};
@@ -4088,12 +4208,12 @@ function createOverlayWindow(options = {}) {
 			contextIsolation: true,
 			enableRemoteModule: false,
 			preload: path.join(__dirname, "preload.cjs"),
-		}
+		},
 	});
 
 	// ESC key handler
-	overlay.webContents.on('before-input-event', (event, input) => {
-		if (input.key === 'Escape') {
+	overlay.webContents.on("before-input-event", (event, input) => {
+		if (input.key === "Escape") {
 			closeAllOverlays();
 		}
 	});
@@ -4104,25 +4224,25 @@ function createOverlayWindow(options = {}) {
 
 // Close all overlay windows
 function closeAllOverlays() {
-	overlayWindows.forEach(overlay => {
+	overlayWindows.forEach((overlay) => {
 		if (!overlay.isDestroyed()) {
 			overlay.close();
 		}
 	});
 	overlayWindows = [];
-	
+
 	// Also close dynamic window overlay and stop window selector
 	if (windowSelector) {
 		try {
 			windowSelector.cleanup();
 		} catch (error) {
-			console.error('[Main] Error cleaning up window selector:', error);
+			console.error("[Main] Error cleaning up window selector:", error);
 		}
 		windowSelector = null;
 	}
-	
+
 	hideCustomWindowOverlay();
-	
+
 	// Stop mouse tracking (legacy)
 	if (mouseTrackingInterval) {
 		clearInterval(mouseTrackingInterval);
@@ -4131,19 +4251,19 @@ function closeAllOverlays() {
 }
 
 // Native Screen Selector - Transparent highlight overlays
-ipcMain.on('SHOW_NATIVE_SCREEN_SELECTOR', async () => {
+ipcMain.on("SHOW_NATIVE_SCREEN_SELECTOR", async () => {
 	try {
 		closeAllOverlays(); // Close any existing overlays
-		
+
 		const displays = screen.getAllDisplays();
-		
+
 		for (const display of displays) {
 			const overlay = createOverlayWindow({
 				x: display.bounds.x,
 				y: display.bounds.y,
 				width: display.bounds.width,
 				height: display.bounds.height,
-				fullscreen: false
+				fullscreen: false,
 			});
 
 			// Create transparent screen highlight HTML
@@ -4249,7 +4369,9 @@ ipcMain.on('SHOW_NATIVE_SCREEN_SELECTOR', async () => {
 				</head>
 				<body onclick="selectScreen()">
 					<div class="screen-highlight"></div>
-					<div class="screen-info">${display.label || 'Display ' + (displays.indexOf(display) + 1)}</div>
+					<div class="screen-info">${
+						display.label || "Display " + (displays.indexOf(display) + 1)
+					}</div>
 					<div class="control-buttons">
 						<button class="record-button" onclick="event.stopPropagation(); selectScreen();">
 							📹 Start Recording
@@ -4262,7 +4384,7 @@ ipcMain.on('SHOW_NATIVE_SCREEN_SELECTOR', async () => {
 						function selectScreen() {
 							window.electron.ipcRenderer.send('NATIVE_SCREEN_SELECTED', {
 								id: 'screen:${display.id}',
-								name: '${display.label || 'Display ' + (displays.indexOf(display) + 1)}',
+								name: '${display.label || "Display " + (displays.indexOf(display) + 1)}',
 								macRecorderId: ${display.id},
 								bounds: ${JSON.stringify(display.bounds)}
 							});
@@ -4279,52 +4401,60 @@ ipcMain.on('SHOW_NATIVE_SCREEN_SELECTOR', async () => {
 				</html>
 			`;
 
-			overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(screenHighlightHTML)}`);
+			overlay.loadURL(
+				`data:text/html;charset=utf-8,${encodeURIComponent(
+					screenHighlightHTML
+				)}`
+			);
 		}
 	} catch (error) {
-		console.error('Error showing native screen selector:', error);
+		console.error("Error showing native screen selector:", error);
 	}
 });
 
 // Native Window Selector - Better approach without Mission Control
-ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
+ipcMain.on("SHOW_NATIVE_WINDOW_SELECTOR", async () => {
 	try {
 		closeAllOverlays();
-		
+
 		// Get all windows using desktopCapturer first
-		const sources = await desktopCapturer.getSources({ 
-			types: ['window'],
-			fetchWindowIcons: true 
+		const sources = await desktopCapturer.getSources({
+			types: ["window"],
+			fetchWindowIcons: true,
 		});
-		
+
 		// Filter out system windows and get real application windows
-		const appWindows = sources.filter(source => 
-			source.name && 
-			source.name !== '' && 
-			source.name.length > 1 &&
-			!source.name.includes('Desktop') &&
-			!source.name.includes('Wallpaper') &&
-			!source.name.includes('Window Server') &&
-			!source.name.includes('StatusMenuBar') &&
-			!source.name.includes('Notification') &&
-			!source.name.includes('Control Center') &&
-			source.name !== 'Item-0'
+		const appWindows = sources.filter(
+			(source) =>
+				source.name &&
+				source.name !== "" &&
+				source.name.length > 1 &&
+				!source.name.includes("Desktop") &&
+				!source.name.includes("Wallpaper") &&
+				!source.name.includes("Window Server") &&
+				!source.name.includes("StatusMenuBar") &&
+				!source.name.includes("Notification") &&
+				!source.name.includes("Control Center") &&
+				source.name !== "Item-0"
 		);
 
-		console.log('Found windows:', appWindows.map(w => ({ name: w.name, id: w.id })));
+		console.log(
+			"Found windows:",
+			appWindows.map((w) => ({ name: w.name, id: w.id }))
+		);
 
 		if (appWindows.length === 0) {
-			console.log('No suitable windows found for recording');
+			console.log("No suitable windows found for recording");
 			return;
 		}
 
 		// Use AppleScript to get actual window positions and sizes
-		const { exec } = require('child_process');
-		
+		const { exec } = require("child_process");
+
 		// Create overlays for each window using AppleScript to get bounds
 		for (let i = 0; i < appWindows.length; i++) {
 			const windowSource = appWindows[i];
-			
+
 			try {
 				// Get window bounds using AppleScript (this is a simplified version)
 				const getWindowBounds = `
@@ -4341,10 +4471,13 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 						return {100, 100, 400, 300}
 					end tell
 				`;
-				
+
 				exec(`osascript -e '${getWindowBounds}'`, (error, stdout, stderr) => {
 					if (error) {
-						console.log('AppleScript error, using fallback position for:', windowSource.name);
+						console.log(
+							"AppleScript error, using fallback position for:",
+							windowSource.name
+						);
 						// Fallback to grid positioning
 						const cols = 3;
 						const row = Math.floor(i / cols);
@@ -4354,7 +4487,7 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 						const spacing = 20;
 						const startX = 100;
 						const startY = 100;
-						
+
 						createWindowOverlay(
 							windowSource,
 							startX + col * (windowWidth + spacing),
@@ -4364,9 +4497,18 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 						);
 					} else {
 						// Parse AppleScript result
-						const bounds = stdout.trim().split(', ').map(n => parseInt(n));
+						const bounds = stdout
+							.trim()
+							.split(", ")
+							.map((n) => parseInt(n));
 						if (bounds.length === 4) {
-							createWindowOverlay(windowSource, bounds[0], bounds[1], bounds[2], bounds[3]);
+							createWindowOverlay(
+								windowSource,
+								bounds[0],
+								bounds[1],
+								bounds[2],
+								bounds[3]
+							);
 						} else {
 							// Fallback positioning
 							const cols = 3;
@@ -4375,7 +4517,7 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 							const windowWidth = 350;
 							const windowHeight = 250;
 							const spacing = 20;
-							
+
 							createWindowOverlay(
 								windowSource,
 								100 + col * (windowWidth + spacing),
@@ -4386,9 +4528,12 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 						}
 					}
 				});
-				
 			} catch (scriptError) {
-				console.error('Script error for window:', windowSource.name, scriptError);
+				console.error(
+					"Script error for window:",
+					windowSource.name,
+					scriptError
+				);
 				// Fallback grid positioning
 				const cols = 3;
 				const row = Math.floor(i / cols);
@@ -4396,7 +4541,7 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 				const windowWidth = 350;
 				const windowHeight = 250;
 				const spacing = 20;
-				
+
 				createWindowOverlay(
 					windowSource,
 					100 + col * (windowWidth + spacing),
@@ -4406,7 +4551,7 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 				);
 			}
 		}
-		
+
 		// Create a global close button overlay
 		setTimeout(() => {
 			const closeOverlay = createOverlayWindow({
@@ -4414,9 +4559,9 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 				y: 30,
 				width: 60,
 				height: 60,
-				fullscreen: false
+				fullscreen: false,
 			});
-			
+
 			const closeButtonHTML = `
 				<!DOCTYPE html>
 				<html>
@@ -4465,12 +4610,13 @@ ipcMain.on('SHOW_NATIVE_WINDOW_SELECTOR', async () => {
 				</body>
 				</html>
 			`;
-			
-			closeOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(closeButtonHTML)}`);
+
+			closeOverlay.loadURL(
+				`data:text/html;charset=utf-8,${encodeURIComponent(closeButtonHTML)}`
+			);
 		}, 500);
-		
 	} catch (error) {
-		console.error('Error showing native window selector:', error);
+		console.error("Error showing native window selector:", error);
 	}
 });
 
@@ -4481,7 +4627,7 @@ function createWindowOverlay(windowSource, x, y, width, height) {
 		y: y,
 		width: width,
 		height: height,
-		fullscreen: false
+		fullscreen: false,
 	});
 
 	const windowHighlightHTML = `
@@ -4594,21 +4740,23 @@ function createWindowOverlay(windowSource, x, y, width, height) {
 		</html>
 	`;
 
-	windowOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(windowHighlightHTML)}`);
+	windowOverlay.loadURL(
+		`data:text/html;charset=utf-8,${encodeURIComponent(windowHighlightHTML)}`
+	);
 }
 
 // Native Area Selector
-ipcMain.on('SHOW_NATIVE_AREA_SELECTOR', () => {
+ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", () => {
 	try {
 		closeAllOverlays();
-		
+
 		const primaryDisplay = screen.getPrimaryDisplay();
 		const overlay = createOverlayWindow({
 			x: primaryDisplay.bounds.x,
 			y: primaryDisplay.bounds.y,
-			width: primaryDisplay.bounds.width, 
+			width: primaryDisplay.bounds.width,
 			height: primaryDisplay.bounds.height,
-			fullscreen: true
+			fullscreen: true,
 		});
 
 		const areaSelectorHTML = `
@@ -4781,50 +4929,54 @@ ipcMain.on('SHOW_NATIVE_AREA_SELECTOR', () => {
 			</html>
 		`;
 
-		overlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(areaSelectorHTML)}`);
+		overlay.loadURL(
+			`data:text/html;charset=utf-8,${encodeURIComponent(areaSelectorHTML)}`
+		);
 	} catch (error) {
-		console.error('Error showing native area selector:', error);
+		console.error("Error showing native area selector:", error);
 	}
 });
 
 // Bring window to front
-ipcMain.on('BRING_WINDOW_TO_FRONT', (event, windowId) => {
+ipcMain.on("BRING_WINDOW_TO_FRONT", (event, windowId) => {
 	try {
 		// Use AppleScript to bring window to front
-		const { exec } = require('child_process');
+		const { exec } = require("child_process");
 		// This is a simplified approach - in real implementation you'd use proper window management
-		exec('osascript -e "tell application \\"System Events\\" to keystroke tab using command down"');
+		exec(
+			'osascript -e "tell application \\"System Events\\" to keystroke tab using command down"'
+		);
 	} catch (error) {
-		console.error('Error bringing window to front:', error);
+		console.error("Error bringing window to front:", error);
 	}
 });
 
 // Handle overlay events
-ipcMain.on('NATIVE_SCREEN_SELECTED', (event, screenData) => {
+ipcMain.on("NATIVE_SCREEN_SELECTED", (event, screenData) => {
 	closeAllOverlays();
 	// Forward to renderer
 	if (mainWindow && !mainWindow.isDestroyed()) {
-		mainWindow.webContents.send('NATIVE_SCREEN_SELECTED', screenData);
+		mainWindow.webContents.send("NATIVE_SCREEN_SELECTED", screenData);
 	}
 });
 
-ipcMain.on('NATIVE_WINDOW_SELECTED', (event, windowData) => {
+ipcMain.on("NATIVE_WINDOW_SELECTED", (event, windowData) => {
 	closeAllOverlays();
 	// Forward to renderer
 	if (mainWindow && !mainWindow.isDestroyed()) {
-		mainWindow.webContents.send('NATIVE_WINDOW_SELECTED', windowData);
+		mainWindow.webContents.send("NATIVE_WINDOW_SELECTED", windowData);
 	}
 });
 
-ipcMain.on('NATIVE_AREA_SELECTED', (event, areaData) => {
+ipcMain.on("NATIVE_AREA_SELECTED", (event, areaData) => {
 	closeAllOverlays();
 	// Forward to renderer
 	if (mainWindow && !mainWindow.isDestroyed()) {
-		mainWindow.webContents.send('NATIVE_AREA_SELECTED', areaData);
+		mainWindow.webContents.send("NATIVE_AREA_SELECTED", areaData);
 	}
 });
 
-ipcMain.on('CLOSE_NATIVE_OVERLAYS', () => {
+ipcMain.on("CLOSE_NATIVE_OVERLAYS", () => {
 	closeAllOverlays();
 });
 
@@ -4834,43 +4986,50 @@ let windowSelector = null;
 async function startDynamicWindowOverlay() {
 	try {
 		closeAllOverlays(); // Close any existing overlays
-		
+
 		// Import WindowSelector
-		const WindowSelector = require('node-mac-recorder/window-selector');
+		const WindowSelector = require("node-mac-recorder/window-selector");
 		windowSelector = new WindowSelector();
-		
-		console.log('[Main] Starting native WindowSelector...');
-		
+
+		console.log("[Main] Starting native WindowSelector...");
+
 		// Set up event listeners
-		windowSelector.on('windowEntered', (windowInfo) => {
-			console.log('[Main] Window entered:', windowInfo.title, windowInfo.appName);
-			
+		windowSelector.on("windowEntered", (windowInfo) => {
+			console.log(
+				"[Main] Window entered:",
+				windowInfo.title,
+				windowInfo.appName
+			);
+
 			// Create our custom overlay to match the window
 			createCustomWindowOverlay(windowInfo);
 		});
-		
-		windowSelector.on('windowLeft', (windowInfo) => {
-			console.log('[Main] Window left:', windowInfo.title);
-			
+
+		windowSelector.on("windowLeft", (windowInfo) => {
+			console.log("[Main] Window left:", windowInfo.title);
+
 			// Hide our custom overlay
 			hideCustomWindowOverlay();
 		});
-		
-		windowSelector.on('windowSelected', async (windowInfo) => {
-			console.log('[DEBUG] WindowSelector windowSelected event triggered');
-			console.log('[Main] Window selected, starting recording:', windowInfo.title);
-			
+
+		windowSelector.on("windowSelected", async (windowInfo) => {
+			console.log("[DEBUG] WindowSelector windowSelected event triggered");
+			console.log(
+				"[Main] Window selected, starting recording:",
+				windowInfo.title
+			);
+
 			// Stop selection first
 			await stopDynamicWindowOverlay();
-			
+
 			// Prepare crop info for window recording
 			const cropInfo = {
 				x: windowInfo.x,
 				y: windowInfo.y,
 				width: windowInfo.width,
-				height: windowInfo.height
+				height: windowInfo.height,
 			};
-			
+
 			// Send to renderer to trigger recording with crop info
 			if (mainWindow && !mainWindow.isDestroyed()) {
 				const eventData = {
@@ -4880,29 +5039,35 @@ async function startDynamicWindowOverlay() {
 						id: windowInfo.id.toString(),
 						name: windowInfo.title,
 						appName: windowInfo.appName,
-						type: 'window',
-						...cropInfo
-					}
+						type: "window",
+						...cropInfo,
+					},
 				};
-				
-				console.log('[DEBUG] Sending START_WINDOW_RECORDING event with data:', eventData);
-				mainWindow.webContents.send('START_WINDOW_RECORDING', eventData);
+
+				console.log(
+					"[DEBUG] Sending START_WINDOW_RECORDING event with data:",
+					eventData
+				);
+				mainWindow.webContents.send("START_WINDOW_RECORDING", eventData);
 			}
-			
-			console.log('[Main] Window recording request sent:', windowInfo.title, cropInfo);
+
+			console.log(
+				"[Main] Window recording request sent:",
+				windowInfo.title,
+				cropInfo
+			);
 		});
-		
-		windowSelector.on('error', (error) => {
-			console.error('[Main] WindowSelector error:', error);
+
+		windowSelector.on("error", (error) => {
+			console.error("[Main] WindowSelector error:", error);
 		});
-		
+
 		// Start the window selection
 		await windowSelector.startSelection();
-		
-		console.log('[Main] Native WindowSelector started successfully');
-		
+
+		console.log("[Main] Native WindowSelector started successfully");
 	} catch (error) {
-		console.error('[Main] Error starting native WindowSelector:', error);
+		console.error("[Main] Error starting native WindowSelector:", error);
 	}
 }
 
@@ -4910,16 +5075,16 @@ async function startDynamicWindowOverlay() {
 function createCustomWindowOverlay(windowInfo) {
 	// Close existing custom overlay
 	hideCustomWindowOverlay();
-	
-	// Create enhanced overlay window that matches the selected window exactly  
+
+	// Create enhanced overlay window that matches the selected window exactly
 	dynamicWindowOverlay = createOverlayWindow({
 		x: windowInfo.x,
 		y: windowInfo.y,
 		width: windowInfo.width,
 		height: windowInfo.height,
-		fullscreen: false
+		fullscreen: false,
 	});
-	
+
 	// Create enhanced overlay HTML - Screen Studio style
 	const enhancedOverlayHTML = `
 		<!DOCTYPE html>
@@ -4983,8 +5148,10 @@ function createCustomWindowOverlay(windowInfo) {
 		</body>
 		</html>
 	`;
-	
-	dynamicWindowOverlay.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(enhancedOverlayHTML)}`);
+
+	dynamicWindowOverlay.loadURL(
+		`data:text/html;charset=utf-8,${encodeURIComponent(enhancedOverlayHTML)}`
+	);
 }
 
 function hideCustomWindowOverlay() {
@@ -5000,80 +5167,87 @@ async function stopDynamicWindowOverlay() {
 			await windowSelector.cleanup();
 			windowSelector = null;
 		}
-		
+
 		hideCustomWindowOverlay();
-		
-		console.log('[Main] Dynamic window overlay stopped');
-		
+
+		console.log("[Main] Dynamic window overlay stopped");
 	} catch (error) {
-		console.error('[Main] Error stopping window overlay:', error);
+		console.error("[Main] Error stopping window overlay:", error);
 	}
 }
 
-ipcMain.on('START_DYNAMIC_WINDOW_OVERLAY', startDynamicWindowOverlay);
-ipcMain.on('STOP_DYNAMIC_WINDOW_OVERLAY', stopDynamicWindowOverlay);
+ipcMain.on("START_DYNAMIC_WINDOW_OVERLAY", startDynamicWindowOverlay);
+ipcMain.on("STOP_DYNAMIC_WINDOW_OVERLAY", stopDynamicWindowOverlay);
 
 // Screen Selection System - Using native WindowSelector
 async function startDynamicScreenOverlay() {
 	try {
 		closeAllOverlays(); // Close any existing overlays
-		
+
 		// Import WindowSelector (same module, different method)
-		const WindowSelector = require('node-mac-recorder/window-selector');
+		const WindowSelector = require("node-mac-recorder/window-selector");
 		windowSelector = new WindowSelector();
-		
-		console.log('[Main] Starting native Screen Selection...');
-		
+
+		console.log("[Main] Starting native Screen Selection...");
+
 		// Use Promise-based screen selection
 		try {
-			console.log('[DEBUG] Waiting for screen selection...');
+			console.log("[DEBUG] Waiting for screen selection...");
 			const selectedScreen = await windowSelector.selectScreen();
-			console.log('[DEBUG] Screen selection completed');
-			console.log('[Main] Screen selected, starting recording:', selectedScreen.name);
-			
+			console.log("[DEBUG] Screen selection completed");
+			console.log(
+				"[Main] Screen selected, starting recording:",
+				selectedScreen.name
+			);
+
 			// Stop selection first
 			await stopDynamicScreenOverlay();
-			
+
 			// Prepare crop info for screen recording (full screen)
 			const cropInfo = {
 				x: selectedScreen.x,
 				y: selectedScreen.y,
 				width: selectedScreen.width,
-				height: selectedScreen.height
+				height: selectedScreen.height,
 			};
-			
+
 			// Create screen recording source
 			const source = {
-				sourceType: 'screen',
+				sourceType: "screen",
 				id: selectedScreen.id,
 				name: selectedScreen.name,
-				thumbnail: '', // Will be filled later if needed
+				thumbnail: "", // Will be filled later if needed
 			};
-			
+
 			// Send to renderer to trigger recording with crop info
 			if (mainWindow && !mainWindow.isDestroyed()) {
 				const eventData = {
 					screenInfo: selectedScreen,
 					cropInfo: cropInfo,
-					source: source
+					source: source,
 				};
-				
-				console.log('[DEBUG] Sending START_SCREEN_RECORDING event with data:', eventData);
-				mainWindow.webContents.send('START_SCREEN_RECORDING', eventData);
+
+				console.log(
+					"[DEBUG] Sending START_SCREEN_RECORDING event with data:",
+					eventData
+				);
+				mainWindow.webContents.send("START_SCREEN_RECORDING", eventData);
 			}
-			
-			console.log('[Main] Screen recording request sent:', selectedScreen.name, cropInfo);
-			
+
+			console.log(
+				"[Main] Screen recording request sent:",
+				selectedScreen.name,
+				cropInfo
+			);
 		} catch (selectionError) {
-			if (selectionError.message.includes('cancelled')) {
-				console.log('[Main] Screen selection cancelled by user');
+			if (selectionError.message.includes("cancelled")) {
+				console.log("[Main] Screen selection cancelled by user");
 			} else {
-				console.error('[Main] Screen selection error:', selectionError);
+				console.error("[Main] Screen selection error:", selectionError);
 			}
 		}
-		
 	} catch (error) {
-		console.error('[Main] Error starting native Screen Selection:', error);
+		console.error("[Main] Error starting native Screen Selection:", error);
 	}
 }
 
@@ -5084,18 +5258,17 @@ async function stopDynamicScreenOverlay() {
 			await windowSelector.cleanup();
 			windowSelector = null;
 		}
-		
-		console.log('[Main] Dynamic screen overlay stopped');
-		
+
+		console.log("[Main] Dynamic screen overlay stopped");
 	} catch (error) {
-		console.error('[Main] Error stopping screen overlay:', error);
+		console.error("[Main] Error stopping screen overlay:", error);
 	}
 }
 
-ipcMain.on('START_DYNAMIC_SCREEN_OVERLAY', startDynamicScreenOverlay);
-ipcMain.on('STOP_DYNAMIC_SCREEN_OVERLAY', stopDynamicScreenOverlay);
+ipcMain.on("START_DYNAMIC_SCREEN_OVERLAY", startDynamicScreenOverlay);
+ipcMain.on("STOP_DYNAMIC_SCREEN_OVERLAY", stopDynamicScreenOverlay);
 
 // Clean up overlays on app quit
-app.on('before-quit', () => {
+app.on("before-quit", () => {
 	closeAllOverlays();
 });
