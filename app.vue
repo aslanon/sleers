@@ -1,5 +1,5 @@
 <template>
-	<div class="transparent-root">
+	<div class="transparent-root bg-black padding-[2px]">
 		<NuxtPage />
 	</div>
 </template>

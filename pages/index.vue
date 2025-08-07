@@ -7,11 +7,11 @@
 	>
 		<button
 			@click="closeWindow"
-			class="p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
+			class="bg-white text-black rounded-full p-[4px] hover:bg-white/80 cursor-pointer"
 		>
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
-				class="h-5 w-5"
+				class="h-4 w-4"
 				viewBox="0 0 20 20"
 				fill="currentColor"
 			>
@@ -22,7 +22,7 @@
 				/>
 			</svg>
 		</button>
-		<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
+		<div style="width: 0.51px" class="h-10 bg-white/10 rounded-full"></div>
 
 		<!-- Kayıt Kontrolleri -->
 		<div class="flex items-center space-x-4 flex-wrap">
@@ -31,7 +31,7 @@
 				<!-- Screen Recording Button -->
 				<!-- <button
 					@click="selectRecordingType('screen')"
-					class="p-2 hover:bg-gray-700 rounded-lg"
+					class="p-2 hover:bg-white/10 rounded-lg"
 					title="Screen Recording"
 				>
 					<svg
@@ -53,7 +53,7 @@
 				<!-- Window Recording Button -->
 				<!-- <button
 					@click="selectRecordingType('window')"
-					class="p-2 hover:bg-gray-700 rounded-lg"
+					class="p-2 hover:bg-white/10 rounded-lg"
 					title="Window Recording"
 				>
 					<svg
@@ -74,160 +74,228 @@
 				<!-- Dynamic Screen Overlay Button -->
 				<button
 					@click="startDynamicScreenOverlay"
-					class="p-2 hover:bg-gray-700 rounded-lg"
+					class="p-2 flex items-center flex-col gap-2 hover:bg-white/10 rounded-lg"
 					title="Ekran Seç ve Kayıt Başlat (Screen Selection)"
 				>
 					<svg
-						width="24"
-						height="24"
-						viewBox="0 0 24 24"
+						width="27"
+						height="21"
+						viewBox="0 0 27 21"
 						fill="none"
 						xmlns="http://www.w3.org/2000/svg"
 					>
 						<path
-							d="M5.75 20.5H17.75M10.25 17.5V20.5M13.25 17.5V20.5M3.125 17.5H20.375C20.9963 17.5 21.5 16.9963 21.5 16.375V5.125C21.5 4.50368 20.9963 4 20.375 4H3.125C2.50368 4 2 4.50368 2 5.125V16.375C2 16.9963 2.50368 17.5 3.125 17.5Z"
-							stroke="white"
-							stroke-linecap="round"
-							stroke-linejoin="round"
+							d="M20 15C20.5523 15 21 15.4477 21 16V17C21 17.5523 20.5523 18 20 18H7C6.44772 18 6 17.5523 6 17V16C6 15.4477 6.44772 15 7 15H20Z"
+							fill="white"
+						/>
+						<path
+							fill-rule="evenodd"
+							clip-rule="evenodd"
+							d="M23 0C25.2091 0 27 1.79086 27 4V17C27 19.14 25.3194 20.8879 23.2061 20.9951L23 21H4L3.79395 20.9951C1.7488 20.8913 0.108652 19.2512 0.00488281 17.2061L0 17V4C0 1.79086 1.79086 1.61064e-08 4 0H23ZM1 17C1 18.6569 2.34315 20 4 20H23C24.6569 20 26 18.6569 26 17V4H1V17ZM4 1C2.6938 1 1.58275 1.83484 1.1709 3H25.8262C25.4141 1.83532 24.3059 1 23 1H4Z"
+							fill="white"
 						/>
 					</svg>
+					<span class="text-xs">Display</span>
 				</button>
 				<!-- Dynamic Window Overlay Button -->
 				<button
 					@click="startDynamicOverlay"
-					class="p-2 hover:bg-gray-700 rounded-lg"
+					class="p-2 flex items-center flex-col gap-2 hover:bg-white/10 rounded-lg"
 					title="Pencere Seç ve Kayıt Başlat (Screen Studio style)"
 				>
 					<svg
-						width="24"
-						height="24"
-						viewBox="0 0 24 24"
+						width="27"
+						height="21"
+						viewBox="0 0 27 21"
 						fill="none"
 						xmlns="http://www.w3.org/2000/svg"
 					>
 						<path
-							fill-rule="evenodd"
-							clip-rule="evenodd"
-							d="M2 6C2 4.34315 3.34315 3 5 3H18.5C20.1569 3 21.5 4.34315 21.5 6V18C21.5 19.6569 20.1569 21 18.5 21H5C3.34315 21 2 19.6569 2 18V6ZM20 9H3.5V18C3.5 18.8284 4.17157 19.5 5 19.5H18.5C19.3284 19.5 20 18.8284 20 18V9ZM5 5.25C4.58579 5.25 4.25 5.58579 4.25 6V6.0075C4.25 6.42171 4.58579 6.7575 5 6.7575H5.0075C5.42171 6.7575 5.7575 6.42171 5.7575 6.0075V6C5.7575 5.58579 5.42171 5.25 5.0075 5.25H5ZM6.5 6C6.5 5.58579 6.83579 5.25 7.25 5.25H7.2575C7.67171 5.25 8.0075 5.58579 8.0075 6V6.0075C8.0075 6.42171 7.67171 6.7575 7.2575 6.7575H7.25C6.83579 6.7575 6.5 6.42171 6.5 6.0075V6ZM9.5 5.25C9.08579 5.25 8.75 5.58579 8.75 6V6.0075C8.75 6.42171 9.08579 6.7575 9.5 6.7575H9.5075C9.92171 6.7575 10.2575 6.42171 10.2575 6.0075V6C10.2575 5.58579 9.92171 5.25 9.5075 5.25H9.5Z"
+							d="M23 0C25.2091 0 27 1.79086 27 4V17C27 19.14 25.3194 20.8879 23.2061 20.9951L23 21H4L3.79395 20.9951C1.7488 20.8913 0.108652 19.2512 0.00488281 17.2061L0 17V4C0 1.79086 1.79086 1.61064e-08 4 0H23ZM1 17C1 18.6569 2.34315 20 4 20H23C24.6569 20 26 18.6569 26 17V4H1V17ZM4 1C3.44772 1 3 1.44772 3 2C3 2.55228 3.44772 3 4 3C4.55228 3 5 2.55228 5 2C5 1.44772 4.55228 1 4 1ZM7 1C6.44772 1 6 1.44772 6 2C6 2.55228 6.44772 3 7 3C7.55228 3 8 2.55228 8 2C8 1.44772 7.55228 1 7 1ZM10 1C9.44772 1 9 1.44772 9 2C9 2.55228 9.44772 3 10 3C10.5523 3 11 2.55228 11 2C11 1.44772 10.5523 1 10 1Z"
 							fill="#D9D9D9"
 						/>
 					</svg>
+					<span class="text-xs">Window</span>
 				</button>
 
 				<!-- Area Recording Button -->
 				<button
 					@click="selectRecordingType('area')"
-					class="p-2 hover:bg-gray-700 rounded-lg"
+					class="p-2 flex items-center flex-col gap-2 hover:bg-white/10 rounded-lg"
 					title="Area Recording"
 				>
 					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
+						width="29"
+						height="23"
+						viewBox="0 0 29 23"
 						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
+						xmlns="http://www.w3.org/2000/svg"
 					>
 						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+							d="M3.41113 21.1191C3.88742 21.3623 4.42688 21.5 5 21.5H8.34961V22.5H5C4.26517 22.5 3.56988 22.3232 2.95605 22.0098L2.51074 21.7832L2.96582 20.8926L3.41113 21.1191ZM17.8496 21.5V22.5H11.1504V21.5H17.8496ZM26.4893 21.7832L26.0439 22.0098C25.4301 22.3232 24.7348 22.5 24 22.5H20.6504V21.5H24C24.5731 21.5 25.1126 21.3623 25.5889 21.1191L26.0342 20.8926L26.4893 21.7832ZM0.5 18V13.5996H1.5V18C1.5 18.5731 1.63769 19.1126 1.88086 19.5889L2.10742 20.0342L1.2168 20.4893L0.990234 20.0439C0.676849 19.4301 0.5 18.7348 0.5 18ZM27.5 18V13.5996H28.5V18C28.5 18.7348 28.3232 19.4301 28.0098 20.0439L27.7832 20.4893L26.8926 20.0342L27.1191 19.5889C27.3623 19.1126 27.5 18.5731 27.5 18ZM0.5 5C0.5 4.26517 0.676849 3.56988 0.990234 2.95605L1.2168 2.51074L2.10742 2.96582L1.88086 3.41113C1.63769 3.88742 1.5 4.42688 1.5 5V9.40039H0.5V5ZM27.5 5C27.5 4.42688 27.3623 3.88742 27.1191 3.41113L26.8926 2.96582L27.7832 2.51074L28.0098 2.95605C28.3232 3.56988 28.5 4.26517 28.5 5V9.40039H27.5V5ZM8.34961 0.5V1.5H5C4.42688 1.5 3.88742 1.63769 3.41113 1.88086L2.96582 2.10742L2.51074 1.2168L2.95605 0.990234C3.56988 0.676849 4.26517 0.5 5 0.5H8.34961ZM24 0.5C24.7348 0.5 25.4301 0.676849 26.0439 0.990234L26.4893 1.2168L26.0342 2.10742L25.5889 1.88086C25.1126 1.63769 24.5731 1.5 24 1.5H20.6504V0.5H24ZM17.8496 0.5V1.5H11.1504V0.5H17.8496Z"
+							fill="white"
 						/>
 					</svg>
+					<span class="text-xs">Area</span>
 				</button>
 			</div>
+			<div style="width: 0.51px" class="h-10 bg-white/10 rounded-full"></div>
 
-			<select
-				v-model="selectedVideoDevice"
-				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
+			<label
+				:class="{
+					'!opacity-50': selectedVideoDevice === 'none',
+				}"
+				for="video-select"
+				@click.stop.prevent="openVideoSelect"
+				class="flex cursor-pointer justify-center hover:!bg-white/10 w-[150px] h-[48px] max-h-[48px] !min-w-[150px] max-w-[150px] min-h-[48px] truncate gap-2 text-white rounded-lg px-2 py-1 items-center pl-2"
 			>
-				<option value="none">No Camera Recording</option>
-				<option
-					v-for="device in videoDevices"
-					:key="device.deviceId"
-					:value="device.deviceId"
-				>
-					{{ device.label || `Camera ${device.deviceId}` }}
-				</option>
-			</select>
-			<select
-				v-model="selectedAudioDevice"
-				class="bg-transparent hover:bg-gray-700 max-w-36 h-[36px] text-white rounded-lg px-3 py-1 text-sm"
-			>
-				<option
-					v-for="device in audioDevices"
-					:key="device.deviceId"
-					:value="device.deviceId"
-				>
-					{{ device.label || `Microphone ${device.deviceId}` }}
-				</option>
-			</select>
-
-			<!-- Mikrofon Ses Seviyesi -->
-			<button
-				class="flex flex-row opacity-50 items-center gap-2 p-2 hover:bg-gray-700 rounded-lg"
-				:class="{ '!opacity-100': microphoneEnabled }"
-				@click="toggleMicrophone"
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						v-if="microphoneEnabled"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-					/>
-					<path
+				<span class="flex items-center justify-center">
+					<svg
+						v-if="selectedVideoDevice !== 'none'"
+						width="22"
+						height="16"
+						viewBox="0 0 22 16"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M14.5 6.25L19.2197 1.53033C19.6921 1.05786 20.5 1.39248 20.5 2.06066V13.4393C20.5 14.1075 19.6921 14.4421 19.2197 13.9697L14.5 9.25M3.25 14.5H12.25C13.4926 14.5 14.5 13.4926 14.5 12.25V3.25C14.5 2.00736 13.4926 1 12.25 1H3.25C2.00736 1 1 2.00736 1 3.25V12.25C1 13.4926 2.00736 14.5 3.25 14.5Z"
+							stroke="white"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+					<svg
 						v-else
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-					/>
-				</svg>
-				<div class="w-12 h-1 rounded-full overflow-hidden">
+						width="22"
+						height="17"
+						viewBox="0 0 22 17"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M15.25 7L19.9697 2.28033C20.4421 1.80786 21.25 2.14248 21.25 2.81066V14.1893C21.25 14.8575 20.4421 15.1921 19.9697 14.7197L15.25 10M11.5 15.25H4C2.75736 15.25 1.75 14.2426 1.75 13V5.5M14.591 14.591L16 16M14.591 14.591C14.9982 14.1838 15.25 13.6213 15.25 13V4C15.25 2.75736 14.2426 1.75 13 1.75H4C3.37868 1.75 2.81618 2.00184 2.40901 2.40901M14.591 14.591L2.40901 2.40901M1 1L2.40901 2.40901"
+							stroke="white"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+				</span>
+				<select
+					id="video-select"
+					ref="videoSelectRef"
+					v-model="selectedVideoDevice"
+					class="bg-transparent ring-non truncate w-full outline-none appearance-none text-xs font-semibold"
+				>
+					<option value="none">Do not record camera</option>
+					<option disabled>────────────────────</option>
+					<option
+						v-for="device in videoDevices"
+						:key="device.deviceId"
+						:value="device.deviceId"
+					>
+						{{ device.label || `Camera ${device.deviceId}` }}
+					</option>
+				</select>
+			</label>
+			<!-- Microphone unified block: icon + select + optional level bar -->
+			<div
+				:class="{
+					'!opacity-50': selectedAudioDevice === 'none',
+				}"
+				@click.stop.prevent="openAudioSelect"
+				class="flex flex-col justify-center items-center gap-1 p-2 rounded-lg hover:bg-white/10 w-[150px] h-[48px] max-h-[48px] !min-w-[150px] max-w-[150px] min-h-[48px] truncate"
+			>
+				<label
+					for="select-audio"
+					class="cursor-pointer flex flex-row items-center"
+				>
+					<span class="flex items-center justify-center" style="zoom: 0.7">
+						<svg
+							v-if="selectedAudioDevice !== 'none'"
+							width="24"
+							height="25"
+							viewBox="0 0 24 25"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M8.25 4.75C8.25 2.67893 9.92893 1 12 1C14.0711 1 15.75 2.67893 15.75 4.75V13C15.75 15.0711 14.0711 16.75 12 16.75C9.92893 16.75 8.25 15.0711 8.25 13V4.75Z"
+								fill="white"
+							/>
+							<path
+								d="M6 10.75C6.41421 10.75 6.75 11.0858 6.75 11.5V13C6.75 15.8995 9.1005 18.25 12 18.25C14.8995 18.25 17.25 15.8995 17.25 13V11.5C17.25 11.0858 17.5858 10.75 18 10.75C18.4142 10.75 18.75 11.0858 18.75 11.5V13C18.75 16.4744 16.125 19.3357 12.75 19.7088V22H15.75C16.1642 22 16.5 22.3358 16.5 22.75C16.5 23.1642 16.1642 23.5 15.75 23.5H8.25C7.83579 23.5 7.5 23.1642 7.5 22.75C7.5 22.3358 7.83579 22 8.25 22H11.25V19.7088C7.87504 19.3357 5.25 16.4744 5.25 13V11.5C5.25 11.0858 5.58579 10.75 6 10.75Z"
+								fill="white"
+							/>
+						</svg>
+						<svg
+							v-else
+							width="16"
+							height="23"
+							viewBox="0 0 16 23"
+							fill="none"
+							xmlns="http://www.w3.org/2000/svg"
+						>
+							<path
+								d="M1.55183 9.75C1.96588 9.7502 2.30183 10.0859 2.30183 10.5V12C2.30183 14.8995 4.65233 17.25 7.55183 17.25C8.82435 17.2499 9.99078 16.7962 10.8995 16.043L11.963 17.1064C10.9576 17.9757 9.69409 18.555 8.30183 18.709V21H11.3018C11.7159 21.0002 12.0518 21.3359 12.0518 21.75C12.0518 22.1641 11.7159 22.4998 11.3018 22.5H3.80183C3.38762 22.5 3.05183 22.1642 3.05183 21.75C3.05183 21.3358 3.38762 21 3.80183 21H6.80183V18.709C3.42687 18.3359 0.801829 15.4744 0.801829 12V10.5C0.801829 10.0858 1.13762 9.75 1.55183 9.75ZM0.264719 2.96289C0.658413 2.56939 1.34801 2.62138 1.80573 3.0791L15.0567 16.3301C15.5144 16.7878 15.5664 17.4774 15.1729 17.8711C14.7793 18.2648 14.0887 18.2136 13.6309 17.7559L0.379954 4.50488C-0.0778285 4.0471 -0.128949 3.35656 0.264719 2.96289ZM9.8321 14.9756C9.2002 15.4606 8.40991 15.7499 7.55183 15.75C5.48076 15.75 3.80183 14.0711 3.80183 12V8.94531L9.8321 14.9756ZM13.5518 9.75C13.9659 9.7502 14.3018 10.0859 14.3018 10.5V12C14.3018 12.7668 14.1731 13.5035 13.9376 14.1904L12.711 12.9648C12.7691 12.652 12.8018 12.3297 12.8018 12V10.5C12.8018 10.0858 13.1376 9.75 13.5518 9.75ZM7.55183 0C9.62273 0.000196387 11.3018 1.67905 11.3018 3.75V11.5547L3.80183 4.05469V3.75C3.80183 1.67893 5.48076 0 7.55183 0Z"
+								fill="white"
+							/>
+						</svg>
+					</span>
+					<select
+						id="select-audio"
+						ref="audioSelectRef"
+						v-model="selectedAudioDevice"
+						class="bg-transparent max-w-[120px] ring-none outline-none appearance-none hover:bg-white/10 text-white rounded-lg px-2 py-1 text-xs font-medium truncate"
+					>
+						<option value="none">Do not record microphone</option>
+						<option disabled>────────────────────</option>
+						<option
+							v-for="device in audioDevices"
+							:key="device.deviceId"
+							:value="device.deviceId"
+						>
+							{{
+								device.label.replace("Default - ", "") ||
+								`Microphone ${device.deviceId}`
+							}}
+						</option>
+					</select>
+				</label>
+				<div
+					v-if="selectedAudioDevice !== 'none'"
+					class="w-[120px] bg-white/10 h-[3px] rounded-full overflow-hidden"
+				>
 					<div
-						class="h-full bg-green-500 transition-all duration-75"
+						class="h-full bg-white/50 transition-all duration-75"
 						:style="{ width: `${microphoneEnabled ? microphoneLevel : 0}%` }"
 					></div>
 				</div>
-			</button>
+			</div>
 
 			<!-- Sistem Sesi -->
 			<button
-				class="flex flex-row opacity-50 items-center gap-2 p-2 text-white hover:bg-gray-700 rounded-lg"
+				class="flex flex-row opacity-50 h-[48px] items-center gap-2 p-2 text-white hover:bg-white/10 rounded-lg text-xs font-semibold"
 				:class="{ '!opacity-100': systemAudioEnabled }"
 				@click="toggleSystemAudio"
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="h-5 w-5"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke="currentColor"
-				>
-					<path
-						v-if="systemAudioEnabled"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-					/>
-					<path
-						v-else
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"
-					/>
-				</svg>
-				<span class="text-sm">System Audio</span>
+				<span class="flex items-center justify-center">
+					<svg
+						width="21"
+						height="18"
+						viewBox="0 0 21 18"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path
+							d="M19.125 0C20.1605 0 21 0.839466 21 1.875V13.125C21 14.1605 20.1605 15 19.125 15H12.75V16.5H16.5C16.9142 16.5 17.25 16.8358 17.25 17.25C17.25 17.6642 16.9142 18 16.5 18H4.5C4.08579 18 3.75 17.6642 3.75 17.25C3.75 16.8358 4.08579 16.5 4.5 16.5H8.25V15H1.875C0.839466 15 0 14.1605 0 13.125V1.875C0 0.839466 0.839466 0 1.875 0H19.125ZM9.75 16.5H11.25V15H9.75V16.5ZM1.875 1.5C1.66789 1.5 1.5 1.66789 1.5 1.875V13.125C1.5 13.3321 1.66789 13.5 1.875 13.5H19.125C19.3321 13.5 19.5 13.3321 19.5 13.125V1.875C19.5 1.66789 19.3321 1.5 19.125 1.5H1.875ZM12.459 5.97559L11.2314 6.24121V10.0127C11.2314 10.5327 10.8686 10.9819 10.3604 11.0918L9.3584 11.3086C8.68096 11.455 8.04111 10.9392 8.04102 10.2461C8.04102 9.73382 8.39868 9.29063 8.89941 9.18262L10.2051 8.90137C10.3744 8.86476 10.495 8.71519 10.4951 8.54199V4.47168C10.4951 4.29835 10.6167 4.14796 10.7861 4.11133L12.459 3.75V5.97559Z"
+							fill="white"
+						/>
+					</svg>
+				</span>
+				<span class="text-xs font-medium">System Audio</span>
 			</button>
 
 			<!-- Cursor tracking butonu kaldırıldı - artık gerçek kayıt sistemiyle entegre -->
@@ -239,75 +307,120 @@
 				:class="
 					isRecording
 						? 'bg-red-600 hover:bg-red-700'
-						: 'bg-gray-700 hover:bg-gray-600'
+						: 'bg-white/10 hover:bg-gray-600'
 				"
 			>
 				<span class="w-2 h-2 rounded-full bg-white" v-if="isRecording"></span>
 				<span>{{ isRecording ? "Stop" : "Record" }}</span>
 			</button> -->
-			<div style="width: 0.51px" class="h-12 bg-white/30 rounded-full"></div>
+			<div style="width: 0.51px" class="h-10 bg-white/10 rounded-full"></div>
 
 			<!-- Ayarlar Butonu -->
-			<div class="relative">
-				<button
-					@click="openRecordingSettings"
-					class="p-2 hover:bg-gray-700 rounded-lg"
+			<!-- Editör Modu Butonu -->
+			<button
+				@click="openEditorMode"
+				class="p-2 flex flex-row items-center gap-2 hover:bg-white/10 rounded-lg text-xs font-medium truncate"
+				title="Go to Editor Without Recording"
+			>
+				<svg
+					width="18"
+					height="20"
+					viewBox="0 0 18 20"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
 				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						class="h-5 w-5"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-						/>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							stroke-width="2"
-							d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-						/>
-					</svg>
-				</button>
-				<!-- Editör Modu Butonu -->
-				<button
-					@click="openEditorMode"
-					class="p-2 hover:bg-gray-700 rounded-lg"
-					title="Go to Editor Without Recording"
+					<path
+						d="M12.6122 3.47948C15.4927 4.76656 17.5 7.65662 17.5 11.0155C17.5 15.5719 13.8063 19.2655 9.25 19.2655C4.69365 19.2655 1 15.5719 1 11.0155C1 8.80347 1.87058 6.79476 3.28781 5.31333C4.0543 6.38374 5.07048 7.26318 6.25121 7.86651C6.29632 5.09084 7.59797 2.62065 9.61211 1C10.3755 2.02375 11.3879 2.88408 12.6122 3.47948Z"
+						stroke="white"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+					<path
+						d="M9.25 16.2659C11.3211 16.2659 13 14.587 13 12.5159C13 10.6126 11.5821 9.04049 9.74489 8.79828C8.73657 9.70282 8.03619 10.9437 7.82031 12.3445C7.03769 12.1532 6.31529 11.8084 5.68682 11.3438C5.56559 11.7126 5.5 12.1066 5.5 12.5159C5.5 14.587 7.17893 16.2659 9.25 16.2659Z"
+						stroke="white"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
+
+				<span class="!m-0 !p-0">Edit</span>
+			</button>
+			<div style="width: 0.51px" class="h-10 bg-white/10 rounded-full"></div>
+
+			<button
+				@click="openRecordingSettings"
+				class="p-2 hover:bg-white/10 rounded-lg"
+			>
+				<svg
+					width="20"
+					height="20"
+					viewBox="0 0 20 20"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
 				>
-					<svg
-						width="24"
-						height="24"
-						class="h-5 w-5"
-						viewBox="0 0 24 24"
-						fill="none"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path
-							d="M3.375 19.5H20.625M3.375 19.5C2.75368 19.5 2.25 18.9963 2.25 18.375M3.375 19.5H4.875C5.49632 19.5 6 18.9963 6 18.375M2.25 18.375V5.625M2.25 18.375V16.875C2.25 16.2537 2.75368 15.75 3.375 15.75M21.75 18.375V5.625M21.75 18.375C21.75 18.9963 21.2463 19.5 20.625 19.5M21.75 18.375V16.875C21.75 16.2537 21.2463 15.75 20.625 15.75M20.625 19.5H19.125C18.5037 19.5 18 18.9963 18 18.375M20.625 4.5H3.375M20.625 4.5C21.2463 4.5 21.75 5.00368 21.75 5.625M20.625 4.5H19.125C18.5037 4.5 18 5.00368 18 5.625M21.75 5.625V7.125C21.75 7.74632 21.2463 8.25 20.625 8.25M3.375 4.5C2.75368 4.5 2.25 5.00368 2.25 5.625M3.375 4.5H4.875C5.49632 4.5 6 5.00368 6 5.625M2.25 5.625V7.125C2.25 7.74632 2.75368 8.25 3.375 8.25M3.375 8.25H4.875M3.375 8.25C2.75368 8.25 2.25 8.75368 2.25 9.375V10.875C2.25 11.4963 2.75368 12 3.375 12M4.875 8.25C5.49632 8.25 6 7.74632 6 7.125V5.625M4.875 8.25C5.49632 8.25 6 8.75368 6 9.375V10.875M6 5.625V10.875M6 5.625C6 5.00368 6.50368 4.5 7.125 4.5H16.875C17.4963 4.5 18 5.00368 18 5.625M19.125 8.25H20.625M19.125 8.25C18.5037 8.25 18 7.74632 18 7.125V5.625M19.125 8.25C18.5037 8.25 18 8.75368 18 9.375V10.875M20.625 8.25C21.2463 8.25 21.75 8.75368 21.75 9.375V10.875C21.75 11.4963 21.2463 12 20.625 12M18 5.625V10.875M7.125 12H16.875M7.125 12C6.50368 12 6 11.4963 6 10.875M7.125 12C6.50368 12 6 12.5037 6 13.125M6 10.875C6 11.4963 5.49632 12 4.875 12M18 10.875C18 11.4963 17.4963 12 16.875 12M18 10.875C18 11.4963 18.5037 12 19.125 12M16.875 12C17.4963 12 18 12.5037 18 13.125M6 18.375V13.125M6 18.375C6 18.9963 6.50368 19.5 7.125 19.5H16.875C17.4963 19.5 18 18.9963 18 18.375M6 18.375V16.875C6 16.2537 5.49632 15.75 4.875 15.75M18 18.375V13.125M18 18.375V16.875C18 16.2537 18.5037 15.75 19.125 15.75M18 13.125V14.625C18 15.2463 18.5037 15.75 19.125 15.75M18 13.125C18 12.5037 18.5037 12 19.125 12M6 13.125V14.625C6 15.2463 5.49632 15.75 4.875 15.75M6 13.125C6 12.5037 5.49632 12 4.875 12M3.375 12H4.875M3.375 12C2.75368 12 2.25 12.5037 2.25 13.125V14.625C2.25 15.2463 2.75368 15.75 3.375 15.75M19.125 12H20.625M20.625 12C21.2463 12 21.75 12.5037 21.75 13.125V14.625C21.75 15.2463 21.2463 15.75 20.625 15.75M3.375 15.75H4.875M19.125 15.75H20.625"
-							stroke="white"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						/>
-					</svg>
-				</button>
-			</div>
+					<path
+						d="M2.5 9.86254C2.5 14.0047 5.85786 17.3625 10 17.3625C14.1421 17.3625 17.5 14.0047 17.5 9.86254M2.5 9.86254C2.5 5.7204 5.85786 2.36254 10 2.36254C14.1421 2.36254 17.5 5.7204 17.5 9.86254M2.5 9.86254L1 9.86254M17.5 9.86254L19 9.86254M17.5 9.86254L10 9.86254M1.54256 12.9407L2.9521 12.4277M17.0475 7.29739L18.457 6.78436M3.10547 15.6482L4.25454 14.6841M15.7452 5.04225L16.8943 4.07807M5.4999 17.6575L6.2499 16.3585M13.7499 3.36812L14.4999 2.06908M8.43707 18.7265L8.69755 17.2493M11.3023 2.47721L11.5627 1M11.5627 18.7266L11.3023 17.2494M8.69755 2.47725L8.43708 1.00004M14.4999 17.6574L13.7499 16.3583M5.49995 2.06893L10 9.86254M16.8944 15.6476L15.7454 14.6834M4.25469 5.04163L3.10562 4.07745M18.4573 12.9409L17.0477 12.4278M2.95235 7.29754L1.54281 6.78451M10 9.86254L6.25 16.3577"
+						stroke="white"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				</svg>
+			</button>
 		</div>
 	</div>
 </template>
 
 <script setup>
-import { onMounted, ref, watch, onUnmounted, onBeforeUnmount } from "vue";
+import {
+	onMounted,
+	ref,
+	watch,
+	onUnmounted,
+	onBeforeUnmount,
+	nextTick,
+} from "vue";
 import { useMediaDevices } from "~/composables/useMediaDevices";
+import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import { useScreen } from "~/composables/modules/useScreen";
 
 const electron = window.electron;
 const IPC_EVENTS = electron?.ipcRenderer?.IPC_EVENTS || {};
+
+// Refs for programmatic opening of selects when their labels are clicked
+const videoSelectRef = ref(null);
+const audioSelectRef = ref(null);
+
+const openVideoSelect = async () => {
+	await nextTick();
+	const el = videoSelectRef.value;
+	if (!el) return;
+	try {
+		el.focus();
+		if (typeof el.showPicker === "function") {
+			el.showPicker();
+		} else {
+			el.click();
+		}
+	} catch (_) {
+		el.click();
+	}
+};
+
+const openAudioSelect = async () => {
+	await nextTick();
+	const el = audioSelectRef.value;
+	if (!el) return;
+	try {
+		el.focus();
+		if (typeof el.showPicker === "function") {
+			el.showPicker();
+		} else {
+			el.click();
+		}
+	} catch (_) {
+		el.click();
+	}
+};
 
 const {
 	videoDevices,
@@ -331,6 +444,9 @@ const {
 	toggleSystemAudio,
 	throttle,
 } = useMediaDevices();
+
+// Player settings: camera visibility kontrolü
+const { updateCameraSettings } = usePlayerSettings();
 
 const closeWindow = () => {
 	electron?.windowControls.close();
@@ -364,6 +480,23 @@ watch(selectedDelay, (newValue) => {
 		);
 	}
 });
+
+// Kamera cihaz seçimi değişince player kamera görünürlüğünü senkronize et
+watch(
+	selectedVideoDevice,
+	(newVal) => {
+		// 'none' ise görünürlüğü kapat, aksi halde aç
+		const isNone = newVal === "none";
+		updateCameraSettings({
+			visible: !isNone,
+			followMouse: isNone ? false : undefined,
+			mergeWithCursor: isNone ? false : undefined,
+			shadow: isNone ? 0 : undefined,
+			borderWidth: isNone ? 0 : undefined,
+		});
+	},
+	{ immediate: true }
+);
 
 // Kayıt düğmesi işlevi
 const onRecordButtonClick = async () => {
@@ -708,7 +841,7 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 watch(selectedVideoDevice, async (deviceId) => {
 	if (deviceId) {
 		try {
-			// "No Camera Recording" seçilirse kamera penceresini gizle
+			// "Do not record camera" seçilirse kamera penceresini gizle
 			if (deviceId === "none") {
 				console.log(
 					"[index.vue] No camera recording selected - hiding camera window"

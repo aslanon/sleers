@@ -44,9 +44,7 @@
 		<!-- Merge with Cursor -->
 		<div v-if="cameraVisible" class="flex items-center justify-between">
 			<div>
-				<h4 class="text-base font-semibold text-white">
-					Merge with Cursor
-				</h4>
+				<h4 class="text-base font-semibold text-white">Merge with Cursor</h4>
 				<p class="text-sm font-normal text-gray-500">
 					Replace camera and cursor with new cursor-following camera
 				</p>
@@ -285,7 +283,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, defineProps } from "vue";
+import { ref, watch, onMounted, onUnmounted, defineProps, computed } from "vue";
 import { usePlayerSettings } from "~/composables/usePlayerSettings";
 import SliderInput from "~/components/ui/SliderInput.vue";
 import OptimizedBackgroundRemovalSettings from "~/components/player-settings/OptimizedBackgroundRemovalSettings.vue";
@@ -310,11 +308,11 @@ const cameraCrop = ref(
 );
 const followMouse = ref(cameraSettings.value?.followMouse || false);
 const mirrorCamera = ref(cameraSettings.value?.mirror || false);
-const cameraVisible = ref(
-	cameraSettings.value?.visible !== undefined
-		? cameraSettings.value.visible
-		: true
-);
+// Camera visibility store-sync: UI her zaman store ile senkron
+const cameraVisible = computed({
+	get: () => cameraSettings.value?.visible !== false,
+	set: (val) => updateCameraSettings({ visible: !!val }),
+});
 const mergeWithCursor = ref(cameraSettings.value?.mergeWithCursor || false);
 const selectedAspectRatio = ref(cameraSettings.value?.aspectRatio || "1:1");
 // Özel oran için değişkenler

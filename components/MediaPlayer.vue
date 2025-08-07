@@ -767,406 +767,15 @@ const updateGifHoverStates = (mouseX, mouseY) => {
 	}
 };
 
-// GIF overlay çizim fonksiyonu
-const drawGifOverlay = (ctx, renderData, dpr, scale = 1) => {
-	if (!renderData || !renderData.url) return;
-
-	ctx.save();
-
-	// GIF pozisyon ve boyut hesaplama (scale factor dahil) - round to prevent jitter
-	const x = Math.round(renderData.x * dpr * scale);
-	const y = Math.round(renderData.y * dpr * scale);
-	const width = Math.round(renderData.width * dpr * scale);
-	const height = Math.round(renderData.height * dpr * scale);
-
-	// Rounded corner radius matching camera component
-	const radius = Math.min(width, height) * 0.05; // 5% of smaller dimension
-
-	// Opacity ayarla
-	ctx.globalAlpha = renderData.opacity || 1;
-
-	// Rotation uygula
-	const rotation = renderData.rotation || 0;
-	if (rotation !== 0) {
-		const centerX = x + width / 2;
-		const centerY = y + height / 2;
-		ctx.translate(centerX, centerY);
-		ctx.rotate((rotation * Math.PI) / 180);
-		ctx.translate(-centerX, -centerY);
-	}
-
-	// Check if it's an image or video (not a GIF)
-	const isImage = renderData.type === "image";
-	const isVideo = renderData.type === "video";
-
-	if (isImage) {
-		// Handle static images
-		if (!window.imageCache) {
-			window.imageCache = new Map();
-		}
-
-		const cacheKey = renderData.id || renderData.url;
-
-		if (window.imageCache.has(cacheKey)) {
-			const cachedImage = window.imageCache.get(cacheKey);
-			if (cachedImage.complete && cachedImage.naturalWidth > 0) {
-				// Preserve transparency for images
-				const originalComposite = ctx.globalCompositeOperation;
-				ctx.globalCompositeOperation = "source-over";
-
-				ctx.drawImage(cachedImage, x, y, width, height);
-
-				// Restore original composite operation
-				ctx.globalCompositeOperation = originalComposite;
-			}
-		} else {
-			// Load image for the first time
-			const img = new Image();
-			img.crossOrigin = "anonymous";
-
-			img.onload = () => {
-				window.imageCache.set(cacheKey, img);
-				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
-				if (ctx && !window.imageLoadPending) {
-					window.imageLoadPending = true;
-					setTimeout(() => {
-						window.imageLoadPending = false;
-						updateCanvas(performance.now());
-					}, 50);
-				}
-			};
-
-			img.onerror = () => {
-				console.warn("Failed to load image:", renderData.url);
-			};
-
-			img.src = renderData.url;
-		}
-	} else if (isVideo) {
-		// Handle video files
-		if (!window.videoCache) {
-			window.videoCache = new Map();
-		}
-
-		const cacheKey = renderData.id || renderData.url;
-
-		if (window.videoCache.has(cacheKey)) {
-			const cachedVideo = window.videoCache.get(cacheKey);
-			if (cachedVideo.readyState >= 2 && cachedVideo.videoWidth > 0) {
-				// HAVE_CURRENT_DATA
-				try {
-					// Video sync - calculate relative time within the overlay duration
-					const videoDuration = cachedVideo.duration || 1;
-					const overlayStartTime = renderData.startTime || 0;
-					const overlayEndTime = renderData.endTime || 10;
-					const overlayDuration = overlayEndTime - overlayStartTime;
-
-					// Calculate current time within the overlay's time range
-					const currentCanvasTime = videoState.value.currentTime;
-					const relativeTime = currentCanvasTime - overlayStartTime;
-
-					// Loop the video if it's shorter than the overlay duration
-					const videoTime = relativeTime % videoDuration;
-
-					// Only update video time if significantly different (reduces jitter)
-					const timeDiff = Math.abs(cachedVideo.currentTime - videoTime);
-					if (timeDiff > 0.3) {
-						// Increased threshold for more stability
-						cachedVideo.currentTime = videoTime;
-					}
-
-					// Video play/pause state'ini canvas state'e sync et
-					if (videoState.value.isPlaying && cachedVideo.paused) {
-						cachedVideo.play().catch(console.warn);
-					} else if (!videoState.value.isPlaying && !cachedVideo.paused) {
-						cachedVideo.pause();
-					}
-
-					// Use requestVideoFrameCallback if available for smoother rendering
-					if (
-						cachedVideo.requestVideoFrameCallback &&
-						!cachedVideo._frameCallbackSet
-					) {
-						cachedVideo._frameCallbackSet = true;
-						cachedVideo.requestVideoFrameCallback(() => {
-							cachedVideo._frameCallbackSet = false;
-						});
-					}
-
-					// Preserve transparency for videos
-					const originalComposite = ctx.globalCompositeOperation;
-					ctx.globalCompositeOperation = "source-over";
-
-					ctx.drawImage(cachedVideo, x, y, width, height);
-
-					// Restore original composite operation
-					ctx.globalCompositeOperation = originalComposite;
-				} catch (error) {
-					console.warn("Error drawing cached video:", error);
-				}
-			}
-		} else {
-			// İlk yükleme - video element oluştur
-			const overlayVideo = document.createElement("video");
-			overlayVideo.crossOrigin = "anonymous";
-			overlayVideo.muted = true;
-			overlayVideo.loop = true;
-			overlayVideo.playsInline = true;
-			overlayVideo.preload = "auto";
-			overlayVideo.style.imageRendering = "pixelated";
-			overlayVideo.style.imageRendering = "crisp-edges";
-
-			overlayVideo.onloadeddata = () => {
-				window.videoCache.set(cacheKey, overlayVideo);
-				// Sadece canvas oynatılıyorsa video'yu oynat
-				if (videoState.value.isPlaying) {
-					overlayVideo.play().catch(console.warn);
-				}
-				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
-				if (ctx && !window.videoLoadPending) {
-					window.videoLoadPending = true;
-					setTimeout(() => {
-						window.videoLoadPending = false;
-						updateCanvas(performance.now());
-					}, 50);
-				}
-			};
-
-			overlayVideo.onerror = () => {
-				console.warn("Failed to load overlay video:", renderData.url);
-			};
-
-			overlayVideo.src = renderData.url;
-		}
-	} else {
-		// Handle animated GIFs
-		// Animated GIF rendering için video element kullan
-		if (!window.gifVideoCache) {
-			window.gifVideoCache = new Map();
-		}
-
-		const cacheKey = renderData.id || renderData.url;
-
-		// Video animasyon için öncelik ver, ama transparency için özel işlem yap
-		if (window.gifVideoCache.has(cacheKey)) {
-			const cachedVideo = window.gifVideoCache.get(cacheKey);
-			// Export sırasında daha esnek readyState kontrolü
-			const isExporting = window.isExporting || false;
-			const minReadyState = isExporting ? 1 : 2; // Export sırasında HAVE_METADATA yeterli
-
-			if (
-				cachedVideo.readyState >= minReadyState &&
-				cachedVideo.videoWidth > 0
-			) {
-				// HAVE_CURRENT_DATA
-				try {
-					// More stable video sync - reduce time updates
-					const gifDuration = cachedVideo.duration || 2; // Default 2 saniye
-					const relativeTime = renderData.relativeTime || 0;
-					const loopTime = relativeTime % gifDuration;
-
-					// Export sırasında daha agresif güncelleme stratejisi
-					const isExporting = window.isExporting || false;
-					const threshold = isExporting ? 0.05 : 0.01; // Export sırasında daha geniş tolerans
-
-					// Export sırasında video time güncelleme stratejisi
-					const timeDiff = Math.abs(cachedVideo.currentTime - loopTime);
-					if (isExporting) {
-						// Export sırasında her frame'de time'ı güncelle
-						try {
-							cachedVideo.currentTime = loopTime;
-						} catch (error) {
-							console.warn(
-								`[MediaPlayer] Export: GIF time update failed for ${renderData.id}:`,
-								error
-							);
-						}
-					} else if (timeDiff > threshold) {
-						cachedVideo.currentTime = loopTime;
-					}
-
-					// GIF video play/pause state'ini canvas state'e sync et
-					if (videoState.value.isPlaying && cachedVideo.paused) {
-						cachedVideo.play().catch(console.warn);
-					} else if (!videoState.value.isPlaying && !cachedVideo.paused) {
-						cachedVideo.pause();
-					}
-
-					// Use requestVideoFrameCallback if available for smoother rendering
-					if (
-						cachedVideo.requestVideoFrameCallback &&
-						!cachedVideo._frameCallbackSet
-					) {
-						cachedVideo._frameCallbackSet = true;
-						cachedVideo.requestVideoFrameCallback(() => {
-							cachedVideo._frameCallbackSet = false;
-						});
-					}
-
-					// GIF animasyon için video kullan, beyaz arkaplanı hızlı chroma key ile kaldır
-					ctx.save();
-
-					try {
-						// Küçük temporary canvas for faster processing
-						const tempCanvas = document.createElement("canvas");
-						const scale = 0.5; // Half resolution for speed
-						tempCanvas.width = Math.ceil(width * scale);
-						tempCanvas.height = Math.ceil(height * scale);
-						const tempCtx = tempCanvas.getContext("2d", { alpha: true });
-
-						// Draw video to temp canvas at half resolution
-						tempCtx.drawImage(
-							cachedVideo,
-							0,
-							0,
-							tempCanvas.width,
-							tempCanvas.height
-						);
-
-						// Fast white removal
-						const imageData = tempCtx.getImageData(
-							0,
-							0,
-							tempCanvas.width,
-							tempCanvas.height
-						);
-						const data = imageData.data;
-
-						// Optimized white removal - only check every 4th pixel for speed
-						const threshold = 230;
-						for (let i = 0; i < data.length; i += 16) {
-							// Skip pixels for speed
-							const r = data[i];
-							const g = data[i + 1];
-							const b = data[i + 2];
-
-							// If white/near-white, make transparent
-							if (r > threshold && g > threshold && b > threshold) {
-								data[i + 3] = 0;
-								// Also make surrounding pixels transparent
-								if (i + 7 < data.length) data[i + 7] = 0;
-								if (i + 11 < data.length) data[i + 11] = 0;
-								if (i + 15 < data.length) data[i + 15] = 0;
-							}
-						}
-
-						tempCtx.putImageData(imageData, 0, 0);
-
-						// Draw processed result at full size
-						ctx.globalCompositeOperation = "source-over";
-						ctx.imageSmoothingEnabled = true;
-						ctx.imageSmoothingQuality = "high";
-						ctx.drawImage(tempCanvas, x, y, width, height);
-					} catch (chromaError) {
-						// Fallback to normal drawing
-						ctx.globalCompositeOperation = "source-over";
-						ctx.drawImage(cachedVideo, x, y, width, height);
-					}
-
-					ctx.restore();
-				} catch (error) {
-					console.warn("Error drawing cached GIF video:", error);
-				}
-			}
-		} else {
-			// İlk yükleme - video element oluştur
-			const gifVideo = document.createElement("video");
-			gifVideo.crossOrigin = "anonymous";
-			gifVideo.muted = true;
-			gifVideo.loop = true;
-			gifVideo.playsInline = true;
-			gifVideo.preload = "auto";
-			gifVideo.style.imageRendering = "pixelated";
-			gifVideo.style.imageRendering = "crisp-edges";
-			gifVideo.preload = "metadata";
-
-			// MP4 varsa onu kullan, yoksa fallback
-			const videoUrl = renderData.mp4Url || renderData.url;
-
-			gifVideo.onloadeddata = () => {
-				window.gifVideoCache.set(cacheKey, gifVideo);
-				// Sadece canvas oynatılıyorsa GIF video'yu oynat
-				if (videoState.value.isPlaying) {
-					gifVideo.play().catch(console.warn);
-				}
-				// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
-				if (ctx && !window.gifVideoLoadPending) {
-					window.gifVideoLoadPending = true;
-					setTimeout(() => {
-						window.gifVideoLoadPending = false;
-						updateCanvas(performance.now());
-					}, 50);
-				}
-			};
-
-			gifVideo.onerror = () => {
-				console.warn("Failed to load GIF video:", videoUrl);
-				// Fallback to image if video fails
-				drawGifAsImage(ctx, renderData, dpr, x, y, width, height);
-			};
-
-			gifVideo.src = videoUrl;
-		}
-	}
-
-	// Draw selection system (AFTER drawing GIF for proper z-index)
-	const isSelected = renderData.isSelected;
-
-	// Only draw transform handles when selected and not during rotation operations
-	if (isSelected && !dragState.isRotating) {
-		drawTransformHandles(ctx, x, y, width, height, dpr, scale, renderData);
-	}
-
-	ctx.restore();
-};
-
-// Fallback function to draw GIF as static image
-const drawGifAsImage = (ctx, renderData, dpr, x, y, width, height) => {
-	if (!window.gifImageCache) {
-		window.gifImageCache = new Map();
-	}
-
-	const cacheKey = (renderData.id || renderData.url) + "_img";
-
-	if (window.gifImageCache.has(cacheKey)) {
-		const cachedImg = window.gifImageCache.get(cacheKey);
-		if (cachedImg.complete && cachedImg.naturalWidth > 0) {
-			try {
-				// Preserve transparency for GIF images
-				const originalComposite = ctx.globalCompositeOperation;
-				ctx.globalCompositeOperation = "source-over";
-
-				ctx.drawImage(cachedImg, x, y, width, height);
-
-				// Restore original composite operation
-				ctx.globalCompositeOperation = originalComposite;
-			} catch (error) {
-				console.warn("Error drawing cached GIF image:", error);
-			}
-		}
-	} else {
-		const gifImg = new Image();
-		gifImg.crossOrigin = "anonymous";
-
-		gifImg.onload = () => {
-			window.gifImageCache.set(cacheKey, gifImg);
-			// Sadece bir kez canvas'ı güncelle, sürekli döngü oluşturma
-			if (ctx && !window.gifImageLoadPending) {
-				window.gifImageLoadPending = true;
-				setTimeout(() => {
-					window.gifImageLoadPending = false;
-					updateCanvas(performance.now());
-				}, 50);
-			}
-		};
-
-		gifImg.onerror = () => {
-			console.warn("Failed to load GIF image:", renderData.url);
-		};
-
-		gifImg.src = renderData.url;
-	}
-};
+import { useGifOverlay } from "~/composables/useGifOverlay";
+// Defer updateCanvas binding to avoid TDZ
+let requestCanvasUpdate = () => {};
+const { drawGifOverlay } = useGifOverlay({
+	dragState,
+	updateCanvas: () => requestCanvasUpdate(performance.now()),
+	videoState,
+	drawTransformHandles,
+});
 
 // Video hover state güncelleme fonksiyonu
 const updateVideoHoverState = (mouseX, mouseY) => {
@@ -3608,94 +3217,61 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 			return;
 		}
 
-		// Off-screen canvas'ı sadece aktif segment varsa kullan
-		let offscreenCtx = null;
-		let renderCtx = ctx;
+		// Tek seferde off-screen zoom kur ve hedef context'i belirle
+		const offscreenContext = beginCanvasZoom(
+			canvasRef.value.width,
+			canvasRef.value.height
+		);
+		const renderContext = offscreenContext || ctx;
 
-		if (isInActiveSegment) {
-			// Canvas viewport zoom başlat - off-screen canvas hazırla
-			offscreenCtx = beginCanvasZoom(
+		// Off-screen kullanılıyorsa önce tamamen temizle ve background'ı eksiksiz çiz
+		if (offscreenContext) {
+			renderContext.clearRect(
+				0,
+				0,
 				canvasRef.value.width,
 				canvasRef.value.height
 			);
 
-			// Zoom varsa off-screen canvas'a çiz, yoksa normal canvas'a çiz
-			renderCtx = offscreenCtx || ctx;
+			// Camera background removal aktif değilse offscreen'e de arka planı çiz
+			const isCameraBackgroundRemovalActive =
+				cameraSettings.value?.optimizedBackgroundRemoval;
 
-			// Background'ı renderCtx'e çiz (off-screen canvas için de gerekli)
-			if (offscreenCtx) {
-				// Off-screen canvas için background çiz
-				if (bgImageLoaded.value && bgImageElement.value) {
-					try {
-						// Resmi canvas'a sığacak şekilde ölçekle
-						const scale = Math.max(
-							canvasRef.value.width / bgImageElement.value.width,
-							canvasRef.value.height / bgImageElement.value.height
-						);
-
-						const scaledWidth = bgImageElement.value.width * scale;
-						const scaledHeight = bgImageElement.value.height * scale;
-
-						// Resmi ortala
-						const x = (canvasRef.value.width - scaledWidth) / 2;
-						const y = (canvasRef.value.height - scaledHeight) / 2;
-
-						// Blur efekti uygula
-						if (backgroundBlur.value > 0) {
-							renderCtx.filter = `blur(${backgroundBlur.value}px)`;
-						}
-
-						renderCtx.drawImage(
-							bgImageElement.value,
-							x,
-							y,
-							scaledWidth,
-							scaledHeight
-						);
-
-						// Blur'u sıfırla
-						renderCtx.filter = "none";
-					} catch (error) {
-						// Camera background removal aktifse arkaplan doldurmayı atla
-						const isCameraBackgroundRemovalActive =
-							cameraSettings.value?.optimizedBackgroundRemoval;
-
-						if (!isCameraBackgroundRemovalActive) {
-							renderCtx.fillStyle = backgroundColor.value;
-							renderCtx.fillRect(
-								0,
-								0,
-								canvasRef.value.width,
-								canvasRef.value.height
-							);
-						}
-					}
-				} else {
-					// Camera background removal aktifse arkaplan doldurmayı atla
-					const isCameraBackgroundRemovalActive =
-						cameraSettings.value?.optimizedBackgroundRemoval;
-
-					if (!isCameraBackgroundRemovalActive) {
-						renderCtx.fillStyle = backgroundColor.value;
-						renderCtx.fillRect(
+			if (!isCameraBackgroundRemovalActive) {
+				try {
+					const bgCanvas = renderBackground(
+						backgroundType.value,
+						backgroundColor.value,
+						backgroundGradient.value,
+						backgroundImage.value,
+						backgroundBlur.value,
+						canvasRef.value.width,
+						canvasRef.value.height,
+						bgImageElement.value,
+						bgImageLoaded.value
+					);
+					if (bgCanvas) {
+						renderContext.drawImage(bgCanvas, 0, 0);
+					} else {
+						renderContext.fillStyle = "#000000";
+						renderContext.fillRect(
 							0,
 							0,
 							canvasRef.value.width,
 							canvasRef.value.height
 						);
 					}
+				} catch (_) {
+					renderContext.fillStyle = "#000000";
+					renderContext.fillRect(
+						0,
+						0,
+						canvasRef.value.width,
+						canvasRef.value.height
+					);
 				}
 			}
 		}
-
-		// Canvas viewport zoom başlat - off-screen canvas hazırla
-		const offscreenContext = beginCanvasZoom(
-			canvasRef.value.width,
-			canvasRef.value.height
-		);
-
-		// Zoom varsa off-screen canvas'a çiz, yoksa normal canvas'a çiz
-		const renderContext = offscreenContext || ctx;
 
 		// Video çizimi - sadece aktif segment varsa TÜM video alanını çiz
 		// Video segment'i olmasa bile GIF ve video overlay'ler render edilebilir
@@ -3828,7 +3404,11 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		}
 
 		// 📷 Camera drawing (zoom sonrası main canvas'a - en üst layer)
-		if (cameraElement && isInActiveSegment) {
+		if (
+			cameraElement &&
+			isInActiveSegment &&
+			cameraSettings.value?.visible !== false
+		) {
 			// Merge with cursor modu aktifse özel cursor-following camera çiz
 			if (cameraSettings.value.mergeWithCursor) {
 				drawMergedCursorCamera(ctx, cameraElement, canvasTime, dpr);
@@ -4061,6 +3641,9 @@ const updateCanvas = (timestamp, mouseX = 0, mouseY = 0) => {
 		);
 	}
 };
+
+// Bind deferred updater after declaration
+requestCanvasUpdate = (ts) => updateCanvas(ts ?? performance.now());
 
 // Props'ları izle
 watch(
@@ -6061,237 +5644,13 @@ watch(
 
 // İlk frame'e seek etmek için yardımcı fonksiyon
 
-// macOS Dock çizme fonksiyonu
-const drawMacOSDock = (ctx, dpr) => {
-	if (!canvasRef.value || !ctx) return;
-
-	// Dock ikonları için önbellek oluştur - component scope'unda tutulur
-	if (!window.dockIconCache) {
-		window.dockIconCache = {};
-	}
-
-	try {
-		// Canvas boyutlarını al
-		const canvasWidth = canvasRef.value.width;
-		const canvasHeight = canvasRef.value.height;
-
-		// Dock öğelerini çiz
-		if (visibleDockItems.value && visibleDockItems.value.length > 0) {
-			// Dock ayarları
-			const scale = dockSize.value;
-			const dockHeight = 52 * dpr * scale;
-			const dockRadius = 18 * dpr * scale;
-			const iconSize = 48 * dpr * scale;
-			const iconSpacing = 4 * dpr * scale; // İkonlar arası boşluğu artır
-			const dividerSpacing = 8 * dpr * scale; // Ayırıcı için boşluk miktarını azalt
-
-			// Dock içinde ayırıcı olup olmadığını kontrol et ve varsa ayırıcı sayısını bul
-			let dividerCount = 0;
-			visibleDockItems.value.forEach((item) => {
-				if (item.isDivider) dividerCount++;
-			});
-
-			// Dock toplam genişliğini hesapla
-			const dockWidth =
-				iconSize * visibleDockItems.value.length + // İkonların toplam genişliği
-				iconSpacing * (visibleDockItems.value.length - 1) + // İkonlar arası boşluk (son ikon için boşluk yok)
-				dividerSpacing * dividerCount * 2; // Ayırıcılar için ekstra boşluk (her iki tarafta)
-
-			// Dock'u yatayda ortala
-			const dockX = Math.floor((canvasWidth - dockWidth) / 2);
-			const dockY = canvasHeight - dockHeight - 5 * dpr * scale;
-
-			// 1. ADIM: Mevcut canvas içeriğini bir kopyasını al (arkaplanı blurlayacağız)
-			const contentCanvas = document.createElement("canvas");
-			contentCanvas.width = canvasWidth;
-			contentCanvas.height = canvasHeight;
-			const contentCtx = contentCanvas.getContext("2d");
-
-			// Mevcut canvas içeriğini kopyala
-			contentCtx.drawImage(canvasRef.value, 0, 0);
-
-			// 2. ADIM: Dock alanı için maskeleme yaparak blur uygula
-			const backdropCanvas = document.createElement("canvas");
-			backdropCanvas.width = canvasWidth;
-			backdropCanvas.height = canvasHeight;
-			const backdropCtx = backdropCanvas.getContext("2d");
-
-			// Önce mevcut içeriği kopyala
-			backdropCtx.drawImage(contentCanvas, 0, 0);
-
-			// Dock alanına blur uygula
-			backdropCtx.save();
-			backdropCtx.beginPath();
-			roundedRect(backdropCtx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-			backdropCtx.clip();
-
-			// Blur filtresi uygula - Daha güçlü blur efekti
-			backdropCtx.filter = `blur(${30 * dpr}px)`;
-			backdropCtx.drawImage(contentCanvas, 0, 0);
-			backdropCtx.filter = "none";
-			backdropCtx.restore();
-
-			// 3. ADIM: Shadow çizimi için geçici canvas oluştur
-			const shadowCanvas = document.createElement("canvas");
-			shadowCanvas.width = canvasWidth;
-			shadowCanvas.height = canvasHeight;
-			const shadowCtx = shadowCanvas.getContext("2d");
-
-			// Shadow çiz - daha belirgin gölge
-			shadowCtx.save();
-			shadowCtx.shadowColor = "rgba(0, 0, 0, 0.8)";
-			shadowCtx.shadowBlur = 25 * dpr;
-			shadowCtx.shadowOffsetX = 0;
-			shadowCtx.shadowOffsetY = 2 * dpr;
-
-			// Shadow için şekil çiz
-			shadowCtx.beginPath();
-			roundedRect(shadowCtx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-			shadowCtx.fillStyle = "rgba(255, 255, 255, 0.005)";
-			shadowCtx.fill();
-			shadowCtx.restore();
-
-			// 4. ADIM: Ana canvas'a tüm efektleri çiz
-			ctx.save();
-
-			// Önce blurlu arkaplanı çiz
-			ctx.drawImage(backdropCanvas, 0, 0);
-
-			// Sonra üzerine buzlu cam efekti ekle
-			ctx.globalCompositeOperation = "source-over";
-			ctx.beginPath();
-			roundedRect(ctx, dockX, dockY, dockWidth, dockHeight, dockRadius);
-			ctx.fillStyle = "rgba(255, 255, 255, 0.15)"; // Daha belirgin arka plan
-			ctx.fill();
-
-			// Shadow'u çiz
-			ctx.drawImage(shadowCanvas, 0, 0);
-
-			// Border çiz - daha belirgin kenarlar
-			ctx.beginPath();
-			roundedRect(ctx, dockX, dockY, dockWidth + 2, dockHeight + 2, dockRadius);
-			ctx.strokeStyle = "rgba(255, 255, 255, 0.23)";
-			ctx.lineWidth = 4 * dpr;
-			ctx.stroke();
-
-			// İkonları çizmeye hazırlan
-			ctx.restore();
-
-			// 5. ADIM: İkonları çiz (blursuz ve net olarak)
-			const totalIcons = visibleDockItems.value.length;
-
-			// İlk ikon konumu (dock'un sol kenarından iconSpacing kadar içeride)
-			let currentX = dockX + iconSpacing;
-
-			// Her dock öğesi için icon çiz
-			visibleDockItems.value.forEach((item, index) => {
-				// Eğer bu öğe divider özelliğine sahipse, ayırıcı çiz
-				if (item.isDivider) {
-					// Divider'dan önce boşluk bırak
-					currentX += dividerSpacing;
-
-					// Ayırıcı çizgisi için koordinatları hesapla
-					const dividerX = currentX;
-					const dividerY = dockY + dockHeight * 0.2; // Dock'un üst kısmından başla
-					const dividerHeight = dockHeight * 0.6; // Dock'un %60'ı kadar uzunlukta
-
-					// Ayırıcı çizgisini çiz
-					ctx.save();
-					ctx.beginPath();
-					ctx.moveTo(dividerX, dividerY);
-					ctx.lineTo(dividerX, dividerY + dividerHeight);
-					ctx.strokeStyle = "rgba(255, 255, 255, 0.3)"; // Biraz daha belirgin beyaz
-					ctx.lineWidth = 2 * dpr * scale; // Çizgi kalınlığını artır
-					ctx.stroke();
-					ctx.restore();
-
-					// Divider'dan sonra boşluk bırak
-					currentX += dividerSpacing;
-				}
-
-				// İkon için X ve Y pozisyonlarını hesapla
-				const iconX = currentX;
-				const iconY = dockY + (dockHeight - iconSize) / 2;
-				const cacheKey = item.name || `icon-${index}`;
-
-				// Icon varsa çiz
-				if (item.iconDataUrl) {
-					// Cache'de var mı kontrol et
-					if (window.dockIconCache[cacheKey]) {
-						// Cache'den çiz
-						ctx.save();
-						ctx.beginPath();
-						ctx.arc(
-							iconX + iconSize / 2,
-							iconY + iconSize / 2,
-							iconSize / 2,
-							0,
-							2 * Math.PI
-						);
-						ctx.clip();
-						ctx.drawImage(
-							window.dockIconCache[cacheKey],
-							iconX,
-							iconY,
-							iconSize,
-							iconSize
-						);
-						ctx.restore();
-					} else {
-						// Yeni image yükle
-						const img = new Image();
-						img.onload = () => {
-							// Cache'e ekle
-							window.dockIconCache[cacheKey] = img;
-
-							// Yuvarlak kırpma maskesi oluştur
-							ctx.save();
-							ctx.beginPath();
-							ctx.arc(
-								iconX + iconSize / 2,
-								iconY + iconSize / 2,
-								iconSize / 2,
-								0,
-								2 * Math.PI
-							);
-							ctx.clip();
-
-							// İkonu çiz
-							ctx.drawImage(img, iconX, iconY, iconSize, iconSize);
-							ctx.restore();
-
-							// Canvas'ı güncelle
-							requestAnimationFrame(updateCanvas);
-						};
-						img.src = item.iconDataUrl;
-					}
-				}
-
-				// Sonraki ikon için X pozisyonunu güncelle (ikon genişliği + boşluk)
-				currentX += iconSize + iconSpacing;
-			});
-		}
-
-		ctx.restore();
-	} catch (error) {
-		console.error("[MediaPlayer] Error drawing macOS dock:", error);
-	}
-};
-
-// Yuvarlak köşeli dikdörtgen çizme yardımcı fonksiyonu
-const roundedRect = (ctx, x, y, width, height, radius) => {
-	ctx.beginPath();
-	ctx.moveTo(x + radius, y);
-	ctx.lineTo(x + width - radius, y);
-	ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-	ctx.lineTo(x + width, y + height - radius);
-	ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-	ctx.lineTo(x + radius, y + height);
-	ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-	ctx.lineTo(x, y + radius);
-	ctx.quadraticCurveTo(x, y, x + radius, y);
-	ctx.closePath();
-};
+import { useDockRenderer } from "~/composables/useDockRenderer";
+const { drawMacOSDock } = useDockRenderer({
+	canvasRef,
+	visibleDockItems,
+	dockSize,
+	updateCanvas,
+});
 
 // Video alanının canvas üzerindeki koordinatlarını ve boyutunu hesaplayan yardımcı fonksiyon
 function getVideoDisplayRect() {
