@@ -2,7 +2,7 @@
 	"name": "creavit-studio",
 	"productName": "Creavit Studio",
 	"author": "ONUR ASLAN <aslanon.tr@gmail.com>",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "MacOS ekran, kamera ve ses kayıt uygulaması",
 	"private": true,
 	"main": "electron/main.cjs",
