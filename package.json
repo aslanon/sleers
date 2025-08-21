@@ -45,7 +45,7 @@
 		"electron-util": "^0.18.1",
 		"express": "^4.18.2",
 		"mousetrap": "^1.6.5",
-		"node-mac-recorder": "^2.6.17",
+		"node-mac-recorder": "^2.10.17",
 		"wait-on": "^7.2.0"
 	},
 	"devDependencies": {
