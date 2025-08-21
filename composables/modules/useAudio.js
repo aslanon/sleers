@@ -83,6 +83,11 @@ export const useAudio = () => {
 				isAudioActive.value = false;
 				return null;
 			}
+			
+			console.log("[useAudio] Starting audio recording with settings:", {
+				microphoneEnabled: microphoneEnabled.value,
+				systemAudioEnabled: systemAudioEnabled.value
+			});
 
 			const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
 			if (!IPC_EVENTS) {
@@ -327,6 +332,12 @@ export const useAudio = () => {
 		if (!microphoneEnabled.value) {
 			cleanupAudioAnalyser();
 			
+			// Mikrofon kapatıldıysa ve devam eden bir kayıt varsa durdur
+			if (isAudioActive.value) {
+				console.log("[useAudio] Microphone disabled during recording, stopping audio recording");
+				stopAudioRecording();
+			}
+			
 			// Mikrofon kapatıldıysa ve sistem sesi de kapalıysa audio recording'i durdur
 			if (!systemAudioEnabled.value && isAudioActive.value) {
 				console.log("[useAudio] Microphone disabled and system audio disabled, stopping audio recording");
@@ -351,10 +362,14 @@ export const useAudio = () => {
 	const toggleSystemAudio = () => {
 		systemAudioEnabled.value = !systemAudioEnabled.value;
 		
-		// Sistem sesi kapatıldıysa ve mikrofon da kapalıysa audio recording'i durdur
-		if (!systemAudioEnabled.value && !microphoneEnabled.value && isAudioActive.value) {
-			console.log("[useAudio] System audio disabled and microphone disabled, stopping audio recording");
-			stopAudioRecording();
+		// Sistem sesi kapatıldıysa ve devam eden bir kayıt varsa, sadece mikrofon açıksa devam et
+		if (!systemAudioEnabled.value && isAudioActive.value) {
+			if (!microphoneEnabled.value) {
+				console.log("[useAudio] System audio disabled and microphone also disabled, stopping audio recording");
+				stopAudioRecording();
+			} else {
+				console.log("[useAudio] System audio disabled but microphone still enabled, audio recording continues");
+			}
 		}
 		
 		// Backend'e ses ayarlarını güncelle

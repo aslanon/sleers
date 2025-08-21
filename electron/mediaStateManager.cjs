@@ -760,12 +760,17 @@ class MediaStateManager {
 	}
 
 	updateAudioSettings(settings) {
+		console.log("[MediaStateManager] updateAudioSettings called with:", settings);
+		console.log("[MediaStateManager] Current audioSettings before update:", this.state.audioSettings);
+		
 		this.updateState({
 			audioSettings: {
 				...this.state.audioSettings,
 				...settings,
 			},
 		});
+		
+		console.log("[MediaStateManager] audioSettings after update:", this.state.audioSettings);
 	}
 
 	updateAudioDevice(deviceId) {

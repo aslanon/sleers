@@ -54,7 +54,17 @@ export const useMediaDevices = () => {
 			// Hangi kayıtların başlatılacağını belirle
 			const startScreen = options.startScreen ?? true;
 			const startCamera = options.startCamera ?? true;
-			const startAudio = options.startAudio ?? true;
+			// Mikrofon "none" seçilmişse veya options'da microphone false ise audio'yu devre dışı bırak
+			const startAudio = (options.startAudio ?? true) && (options.microphone !== false);
+			
+			console.log("[Recording] Recording options:", {
+				startScreen,
+				startCamera, 
+				startAudio,
+				microphone: options.microphone,
+				microphoneDeviceId: options.microphoneDeviceId,
+				systemAudio: options.systemAudio
+			});
 
 			if (!startScreen && !startCamera && !startAudio) {
 				console.warn("Hiçbir kayıt türü seçilmedi");
@@ -63,26 +73,36 @@ export const useMediaDevices = () => {
 
 			// Handle overlay recording source (window/screen selection)
 			if (options.recordingSource) {
-				console.log('[Recording] Overlay recording source detected:', options.recordingSource);
-				
+				console.log(
+					"[Recording] Overlay recording source detected:",
+					options.recordingSource
+				);
+
 				// Set recording source in MediaStateManager for useScreen to use
 				try {
-					await window.electron?.ipcRenderer.invoke('SET_RECORDING_SOURCE', {
+					await window.electron?.ipcRenderer.invoke("SET_RECORDING_SOURCE", {
 						sourceType: options.recordingSource.type,
-						sourceId: options.recordingSource.windowId || options.recordingSource.displayId,
-						macRecorderId: options.recordingSource.windowId || options.recordingSource.displayId,
+						sourceId:
+							options.recordingSource.windowId ||
+							options.recordingSource.displayId,
+						macRecorderId:
+							options.recordingSource.windowId ||
+							options.recordingSource.displayId,
 						cropArea: options.recordingSource.cropArea,
 						windowInfo: options.recordingSource.windowInfo,
-						screenInfo: options.recordingSource.screenInfo
+						screenInfo: options.recordingSource.screenInfo,
 					});
 				} catch (error) {
-					console.error('[Recording] Failed to set recording source:', error);
+					console.error("[Recording] Failed to set recording source:", error);
 				}
 			}
 
 			// Synchronized recording session başlat
 			const recordingSession = synchronizedRecording.startRecordingSession();
-			console.log('[Recording] Synchronized session başlatıldı:', recordingSession);
+			console.log(
+				"[Recording] Synchronized session başlatıldı:",
+				recordingSession
+			);
 
 			// Seçilen kayıtları başlat
 			let screenResult = null;
@@ -97,20 +117,18 @@ export const useMediaDevices = () => {
 				console.log("[Recording] Screen recording başlangıç komutu gönderildi");
 
 				// Kamera ve mouse'u hemen başlat (delay kaldırıldı - sync offset ile hallediliyor)
-				console.log(
-					"[Recording] Camera ve mouse hemen başlatılıyor..."
-				);
+				console.log("[Recording] Camera ve mouse hemen başlatılıyor...");
 
 				// Screen başlangıç zamanını kaydet (delay sonrası)
 				const screenStartTime = Date.now();
-				synchronizedRecording.recordStartTime('screen', screenStartTime);
+				synchronizedRecording.recordStartTime("screen", screenStartTime);
 
 				if (startCamera) {
 					console.log("[Recording] Camera başlatılıyor (delay sonrası)...");
 					try {
 						const cameraStartTime = Date.now();
 						cameraResult = await cameraModule.startCameraRecording();
-						synchronizedRecording.recordStartTime('camera', cameraStartTime);
+						synchronizedRecording.recordStartTime("camera", cameraStartTime);
 						console.log("[Recording] Camera başlatıldı:", cameraResult);
 					} catch (cameraError) {
 						console.error("[Recording] Camera başlatma hatası:", cameraError);
@@ -123,7 +141,7 @@ export const useMediaDevices = () => {
 				);
 				const mouseStartTime = Date.now();
 				mouseModule.startMouseTracking();
-				synchronizedRecording.recordStartTime('mouse', mouseStartTime);
+				synchronizedRecording.recordStartTime("mouse", mouseStartTime);
 				console.log("[Recording] Mouse tracking başlatıldı");
 			} else {
 				console.warn(
@@ -145,7 +163,7 @@ export const useMediaDevices = () => {
 
 			// Sync bilgilerini hesapla ve logla
 			const syncData = synchronizedRecording.calculateSynchronizationOffsets();
-			console.log('[Recording] Final sync data:', syncData);
+			console.log("[Recording] Final sync data:", syncData);
 
 			return {
 				...screenResult,

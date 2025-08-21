@@ -721,10 +721,24 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		// MediaStateManager'dan ses ayarlarını al
 		if (mediaStateManager) {
 			const audioSettings = mediaStateManager.state.audioSettings;
+			console.log("[Main] 🎧 MediaStateManager audioSettings:", audioSettings);
+			
 			if (audioSettings) {
 				recordingOptions.includeMicrophone = audioSettings.microphoneEnabled;
 				recordingOptions.includeSystemAudio = audioSettings.systemAudioEnabled;
 				recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
+				
+				console.log("[Main] 🔧 Final audio settings before MacRecorder:", {
+					"audioSettings.microphoneEnabled": audioSettings.microphoneEnabled,
+					"audioSettings.selectedAudioDevice": audioSettings.selectedAudioDevice,
+					"recordingOptions.includeMicrophone": recordingOptions.includeMicrophone
+				});
+				
+				console.log("[Main] 🔧 Audio settings applied to recording options:", {
+					microphoneEnabled: audioSettings.microphoneEnabled,
+					systemAudioEnabled: audioSettings.systemAudioEnabled,
+					selectedAudioDevice: audioSettings.selectedAudioDevice
+				});
 
 				// YENİ: Sistem sesi açıksa cihaz seçimi yap
 				if (recordingOptions.includeSystemAudio) {

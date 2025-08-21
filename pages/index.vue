@@ -681,8 +681,8 @@ onMounted(() => {
 					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
-					microphone: microphoneEnabled.value,
-					microphoneDeviceId: selectedAudioDevice.value,
+					microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+					microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
 					// Window specific recording - pass window info for crop recording
 					recordingSource: {
 						type: "window",
@@ -723,8 +723,8 @@ onMounted(() => {
 					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
-					microphone: microphoneEnabled.value,
-					microphoneDeviceId: selectedAudioDevice.value,
+					microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+					microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
 					// Screen specific recording - pass screen info for full screen recording
 					recordingSource: {
 						type: "screen",
@@ -809,7 +809,10 @@ const throttledUpdateAudioSettings = throttle((settings) => {
 		return;
 	}
 	try {
-		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_AUDIO_SETTINGS, settings);
+		console.log("[index.vue] Sending audio settings via IPC:", settings);
+		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, {
+			audioSettings: settings
+		});
 	} catch (error) {
 		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
 	}
@@ -824,13 +827,29 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 				electron.ipcRenderer.send(IPC_EVENTS.AUDIO_DEVICE_CHANGED, newDeviceId);
 			}
 
-			// Eski yöntem - MediaState'e yeni mikrofon cihazını bildir
+			// ÖNEMLİ: "none" seçilirse microphoneEnabled false olmalı
+			const isMicrophoneEnabled = newDeviceId !== "none";
+			
+			// Frontend state'ini güncelle
+			microphoneEnabled.value = isMicrophoneEnabled;
+			
+			// MediaState'e hem cihaz hem de enabled durumunu bildir
 			throttledUpdateAudioSettings({
 				selectedAudioDevice: newDeviceId,
+				microphoneEnabled: isMicrophoneEnabled,
 			});
 
-			// Ses analizini yeniden başlat
-			await initAudioAnalyser();
+			console.log("[index.vue] Microphone settings updated:", {
+				selectedAudioDevice: newDeviceId,
+				microphoneEnabled: isMicrophoneEnabled
+			});
+
+			// Ses analizini yeniden başlat (sadece aktifse)
+			if (isMicrophoneEnabled) {
+				await initAudioAnalyser();
+			} else {
+				cleanupAudioAnalyser();
+			}
 		} catch (error) {
 			console.error("[index.vue] Mikrofon değiştirme hatası:", error);
 		}
@@ -1002,8 +1021,8 @@ onMounted(async () => {
 		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
 			startRecording({
 				systemAudio: systemAudioEnabled.value,
-				microphone: microphoneEnabled.value,
-				microphoneDeviceId: selectedAudioDevice.value,
+				microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+				microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
 			});
 		});
 
