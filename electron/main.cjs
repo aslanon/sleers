@@ -4855,8 +4855,8 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 						display: none;
 						z-index: 50;
 						cursor: move;
-						min-width: 50px;
-						min-height: 50px;
+						min-width: 200px;
+						min-height: 200px;
 					}
 					.resize-handle {
 						position: absolute;
@@ -5026,7 +5026,7 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 							}
 							
 							// Apply minimum size constraints
-							if (newWidth >= 50 && newHeight >= 50) {
+							if (newWidth >= 200 && newHeight >= 200) {
 								selectionArea.style.left = Math.max(0, newLeft) + 'px';
 								selectionArea.style.top = Math.max(0, newTop) + 'px';
 								selectionArea.style.width = newWidth + 'px';
@@ -5040,7 +5040,7 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 						if (isSelecting) {
 							isSelecting = false;
 							const rect = selectionArea.getBoundingClientRect();
-							if (rect.width > 10 && rect.height > 10) {
+							if (rect.width >= 200 && rect.height >= 200) {
 								selectionArea.querySelector('.selection-controls').style.display = 'flex';
 								updateInputs();
 							} else {
@@ -5061,13 +5061,13 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 					
 					// Update selection when inputs change
 					widthInput.addEventListener('input', () => {
-						const width = parseInt(widthInput.value) || 50;
-						selectionArea.style.width = Math.max(50, width) + 'px';
+						const width = parseInt(widthInput.value) || 200;
+						selectionArea.style.width = Math.max(200, width) + 'px';
 					});
 					
 					heightInput.addEventListener('input', () => {
-						const height = parseInt(heightInput.value) || 50;
-						selectionArea.style.height = Math.max(50, height) + 'px';
+						const height = parseInt(heightInput.value) || 200;
+						selectionArea.style.height = Math.max(200, height) + 'px';
 					});
 					
 					function startAreaRecording() {
@@ -5079,14 +5079,27 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 							height: rect.height
 						});
 						
+						// Validate minimum size
+						if (rect.width < 200 || rect.height < 200) {
+							alert('Selection area must be at least 200x200 pixels');
+							return;
+						}
+						
+						// Get screen offsets to correct Y-axis
+						const screenX = window.screen.availLeft || 0;
+						const screenY = window.screen.availTop || 0;
+						
 						const bounds = {
-							x: Math.round(rect.left),
-							y: Math.round(rect.top),
+							x: Math.round(rect.left + screenX),
+							y: Math.round(rect.top + screenY),
 							width: Math.round(rect.width),
 							height: Math.round(rect.height)
 						};
 						
+						console.log('[Overlay] Corrected bounds with screen offset:', bounds);
+						console.log('[Overlay] Screen offset:', { screenX, screenY });
 						console.log('[Overlay] Sending START_AREA_RECORDING event...');
+						
 						window.electron.ipcRenderer.send('START_AREA_RECORDING', {
 							bounds: bounds
 						});
