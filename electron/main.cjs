@@ -815,8 +815,27 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 			console.log("[Main] MacRecorder default displayId (0) kullanılıyor");
 		}
 
-		// Seçilen alan varsa captureArea olarak ekle
-		if (mediaStateManager && mediaStateManager.state.selectedArea) {
+		// Seçilen alan varsa captureArea olarak ekle (cropArea from recordingSource)
+		if (mediaStateManager && mediaStateManager.state.recordingSource.cropArea) {
+			const cropArea = mediaStateManager.state.recordingSource.cropArea;
+			if (cropArea && cropArea.width > 0 && cropArea.height > 0) {
+				recordingOptions.captureArea = {
+					x: Math.round(cropArea.x),
+					y: Math.round(cropArea.y),
+					width: Math.round(cropArea.width),
+					height: Math.round(cropArea.height),
+				};
+				// Alan kaydında display/window ID'sini temizle
+				recordingOptions.displayId = null;
+				recordingOptions.windowId = null;
+				console.log(
+					"[Main] Crop area added to MacRecorder:",
+					recordingOptions.captureArea
+				);
+			}
+		}
+		// Backward compatibility: also check selectedArea
+		else if (mediaStateManager && mediaStateManager.state.selectedArea) {
 			const selectedArea = mediaStateManager.state.selectedArea;
 			if (selectedArea && selectedArea.width > 0 && selectedArea.height > 0) {
 				recordingOptions.captureArea = {
@@ -829,7 +848,7 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 				recordingOptions.displayId = null;
 				recordingOptions.windowId = null;
 				console.log(
-					"[Main] Kırpma alanı MacRecorder'a eklendi:",
+					"[Main] Selected area (legacy) added to MacRecorder:",
 					recordingOptions.captureArea
 				);
 			}
@@ -4780,25 +4799,7 @@ function createWindowOverlay(windowSource, x, y, width, height) {
 // Native Area Selector
 ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 	try {
-		console.log("[Main] Starting native area selector via node-mac-recorder...");
-		
-		// Use only node-mac-recorder's built-in area selector
-		// This will show the native macOS area selection interface
-		const recorder = getMacRecorderInstance();
-		if (recorder && typeof recorder.selectArea === 'function') {
-			const selectedArea = await recorder.selectArea();
-			if (selectedArea) {
-				console.log("[Main] Area selected:", selectedArea);
-				// Send selection back to renderer
-				mainWindow.webContents.send('AREA_SELECTED', {
-					areaInfo: selectedArea,
-					source: 'node-mac-recorder'
-				});
-			}
-		} else {
-			console.error("[Main] node-mac-recorder selectArea not available");
-			// Fall back to custom area selector
-		}
+		console.log("[Main] Starting custom area selector...");
 		
 		closeAllOverlays();
 
@@ -5071,17 +5072,22 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 					
 					function startAreaRecording() {
 						const rect = selectionArea.getBoundingClientRect();
-						console.log('Starting area recording with bounds:', rect);
-						
-						const bounds = {
+						console.log('[Overlay] Starting area recording with bounds:', {
 							x: rect.left,
-							y: rect.top,
+							y: rect.top, 
 							width: rect.width,
 							height: rect.height
+						});
+						
+						const bounds = {
+							x: Math.round(rect.left),
+							y: Math.round(rect.top),
+							width: Math.round(rect.width),
+							height: Math.round(rect.height)
 						};
 						
-						console.log('Sending NATIVE_AREA_SELECTED with bounds:', bounds);
-						window.electron.ipcRenderer.send('NATIVE_AREA_SELECTED', {
+						console.log('[Overlay] Sending START_AREA_RECORDING event...');
+						window.electron.ipcRenderer.send('START_AREA_RECORDING', {
 							bounds: bounds
 						});
 					}
@@ -5138,6 +5144,32 @@ ipcMain.on("NATIVE_WINDOW_SELECTED", (event, windowData) => {
 	}
 });
 
+ipcMain.on("START_AREA_RECORDING", async (event, areaData) => {
+	console.log("[Main] START_AREA_RECORDING received:", areaData);
+	closeAllOverlays();
+	
+	try {
+		// Start area recording directly like window/screen recording
+		console.log("[Main] Starting area recording with bounds:", areaData.bounds);
+		
+		// Send to renderer to start recording immediately
+		const eventData = {
+			cropArea: areaData.bounds,
+			source: {
+				sourceType: "area",
+				sourceId: "area:custom", 
+				sourceName: "Selected Area"
+			}
+		};
+		
+		console.log("[Main] Sending START_AREA_RECORDING event to renderer:", eventData);
+		mainWindow.webContents.send("START_AREA_RECORDING", eventData);
+	} catch (error) {
+		console.error("[Main] Error handling START_AREA_RECORDING:", error);
+	}
+});
+
+// Keep old handler for backward compatibility
 ipcMain.on("NATIVE_AREA_SELECTED", (event, areaData) => {
 	console.log("[Main] NATIVE_AREA_SELECTED received:", areaData);
 	closeAllOverlays();

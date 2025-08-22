@@ -402,6 +402,9 @@ try {
 		onStartScreenRecording: (callback) => {
 			ipcRenderer.on('START_SCREEN_RECORDING', callback);
 		},
+		onStartAreaRecording: (callback) => {
+			ipcRenderer.on('START_AREA_RECORDING', callback);
+		},
 	});
 
 	// Dock API'sini expose et - Ana süreçle iletişim kuran sürüm

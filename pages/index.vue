@@ -749,7 +749,49 @@ onMounted(() => {
 			}
 		});
 
+		// Handle area selection and start recording immediately
+		window.electronAPI.onStartAreaRecording(async (event, data) => {
+			console.log("[DEBUG] START_AREA_RECORDING event received:", data);
+			console.log("Starting area recording:", data.cropArea);
+
+			// Set selected source for UI display
+			selectedSource.value = data.source;
+
+			try {
+				// Prepare recording options with crop area
+				const recordingOptions = {
+					startScreen: true,
+					startCamera: selectedVideoDevice.value !== "none",
+					startAudio: true,
+					systemAudio: systemAudioEnabled.value,
+					microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+					microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
+					// Area specific recording - pass crop area
+					recordingSource: {
+						type: "area",
+						cropArea: data.cropArea,
+						sourceId: "area:custom",
+						sourceName: "Selected Area",
+					},
+				};
+
+				console.log(
+					"[Vue] Starting area recording with options:",
+					recordingOptions
+				);
+
+				// Start recording using Sleer's recording system
+				await startRecording(recordingOptions);
+
+				console.log(`📐 Area recording started with bounds:`, data.cropArea);
+			} catch (error) {
+				console.error("Area recording start failed:", error);
+				console.log(`❌ Area recording failed: ${error.message}`);
+			}
+		});
+
 		console.log("[INIT] START_SCREEN_RECORDING handler registered");
+		console.log("[INIT] START_AREA_RECORDING handler registered");
 		console.log("[INIT] All IPC handlers setup complete");
 	} else {
 		console.error("[INIT] ElectronAPI not available!");
@@ -1094,7 +1136,7 @@ onMounted(async () => {
 					sourceType: "area",
 					sourceId: "area:custom",
 					sourceName: "Selected Area",
-					bounds: areaData.bounds,
+					cropArea: areaData.bounds,
 				});
 
 				// Start recording
