@@ -24,28 +24,8 @@ export const useRecordingUtils = () => {
 	};
 
 	const startCountdown = async () => {
-		if (selectedDelay.value <= 0) return;
-
-		const countdownElement = document.createElement("div");
-		countdownElement.className = config.value.countdownStyle;
-
-		document.body.appendChild(countdownElement);
-
-		let countdown = selectedDelay.value / 1000;
-		countdownElement.textContent = countdown;
-
-		return new Promise((resolve) => {
-			const countdownInterval = setInterval(() => {
-				countdown--;
-				countdownElement.textContent = countdown;
-
-				if (countdown <= 0) {
-					clearInterval(countdownInterval);
-					document.body.removeChild(countdownElement);
-					resolve();
-				}
-			}, 1000);
-		});
+		// Countdown disabled - no ugly red background overlay
+		return Promise.resolve();
 	};
 
 	const stopMediaStream = () => {

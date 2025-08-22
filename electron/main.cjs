@@ -4214,6 +4214,7 @@ function createOverlayWindow(options = {}) {
 		frame: false,
 		transparent: true,
 		alwaysOnTop: true,
+		level: "screen-saver",
 		skipTaskbar: true,
 		resizable: false,
 		movable: false,
@@ -4221,13 +4222,20 @@ function createOverlayWindow(options = {}) {
 		maximizable: false,
 		closable: true,
 		focusable: true,
-		fullscreen: options.fullscreen || false,
+		fullscreen: false, // Never use fullscreen to avoid new desktop space
+		kiosk: false, // Disable kiosk mode
+		simpleFullscreen: false, // Disable simple fullscreen
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,
 			enableRemoteModule: false,
 			preload: path.join(__dirname, "preload.cjs"),
 		},
+	});
+
+	// Prevent fullscreen to avoid new desktop space
+	overlay.on('enter-full-screen', () => {
+		overlay.setFullScreen(false);
 	});
 
 	// ESC key handler
@@ -4776,6 +4784,7 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 		
 		// Use only node-mac-recorder's built-in area selector
 		// This will show the native macOS area selection interface
+		const recorder = getMacRecorderInstance();
 		if (recorder && typeof recorder.selectArea === 'function') {
 			const selectedArea = await recorder.selectArea();
 			if (selectedArea) {
@@ -4788,18 +4797,26 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 			}
 		} else {
 			console.error("[Main] node-mac-recorder selectArea not available");
+			// Fall back to custom area selector
 		}
-		return; // Exit early to avoid Electron overlay creation
 		
 		closeAllOverlays();
 
-		const primaryDisplay = screen.getPrimaryDisplay();
+		// Get all displays and create overlay covering all screens
+		const displays = screen.getAllDisplays();
+		
+		// Calculate bounds that cover all displays
+		let minX = Math.min(...displays.map(d => d.bounds.x));
+		let minY = Math.min(...displays.map(d => d.bounds.y));
+		let maxX = Math.max(...displays.map(d => d.bounds.x + d.bounds.width));
+		let maxY = Math.max(...displays.map(d => d.bounds.y + d.bounds.height));
+		
 		const overlay = createOverlayWindow({
-			x: primaryDisplay.bounds.x,
-			y: primaryDisplay.bounds.y,
-			width: primaryDisplay.bounds.width,
-			height: primaryDisplay.bounds.height,
-			fullscreen: true,
+			x: minX,
+			y: minY,
+			width: maxX - minX,
+			height: maxY - minY,
+			fullscreen: false, // Don't use fullscreen to avoid new desktop space
 		});
 
 		const areaSelectorHTML = `
@@ -4836,7 +4853,19 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 						background: rgba(0, 122, 255, 0.1);
 						display: none;
 						z-index: 50;
+						cursor: move;
+						min-width: 50px;
+						min-height: 50px;
 					}
+					.resize-handle {
+						position: absolute;
+						background: #007aff;
+						border: 1px solid white;
+					}
+					.resize-handle.nw { top: -5px; left: -5px; width: 10px; height: 10px; cursor: nw-resize; }
+					.resize-handle.ne { top: -5px; right: -5px; width: 10px; height: 10px; cursor: ne-resize; }
+					.resize-handle.sw { bottom: -5px; left: -5px; width: 10px; height: 10px; cursor: sw-resize; }
+					.resize-handle.se { bottom: -5px; right: -5px; width: 10px; height: 10px; cursor: se-resize; }
 					.selection-controls {
 						position: absolute;
 						bottom: 10px;
@@ -4892,19 +4921,50 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 				<div class="instructions">Click and drag to select recording area</div>
 				<button class="close-button" onclick="closeOverlay()" title="Close">&times;</button>
 				<div class="selection-area" id="selectionArea">
+					<div class="resize-handle nw"></div>
+					<div class="resize-handle ne"></div>
+					<div class="resize-handle sw"></div>
+					<div class="resize-handle se"></div>
 					<div class="selection-controls">
+						<input type="number" id="widthInput" placeholder="Width" style="padding: 8px; width: 80px; margin-right: 5px; border: 1px solid #ccc; border-radius: 4px;">
+						<input type="number" id="heightInput" placeholder="Height" style="padding: 8px; width: 80px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px;">
 						<button class="start-btn" onclick="startAreaRecording()">Start Record</button>
 						<button class="cancel-btn" onclick="closeOverlay()">Cancel</button>
 					</div>
 				</div>
 				<script>
 					let isSelecting = false;
+					let isDragging = false;
+					let isResizing = false;
+					let resizeType = '';
 					let startX, startY;
 					let selectionArea = document.getElementById('selectionArea');
+					let widthInput = document.getElementById('widthInput');
+					let heightInput = document.getElementById('heightInput');
 					
+					// Create initial selection
 					document.addEventListener('mousedown', (e) => {
 						if (e.target.classList.contains('close-button') || e.target.closest('.selection-controls')) return;
 						
+						// Check for resize handle
+						if (e.target.classList.contains('resize-handle')) {
+							isResizing = true;
+							resizeType = e.target.classList[1]; // nw, ne, sw, se
+							startX = e.clientX;
+							startY = e.clientY;
+							return;
+						}
+						
+						// Check if clicking inside selection area
+						if (e.target === selectionArea || selectionArea.contains(e.target)) {
+							isDragging = true;
+							const rect = selectionArea.getBoundingClientRect();
+							startX = e.clientX - rect.left;
+							startY = e.clientY - rect.top;
+							return;
+						}
+						
+						// Create new selection
 						isSelecting = true;
 						startX = e.clientX;
 						startY = e.clientY;
@@ -4915,47 +4975,114 @@ ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 						selectionArea.style.height = '0px';
 						selectionArea.style.display = 'block';
 						selectionArea.querySelector('.selection-controls').style.display = 'none';
+						updateInputs();
 					});
 					
 					document.addEventListener('mousemove', (e) => {
-						if (!isSelecting) return;
-						
-						const currentX = e.clientX;
-						const currentY = e.clientY;
-						
-						const width = Math.abs(currentX - startX);
-						const height = Math.abs(currentY - startY);
-						const left = Math.min(currentX, startX);
-						const top = Math.min(currentY, startY);
-						
-						selectionArea.style.left = left + 'px';
-						selectionArea.style.top = top + 'px';
-						selectionArea.style.width = width + 'px';
-						selectionArea.style.height = height + 'px';
+						if (isSelecting) {
+							const currentX = e.clientX;
+							const currentY = e.clientY;
+							
+							const width = Math.abs(currentX - startX);
+							const height = Math.abs(currentY - startY);
+							const left = Math.min(currentX, startX);
+							const top = Math.min(currentY, startY);
+							
+							selectionArea.style.left = left + 'px';
+							selectionArea.style.top = top + 'px';
+							selectionArea.style.width = width + 'px';
+							selectionArea.style.height = height + 'px';
+							updateInputs();
+						} else if (isDragging) {
+							const newLeft = e.clientX - startX;
+							const newTop = e.clientY - startY;
+							
+							selectionArea.style.left = Math.max(0, newLeft) + 'px';
+							selectionArea.style.top = Math.max(0, newTop) + 'px';
+						} else if (isResizing) {
+							const rect = selectionArea.getBoundingClientRect();
+							
+							let newLeft = rect.left;
+							let newTop = rect.top;
+							let newWidth = rect.width;
+							let newHeight = rect.height;
+							
+							if (resizeType.includes('w')) {
+								const deltaX = e.clientX - rect.left;
+								newLeft = e.clientX;
+								newWidth = rect.right - e.clientX;
+							}
+							if (resizeType.includes('e')) {
+								newWidth = e.clientX - rect.left;
+							}
+							if (resizeType.includes('n')) {
+								const deltaY = e.clientY - rect.top;
+								newTop = e.clientY;
+								newHeight = rect.bottom - e.clientY;
+							}
+							if (resizeType.includes('s')) {
+								newHeight = e.clientY - rect.top;
+							}
+							
+							// Apply minimum size constraints
+							if (newWidth >= 50 && newHeight >= 50) {
+								selectionArea.style.left = Math.max(0, newLeft) + 'px';
+								selectionArea.style.top = Math.max(0, newTop) + 'px';
+								selectionArea.style.width = newWidth + 'px';
+								selectionArea.style.height = newHeight + 'px';
+								updateInputs();
+							}
+						}
 					});
 					
 					document.addEventListener('mouseup', (e) => {
-						if (!isSelecting) return;
-						
-						isSelecting = false;
-						
-						const rect = selectionArea.getBoundingClientRect();
-						if (rect.width > 10 && rect.height > 10) {
-							selectionArea.querySelector('.selection-controls').style.display = 'flex';
-						} else {
-							selectionArea.style.display = 'none';
+						if (isSelecting) {
+							isSelecting = false;
+							const rect = selectionArea.getBoundingClientRect();
+							if (rect.width > 10 && rect.height > 10) {
+								selectionArea.querySelector('.selection-controls').style.display = 'flex';
+								updateInputs();
+							} else {
+								selectionArea.style.display = 'none';
+							}
 						}
+						isDragging = false;
+						isResizing = false;
+						resizeType = '';
+					});
+					
+					// Update inputs when selection changes
+					function updateInputs() {
+						const rect = selectionArea.getBoundingClientRect();
+						widthInput.value = Math.round(rect.width);
+						heightInput.value = Math.round(rect.height);
+					}
+					
+					// Update selection when inputs change
+					widthInput.addEventListener('input', () => {
+						const width = parseInt(widthInput.value) || 50;
+						selectionArea.style.width = Math.max(50, width) + 'px';
+					});
+					
+					heightInput.addEventListener('input', () => {
+						const height = parseInt(heightInput.value) || 50;
+						selectionArea.style.height = Math.max(50, height) + 'px';
 					});
 					
 					function startAreaRecording() {
 						const rect = selectionArea.getBoundingClientRect();
+						console.log('Starting area recording with bounds:', rect);
+						
+						const bounds = {
+							x: rect.left,
+							y: rect.top,
+							width: rect.width,
+							height: rect.height
+						};
+						
+						console.log('Sending NATIVE_AREA_SELECTED with bounds:', bounds);
 						window.electron.ipcRenderer.send('NATIVE_AREA_SELECTED', {
-							bounds: {
-								x: rect.left,
-								y: rect.top,
-								width: rect.width,
-								height: rect.height
-							}
+							bounds: bounds
 						});
 					}
 					
@@ -5012,9 +5139,11 @@ ipcMain.on("NATIVE_WINDOW_SELECTED", (event, windowData) => {
 });
 
 ipcMain.on("NATIVE_AREA_SELECTED", (event, areaData) => {
+	console.log("[Main] NATIVE_AREA_SELECTED received:", areaData);
 	closeAllOverlays();
 	// Forward to renderer
 	if (mainWindow && !mainWindow.isDestroyed()) {
+		console.log("[Main] Forwarding NATIVE_AREA_SELECTED to renderer");
 		mainWindow.webContents.send("NATIVE_AREA_SELECTED", areaData);
 	}
 });
