@@ -4434,6 +4434,11 @@ ipcMain.on("SHOW_NATIVE_SCREEN_SELECTOR", async () => {
 // Native Window Selector - Better approach without Mission Control
 ipcMain.on("SHOW_NATIVE_WINDOW_SELECTOR", async () => {
 	try {
+		console.log("[Main] Window selector disabled - no overlay will be shown");
+		// TODO: Implement window selection using getWindows() without overlay
+		// For now, just return to prevent any overlay creation
+		return;
+		
 		closeAllOverlays();
 
 		// Get all windows using desktopCapturer first
@@ -4765,8 +4770,27 @@ function createWindowOverlay(windowSource, x, y, width, height) {
 }
 
 // Native Area Selector
-ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", () => {
+ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 	try {
+		console.log("[Main] Starting native area selector via node-mac-recorder...");
+		
+		// Use only node-mac-recorder's built-in area selector
+		// This will show the native macOS area selection interface
+		if (recorder && typeof recorder.selectArea === 'function') {
+			const selectedArea = await recorder.selectArea();
+			if (selectedArea) {
+				console.log("[Main] Area selected:", selectedArea);
+				// Send selection back to renderer
+				mainWindow.webContents.send('AREA_SELECTED', {
+					areaInfo: selectedArea,
+					source: 'node-mac-recorder'
+				});
+			}
+		} else {
+			console.error("[Main] node-mac-recorder selectArea not available");
+		}
+		return; // Exit early to avoid Electron overlay creation
+		
 		closeAllOverlays();
 
 		const primaryDisplay = screen.getPrimaryDisplay();
