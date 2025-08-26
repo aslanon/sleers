@@ -3,7 +3,7 @@
 		<!-- Project Button -->
 		<button
 			ref="projectButtonRef"
-			class="btn-project flex flex-row gap-2 items-center px-4 py-1 rounded-lg"
+			class="btn-project text-sm flex flex-row gap-2 items-center px-4 py-1 rounded-lg"
 			@click="toggleProjectPopover"
 		>
 			<svg
@@ -65,7 +65,8 @@
 						</button>
 					</div>
 					<p class="text-xs text-gray-400">
-						Save all project settings, camera and video positions, timeline segments and other settings.
+						Save all project settings, camera and video positions, timeline
+						segments and other settings.
 					</p>
 				</div>
 
@@ -268,7 +269,6 @@ const toggleProjectPopover = () => {
 
 // Update popover position
 const updatePopoverPosition = () => {
-
 	if (!projectButtonRef.value || !projectPopoverRef.value) {
 		console.warn("Missing refs:", {
 			buttonRef: !!projectButtonRef.value,
@@ -323,7 +323,6 @@ const saveCurrentProject = async () => {
 			currentProjectName.value ||
 			`Proje ${savedProjects.value.length + 1} - ${dateStr}`;
 
-
 		// Save the project with all settings
 		const result = await saveProject(
 			projectName,
@@ -350,7 +349,6 @@ const saveCurrentProject = async () => {
 // Load a project
 const loadSelectedProject = async (projectId) => {
 	try {
-
 		if (!props.mediaPlayer) {
 			console.error("MediaPlayer reference not available");
 			alert("Proje yüklenemedi: MediaPlayer referansı bulunamadı");
@@ -384,7 +382,7 @@ const loadSelectedProject = async (projectId) => {
 			},
 			loadMediaFiles: async (mediaFiles) => {
 				try {
-						const electron = window.electron;
+					const electron = window.electron;
 
 					// Video dosyasını yükle
 					if (mediaFiles.videoPath) {
@@ -444,7 +442,7 @@ const loadSelectedProject = async (projectId) => {
 							if (videoBlob) {
 								const videoUrl = URL.createObjectURL(videoBlob);
 								emit("update:videoUrl", videoUrl);
-									}
+							}
 						}
 					}
 
@@ -507,7 +505,7 @@ const loadSelectedProject = async (projectId) => {
 							if (audioBlob) {
 								const audioUrl = URL.createObjectURL(audioBlob);
 								emit("update:audioUrl", audioUrl);
-									}
+							}
 						}
 					}
 
@@ -567,7 +565,7 @@ const loadSelectedProject = async (projectId) => {
 							if (cameraBlob) {
 								const cameraUrl = URL.createObjectURL(cameraBlob);
 								emit("update:cameraUrl", cameraUrl);
-									}
+							}
 						}
 					}
 				} catch (error) {
@@ -579,7 +577,7 @@ const loadSelectedProject = async (projectId) => {
 				const { setLayouts } = useLayoutSettings();
 				if (setLayouts) {
 					setLayouts(layouts);
-					} else {
+				} else {
 					console.warn("setLayouts function not available");
 				}
 			},
@@ -613,7 +611,6 @@ const startEditProjectName = (project) => {
 
 // Save project name
 const saveProjectName = async (projectId) => {
-
 	if (editingProjectName.value.trim()) {
 		try {
 			const result = await renameProject(

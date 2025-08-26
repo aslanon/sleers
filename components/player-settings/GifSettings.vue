@@ -37,7 +37,7 @@
 					/>
 					<button
 						@click="$refs.videoFileInput.click()"
-						class="w-full px-4 py-3 bg-zinc-800/50 rounded-lg text-white hover:bg-zinc-700/50 transition-colors flex items-center justify-center space-x-2"
+						class="w-full text-sm px-4 py-3 bg-zinc-800/50 rounded-lg text-white hover:bg-zinc-700/50 transition-colors flex items-center justify-center space-x-2"
 					>
 						<svg
 							width="20"
@@ -167,7 +167,7 @@
 					/>
 					<button
 						@click="$refs.imageFileInput.click()"
-						class="w-full px-4 py-3 bg-zinc-800/50 rounded-lg text-white hover:bg-zinc-700/50 transition-colors flex items-center justify-center space-x-2"
+						class="w-full text-sm px-4 py-3 bg-zinc-800/50 rounded-lg text-white hover:bg-zinc-700/50 transition-colors flex items-center justify-center space-x-2"
 					>
 						<svg
 							width="20"
@@ -261,7 +261,7 @@
 					@input="debounceSearch"
 					type="text"
 					placeholder="Search for GIFs..."
-					class="w-full px-4 py-3 bg-zinc-800/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+					class="w-full px-4 text-sm py-3 bg-zinc-800/50 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 				/>
 				<!-- <button
 					@click="searchGifs"

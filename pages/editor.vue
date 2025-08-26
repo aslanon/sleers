@@ -1,7 +1,7 @@
 <template>
 	<div class="w-full !select-none bg-black text-white overflow-hidden h-screen">
 		<div
-			class="editor-header w-full p-3 px-6 pl-24 bg-black border-b border-white/10 flex justify-between gap-2 flex-shrink-0"
+			class="editor-header w-full p-4 px-6 pl-24 bg-black border-b border-white/10 flex justify-between gap-2 flex-shrink-0"
 			:class="{ 'cursor-grab': !isDragging, 'cursor-grabbing': isDragging }"
 			@mousedown="startDrag"
 		>
@@ -13,7 +13,7 @@
 				/> 
 				<div class="w-[2px] h-6 bg-white/20 rounded-full"></div>-->
 				<button
-					class="btn-new-record flex flex-row gap-2 items-center"
+					class="btn-new-record text-sm flex flex-row gap-2 items-center"
 					@click="startNewRecording()"
 				>
 					<svg
@@ -120,23 +120,22 @@
 				</button>
 
 				<button
-					class="btn-export bg-[#432af4] rounded-lg p-2 py-1 flex flex-row gap-2 items-center"
+					class="btn-export text-xs bg-[#432af4] hover:bg-[#432af4]/80 transition-colors duration-200 rounded-lg p-2 px-6 py-2 flex flex-row gap-2 items-center"
 					@click="showExportModal = true"
 				>
 					<svg
-						class="h-5 w-5"
-						width="24"
-						height="24"
-						viewBox="0 0 24 24"
+						class="w-4 h-4"
+						width="20"
+						height="20"
+						viewBox="0 0 20 20"
 						fill="none"
 						xmlns="http://www.w3.org/2000/svg"
 					>
 						<path
-							d="M19.5 14.25V11.625C19.5 9.76104 17.989 8.25 16.125 8.25H14.625C14.0037 8.25 13.5 7.74632 13.5 7.125V5.625C13.5 3.76104 11.989 2.25 10.125 2.25H8.25M9 14.25L12 17.25M12 17.25L15 14.25M12 17.25L12 11.25M10.5 2.25H5.625C5.00368 2.25 4.5 2.75368 4.5 3.375V20.625C4.5 21.2463 5.00368 21.75 5.625 21.75H18.375C18.9963 21.75 19.5 21.2463 19.5 20.625V11.25C19.5 6.27944 15.4706 2.25 10.5 2.25Z"
-							stroke="white"
-							stroke-width="1.5"
-							stroke-linecap="round"
-							stroke-linejoin="round"
+							fill-rule="evenodd"
+							clip-rule="evenodd"
+							d="M10 0.25C4.61522 0.25 0.25 4.61522 0.25 10C0.25 15.3848 4.61522 19.75 10 19.75C15.3848 19.75 19.75 15.3848 19.75 10C19.75 4.61522 15.3848 0.25 10 0.25ZM9.46967 14.2803C9.61032 14.421 9.80109 14.5 10 14.5C10.1989 14.5 10.3897 14.421 10.5303 14.2803L13.5303 11.2803C13.8232 10.9874 13.8232 10.5126 13.5303 10.2197C13.2374 9.92678 12.7626 9.92678 12.4697 10.2197L10.75 11.9393L10.75 6.25C10.75 5.83579 10.4142 5.5 10 5.5C9.58579 5.5 9.25 5.83579 9.25 6.25L9.25 11.9393L7.53033 10.2197C7.23744 9.92678 6.76256 9.92678 6.46967 10.2197C6.17678 10.5126 6.17678 10.9874 6.46967 11.2803L9.46967 14.2803Z"
+							fill="#ffffff"
 						/>
 					</svg>
 
