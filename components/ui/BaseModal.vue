@@ -10,12 +10,11 @@
 		>
 			<div
 				v-if="modelValue"
-				class="fixed inset-0 z-[9999] flex items-center justify-center"
-				:class="size === '2xl' ? 'p-16' : 'p-4'"
+				class="fixed inset-0 z-[9999] flex items-start py-[3rem] px-[1rem] justify-center"
 				@click="handleBackdropClick"
 			>
 				<!-- Backdrop -->
-				<div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+				<div class="absolute inset-0 bg-black"></div>
 
 				<!-- Modal Content -->
 				<Transition
@@ -28,17 +27,7 @@
 				>
 					<div
 						v-if="modelValue"
-						class="relative bg-zinc-900/95 backdrop-blur-sm rounded-xl border border-white/10 shadow-2xl max-h-[90vh] overflow-auto"
-						:class="[
-							sizeClasses,
-							{
-								'w-full max-w-sm': size === 'sm',
-								'w-full max-w-md': size === 'md',
-								'w-full max-w-2xl': size === 'lg',
-								'w-full max-w-4xl': size === 'xl',
-								'w-full max-w-6xl': size === '2xl',
-							},
-						]"
+						class="relative modal-grid w-full bg-black rounded-xl shadow-2xl max-h-[100vh] overflow-auto"
 						@click.stop
 					>
 						<!-- Header -->
@@ -47,10 +36,13 @@
 							class="flex items-center justify-between p-6 border-b border-white/10"
 						>
 							<div>
-								<h3 class="text-lg font-semibold text-white">
+								<h3 class="text-2xl font-semibold text-white">
 									<slot name="title">{{ title }}</slot>
 								</h3>
-								<p v-if="subtitle" class="text-sm text-gray-400 mt-1">
+								<p
+									v-if="subtitle"
+									class="text-lg font-normal text-white/40 mt-1"
+								>
 									{{ subtitle }}
 								</p>
 							</div>
@@ -76,7 +68,10 @@
 						</div>
 
 						<!-- Content -->
-						<div class="p-6" :class="{ 'pt-0': !showHeader }">
+						<div
+							class="p-6 flex items-center justify-center"
+							:class="{ 'pt-0': !showHeader }"
+						>
 							<slot></slot>
 						</div>
 
@@ -141,15 +136,12 @@ const handleBackdropClick = () => {
 		close();
 	}
 };
-
-const sizeClasses = computed(() => {
-	const sizes = {
-		sm: "max-w-sm",
-		md: "max-w-md",
-		lg: "max-w-2xl",
-		xl: "max-w-4xl",
-		"2xl": "max-w-6xl",
-	};
-	return sizes[props.size] || sizes.md;
-});
 </script>
+
+<style>
+.modal-grid {
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	height: 94vh;
+}
+</style>

@@ -412,11 +412,29 @@
 			</button>
 		</template>
 	</BaseModal>
+
+	<!-- Login Modal -->
+	<LoginModal
+		:is-open="showLoginModal"
+		@close="handleLoginClose"
+		@login-success="handleLoginSuccess"
+	/>
+
+	<!-- Subscription Modal -->
+	<SubscriptionModal
+		:is-open="showSubscriptionModal"
+		:user="user"
+		@close="handleSubscriptionClose"
+		@logout="handleLogout"
+	/>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onMounted } from "vue";
 import BaseModal from "./BaseModal.vue";
+import LoginModal from "./LoginModal.vue";
+import SubscriptionModal from "./SubscriptionModal.vue";
+import AuthService from "../../services/AuthService.js";
 
 const props = defineProps({
 	isOpen: {
@@ -434,6 +452,11 @@ const isExporting = ref(false);
 const exportProgress = ref(0);
 const exportError = ref("");
 const error = ref("");
+const showLoginModal = ref(false);
+const showSubscriptionModal = ref(false);
+const isAuthenticated = ref(false);
+const userCanExport = ref(false);
+const user = ref(null);
 
 // Form data - sadece WebM
 const format = ref("webm");
@@ -448,13 +471,64 @@ const encodingSpeed = ref("fast");
 const useHardwareAccel = ref(true);
 const audioQuality = ref("128");
 
+// Initialize auth service on mount
+onMounted(async () => {
+	await AuthService.init();
+	checkAuthStatus();
+});
+
 // Watch props
 watch(
 	() => props.isOpen,
-	(newVal) => {
-		isModalOpen.value = newVal;
+	async (newVal) => {
 		if (newVal) {
-			resetForm();
+			// First refresh user data from API to get latest subscription status
+			console.log("[ExportModal] Modal opening - refreshing user subscription status...");
+			
+			checkAuthStatus();
+			
+			if (!isAuthenticated.value) {
+				// Not logged in - show login modal
+				console.log("[ExportModal] User not authenticated - showing login modal");
+				showLoginModal.value = true;
+				return;
+			}
+
+			// User is authenticated, refresh their data from API
+			const refreshResult = await AuthService.refreshUserData();
+			
+			if (refreshResult.success) {
+				// Update local state with fresh data from API
+				checkAuthStatus();
+				console.log("[ExportModal] User data refreshed, subscription status:", refreshResult.user.subscription_status);
+				
+				if (userCanExport.value) {
+					// Has valid subscription (trial or active) - show export modal
+					console.log("[ExportModal] User can export - showing export modal");
+					isModalOpen.value = newVal;
+					resetForm();
+				} else {
+					// No valid subscription - show subscription modal with updated status
+					console.log("[ExportModal] User cannot export - showing subscription modal");
+					showSubscriptionModal.value = true;
+				}
+			} else {
+				// API call failed, use cached status
+				console.warn("[ExportModal] Failed to refresh user data, using cached status:", refreshResult.error);
+				
+				if (userCanExport.value) {
+					// Use cached status - can export
+					isModalOpen.value = newVal;
+					resetForm();
+				} else {
+					// Use cached status - cannot export
+					showSubscriptionModal.value = true;
+				}
+			}
+		} else {
+			isModalOpen.value = newVal;
+			showLoginModal.value = false;
+			showSubscriptionModal.value = false;
 		}
 	}
 );
@@ -596,8 +670,65 @@ const selectDirectory = async () => {
 	}
 };
 
+const checkAuthStatus = () => {
+	isAuthenticated.value = AuthService.isAuthenticated();
+	userCanExport.value = AuthService.canExport();
+	user.value = AuthService.getAuthData()?.user || null;
+	
+	console.log('[ExportModal] Auth status check:', {
+		isAuthenticated: isAuthenticated.value,
+		canExport: userCanExport.value,
+		subscriptionStatus: AuthService.getSubscriptionStatus()
+	});
+};
+
+const handleLoginSuccess = (data) => {
+	checkAuthStatus();
+	showLoginModal.value = false;
+	
+	if (isAuthenticated.value && userCanExport.value) {
+		// Has valid subscription - show export modal
+		isModalOpen.value = true;
+		resetForm();
+	} else if (isAuthenticated.value && !userCanExport.value) {
+		// No valid subscription - show subscription modal
+		showSubscriptionModal.value = true;
+	}
+};
+
+const handleLoginClose = () => {
+	showLoginModal.value = false;
+	emit("close");
+};
+
+const handleSubscriptionClose = () => {
+	showSubscriptionModal.value = false;
+	emit("close");
+};
+
+const handleLogout = () => {
+	// Clear all authentication state
+	isAuthenticated.value = false;
+	userCanExport.value = false;
+	user.value = null;
+	
+	// Close subscription modal and show login modal
+	showSubscriptionModal.value = false;
+	showLoginModal.value = true;
+	
+	console.log("[ExportModal] User logged out, showing login modal");
+};
+
 const exportVideo = () => {
 	if (!isFormValid.value) return;
+	
+	// Final auth check (subscription was already validated when modal opened)
+	if (!isAuthenticated.value || !userCanExport.value) {
+		error.value = "You must be logged in with an active subscription to export videos.";
+		return;
+	}
+
+	console.log("[ExportModal] Starting export with validated subscription status");
 
 	const settings = {
 		format: format.value,

@@ -14,7 +14,7 @@ module.exports = {
 		"electron/**",
 		"package.json",
 		"node_modules/electron-store/**",
-		"node_modules/conf/**", 
+		"node_modules/conf/**",
 		"node_modules/@ffmpeg-installer/**",
 		"node_modules/fluent-ffmpeg/**",
 		"node_modules/node-mac-recorder/**",
@@ -50,8 +50,8 @@ module.exports = {
 		],
 		hardenedRuntime: true,
 		gatekeeperAssess: false,
-		entitlements: "build/entitlements.mac.plist",
-		entitlementsInherit: "build/entitlements.mac.plist",
+		entitlements: "build/main.entitlements",
+		entitlementsInherit: "build/main.entitlements",
 		artifactName: "${productName}-${version}-arm64.${ext}",
 		notarize: false, // Will be enabled via environment variables
 		extendInfo: {

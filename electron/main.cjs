@@ -21,6 +21,43 @@ const express = require("express");
 const http = require("http");
 const os = require("os");
 
+// Electron Store for persistent data
+let Store;
+try {
+	const ElectronStore = require("electron-store");
+	if (typeof ElectronStore === "function") {
+		Store = ElectronStore;
+		console.log("electron-store modülü başarıyla yüklendi");
+	} else {
+		throw new Error("electron-store geçerli bir constructor değil");
+	}
+} catch (error) {
+	console.error("electron-store modülü yüklenirken hata:", error);
+	// Fallback olarak basit bir yerel store kullan
+	Store = class SimpleStore {
+		constructor(options = {}) {
+			this.data = options.defaults || {};
+			console.warn("electron-store yerine basit bir inmemory store kullanılıyor");
+		}
+		get(key) {
+			return key ? this.data[key] : this.data;
+		}
+		set(key, value) {
+			if (typeof key === "string") {
+				this.data[key] = value;
+			} else {
+				this.data = { ...this.data, ...key };
+			}
+		}
+		delete(key) {
+			delete this.data[key];
+		}
+		clear() {
+			this.data = {};
+		}
+	};
+}
+
 // Top level olarak protokolleri kaydet (app.whenReady() önce çağrılmalı)
 protocol.registerSchemesAsPrivileged([
 	{
@@ -722,22 +759,24 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		if (mediaStateManager) {
 			const audioSettings = mediaStateManager.state.audioSettings;
 			console.log("[Main] 🎧 MediaStateManager audioSettings:", audioSettings);
-			
+
 			if (audioSettings) {
 				recordingOptions.includeMicrophone = audioSettings.microphoneEnabled;
 				recordingOptions.includeSystemAudio = audioSettings.systemAudioEnabled;
 				recordingOptions.audioDeviceId = audioSettings.selectedAudioDevice;
-				
+
 				console.log("[Main] 🔧 Final audio settings before MacRecorder:", {
 					"audioSettings.microphoneEnabled": audioSettings.microphoneEnabled,
-					"audioSettings.selectedAudioDevice": audioSettings.selectedAudioDevice,
-					"recordingOptions.includeMicrophone": recordingOptions.includeMicrophone
+					"audioSettings.selectedAudioDevice":
+						audioSettings.selectedAudioDevice,
+					"recordingOptions.includeMicrophone":
+						recordingOptions.includeMicrophone,
 				});
-				
+
 				console.log("[Main] 🔧 Audio settings applied to recording options:", {
 					microphoneEnabled: audioSettings.microphoneEnabled,
 					systemAudioEnabled: audioSettings.systemAudioEnabled,
-					selectedAudioDevice: audioSettings.selectedAudioDevice
+					selectedAudioDevice: audioSettings.selectedAudioDevice,
 				});
 
 				// YENİ: Sistem sesi açıksa cihaz seçimi yap
@@ -877,7 +916,19 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		// Start synchronized recording session
 		const syncSession = synchronizedRecording.startRecordingSession();
 
+		console.log("[Main] 🎬 MacRecorder.startRecording çağrılıyor...", {
+			outputPath,
+			options: recordingOptions
+		});
+		
 		const result = await recorder.startRecording(outputPath, recordingOptions);
+		
+		console.log("[Main] 🎬 MacRecorder.startRecording sonucu:", {
+			result,
+			type: typeof result,
+			isTrue: result === true,
+			isFalse: result === false
+		});
 
 		if (result) {
 			// Record screen recording start time
@@ -896,9 +947,11 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 
 			// RECORDING_STATUS_CHANGED event'ini tetikle
 			ipcMain.emit(IPC_EVENTS.RECORDING_STATUS_CHANGED, event, true);
-
+			
+			console.log("[Main] ✅ Ekran kaydı başlatıldı:", outputPath);
 			return { success: true, outputPath };
 		} else {
+			console.error("[Main] ❌ MacRecorder kaydı başlatılamadı, result:", result);
 			return {
 				success: false,
 				outputPath: null,
@@ -907,6 +960,31 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		}
 	} catch (error) {
 		console.error("[Main] START_MAC_RECORDING hatası:", error);
+		console.error("[Main] Error details:", {
+			name: error.name,
+			message: error.message,
+			stack: error.stack?.split('\n').slice(0, 3).join('\n')
+		});
+		
+		// Try to get backend info for debugging
+		try {
+			const recorder = getMacRecorderInstance();
+			if (recorder && recorder.getSystemInfo) {
+				const systemInfo = await recorder.getSystemInfo();
+				console.log("[Main] Recorder system info during error:", systemInfo);
+				if (systemInfo.backend) {
+					console.log(`[Main] Backend in use: ${systemInfo.backend}`);
+					if (systemInfo.backend === 'AVFoundation') {
+						console.log("[Main] ✅ AVFoundation fallback is active");
+					} else if (systemInfo.backend === 'ScreenCaptureKit') {
+						console.log("[Main] ❌ ScreenCaptureKit failed - check entitlements");
+					}
+				}
+			}
+		} catch (debugError) {
+			console.log("[Main] Could not get debug info:", debugError.message);
+		}
+		
 		return { success: false, outputPath: null, error: error.message };
 	}
 });
@@ -1052,7 +1130,15 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 			);
 		}
 
+		console.log("[Main] 🛑 MacRecorder.stopRecording çağrılıyor...");
 		const result = await recorder.stopRecording();
+		
+		console.log("[Main] 🛑 MacRecorder.stopRecording sonucu:", {
+			result,
+			type: typeof result,
+			hasCode: result && typeof result === "object" && "code" in result,
+			hasOutputPath: result && typeof result === "object" && "outputPath" in result
+		});
 
 		// Stop result: { code: 0, outputPath: "..." }
 		const actualFilePath =
@@ -1060,12 +1146,25 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 		const isSuccess =
 			result && (result.code === 0 || result.code === undefined);
 
+		console.log("[Main] 🛑 Recording stop analysis:", {
+			actualFilePath,
+			isSuccess,
+			fileExists: actualFilePath ? fs.existsSync(actualFilePath) : false,
+			fileStat: actualFilePath && fs.existsSync(actualFilePath) ? fs.statSync(actualFilePath) : null
+		});
+
 		if (isSuccess && actualFilePath) {
+			// Store screen recording file in TempFileManager
+			tempFileManager.tempFiles.screen = actualFilePath;
+			console.log("[Main] 📁 Ekran kayıt dosyası TempFileManager'a eklendi:", actualFilePath);
+			
 			// RECORDING_STATUS_CHANGED event'ini tetikle
 			ipcMain.emit(IPC_EVENTS.RECORDING_STATUS_CHANGED, event, false);
-
+			
+			console.log("[Main] ✅ Ekran kaydı durduruldu ve dosya oluşturuldu:", actualFilePath);
 			return { success: true, filePath: actualFilePath };
 		} else {
+			console.error("[Main] ❌ MacRecorder kaydı durdurulamadı veya dosya oluşturulamadı");
 			return {
 				success: false,
 				filePath: null,
@@ -1554,7 +1653,7 @@ function setupIpcHandlers() {
 				!cameraManager.cameraWindow.isDestroyed()
 			) {
 				console.log("[Main] Kayıt başladığında kamera penceresi gizleniyor...");
-				cameraManager.cameraWindow.hide();
+				// cameraManager.cameraWindow.hide();
 			}
 		} else {
 			console.log("[Main] Kayıt durduruluyor...");
@@ -3276,6 +3375,73 @@ function setupIpcHandlers() {
 		return {};
 	});
 
+	// Initialize persistent store
+	let authStore;
+	try {
+		authStore = new Store({
+			name: 'creavit-auth',
+			defaults: {}
+		});
+		console.log("[main] Authentication store initialized");
+	} catch (error) {
+		console.error("[main] Failed to initialize authentication store:", error);
+	}
+
+	// Authentication handlers
+	ipcMain.handle("STORE_AUTH_DATA", async (event, authData) => {
+		try {
+			if (authStore) {
+				authStore.set('authData', authData);
+				console.log("[main] Authentication data stored");
+				return { success: true };
+			}
+			return { success: false, error: "Store not available" };
+		} catch (error) {
+			console.error("[main] Error storing auth data:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
+	ipcMain.handle("GET_AUTH_DATA", async (event) => {
+		try {
+			if (authStore) {
+				const authData = authStore.get('authData');
+				console.log("[main] Authentication data retrieved:", authData ? "Found" : "Not found");
+				return authData || null;
+			}
+			return null;
+		} catch (error) {
+			console.error("[main] Error getting auth data:", error);
+			return null;
+		}
+	});
+
+	ipcMain.handle("CLEAR_AUTH_DATA", async (event) => {
+		try {
+			if (authStore) {
+				authStore.delete('authData');
+				console.log("[main] Authentication data cleared");
+				return { success: true };
+			}
+			return { success: false, error: "Store not available" };
+		} catch (error) {
+			console.error("[main] Error clearing auth data:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
+	ipcMain.handle("OPEN_EXTERNAL_URL", async (event, url) => {
+		try {
+			const { shell } = require("electron");
+			await shell.openExternal(url);
+			console.log("[main] Opened external URL:", url);
+			return { success: true };
+		} catch (error) {
+			console.error("[main] Error opening external URL:", error);
+			return { success: false, error: error.message };
+		}
+	});
+
 	// Handle screenshot saving
 	safeHandle(IPC_EVENTS.SAVE_SCREENSHOT, async (event, imageData, filePath) => {
 		try {
@@ -3605,7 +3771,7 @@ function setupSecurityPolicies() {
 		const cspPolicy =
 			"default-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org https://api.giphy.com https://*.giphy.com https://media.giphy.com; " +
 			"script-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline' 'unsafe-eval' https://storage.googleapis.com https://*.tensorflow.org; " +
-			"connect-src 'self' http://localhost:* file: data: electron: blob: https://storage.googleapis.com https://*.tensorflow.org https://api.giphy.com https://*.giphy.com; " +
+			"connect-src 'self' http://localhost:* file: data: electron: blob: https://storage.googleapis.com https://*.tensorflow.org https://api.giphy.com https://*.giphy.com https://api.creavit.studio https://creavit.studio; " +
 			"img-src 'self' http://localhost:* file: data: electron: blob: https://*.giphy.com https://media.giphy.com https://media0.giphy.com https://media1.giphy.com https://media2.giphy.com https://media3.giphy.com https://media4.giphy.com; " +
 			"style-src 'self' http://localhost:* file: data: electron: blob: 'unsafe-inline'; " +
 			"font-src 'self' http://localhost:* file: data: electron: blob:; " +
@@ -4253,7 +4419,7 @@ function createOverlayWindow(options = {}) {
 	});
 
 	// Prevent fullscreen to avoid new desktop space
-	overlay.on('enter-full-screen', () => {
+	overlay.on("enter-full-screen", () => {
 		overlay.setFullScreen(false);
 	});
 
@@ -4465,7 +4631,7 @@ ipcMain.on("SHOW_NATIVE_WINDOW_SELECTOR", async () => {
 		// TODO: Implement window selection using getWindows() without overlay
 		// For now, just return to prevent any overlay creation
 		return;
-		
+
 		closeAllOverlays();
 
 		// Get all windows using desktopCapturer first
@@ -4800,18 +4966,18 @@ function createWindowOverlay(windowSource, x, y, width, height) {
 ipcMain.on("SHOW_NATIVE_AREA_SELECTOR", async () => {
 	try {
 		console.log("[Main] Starting custom area selector...");
-		
+
 		closeAllOverlays();
 
 		// Get all displays and create overlay covering all screens
 		const displays = screen.getAllDisplays();
-		
+
 		// Calculate bounds that cover all displays
-		let minX = Math.min(...displays.map(d => d.bounds.x));
-		let minY = Math.min(...displays.map(d => d.bounds.y));
-		let maxX = Math.max(...displays.map(d => d.bounds.x + d.bounds.width));
-		let maxY = Math.max(...displays.map(d => d.bounds.y + d.bounds.height));
-		
+		let minX = Math.min(...displays.map((d) => d.bounds.x));
+		let minY = Math.min(...displays.map((d) => d.bounds.y));
+		let maxX = Math.max(...displays.map((d) => d.bounds.x + d.bounds.width));
+		let maxY = Math.max(...displays.map((d) => d.bounds.y + d.bounds.height));
+
 		const overlay = createOverlayWindow({
 			x: minX,
 			y: minY,
@@ -5160,22 +5326,25 @@ ipcMain.on("NATIVE_WINDOW_SELECTED", (event, windowData) => {
 ipcMain.on("START_AREA_RECORDING", async (event, areaData) => {
 	console.log("[Main] START_AREA_RECORDING received:", areaData);
 	closeAllOverlays();
-	
+
 	try {
 		// Start area recording directly like window/screen recording
 		console.log("[Main] Starting area recording with bounds:", areaData.bounds);
-		
+
 		// Send to renderer to start recording immediately
 		const eventData = {
 			cropArea: areaData.bounds,
 			source: {
 				sourceType: "area",
-				sourceId: "area:custom", 
-				sourceName: "Selected Area"
-			}
+				sourceId: "area:custom",
+				sourceName: "Selected Area",
+			},
 		};
-		
-		console.log("[Main] Sending START_AREA_RECORDING event to renderer:", eventData);
+
+		console.log(
+			"[Main] Sending START_AREA_RECORDING event to renderer:",
+			eventData
+		);
 		mainWindow.webContents.send("START_AREA_RECORDING", eventData);
 	} catch (error) {
 		console.error("[Main] Error handling START_AREA_RECORDING:", error);
