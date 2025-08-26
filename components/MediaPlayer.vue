@@ -29,7 +29,6 @@
 				<canvas
 					id="canvasID"
 					ref="canvasRef"
-					class="rounded-md"
 					style="display: block; position: absolute; margin: auto"
 					tabindex="0"
 					@paste="handlePaste"
@@ -4676,8 +4675,8 @@ const renderVideo = () => {
 	const camera = cameraRef.value;
 
 	// Canvas boyutlarını ayarla
-	canvas.width = containerRef.value.clientWidth;
-	canvas.height = containerRef.value.clientHeight;
+	canvas.width = containerRef.value.clientWidth - 10;
+	canvas.height = containerRef.value.clientHeight - 10;
 
 	// Videoyu çiz
 	ctx.drawImage(video, 0, 0, canvas.width, canvas.height);

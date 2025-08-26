@@ -90,7 +90,7 @@
 				<button
 					@click="handleLogin"
 					:disabled="!isFormValid || isLoading"
-					class="w-full px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-gray-500 text-white font-medium transition-all duration-200 shadow-lg flex justify-center items-center gap-2"
+					class="w-full px-6 py-3 text-lg rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-gray-500 text-white font-medium transition-all duration-200 shadow-lg flex justify-center items-center gap-2"
 				>
 					<div
 						v-if="isLoading"

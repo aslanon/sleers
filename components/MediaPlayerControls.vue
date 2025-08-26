@@ -1,6 +1,6 @@
 <template>
 	<div
-		class="media-player-controls mt-4 flex justify-center items-center space-x-4"
+		class="media-player-controls mt-4 pl-2 flex justify-center items-center space-x-4"
 	>
 		<div class="flex flex-row space-x-4">
 			<!-- Aspect Ratio Seçimi -->
