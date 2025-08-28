@@ -319,7 +319,7 @@
 			<!-- Editör Modu Butonu -->
 			<button
 				@click="openEditorMode"
-				class="p-2 flex flex-row items-center gap-2 hover:bg-white/10 rounded-lg text-xs font-medium truncate"
+				class="p-2 pr-4 flex flex-row items-center gap-2 hover:bg-white/10 rounded-lg text-xs font-medium truncate"
 				title="Go to Editor Without Recording"
 			>
 				<img src="/logo.svg" alt="Edit Icon" class="w-8" />

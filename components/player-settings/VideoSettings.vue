@@ -245,7 +245,7 @@
 							}"
 						>
 							<img
-								:src="`/backgrounds/image${index}.jpg`"
+								:src="`/backgrounds/thumbs/image${index}.jpg`"
 								:alt="`Wallpaper ${index}`"
 								class="w-full h-full object-cover"
 							/>

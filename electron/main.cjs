@@ -3737,13 +3737,13 @@ async function createWindow() {
 	}
 
 	mainWindow = new BrowserWindow({
-		width: 870,
+		width: 880,
+		minWidth: 880,
+		maxWidth: 880,
 		height: 76,
 		useContentSize: true,
 		alwaysOnTop: true,
 		resizable: false,
-		minWidth: 945,
-		maxWidth: 945,
 		minHeight: 76,
 		maxHeight: 76,
 		skipTaskbar: false,
