@@ -3751,6 +3751,7 @@ async function createWindow() {
 		transparent: true,
 		hasShadow: true,
 		movable: true,
+		icon: path.join(__dirname, "../build/icon.png"),
 		// macOS'ta ekran kaydından gizle
 		...(process.platform === "darwin" && {
 			excludedFromShownWindowsMenu: true,

@@ -186,7 +186,7 @@ class TrayManager {
 
 		try {
 			const trayIcon = iconPath
-				? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+				? nativeImage.createFromPath(iconPath)
 				: nativeImage.createEmpty();
 
 			this.tray.setImage(trayIcon);
@@ -206,7 +206,7 @@ class TrayManager {
 
 		try {
 			const trayIcon = iconPath
-				? nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
+				? nativeImage.createFromPath(iconPath)
 				: nativeImage.createEmpty();
 
 			if (!this.tray) {
