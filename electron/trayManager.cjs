@@ -1,4 +1,4 @@
-const { Tray, Menu, nativeImage, app } = require("electron");
+const { Tray, Menu, nativeImage, app, nativeTheme } = require("electron");
 const path = require("path");
 const { IPC_EVENTS } = require("./constants.cjs");
 const fs = require("fs");
@@ -51,6 +51,12 @@ class TrayManager {
 		this.isRecording = false;
 		this.isEditorOpen = false;
 		this.openEditorMode = openEditorMode;
+		
+		// Tema değişikliklerini dinle
+		nativeTheme.on('updated', () => {
+			console.log('[TrayManager] Theme changed, updating tray icon');
+			this.updateTrayIcon();
+		});
 
 		// Store oluştur (güvenli)
 		try {
@@ -136,10 +142,22 @@ class TrayManager {
 	}
 
 	getIconPath(isRecording = false) {
-		// Kayıt durumuna göre farklı logo dosyası seç
-		const logoFileName = isRecording
-			? "logo-sample-red.png"
-			: "logo-sample.png";
+		// Sistem teması algıla (dark mode = true, light mode = false)
+		const isDarkMode = nativeTheme.shouldUseDarkColors;
+		
+		// Tema ve kayıt durumuna göre logo dosyası seç
+		let logoFileName;
+		if (isRecording) {
+			// Kayıt sırasında kırmızı varyasyonlar
+			logoFileName = isDarkMode 
+				? "logo-sample-red.png"        // Dark mode: beyaz kırmızı
+				: "logo-sample-black-red.png"; // Light mode: siyah kırmızı
+		} else {
+			// Normal durum
+			logoFileName = isDarkMode 
+				? "logo-sample.png"       // Dark mode: beyaz
+				: "logo-sample-black.png"; // Light mode: siyah
+		}
 
 		// Farklı klasörlerde logo dosyasını ara
 		const possiblePaths = [

@@ -322,32 +322,18 @@
 				class="p-2 flex flex-row items-center gap-2 hover:bg-white/10 rounded-lg text-xs font-medium truncate"
 				title="Go to Editor Without Recording"
 			>
-				<svg
-					width="18"
-					height="20"
-					viewBox="0 0 18 20"
-					fill="none"
-					xmlns="http://www.w3.org/2000/svg"
-				>
-					<path
-						d="M12.6122 3.47948C15.4927 4.76656 17.5 7.65662 17.5 11.0155C17.5 15.5719 13.8063 19.2655 9.25 19.2655C4.69365 19.2655 1 15.5719 1 11.0155C1 8.80347 1.87058 6.79476 3.28781 5.31333C4.0543 6.38374 5.07048 7.26318 6.25121 7.86651C6.29632 5.09084 7.59797 2.62065 9.61211 1C10.3755 2.02375 11.3879 2.88408 12.6122 3.47948Z"
-						stroke="white"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					/>
-					<path
-						d="M9.25 16.2659C11.3211 16.2659 13 14.587 13 12.5159C13 10.6126 11.5821 9.04049 9.74489 8.79828C8.73657 9.70282 8.03619 10.9437 7.82031 12.3445C7.03769 12.1532 6.31529 11.8084 5.68682 11.3438C5.56559 11.7126 5.5 12.1066 5.5 12.5159C5.5 14.587 7.17893 16.2659 9.25 16.2659Z"
-						stroke="white"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					/>
-				</svg>
+				<img src="/logo.svg" alt="Edit Icon" class="w-8" />
 
 				<span class="!m-0 !p-0">Edit</span>
 			</button>
-			<div style="width: 0.51px" class="h-10 bg-white/10 rounded-full"></div>
+			<div
+				v-if="false"
+				style="width: 0.51px"
+				class="h-10 bg-white/10 rounded-full"
+			></div>
 
 			<button
+				v-if="false"
 				@click="openRecordingSettings"
 				class="p-2 hover:bg-white/10 rounded-lg"
 			>
@@ -681,8 +667,12 @@ onMounted(() => {
 					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
-					microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
-					microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
+					microphone:
+						selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+					microphoneDeviceId:
+						selectedAudioDevice.value !== "none"
+							? selectedAudioDevice.value
+							: null,
 					// Window specific recording - pass window info for crop recording
 					recordingSource: {
 						type: "window",
@@ -723,8 +713,12 @@ onMounted(() => {
 					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
-					microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
-					microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
+					microphone:
+						selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+					microphoneDeviceId:
+						selectedAudioDevice.value !== "none"
+							? selectedAudioDevice.value
+							: null,
 					// Screen specific recording - pass screen info for full screen recording
 					recordingSource: {
 						type: "screen",
@@ -764,8 +758,12 @@ onMounted(() => {
 					startCamera: selectedVideoDevice.value !== "none",
 					startAudio: true,
 					systemAudio: systemAudioEnabled.value,
-					microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
-					microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
+					microphone:
+						selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+					microphoneDeviceId:
+						selectedAudioDevice.value !== "none"
+							? selectedAudioDevice.value
+							: null,
 					// Area specific recording - pass crop area
 					recordingSource: {
 						type: "area",
@@ -853,7 +851,7 @@ const throttledUpdateAudioSettings = throttle((settings) => {
 	try {
 		console.log("[index.vue] Sending audio settings via IPC:", settings);
 		electron.ipcRenderer.send(IPC_EVENTS.UPDATE_EDITOR_SETTINGS, {
-			audioSettings: settings
+			audioSettings: settings,
 		});
 	} catch (error) {
 		console.error("[index.vue] Ses ayarları güncellenirken hata:", error);
@@ -871,10 +869,10 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 
 			// ÖNEMLİ: "none" seçilirse microphoneEnabled false olmalı
 			const isMicrophoneEnabled = newDeviceId !== "none";
-			
+
 			// Frontend state'ini güncelle
 			microphoneEnabled.value = isMicrophoneEnabled;
-			
+
 			// MediaState'e hem cihaz hem de enabled durumunu bildir
 			throttledUpdateAudioSettings({
 				selectedAudioDevice: newDeviceId,
@@ -883,7 +881,7 @@ watch(selectedAudioDevice, async (newDeviceId, oldDeviceId) => {
 
 			console.log("[index.vue] Microphone settings updated:", {
 				selectedAudioDevice: newDeviceId,
-				microphoneEnabled: isMicrophoneEnabled
+				microphoneEnabled: isMicrophoneEnabled,
 			});
 
 			// Ses analizini yeniden başlat (sadece aktifse)
@@ -1063,8 +1061,12 @@ onMounted(async () => {
 		electron.ipcRenderer.on("START_RECORDING_FROM_TRAY", () => {
 			startRecording({
 				systemAudio: systemAudioEnabled.value,
-				microphone: selectedAudioDevice.value !== "none" && microphoneEnabled.value,
-				microphoneDeviceId: selectedAudioDevice.value !== "none" ? selectedAudioDevice.value : null,
+				microphone:
+					selectedAudioDevice.value !== "none" && microphoneEnabled.value,
+				microphoneDeviceId:
+					selectedAudioDevice.value !== "none"
+						? selectedAudioDevice.value
+						: null,
 			});
 		});
 

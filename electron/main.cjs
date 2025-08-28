@@ -3737,7 +3737,7 @@ async function createWindow() {
 	}
 
 	mainWindow = new BrowserWindow({
-		width: 945,
+		width: 870,
 		height: 76,
 		useContentSize: true,
 		alwaysOnTop: true,

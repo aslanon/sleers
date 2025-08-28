@@ -15,18 +15,22 @@ class EditorManager {
 	async createEditorWindow() {
 		// Kilit kontrolü - eğer zaten oluşturuluyorsa bekle
 		if (this.isCreating) {
-			console.log("[EditorManager] ⚠️ Editör penceresi zaten oluşturuluyor, bekleniyor...");
+			console.log(
+				"[EditorManager] ⚠️ Editör penceresi zaten oluşturuluyor, bekleniyor..."
+			);
 			return false;
 		}
-		
+
 		this.isCreating = true;
-		
+
 		try {
 			console.log("[EditorManager] Editör penceresi oluşturuluyor...");
 
 			// Eğer halihazırda bir editör penceresi açıksa, onu kapatmadan devam et
 			if (this.editorWindow && !this.editorWindow.isDestroyed()) {
-				console.log("[EditorManager] ✅ Editör penceresi zaten açık ve çalışıyor");
+				console.log(
+					"[EditorManager] ✅ Editör penceresi zaten açık ve çalışıyor"
+				);
 				return true;
 			}
 
@@ -40,7 +44,7 @@ class EditorManager {
 				show: false,
 				frame: false,
 				// macOS'ta ekran kaydından gizle
-				...(process.platform === 'darwin' && {
+				...(process.platform === "darwin" && {
 					excludedFromShownWindowsMenu: true,
 				}),
 				webPreferences: {
@@ -55,7 +59,7 @@ class EditorManager {
 				backgroundColor: "#121212",
 				titleBarOverlay: false,
 				titleBarStyle: "hidden",
-				trafficLightPosition: { x: 15, y: 20 },
+				trafficLightPosition: { x: 20, y: 24 },
 				hasShadow: true,
 				roundedCorners: true,
 				visualEffectState: "active",
@@ -63,12 +67,17 @@ class EditorManager {
 			});
 
 			// macOS'ta editor penceresini ekran kaydından gizle
-			if (process.platform === 'darwin') {
+			if (process.platform === "darwin") {
 				try {
 					this.editorWindow.setContentProtection(true);
-					console.log("[EditorManager] ✅ Editor penceresi ekran kaydından gizlendi");
+					console.log(
+						"[EditorManager] ✅ Editor penceresi ekran kaydından gizlendi"
+					);
 				} catch (error) {
-					console.warn("[EditorManager] ⚠️ Editor pencere gizleme başarısız:", error.message);
+					console.warn(
+						"[EditorManager] ⚠️ Editor pencere gizleme başarısız:",
+						error.message
+					);
 				}
 			}
 
@@ -193,26 +202,35 @@ class EditorManager {
 					try {
 						this.editorWindow.webContents.setDevToolsWebContents(null);
 					} catch (error) {
-						console.log('setDevToolsWebContents not available:', error.message);
+						console.log("setDevToolsWebContents not available:", error.message);
 					}
-					
+
 					// DevTools kısayollarını engelle
-					this.editorWindow.webContents.on('before-input-event', (event, input) => {
-						if (input.key === 'F12' || 
-							(input.meta && input.alt && input.key.toLowerCase() === 'i') ||
-							(input.meta && input.shift && input.key.toLowerCase() === 'i') ||
-							(input.control && input.shift && input.key.toLowerCase() === 'i')) {
-							event.preventDefault();
+					this.editorWindow.webContents.on(
+						"before-input-event",
+						(event, input) => {
+							if (
+								input.key === "F12" ||
+								(input.meta && input.alt && input.key.toLowerCase() === "i") ||
+								(input.meta &&
+									input.shift &&
+									input.key.toLowerCase() === "i") ||
+								(input.control &&
+									input.shift &&
+									input.key.toLowerCase() === "i")
+							) {
+								event.preventDefault();
+							}
 						}
-					});
-					
+					);
+
 					// Context menu'yu devre dışı bırak
-					this.editorWindow.webContents.on('context-menu', (event) => {
+					this.editorWindow.webContents.on("context-menu", (event) => {
 						event.preventDefault();
 					});
-					
+
 					// DevTools açılma denemelerini engelle
-					this.editorWindow.webContents.on('devtools-opened', () => {
+					this.editorWindow.webContents.on("devtools-opened", () => {
 						this.editorWindow.webContents.closeDevTools();
 					});
 				}
@@ -413,10 +431,12 @@ class EditorManager {
 
 	setupWindowEvents() {
 		if (!this.editorWindow || this.editorWindow.isDestroyed()) {
-			console.log("[EditorManager] setupWindowEvents: editorWindow null or destroyed, skipping");
+			console.log(
+				"[EditorManager] setupWindowEvents: editorWindow null or destroyed, skipping"
+			);
 			return;
 		}
-		
+
 		// Yükleme tamamlandığında pencereyi göster
 		this.editorWindow.webContents.once("did-finish-load", () => {
 			console.log("[editorManager.cjs] Editor sayfası yükleme tamamlandı");
@@ -452,15 +472,17 @@ class EditorManager {
 		});
 
 		// Crash durumunu tespit et
-		this.editorWindow.webContents.on('crashed', (event, killed) => {
-			console.error("[EditorManager] 💥 Editor penceresi crash oldu:", { killed });
+		this.editorWindow.webContents.on("crashed", (event, killed) => {
+			console.error("[EditorManager] 💥 Editor penceresi crash oldu:", {
+				killed,
+			});
 		});
 
-		this.editorWindow.on('unresponsive', () => {
+		this.editorWindow.on("unresponsive", () => {
 			console.warn("[EditorManager] ⚠️ Editor penceresi dondu (unresponsive)");
 		});
 
-		this.editorWindow.on('responsive', () => {
+		this.editorWindow.on("responsive", () => {
 			console.log("[EditorManager] ✅ Editor penceresi tekrar yanıt veriyor");
 		});
 
