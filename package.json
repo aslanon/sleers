@@ -8,26 +8,14 @@
 	"main": "electron/main.cjs",
 	"type": "commonjs",
 	"scripts": {
-		"build": "nuxt build",
 		"dev": "nuxt dev",
-		"generate": "nuxt generate",
-		"preview": "nuxt preview",
+		"electron:dev": "arch -arm64 node scripts/start-dev.js",
 		"postinstall": "nuxt prepare && npm run prepare:arm64",
 		"prepare:arm64": "npm_config_arch=arm64 npm rebuild node-mac-recorder --arch=arm64 && npm_config_arch=arm64 npx electron-rebuild --arch arm64 --force",
-		"electron:dev": "arch -arm64 node scripts/start-dev.js",
-		"electron:build": "nuxt generate && electron-builder --dir",
-		"electron:build:mac": "nuxt generate && electron-builder -m --arm64 --dir",
-		"electron:build:quick": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --dir --config.removePackageScripts=false",
-		"electron:build:dmg": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false",
-		"electron:build:dmg:signed": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false",
-		"electron:build:dmg:notarized": "NODE_ENV=production npm run generate && electron-builder --mac --arm64 --config.removePackageScripts=false --publish=never",
-		"sign:app": "scripts/sign-app.sh",
-		"sign:apple": "scripts/sign-apple-developer.sh",
+		"build": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false --config.directories.output=public",
+		"sign": "scripts/sign-apple-developer.sh",
 		"notarize": "scripts/notarize-app.sh",
-		"check-notarization": "scripts/check-notarization-env.sh",
-		"build:signed": "scripts/build-and-sign.sh",
-		"build:apple": "scripts/build-apple-developer.sh",
-		"build:dmg": "./build-notarized.sh",
+		"generate": "nuxt generate",
 		"cleanup": "lsof -ti:3002,3003,3004,3005,3006,3007,3008,3009,3010,3011,3012,3013,3014,3015,3016,3017,3018,3019,3020 2>/dev/null | xargs kill -9 2>/dev/null || echo 'No ports to clean up' && echo 'Port cleanup completed'"
 	},
 	"dependencies": {
@@ -52,7 +40,7 @@
 		"concurrently": "^8.2.2",
 		"cross-env": "^7.0.3",
 		"electron": "^37.0.0",
-		"electron-builder": "^26.0.12",
+		"electron-builder": "^24.13.3",
 		"nuxt": "^3.9.1"
 	}
 }

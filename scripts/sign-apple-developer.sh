@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Creavit Studio uygulamasını Apple Developer sertifikası ile imzalama scripti

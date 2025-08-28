@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Creavit Studio uygulamasını Apple Developer hesabı ile notarize eden script
