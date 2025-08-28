@@ -25,9 +25,12 @@ logs
 
 # Built app files
 public/mac-arm64/
+public/mac-x64/
 public/*.dmg
 public/*.zip
 public/*.blockmap
 public/latest-mac.yml
 public/builder-debug.yml
-
+*.app
+*.dmg
+*.zip
