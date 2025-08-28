@@ -5,22 +5,36 @@
 
 set -e
 
-APP_PATH="$1"
-APPLE_ID="$2"
-APPLE_ID_PASSWORD="$3"
+# .env dosyasını yükle
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
 
-if [ -z "$APP_PATH" ] || [ -z "$APPLE_ID" ] || [ -z "$APPLE_ID_PASSWORD" ]; then
-    echo "Kullanım: $0 <app_path> <apple_id> <apple_id_password>"
-    echo "Örnek: $0 dist/mac-arm64/Creavit\ Studio.app your-apple-id@example.com your-app-specific-password"
+APP_PATH="${1:-public/mac-arm64/Creavit Studio.app}"
+APPLE_ID="${2:-$APPLE_ID}"
+APPLE_ID_PASSWORD="${3:-$APPLE_APP_SPECIFIC_PASSWORD}"
+
+if [ ! -d "$APP_PATH" ]; then
+    echo "Hata: Uygulama bulunamadı: $APP_PATH"
+    echo "Önce 'npm run build' ve 'npm run sign' komutlarını çalıştırın."
+    exit 1
+fi
+
+if [ -z "$APPLE_ID" ] || [ -z "$APPLE_ID_PASSWORD" ]; then
+    echo "❌ Apple ID bilgileri bulunamadı!"
+    echo ""
+    echo "🔧 Çözüm 1: .env dosyasında tanımlayın:"
+    echo "   APPLE_ID=\"your-apple-id@example.com\""
+    echo "   APPLE_APP_SPECIFIC_PASSWORD=\"your-app-specific-password\""
+    echo ""
+    echo "🔧 Çözüm 2: Manuel olarak belirtin:"
+    echo "   npm run notarize -- \"public/mac-arm64/Creavit Studio.app\" \"apple-id\" \"password\""
     echo ""
     echo "ℹ️  App-specific password oluşturmak için:"
     echo "   https://appleid.apple.com/account/manage"
     echo "   Security > App-Specific Passwords"
-    exit 1
-fi
-
-if [ ! -d "$APP_PATH" ]; then
-    echo "Hata: Uygulama bulunamadı: $APP_PATH"
     exit 1
 fi
 

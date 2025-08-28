@@ -23,3 +23,9 @@ logs
 .env.*
 !.env.example
 
+*.app
+*.dmg
+*.zip
+public/mac-arm64/*
+public/mac-x64/*
+public

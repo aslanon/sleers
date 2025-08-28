@@ -5,23 +5,22 @@
 
 set -e
 
-APP_PATH="$1"
+# .env dosyasını yükle
+if [ -f .env ]; then
+    set -a
+    source .env
+    set +a
+fi
+
+APP_PATH="${1:-public/mac-arm64/Creavit Studio.app}"
 ENTITLEMENTS_PATH="build/entitlements.mac.plist"
 
-# Apple Developer sertifika kimliği (security find-identity -v -p codesigning komutu ile bulunabilir)
-CERTIFICATE_ID="$2"
-
-if [ -z "$APP_PATH" ]; then
-    echo "Kullanım: $0 <app_path> [certificate_id]"
-    echo "Örnek: $0 dist/mac-arm64/Creavit\ Studio.app"
-    echo ""
-    echo "Mevcut sertifikalar:"
-    security find-identity -v -p codesigning
-    exit 1
-fi
+# Apple Developer sertifika kimliği (.env'den al)
+CERTIFICATE_ID="${2:-$APPLE_CERTIFICATE_ID}"
 
 if [ ! -d "$APP_PATH" ]; then
     echo "Hata: Uygulama bulunamadı: $APP_PATH"
+    echo "Önce 'npm run build' komutunu çalıştırın."
     exit 1
 fi
 
@@ -30,13 +29,18 @@ if [ ! -f "$ENTITLEMENTS_PATH" ]; then
     exit 1
 fi
 
-# Eğer sertifika kimliği belirtilmemişse, mevcut sertifikaları listele
+# Eğer sertifika kimliği belirtilmemişse, hata ver
 if [ -z "$CERTIFICATE_ID" ]; then
+    echo "❌ Apple Developer sertifika kimliği bulunamadı!"
+    echo ""
+    echo "🔧 Çözüm 1: .env dosyasında APPLE_CERTIFICATE_ID tanımlayın:"
+    echo "   APPLE_CERTIFICATE_ID=\"Developer ID Application: Your Name (TEAM123456)\""
+    echo ""
+    echo "🔧 Çözüm 2: Manuel olarak belirtin:"
+    echo "   npm run sign -- \"public/mac-arm64/Creavit Studio.app\" \"Certificate ID\""
+    echo ""
     echo "🔍 Mevcut Apple Developer sertifikaları:"
     security find-identity -v -p codesigning
-    echo ""
-    echo "❌ Lütfen bir sertifika kimliği belirtin."
-    echo "Kullanım: $0 <app_path> <certificate_id>"
     exit 1
 fi
 
