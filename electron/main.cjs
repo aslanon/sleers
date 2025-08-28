@@ -10,6 +10,7 @@ const {
 	screen,
 	dialog,
 	net,
+	systemPreferences,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -37,7 +38,9 @@ try {
 	Store = class SimpleStore {
 		constructor(options = {}) {
 			this.data = options.defaults || {};
-			console.warn("electron-store yerine basit bir inmemory store kullanılıyor");
+			console.warn(
+				"electron-store yerine basit bir inmemory store kullanılıyor"
+			);
 		}
 		get(key) {
 			return key ? this.data[key] : this.data;
@@ -719,6 +722,26 @@ function createScreenRecordingPath() {
 // START_MAC_RECORDING handler - MacRecorder başlatır
 safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 	try {
+		// Check screen recording permission
+		const screenPermission = systemPreferences.getMediaAccessStatus("screen");
+		console.log(
+			`[Main] Current screen recording permission status: ${screenPermission}`
+		);
+
+		if (screenPermission !== "granted") {
+			console.log("[Main] Screen recording permission not granted");
+
+			// Screen recording permission cannot be requested programmatically on macOS
+			// The user must manually grant it through System Preferences
+			// However, attempting to start recording will trigger the system dialog
+			console.log(
+				"[Main] Screen recording will trigger system permission dialog on first attempt"
+			);
+
+			// We can still proceed - the system will show the permission dialog
+			// when we actually try to start recording with node-mac-recorder
+		}
+
 		// YENİ KAYIT BAŞLAMADAN ÖNCE TEMİZLİK YAP
 		if (tempFileManager) {
 			await tempFileManager.cleanupAllFiles();
@@ -918,16 +941,16 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 
 		console.log("[Main] 🎬 MacRecorder.startRecording çağrılıyor...", {
 			outputPath,
-			options: recordingOptions
+			options: recordingOptions,
 		});
-		
+
 		const result = await recorder.startRecording(outputPath, recordingOptions);
-		
+
 		console.log("[Main] 🎬 MacRecorder.startRecording sonucu:", {
 			result,
 			type: typeof result,
 			isTrue: result === true,
-			isFalse: result === false
+			isFalse: result === false,
 		});
 
 		if (result) {
@@ -947,11 +970,14 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 
 			// RECORDING_STATUS_CHANGED event'ini tetikle
 			ipcMain.emit(IPC_EVENTS.RECORDING_STATUS_CHANGED, event, true);
-			
+
 			console.log("[Main] ✅ Ekran kaydı başlatıldı:", outputPath);
 			return { success: true, outputPath };
 		} else {
-			console.error("[Main] ❌ MacRecorder kaydı başlatılamadı, result:", result);
+			console.error(
+				"[Main] ❌ MacRecorder kaydı başlatılamadı, result:",
+				result
+			);
 			return {
 				success: false,
 				outputPath: null,
@@ -963,9 +989,30 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 		console.error("[Main] Error details:", {
 			name: error.name,
 			message: error.message,
-			stack: error.stack?.split('\n').slice(0, 3).join('\n')
+			stack: error.stack?.split("\n").slice(0, 3).join("\n"),
 		});
-		
+
+		// Check if this is a permission error
+		if (
+			error.message &&
+			error.message.includes("ScreenCaptureKit failed to start")
+		) {
+			const currentScreenPermission =
+				systemPreferences.getMediaAccessStatus("screen");
+			console.log(
+				`[Main] Screen permission after error: ${currentScreenPermission}`
+			);
+
+			if (currentScreenPermission !== "granted") {
+				return {
+					success: false,
+					outputPath: null,
+					error:
+						"Ekran kaydetme izni gerekli. Lütfen Sistem Ayarları > Gizlilik ve Güvenlik > Ekran ve Sistem Ses Kaydı bölümünden bu uygulamaya izin verin ve tekrar deneyin.",
+				};
+			}
+		}
+
 		// Try to get backend info for debugging
 		try {
 			const recorder = getMacRecorderInstance();
@@ -974,17 +1021,19 @@ safeHandle(IPC_EVENTS.START_MAC_RECORDING, async (event, options) => {
 				console.log("[Main] Recorder system info during error:", systemInfo);
 				if (systemInfo.backend) {
 					console.log(`[Main] Backend in use: ${systemInfo.backend}`);
-					if (systemInfo.backend === 'AVFoundation') {
+					if (systemInfo.backend === "AVFoundation") {
 						console.log("[Main] ✅ AVFoundation fallback is active");
-					} else if (systemInfo.backend === 'ScreenCaptureKit') {
-						console.log("[Main] ❌ ScreenCaptureKit failed - check entitlements");
+					} else if (systemInfo.backend === "ScreenCaptureKit") {
+						console.log(
+							"[Main] ❌ ScreenCaptureKit failed - check entitlements"
+						);
 					}
 				}
 			}
 		} catch (debugError) {
 			console.log("[Main] Could not get debug info:", debugError.message);
 		}
-		
+
 		return { success: false, outputPath: null, error: error.message };
 	}
 });
@@ -1132,12 +1181,13 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 
 		console.log("[Main] 🛑 MacRecorder.stopRecording çağrılıyor...");
 		const result = await recorder.stopRecording();
-		
+
 		console.log("[Main] 🛑 MacRecorder.stopRecording sonucu:", {
 			result,
 			type: typeof result,
 			hasCode: result && typeof result === "object" && "code" in result,
-			hasOutputPath: result && typeof result === "object" && "outputPath" in result
+			hasOutputPath:
+				result && typeof result === "object" && "outputPath" in result,
 		});
 
 		// Stop result: { code: 0, outputPath: "..." }
@@ -1150,21 +1200,32 @@ safeHandle(IPC_EVENTS.STOP_MAC_RECORDING, async (event) => {
 			actualFilePath,
 			isSuccess,
 			fileExists: actualFilePath ? fs.existsSync(actualFilePath) : false,
-			fileStat: actualFilePath && fs.existsSync(actualFilePath) ? fs.statSync(actualFilePath) : null
+			fileStat:
+				actualFilePath && fs.existsSync(actualFilePath)
+					? fs.statSync(actualFilePath)
+					: null,
 		});
 
 		if (isSuccess && actualFilePath) {
 			// Store screen recording file in TempFileManager
 			tempFileManager.tempFiles.screen = actualFilePath;
-			console.log("[Main] 📁 Ekran kayıt dosyası TempFileManager'a eklendi:", actualFilePath);
-			
+			console.log(
+				"[Main] 📁 Ekran kayıt dosyası TempFileManager'a eklendi:",
+				actualFilePath
+			);
+
 			// RECORDING_STATUS_CHANGED event'ini tetikle
 			ipcMain.emit(IPC_EVENTS.RECORDING_STATUS_CHANGED, event, false);
-			
-			console.log("[Main] ✅ Ekran kaydı durduruldu ve dosya oluşturuldu:", actualFilePath);
+
+			console.log(
+				"[Main] ✅ Ekran kaydı durduruldu ve dosya oluşturuldu:",
+				actualFilePath
+			);
 			return { success: true, filePath: actualFilePath };
 		} else {
-			console.error("[Main] ❌ MacRecorder kaydı durdurulamadı veya dosya oluşturulamadı");
+			console.error(
+				"[Main] ❌ MacRecorder kaydı durdurulamadı veya dosya oluşturulamadı"
+			);
 			return {
 				success: false,
 				filePath: null,
@@ -3379,8 +3440,8 @@ function setupIpcHandlers() {
 	let authStore;
 	try {
 		authStore = new Store({
-			name: 'creavit-auth',
-			defaults: {}
+			name: "creavit-auth",
+			defaults: {},
 		});
 		console.log("[main] Authentication store initialized");
 	} catch (error) {
@@ -3391,7 +3452,7 @@ function setupIpcHandlers() {
 	ipcMain.handle("STORE_AUTH_DATA", async (event, authData) => {
 		try {
 			if (authStore) {
-				authStore.set('authData', authData);
+				authStore.set("authData", authData);
 				console.log("[main] Authentication data stored");
 				return { success: true };
 			}
@@ -3405,8 +3466,11 @@ function setupIpcHandlers() {
 	ipcMain.handle("GET_AUTH_DATA", async (event) => {
 		try {
 			if (authStore) {
-				const authData = authStore.get('authData');
-				console.log("[main] Authentication data retrieved:", authData ? "Found" : "Not found");
+				const authData = authStore.get("authData");
+				console.log(
+					"[main] Authentication data retrieved:",
+					authData ? "Found" : "Not found"
+				);
 				return authData || null;
 			}
 			return null;
@@ -3419,7 +3483,7 @@ function setupIpcHandlers() {
 	ipcMain.handle("CLEAR_AUTH_DATA", async (event) => {
 		try {
 			if (authStore) {
-				authStore.delete('authData');
+				authStore.delete("authData");
 				console.log("[main] Authentication data cleared");
 				return { success: true };
 			}
@@ -3777,8 +3841,6 @@ function setupSecurityPolicies() {
 			"font-src 'self' http://localhost:* file: data: electron: blob:; " +
 			"media-src 'self' http://localhost:* file: data: electron: blob: https://*.giphy.com https://media.giphy.com;";
 
-		console.log("[Main] Applying CSP:", cspPolicy);
-
 		callback({
 			responseHeaders: {
 				...details.responseHeaders,
@@ -3989,14 +4051,46 @@ function getPreloadPath() {
 	return path.join(__dirname, "preload.cjs");
 }
 
+// Function to check and inform about permissions
+async function checkPermissions() {
+	console.log("[Main] Checking system permissions...");
+
+	// Check screen recording permission
+	const screenPermission = systemPreferences.getMediaAccessStatus("screen");
+	console.log(`[Main] Screen recording permission: ${screenPermission}`);
+
+	// Check camera permission
+	const cameraPermission = systemPreferences.getMediaAccessStatus("camera");
+	console.log(`[Main] Camera permission: ${cameraPermission}`);
+
+	// Check microphone permission
+	const micPermission = systemPreferences.getMediaAccessStatus("microphone");
+	console.log(`[Main] Microphone permission: ${micPermission}`);
+
+	if (screenPermission !== "granted") {
+		console.log(
+			"[Main] ⚠️ Screen recording permission not granted. Will request when needed."
+		);
+	}
+
+	return {
+		screen: screenPermission,
+		camera: cameraPermission,
+		microphone: micPermission,
+	};
+}
+
 // App lifecycle events
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
 	// Uygulama kapanma değişkenini false olarak ayarla
 	app.isQuitting = false;
 
 	// Setup security policies first
 	console.log("[Main] Setting up security policies...");
 	setupSecurityPolicies();
+
+	// Check permissions
+	await checkPermissions();
 
 	// Initialize DockManager early
 	console.log("[Main] Initializing DockManager...");

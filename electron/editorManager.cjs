@@ -9,18 +9,25 @@ class EditorManager {
 		this.mainWindow = mainWindow;
 		this.editorWindow = null;
 		this.isOpen = false;
+		this.isCreating = false; // Pencere oluşturma kilidi
 	}
 
 	async createEditorWindow() {
+		// Kilit kontrolü - eğer zaten oluşturuluyorsa bekle
+		if (this.isCreating) {
+			console.log("[EditorManager] ⚠️ Editör penceresi zaten oluşturuluyor, bekleniyor...");
+			return false;
+		}
+		
+		this.isCreating = true;
+		
 		try {
 			console.log("[EditorManager] Editör penceresi oluşturuluyor...");
 
-			// Eğer halihazırda bir editör penceresi açıksa, onu kapatalım
+			// Eğer halihazırda bir editör penceresi açıksa, onu kapatmadan devam et
 			if (this.editorWindow && !this.editorWindow.isDestroyed()) {
-				console.log(
-					"[EditorManager] Halihazırda bir editör penceresi var, kapatılıyor..."
-				);
-				this.editorWindow.close();
+				console.log("[EditorManager] ✅ Editör penceresi zaten açık ve çalışıyor");
+				return true;
 			}
 
 			// Yeni bir editör penceresi oluştur
@@ -169,17 +176,19 @@ class EditorManager {
 				}
 
 				// Her durumda pencereyi göster - yani content hatasına rağmen pencere açılacak
-				this.editorWindow.once("ready-to-show", () => {
-					if (this.editorWindow && !this.editorWindow.isDestroyed()) {
-						this.editorWindow.show();
-						console.log(
-							"[EditorManager] Editör penceresi gösteriliyor (ready-to-show)"
-						);
-					}
-				});
+				if (this.editorWindow && !this.editorWindow.isDestroyed()) {
+					this.editorWindow.once("ready-to-show", () => {
+						if (this.editorWindow && !this.editorWindow.isDestroyed()) {
+							this.editorWindow.show();
+							console.log(
+								"[EditorManager] Editör penceresi gösteriliyor (ready-to-show)"
+							);
+						}
+					});
+				}
 
 				// Production'da DevTools'u tamamen devre dışı bırak
-				if (!isDev) {
+				if (!isDev && this.editorWindow && !this.editorWindow.isDestroyed()) {
 					// DevTools'u programatik olarak devre dışı bırak
 					try {
 						this.editorWindow.webContents.setDevToolsWebContents(null);
@@ -222,8 +231,10 @@ class EditorManager {
 					}
 				}, 1000);
 
-				this.setupWindowEvents();
-				this.isOpen = true;
+				if (this.editorWindow && !this.editorWindow.isDestroyed()) {
+					this.setupWindowEvents();
+					this.isOpen = true;
+				}
 
 				// Ana pencereyi event'ı gönder - hata oluşan yer burasıydı
 				if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -330,6 +341,9 @@ class EditorManager {
 			);
 			this.isOpen = false;
 			return false;
+		} finally {
+			// Kilidi serbest bırak
+			this.isCreating = false;
 		}
 	}
 
@@ -398,6 +412,11 @@ class EditorManager {
 	}
 
 	setupWindowEvents() {
+		if (!this.editorWindow || this.editorWindow.isDestroyed()) {
+			console.log("[EditorManager] setupWindowEvents: editorWindow null or destroyed, skipping");
+			return;
+		}
+		
 		// Yükleme tamamlandığında pencereyi göster
 		this.editorWindow.webContents.once("did-finish-load", () => {
 			console.log("[editorManager.cjs] Editor sayfası yükleme tamamlandı");
@@ -418,7 +437,7 @@ class EditorManager {
 
 		// Kapatıldığında temizlik yap
 		this.editorWindow.on("closed", () => {
-			console.log("[editorManager.cjs] Editor penceresi kapatıldı");
+			console.log("[EditorManager] 🔴 Editor penceresi kapatıldı");
 			this.editorWindow = null;
 			this.isOpen = false;
 
@@ -430,6 +449,19 @@ class EditorManager {
 			if (this.mainWindow && !this.mainWindow.isDestroyed()) {
 				this.mainWindow.show();
 			}
+		});
+
+		// Crash durumunu tespit et
+		this.editorWindow.webContents.on('crashed', (event, killed) => {
+			console.error("[EditorManager] 💥 Editor penceresi crash oldu:", { killed });
+		});
+
+		this.editorWindow.on('unresponsive', () => {
+			console.warn("[EditorManager] ⚠️ Editor penceresi dondu (unresponsive)");
+		});
+
+		this.editorWindow.on('responsive', () => {
+			console.log("[EditorManager] ✅ Editor penceresi tekrar yanıt veriyor");
 		});
 
 		// Editor penceresi içinde olup bitenleri dinleyen event handler'ları

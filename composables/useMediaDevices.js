@@ -10,6 +10,9 @@ import synchronizedRecording from "../services/SynchronizedRecordingService.js";
 export const useMediaDevices = () => {
 	const router = useRouter();
 	const IPC_EVENTS = window.electron?.ipcRenderer?.IPC_EVENTS;
+	
+	// Editor açılma kilidi - çift açılmayı önler
+	let openingEditor = false;
 
 	// Import modules
 	const cameraModule = useCamera();
@@ -210,20 +213,33 @@ export const useMediaDevices = () => {
 			// Editör açılmadan önce kısa bir gecikme ekle (stream'lerin tamamen kapanması için)
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 
-			// Editör penceresini aç
-			const screenResult = results.find((r) => r && r.videoPath);
-			const cameraResult =
-				results.find((r) => r && r.cameraPath) ||
-				results.find((r) => typeof r === "string");
-			const audioResult = results.find((r) => r && r.audioPath);
+			// Editor açılma kilidi kontrolü
+			if (openingEditor) {
+				console.log("[useMediaDevices] Editor zaten açılıyor, ikinci çağrı iptal edildi");
+				return;
+			}
+			
+			openingEditor = true;
 
-			await window.electron?.ipcRenderer.invoke(IPC_EVENTS.OPEN_EDITOR, {
-				videoPath: screenResult?.videoPath || null,
-				cameraPath:
-					cameraResult?.cameraPath ||
-					(typeof cameraResult === "string" ? cameraResult : null),
-				audioPath: audioResult?.audioPath || null,
-			});
+			try {
+				// Editör penceresini aç
+				const screenResult = results.find((r) => r && r.videoPath);
+				const cameraResult =
+					results.find((r) => r && r.cameraPath) ||
+					results.find((r) => typeof r === "string");
+				const audioResult = results.find((r) => r && r.audioPath);
+
+				await window.electron?.ipcRenderer.invoke(IPC_EVENTS.OPEN_EDITOR, {
+					videoPath: screenResult?.videoPath || null,
+					cameraPath:
+						cameraResult?.cameraPath ||
+						(typeof cameraResult === "string" ? cameraResult : null),
+					audioPath: audioResult?.audioPath || null,
+				});
+			} finally {
+				// Kilidi serbest bırak
+				openingEditor = false;
+			}
 		} catch (error) {
 			console.error("Kayıt durdurulurken hata:", error);
 			isRecording.value = false;
