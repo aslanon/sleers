@@ -10,6 +10,13 @@ module.exports = {
 		output: "dist",
 		buildResources: "build",
 	},
+	publish: [
+		{
+			provider: "github",
+			owner: "aslanon",
+			repo: "sleers",
+		},
+	],
 	files: [
 		"electron/**",
 		"package.json",

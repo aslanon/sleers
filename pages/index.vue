@@ -75,7 +75,7 @@
 				<button
 					@click="startDynamicScreenOverlay"
 					class="p-2 flex items-center flex-col gap-2 hover:bg-white/10 rounded-lg"
-					title="Ekran Seç ve Kayıt Başlat (Screen Selection)"
+					title="Screen Selection"
 				>
 					<svg
 						width="27"
@@ -101,7 +101,7 @@
 				<button
 					@click="startDynamicOverlay"
 					class="p-2 flex items-center flex-col gap-2 hover:bg-white/10 rounded-lg"
-					title="Pencere Seç ve Kayıt Başlat (Screen Studio style)"
+					title="Window Selection"
 				>
 					<svg
 						width="27"
@@ -122,7 +122,7 @@
 				<button
 					@click="selectRecordingType('area')"
 					class="p-2 flex items-center flex-col gap-2 hover:bg-white/10 rounded-lg"
-					title="Area Recording"
+					title="Area Selection"
 				>
 					<svg
 						width="29"
@@ -320,7 +320,7 @@
 			<button
 				@click="openEditorMode"
 				class="p-2 pr-4 flex flex-row items-center gap-2 hover:bg-white/10 rounded-lg text-xs font-medium truncate"
-				title="Go to Editor Without Recording"
+				title="Go to Editor"
 			>
 				<img src="/logo.svg" alt="Edit Icon" class="w-8" />
 

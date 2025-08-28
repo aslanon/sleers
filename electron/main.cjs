@@ -12,6 +12,7 @@ const {
 	net,
 	systemPreferences,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 const isDev = process.env.NODE_ENV === "development";
@@ -4101,6 +4102,11 @@ app.whenReady().then(async () => {
 	checkAndRequestPermissions();
 	createWindow();
 	setupIpcHandlers();
+
+	// Auto-updater - sadece production'da çalışsın
+	if (!isDev) {
+		setupAutoUpdater();
+	}
 });
 
 app.on("window-all-closed", () => {
@@ -5753,3 +5759,79 @@ ipcMain.on("STOP_DYNAMIC_SCREEN_OVERLAY", stopDynamicScreenOverlay);
 app.on("before-quit", () => {
 	closeAllOverlays();
 });
+
+// Auto-updater setup
+function setupAutoUpdater() {
+	console.log("[AutoUpdater] Setting up auto-updater...");
+	
+	// Auto-updater konfigürasyonu
+	autoUpdater.autoDownload = false; // Manuel kontrol için
+	autoUpdater.autoInstallOnAppQuit = true;
+
+	// Update olayları
+	autoUpdater.on('checking-for-update', () => {
+		console.log('[AutoUpdater] Checking for update...');
+	});
+
+	autoUpdater.on('update-available', (info) => {
+		console.log('[AutoUpdater] Update available:', info.version);
+		
+		// Kullanıcıya bildir
+		if (mainWindow) {
+			mainWindow.webContents.send('UPDATE_AVAILABLE', {
+				version: info.version,
+				releaseNotes: info.releaseNotes,
+				releaseDate: info.releaseDate
+			});
+		}
+
+		// Update'i indir
+		autoUpdater.downloadUpdate();
+	});
+
+	autoUpdater.on('update-not-available', (info) => {
+		console.log('[AutoUpdater] Update not available.');
+	});
+
+	autoUpdater.on('error', (err) => {
+		console.error('[AutoUpdater] Error:', err);
+	});
+
+	autoUpdater.on('download-progress', (progressObj) => {
+		let log_message = "Download speed: " + progressObj.bytesPerSecond;
+		log_message = log_message + ' - Downloaded ' + progressObj.percent + '%';
+		log_message = log_message + ' (' + progressObj.transferred + "/" + progressObj.total + ')';
+		console.log('[AutoUpdater]', log_message);
+
+		// İlerleme durumunu UI'ye bildir
+		if (mainWindow) {
+			mainWindow.webContents.send('UPDATE_PROGRESS', progressObj);
+		}
+	});
+
+	autoUpdater.on('update-downloaded', (info) => {
+		console.log('[AutoUpdater] Update downloaded');
+		
+		// Kullanıcıya bildir ve restart seçeneği sun
+		if (mainWindow) {
+			mainWindow.webContents.send('UPDATE_DOWNLOADED', {
+				version: info.version
+			});
+		}
+	});
+
+	// IPC handlers for update actions
+	ipcMain.handle('CHECK_FOR_UPDATES', () => {
+		autoUpdater.checkForUpdatesAndNotify();
+	});
+
+	ipcMain.handle('RESTART_AND_UPDATE', () => {
+		autoUpdater.quitAndInstall();
+	});
+
+	// İlk kontrol - app başladıktan 5 saniye sonra
+	setTimeout(() => {
+		console.log('[AutoUpdater] Initial update check...');
+		autoUpdater.checkForUpdatesAndNotify();
+	}, 5000);
+}
