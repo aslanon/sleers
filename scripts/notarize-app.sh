@@ -13,7 +13,7 @@ if [ -f .env ]; then
     set +a
 fi
 
-APP_PATH="${1:-public/mac-arm64/Creavit Studio.app}"
+APP_PATH="${1:-dist/mac-arm64/Creavit Studio.app}"
 APPLE_ID="${2:-$APPLE_ID}"
 APPLE_ID_PASSWORD="${3:-$APPLE_APP_SPECIFIC_PASSWORD}"
 

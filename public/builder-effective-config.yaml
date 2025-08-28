@@ -1,6 +1,0 @@
-directories:
-  output: public
-  buildResources: build
-removePackageScripts: false
-files: []
-electronVersion: 37.4.0

@@ -12,7 +12,7 @@
 		"electron:dev": "arch -arm64 node scripts/start-dev.js",
 		"postinstall": "nuxt prepare && npm run prepare:arm64",
 		"prepare:arm64": "npm_config_arch=arm64 npm rebuild node-mac-recorder --arch=arm64 && npm_config_arch=arm64 npx electron-rebuild --arch arm64 --force",
-		"build": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false --config.directories.output=public",
+		"build": "NODE_ENV=production npm run generate && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac --arm64 --config.removePackageScripts=false --config.directories.output=dist",
 		"sign": "scripts/sign-apple-developer.sh",
 		"notarize": "scripts/notarize-app.sh",
 		"generate": "nuxt generate",
