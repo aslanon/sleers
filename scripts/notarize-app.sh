@@ -66,6 +66,26 @@ xcrun stapler staple "$APP_PATH"
 # Zip dosyasını temizle
 rm -f "$ZIP_PATH"
 
+# DMG dosyasını bul ve notarize et
+echo "📦 DMG dosyası aranıyor..."
+DMG_DIR=$(dirname "$APP_PATH")
+DMG_FILE=$(find "$(dirname "$DMG_DIR")" -name "*.dmg" -type f | head -1)
+
+if [ -n "$DMG_FILE" ] && [ -f "$DMG_FILE" ]; then
+    echo "🚀 DMG dosyası notarize ediliyor: $(basename "$DMG_FILE")"
+    xcrun notarytool submit "$DMG_FILE" \
+        --apple-id "$APPLE_ID" \
+        --password "$APPLE_ID_PASSWORD" \
+        --team-id "$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*(\([^)]*\)).*/\1/')" \
+        --wait
+    
+    echo "📎 DMG staple işlemi yapılıyor..."
+    xcrun stapler staple "$DMG_FILE"
+    echo "✅ DMG başarıyla notarize edildi!"
+else
+    echo "⚠️  DMG dosyası bulunamadı, sadece .app notarize edildi"
+fi
+
 echo "🎉 Notarization işlemi tamamlandı!"
 echo ""
 echo "ℹ️  Not: Artık uygulamanız macOS Catalina ve üzeri için tamamen uyumlu."

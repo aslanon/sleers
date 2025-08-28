@@ -87,6 +87,22 @@ codesign --force --deep --sign "$CERTIFICATE_ID" --entitlements "$ENTITLEMENTS_P
 echo "✅ İmza doğrulanıyor..."
 codesign --verify --deep --strict "$APP_PATH"
 
+# DMG dosyasını bul ve imzala
+echo "📦 DMG dosyası aranıyor..."
+DMG_DIR=$(dirname "$APP_PATH")
+DMG_FILE=$(find "$(dirname "$DMG_DIR")" -name "*.dmg" -type f | head -1)
+
+if [ -n "$DMG_FILE" ] && [ -f "$DMG_FILE" ]; then
+    echo "🎯 DMG dosyası imzalanıyor: $(basename "$DMG_FILE")"
+    codesign --force --sign "$CERTIFICATE_ID" "$DMG_FILE"
+    
+    echo "✅ DMG imzası doğrulanıyor..."
+    codesign --verify "$DMG_FILE"
+    echo "✅ DMG başarıyla imzalandı!"
+else
+    echo "⚠️  DMG dosyası bulunamadı, sadece .app imzalandı"
+fi
+
 echo "🎉 Apple Developer sertifikası ile imzalama tamamlandı!"
 echo ""
 echo "ℹ️  Not: Bu imzalama ile uygulamanız App Store dışı dağıtım için hazır."
